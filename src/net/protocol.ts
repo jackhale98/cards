@@ -1,9 +1,28 @@
 import type { Action, ActionSpec, GameState, GameStatus } from '../engine/types';
 
+/** A player's chosen look: an emoji on a coloured disc. */
+export interface Avatar {
+  emoji: string;
+  color: string;
+}
+
+export const AVATAR_EMOJI = ['🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐸', '🐵', '🦉', '🐧', '🐙', '🦄', '🐲', '🦖', '🐳', '🦋', '🌵', '🍀', '🍄', '🌙', '⭐', '🔥', '💎', '🎩', '👑', '🎲', '🚀', '🎸'];
+export const AVATAR_COLORS = ['#e9c46a', '#5fb3d9', '#e76f51', '#9b8cf2', '#7bd389', '#f28cbf', '#f4a261', '#4fd1c5', '#c9d36a', '#d98ae0'];
+
+/** Accept only a short emoji and a hex colour from the network. */
+export function cleanAvatar(a: unknown): Avatar | undefined {
+  if (!a || typeof a !== 'object') return undefined;
+  const { emoji, color } = a as Record<string, unknown>;
+  if (typeof emoji !== 'string' || typeof color !== 'string') return undefined;
+  if (!/^#[0-9a-f]{6}$/i.test(color) || [...emoji].length > 4 || /[<>&"']/.test(emoji)) return undefined;
+  return { emoji, color };
+}
+
 export interface LobbySeat {
   /** Stable client id (survives reconnects). Bots use `bot:<n>`. */
   id: string;
   name: string;
+  avatar?: Avatar;
   bot?: boolean;
   host?: boolean;
   connected: boolean;
@@ -30,7 +49,7 @@ export interface View {
 }
 
 export type ClientMsg =
-  | { t: 'hello'; cid: string; name: string; display?: boolean }
+  | { t: 'hello'; cid: string; name: string; avatar?: Avatar; display?: boolean }
   | { t: 'act'; a: Action; seq: number };
 
 export type HostMsg =

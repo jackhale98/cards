@@ -2,7 +2,9 @@
   import { app } from '../../app.svelte';
   import { GAME_LIST, getGame } from '../../games';
   import type { View } from '../../net/protocol';
-  import { initials, seatColor } from '../seatColors';
+  import AvatarBadge from '../components/AvatarBadge.svelte';
+  import AvatarPicker from '../components/AvatarPicker.svelte';
+  import Sheet from '../components/Sheet.svelte';
 
   let { view }: { view: View } = $props();
 
@@ -33,7 +35,14 @@
   }
 
   const mySeat = $derived(lobby.seats.findIndex((s) => s.id === app.cid));
+  let picking = $state(false);
 </script>
+
+{#if picking}
+  <Sheet title="Pick your look" onclose={() => (picking = false)}>
+    <AvatarPicker value={app.avatar} name={app.name} onpick={(a) => app.setProfile(app.name, a)} />
+  </Sheet>
+{/if}
 
 <div class="lobby">
   <section class="invite panel">
@@ -59,7 +68,13 @@
       <ul class="players">
         {#each lobby.seats as seat, i (seat.id)}
           <li class:me={i === mySeat} class:offline={!seat.connected}>
-            <span class="av" style:--c={seatColor(i)}>{initials(seat.name)}</span>
+            {#if i === mySeat}
+              <button class="me-av" onclick={() => (picking = true)} aria-label="Change your avatar">
+                <AvatarBadge avatar={seat.avatar} name={seat.name} seat={i} size={32} />
+              </button>
+            {:else}
+              <AvatarBadge avatar={seat.avatar} name={seat.name} seat={i} size={32} />
+            {/if}
             <span class="pname">
               <span class="ptext">{seat.name}</span>
               {#if seat.host}<em>host</em>{/if}
@@ -246,17 +261,10 @@
       transform: translateY(6px);
     }
   }
-  .av {
-    width: 30px;
-    height: 30px;
-    flex: none;
+  .me-av {
+    padding: 0;
     border-radius: 50%;
-    display: grid;
-    place-items: center;
-    font-size: 0.75rem;
-    font-weight: 700;
-    color: #10231c;
-    background: var(--c);
+    box-shadow: 0 0 0 2px rgba(233, 196, 106, 0.6);
   }
   .pname {
     flex: 1;

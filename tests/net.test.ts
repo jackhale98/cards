@@ -54,7 +54,7 @@ describe('host ↔ clients', () => {
     bus.join(ht);
     const mk = (id: string, name: string) => {
       const t = new MemTransport(bus, `${id}-peer`);
-      const c = new Client(t, id, name);
+      const c = new Client(t, id, name, { emoji: '🦊', color: '#e9c46a' });
       bus.join(t);
       return { c, t };
     };
@@ -68,6 +68,17 @@ describe('host ↔ clients', () => {
     expect(host.lobby.seats.map((s) => s.name)).toEqual(['Hana', 'Ann', 'Ben']);
     expect(a.c.view?.lobby.seats).toHaveLength(3);
     expect(b.c.connected).toBe(true);
+    expect(host.lobby.seats[1].avatar).toEqual({ emoji: '🦊', color: '#e9c46a' });
+  });
+
+  it('rejects unsafe avatars and lets players update theirs', () => {
+    const { host, mk } = setup();
+    const a = mk('a', 'Ann');
+    a.c.updateProfile('Annie', { emoji: '<img>', color: 'red' });
+    expect(host.lobby.seats[1].name).toBe('Annie');
+    expect(host.lobby.seats[1].avatar).toEqual({ emoji: '🦊', color: '#e9c46a' });
+    a.c.updateProfile('Annie', { emoji: '🐙', color: '#5fb3d9' });
+    expect(host.lobby.seats[1].avatar).toEqual({ emoji: '🐙', color: '#5fb3d9' });
   });
 
   it('runs a hearts game where clients only see their own cards', () => {
@@ -116,7 +127,7 @@ describe('host ↔ clients', () => {
     a.t.leave();
     expect(host.lobby.seats[1].connected).toBe(false);
     const again = new MemTransport(bus, 'a-peer-2');
-    const c2 = new Client(again, 'a', 'Ann');
+    const c2 = new Client(again, 'a', 'Ann', undefined);
     bus.join(again);
     expect(host.lobby.seats[1].connected).toBe(true);
     expect(c2.view!.you).toBe(1);

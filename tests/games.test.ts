@@ -1,9 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import type { Action, GameModule, GameState } from '../src/engine/types';
 import { buildDeck } from '../src/engine/cards';
-import hearts, { legalCards, type HeartsData } from '../src/games/hearts/rules';
-import holdem, { type HoldemData } from '../src/games/holdem/rules';
-import freetable from '../src/games/freetable/rules';
+import type { TrickData } from '../src/engine/families/trickTaking';
+import type { PokerData } from '../src/engine/families/poker';
+import { GAMES } from '../src/games';
+
+const hearts = GAMES.hearts as GameModule<TrickData>;
+const holdem = GAMES.holdem as GameModule<PokerData>;
+const freetable = GAMES.freetable;
+const legalCards = (s: GameState<TrickData>, seat: number) => hearts.actions(s, seat).find((a) => a.type === 'play')?.select?.cards ?? [];
+type HeartsData = TrickData;
+type HoldemData = PokerData;
 
 /** Drive a game with bots for every seat (running system steps instantly). */
 function simulate(g: GameModule, s: GameState, maxSteps = 5000, stopPhase = 'gameOver') {
@@ -54,6 +61,8 @@ describe('hearts', () => {
     for (const c of passes[0]) expect(s.zones['hand:1'].cards.some((x) => x.id === c)).toBe(true);
     expect(s.zones[`hand:${s.turn}`].cards.some((c) => c.id === '2C')).toBe(true);
     expect(legalCards(s as GameState<HeartsData>, s.turn!)).toEqual(['2C']);
+    // hearts can't be led before they're broken, and point cards can't go on the first trick
+    expect(s.data.broken).toBe(false);
   });
 
   it('rejects illegal plays', () => {
@@ -83,7 +92,7 @@ describe('hearts', () => {
     // rig the last trick: seat 0 has taken every point so far and wins this one too
     for (const z of Object.values(s.zones)) z.cards = [];
     ['AC', '2C', '3C', '4C'].forEach((id, i) => (s.zones[`hand:${i}`].cards = [{ id }]));
-    Object.assign(s.data, { trickNo: 12, points: [26, 0, 0, 0], scores: [10, 20, 30, 40], heartsBroken: true });
+    Object.assign(s.data, { trickNo: 12, points: [26, 0, 0, 0], scores: [10, 20, 30, 40], broken: true });
     s.phase = 'play';
     s.turn = 0;
     for (let i = 0; i < 4; i++) hearts.apply(s, i, { type: 'play', cards: [s.zones[`hand:${i}`].cards[0].id] });

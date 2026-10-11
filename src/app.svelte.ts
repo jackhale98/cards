@@ -1,7 +1,7 @@
 import type { Action } from './engine/types';
 import { Client } from './net/client';
 import { Host, type HostSnapshot } from './net/host';
-import { makeRoomCode, type View } from './net/protocol';
+import { AVATAR_COLORS, AVATAR_EMOJI, cleanAvatar, makeRoomCode, type Avatar, type View } from './net/protocol';
 import { createTransport, type TransportKind } from './net/transport';
 
 export type Route =
@@ -49,6 +49,17 @@ export function parseHash(hash = location.hash): Route {
   return { name: 'home' };
 }
 
+function loadAvatar(): Avatar {
+  try {
+    const saved = cleanAvatar(JSON.parse(store.get('cards.avatar') ?? 'null'));
+    if (saved) return saved;
+  } catch {
+    /* ignore */
+  }
+  const pick = <T,>(a: T[]) => a[Math.floor(Math.random() * a.length)];
+  return { emoji: pick(AVATAR_EMOJI), color: pick(AVATAR_COLORS) };
+}
+
 interface SavedHost {
   code: string;
   /** Tab that hosts it; other tabs on this device join as normal players. */
@@ -60,6 +71,7 @@ interface SavedHost {
 class App {
   route = $state<Route>(parseHash());
   name = $state(store.get('cards.name') ?? '');
+  avatar = $state.raw<Avatar>(loadAvatar());
   view = $state.raw<View | null>(null);
   isHost = $state(false);
   connected = $state(false);
@@ -79,8 +91,18 @@ class App {
   }
 
   setName(n: string) {
-    this.name = n.slice(0, 20);
+    this.setProfile(n, this.avatar);
+  }
+
+  /** Save name/avatar locally and tell the table, if we're at one. */
+  setProfile(name: string, avatar: Avatar) {
+    this.name = name.slice(0, 20);
+    avatar = { emoji: avatar.emoji, color: avatar.color };
+    this.avatar = avatar;
     store.set('cards.name', this.name);
+    store.set('cards.avatar', JSON.stringify(avatar));
+    this.host?.updateSelf(this.name || 'Host', avatar);
+    this.client?.updateProfile(this.name || 'Player', avatar);
   }
 
   get savedHost(): SavedHost | null {
@@ -136,7 +158,7 @@ class App {
       console.warn('Network unavailable, hosting offline', e);
       return null;
     });
-    const host = new Host(transport, code, { cid: this.cid, name: this.name || 'Host' }, restore);
+    const host = new Host(transport, code, { cid: this.cid, name: this.name || 'Host', avatar: this.avatar }, restore);
     // clone so the UI gets fresh objects, exactly like a remote client would
     host.onLocalView = (v) => (this.view = structuredClone(v));
     host.onPersist = (snap) => store.set('cards.host', JSON.stringify({ code, cid: this.cid, snap, at: Date.now() } satisfies SavedHost));
@@ -151,7 +173,7 @@ class App {
     this.isHost = false;
     this.connected = false;
     const transport = await createTransport(this.net, code);
-    const client = new Client(transport, this.cid, this.name || 'Player', display);
+    const client = new Client(transport, this.cid, this.name || 'Player', this.avatar, display);
     client.onView = (v) => (this.view = v);
     client.onError = (m) => this.say(m);
     client.onConnection = (c) => (this.connected = c);

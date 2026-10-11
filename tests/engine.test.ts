@@ -38,7 +38,7 @@ describe('rng', () => {
 
 describe('registry', () => {
   it('loads every game folder, including config-only games', () => {
-    expect(Object.keys(GAMES).sort()).toEqual(['crazy-eights', 'freetable', 'hearts', 'holdem']);
+    expect(Object.keys(GAMES).sort()).toEqual(['crazy-eights', 'freetable', 'hearts', 'holdem', 'oh-hell', 'omaha', 'spades']);
     for (const g of GAME_LIST) {
       expect(g.config.players.min).toBeLessThanOrEqual(g.config.players.max);
       expect(g.config.zones.some((z) => z.id === 'deck')).toBe(true);

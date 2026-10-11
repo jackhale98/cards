@@ -74,3 +74,26 @@ export function bestHand(ids: string[]): HandValue {
           }
   return best!;
 }
+
+function combos<T>(arr: T[], k: number): T[][] {
+  if (k === 0) return [[]];
+  if (arr.length < k) return [];
+  const [first, ...rest] = arr;
+  return [...combos(rest, k - 1).map((c) => [first, ...c]), ...combos(rest, k)];
+}
+
+/**
+ * Best hand from hole + board cards. `useHole` = 0 means any five cards (hold'em);
+ * otherwise exactly that many hole cards must be used (Omaha: 2).
+ */
+export function bestWithHole(hole: string[], board: string[], useHole = 0): HandValue {
+  if (!useHole) return bestHand([...hole, ...board]);
+  let best: HandValue | null = null;
+  for (const h of combos(hole, useHole))
+    for (const b of combos(board, 5 - useHole)) {
+      const v = eval5([...h, ...b]);
+      if (!best || v.score > best.score) best = v;
+    }
+  if (!best) throw new Error('Not enough cards');
+  return best;
+}

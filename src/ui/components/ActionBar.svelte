@@ -89,12 +89,22 @@
   <div class="sheet panel">
     <div class="eyebrow">{amountFor.label}</div>
     <div class="amount">{amount.toLocaleString()} <small>{spec.label ?? ''}</small></div>
-    <input type="range" min={spec.min} max={spec.max} step={spec.step} bind:value={amount} />
-    <div class="presets">
-      {#each presets as p}
-        <button class="btn" onclick={() => (amount = p.v)}>{p.label}</button>
-      {/each}
-    </div>
+    {#if (spec.max - spec.min) / spec.step <= 15}
+      <!-- small ranges (bids, deal counts): one tap per number -->
+      <div class="numbers">
+        {#each { length: (spec.max - spec.min) / spec.step + 1 } as _, i}
+          {@const v = spec.min + i * spec.step}
+          <button class="num" class:on={v === amount} onclick={() => (amount = v)}>{v}</button>
+        {/each}
+      </div>
+    {:else}
+      <input type="range" min={spec.min} max={spec.max} step={spec.step} bind:value={amount} />
+      <div class="presets">
+        {#each presets as p}
+          <button class="btn" onclick={() => (amount = p.v)}>{p.label}</button>
+        {/each}
+      </div>
+    {/if}
     <div class="row">
       <button class="btn quiet" onclick={() => (amountFor = null)}>Cancel</button>
       <button class="btn primary" onclick={confirmAmount}>{amountFor.label} {amount.toLocaleString()}</button>
@@ -133,9 +143,10 @@
     position: fixed;
     inset: 0;
     z-index: 40;
-    background: rgba(0, 0, 0, 0.25);
+    background: linear-gradient(rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0.1) 70%);
   }
   .menu {
+    background: rgba(8, 26, 20, 0.96);
     position: fixed;
     right: calc(12px + var(--safe-r));
     bottom: 12px;
@@ -170,21 +181,45 @@
   .item.danger {
     color: #ffb4a2;
   }
+  /* pinned to the top so your hand stays visible while you decide */
   .sheet {
     position: fixed;
     z-index: 41;
     left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%);
-    width: min(26rem, calc(100vw - 24px));
-    padding: 1rem 1.2rem;
+    top: calc(8px + var(--safe-t));
+    transform: translateX(-50%);
+    width: min(28rem, calc(100vw - 24px));
+    padding: 0.7rem 1rem;
     display: flex;
     flex-direction: column;
-    gap: 0.7rem;
+    gap: 0.5rem;
     animation: pop 0.2s var(--ease-out);
+    background: rgba(8, 26, 20, 0.96);
+    max-height: calc(100dvh - 24px);
+    overflow: auto;
+  }
+  .numbers {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(38px, 1fr));
+    gap: 0.3rem;
+  }
+  .num {
+    height: 36px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--line);
+    font-weight: 700;
+    font-size: 1.05rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .num.on {
+    background: var(--gold);
+    color: #2a1d05;
+    border-color: transparent;
   }
   .amount {
-    font-size: 2rem;
+    font-size: 1.6rem;
+    line-height: 1.1;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
   }

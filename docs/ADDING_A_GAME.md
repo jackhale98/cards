@@ -1,90 +1,100 @@
 # Adding a game
 
-Every folder in `src/games/` is a game. The registry (`src/games/index.ts`) discovers it
-automatically, so there's nothing to register.
+Games are **plain JSON files**. Each folder in `src/games/` with a `game.json` is a game, and
+the registry finds it automatically. The file's `rules` block picks a **family engine** and
+sets its parameters:
 
 ```
 src/games/my-game/
-  game.json   # required: setup (deck, zones, deal, chips, options)
-  rules.ts    # optional: rule enforcement, scoring, bots
+  game.json   # deck, zones, options, and "rules": { "family": …, …parameters }
+  rules.ts    # optional escape hatch for rules no family covers
 ```
 
-## Level 1: config only (honour-system rules)
+| family         | games it can express today | engine |
+|----------------|----------------------------|--------|
+| `free`         | anything (rules not enforced), e.g. Crazy Eights | `src/engine/families/free.ts` |
+| `trick-taking` | Hearts, Spades, Oh Hell, Whist, Black Lady… | `src/engine/families/trickTaking.ts` |
+| `poker`        | Texas Hold'em, Omaha, Pineapple-style variants | `src/engine/families/poker.ts` |
 
-A `game.json` with no `rules.ts` runs on the **Free Table** engine: the deck, zones and opening deal
-come from your config, and players move cards freely. See `src/games/crazy-eights/game.json`.
+`schemas/game.schema.json` describes every parameter, so editors like VS Code give you
+autocomplete and validation as you type (each file points at it with `$schema`). `pnpm test`
+also validates every game file.
+
+## Example: Spades is ~40 lines of JSON
 
 ```jsonc
-{
-  "$schema": "../../../schemas/game.schema.json",
-  "id": "crazy-eights",            // must match the folder name
-  "name": "Crazy Eights",
-  "tagline": "Match suit or rank, eights are wild.",
-  "icon": "8",
-  "players": { "min": 2, "max": 7 },
-  "deck": {},                       // { decks, jokers, ranks } — defaults to one 52-card deck
-  "zones": [
-    { "id": "deck",  "visibility": "none",  "layout": "stack", "area": "center" },
-    { "id": "table", "visibility": "all",   "layout": "stack", "area": "center" },
-    { "id": "hand",  "perPlayer": true, "visibility": "owner", "layout": "fan", "area": "hand" }
-  ],
-  "deal": [{ "to": "hand", "count": 7 }, { "to": "table", "count": 1, "faceUp": true }]
+"rules": {
+  "family": "trick-taking",
+  "lead": "leftOfDealer",
+  "trump": "S",                        // spades are always trump
+  "breaks": "S",                       // …and can't be led until one is played
+  "teams": [[0, 2], [1, 3]],           // partners sit across
+  "bidding": { "nil": true },
+  "scoring": { "type": "contract", "bags": { "every": 10, "penalty": 100 }, "nil": 100 },
+  "end": { "target": 500 }
 }
 ```
 
-### Zones
+Compare Hearts (`src/games/hearts/game.json`), Oh Hell (`oh-hell`) and Omaha (`omaha`): each
+is a different combination of the same parameters.
+
+### Trick-taking parameters
+
+| key | values |
+|-----|--------|
+| `handSizes` | `"all"` (deal the whole deck), `"ladder"` (1 → `maxHand` → 1), or a list like `[10, 9, 8]` |
+| `passing` | `{ "count": 3, "cycle": ["left", "right", "across", "hold"] }` |
+| `lead` | `"twoOfClubs"` or `"leftOfDealer"` |
+| `trump` | `"none"`, a suit letter, or `"turnUp"` (the card after the deal sets trumps; needs a `trump` zone) |
+| `breaks` | a suit that can't be led until it has been played |
+| `noPointsFirstTrick` | no point cards on the first trick unless you have no choice |
+| `teams` | partnerships, e.g. `[[0, 2], [1, 3]]` |
+| `bidding` | `{ "nil": true, "hook": true }` (hook: the dealer can't make bids total the tricks) |
+| `scoring` | `penalty` (`cardPoints`, `moon`), `contract` (`bags`, `nil`), `exact` (`bonus`), or `tricks` |
+| `end` | `{ "target": 100, "lowWins": true }` or `{ "rounds": true }` (play through `handSizes` once) |
+
+### Poker parameters
+
+| key | values |
+|-----|--------|
+| `holeCards` | cards dealt to each player |
+| `useHole` | `0` = best five of any cards; `2` = exactly two hole cards (Omaha) |
+| `board` | community cards per street, e.g. `[3, 1, 1]` |
+
+## Zones
+
+Zones are where cards live. Every game needs a `deck` zone.
 
 | field        | meaning |
 |--------------|---------|
 | `perPlayer`  | one copy per seat, with ids `hand:0`, `hand:1`, … |
-| `visibility` | `all` (face up for everyone), `owner` (only the seat that owns it), `none` (nobody, e.g. the deck) |
-| `layout`     | `fan` (a hand), `stack` (pile showing the top card), `spread` (a row), `trick` (cards placed toward whoever played them) |
+| `visibility` | `all` (face up for everyone), `owner` (only that seat), `none` (nobody, e.g. the deck) |
+| `layout`     | `fan` (a hand), `stack` (a pile showing its top card), `spread` (a row), `trick` (cards placed toward whoever played them) |
 | `area`       | `hand` (bottom of your screen), `center` (the table), `none` (not drawn) |
 
-Every game needs a `deck` zone. Visibility is enforced by the host: cards a player can't see
-are replaced with anonymous placeholders **before** they're sent over the network.
+The host enforces visibility: cards a player can't see are replaced with anonymous placeholders
+**before** anything is sent over the network.
 
-## Level 2: `rules.ts` (enforced rules)
+## When a game needs something new
 
-Export a default `GameModule` (see `src/engine/types.ts`):
+1. **A missing variation of an existing family** (say, Hearts with the J♦ worth −10): add a
+   parameter to that family engine and the schema. Every game in the family can then use it.
+2. **A new kind of game** (rummy melds, cribbage pegging): write a new family in
+   `src/engine/families/`, register it in `families/index.ts`, and add its parameters to the
+   schema. Families implement the `GameModule` interface in `src/engine/types.ts`.
+3. **A true one-off**: put a `rules.ts` that exports a `GameModule` in the game's folder. It
+   overrides the family.
 
-```ts
-const myGame: GameModule<MyData> = {
-  config,                                  // the imported game.json
-  setup(players, seed, options) { … },     // build the initial state (use createState + deal)
-  actions(state, seat) { … },              // buttons available to this seat right now
-  apply(state, seat, action) { … },        // mutate a cloned state; throw RuleError if illegal
-  status(state, viewer) { … },             // headline, per-seat badges, pot, scoreboard, banner
-  system?(state) { … },                    // timed automatic steps, e.g. collect a finished trick
-  bot?(state, seat) { … },                 // pick an action for a bot seat
-  redactData?(state, viewer) { … },        // hide private game data (e.g. cards chosen to pass)
-};
-```
+Inside an engine, the UI knows nothing about rules. It renders zones and the `ActionSpec`s
+returned by `actions()` (buttons, which may require a card selection or an amount). The host
+rejects any action it didn't offer, and `assertRule(cond, 'message')` inside `apply()` shows the
+message to the player. State must be plain JSON; shuffle with the seeded RNG.
 
-How it fits together:
-
-- **The UI knows nothing about rules.** It renders zones and the `ActionSpec`s you return from
-  `actions()`. An action can require a card selection (`select: { min, max, cards }`) or an
-  amount (`amount: { min, max, step, default }`). With `quick: true`, tapping a selected card
-  again or swiping it up triggers the action.
-- **The host validates everything.** An action type you didn't offer to that seat is rejected
-  before `apply` runs. Inside `apply`, use `assertRule(cond, 'message')`: the message is shown
-  to the player.
-- **State must be plain JSON.** Put game-specific state in `state.data`, chips in
-  `state.players[i].chips`, and shuffle with the seeded RNG (`shuffle(arr, state)`) so games replay deterministically.
-
-Reusable building blocks live in `src/engine/lib/`:
-
-| module        | use it for |
-|---------------|------------|
-| `betting`     | poker-style rounds: blinds, raises, all-ins, side pots |
-| `pokerEval`   | best 5-card hand from 5–7 cards |
-| `trickTaking` | follow-suit legality, trick winner with trumps/custom suit & rank |
-| `passing`     | left/right/across passing |
-
-`src/games/hearts/rules.ts` and `src/games/holdem/rules.ts` are complete examples.
+Shared building blocks live in `src/engine/lib/`: `betting` (blinds, raises, side pots),
+`pokerEval` (hand ranking, Omaha rule), `trickTaking` (follow suit, trick winner) and
+`passing`.
 
 ## Testing
 
-Add a test in `tests/` that simulates a full game with bots (see `tests/games.test.ts`). The
-schema test validates every `game.json` automatically. Run `pnpm test`.
+`tests/families.test.ts` plays whole games with bots for each config-only game. Copy one of
+those tests for your game, then run `pnpm test`.

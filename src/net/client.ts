@@ -1,5 +1,5 @@
 import type { Action } from '../engine/types';
-import type { HostMsg, View } from './protocol';
+import type { Avatar, HostMsg, View } from './protocol';
 import type { Transport } from './transport';
 
 /** A player's (or table display's) connection to the host. Holds the latest view. */
@@ -17,6 +17,7 @@ export class Client {
     private transport: Transport,
     private cid: string,
     private name: string,
+    private avatar: Avatar | undefined,
     private display = false,
   ) {
     transport.onPeerJoin = (peer) => this.hello(peer);
@@ -49,7 +50,14 @@ export class Client {
   }
 
   private hello(peer?: string) {
-    this.transport.send({ t: 'hello', cid: this.cid, name: this.name, display: this.display }, peer);
+    this.transport.send({ t: 'hello', cid: this.cid, name: this.name, avatar: this.avatar, display: this.display }, peer);
+  }
+
+  /** Change name/avatar; the host applies it to your seat. */
+  updateProfile(name: string, avatar?: Avatar) {
+    this.name = name;
+    this.avatar = avatar;
+    if (this.hostPeer) this.hello(this.hostPeer);
   }
 
   act(a: Action) {

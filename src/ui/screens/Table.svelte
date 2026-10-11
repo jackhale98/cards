@@ -8,6 +8,8 @@
   import Seat from '../components/Seat.svelte';
   import Zone from '../components/Zone.svelte';
   import Sheet from '../components/Sheet.svelte';
+  import AvatarBadge from '../components/AvatarBadge.svelte';
+  import { seatRelation } from '../../engine/state';
   import { haptic } from '../motion';
   import { seatColor } from '../seatColors';
 
@@ -144,6 +146,8 @@
           connected={view.lobby.seats[seat]?.connected ?? true}
           {showChips}
           compact={others.length > 4}
+          avatar={view.lobby.seats[seat]?.avatar}
+          relation={display ? null : seatRelation(you, seat, n)}
         />
       {/each}
     </div>
@@ -195,8 +199,8 @@
     <footer>
       <div class="me">
         {#if me}
-          <div class="me-name" style:--c={seatColor(you)}>
-            <span class="dot"></span>{me.name}
+          <div class="me-name">
+            <AvatarBadge avatar={view.lobby.seats[you]?.avatar} name={me.name} seat={you} size={24} />{me.name}
             {#if myInfo?.tag}<span class="mytag">{myInfo.tag}</span>{/if}
           </div>
           <div class="me-sub">
@@ -310,7 +314,7 @@
     min-width: 0;
     overflow-x: auto;
     scrollbar-width: none;
-    padding: 4px 2px 6px;
+    padding: 10px 2px 6px;
   }
   .icon {
     flex: none;
@@ -455,13 +459,6 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-  }
-  .dot {
-    width: 0.6rem;
-    height: 0.6rem;
-    border-radius: 50%;
-    background: var(--c);
-    flex: none;
   }
   .mytag {
     font-size: 0.65rem;

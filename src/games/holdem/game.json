@@ -18,6 +18,7 @@
     { "id": "stack", "label": "Starting chips", "type": "number", "default": 1000, "min": 100, "max": 100000, "step": 100 },
     { "id": "bigBlind", "label": "Big blind", "type": "number", "default": 10, "min": 2, "max": 1000, "step": 2 }
   ],
+  "rules": { "family": "poker", "holeCards": 2, "useHole": 0, "board": [3, 1, 1] },
   "rulesSummary": [
     "Each player gets two hole cards. Five shared cards come out: the flop (3), turn and river.",
     "Bet, call, raise or fold in four rounds. No limit: you can go all in at any time.",

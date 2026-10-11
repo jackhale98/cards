@@ -1,8 +1,7 @@
-import { buildDeck, sortCards } from '../../engine/cards';
-import { shuffle } from '../../engine/rng';
-import { createState, deal, findCard, hand, ids, log, moveCards, moveTop, name, seatOrderFrom, zone } from '../../engine/state';
-import { assertRule, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../../engine/types';
-import json from './game.json';
+import { buildDeck, sortCards } from '../cards';
+import { shuffle } from '../rng';
+import { createState, deal, findCard, hand, ids, log, moveCards, moveTop, name, seatOrderFrom, zone } from '../state';
+import { assertRule, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
 
 export interface FreeData {
   pot: number;
@@ -16,7 +15,7 @@ type S = GameState<FreeData>;
  * Build a rules-free module for any config. Games that only ship a `game.json` run through this:
  * the config decides the deck, zones and opening deal, players do the rest.
  */
-export function freeTableModule(config: GameConfig): GameModule<FreeData> {
+export function freeFamily(config: GameConfig): GameModule<FreeData> {
   const hasZone = (id: string) => config.zones.some((z) => z.id === id);
   const sharedZones = config.zones.filter((z) => !z.perPlayer && z.area === 'center' && z.visibility === 'all').map((z) => z.id);
   const playZone = hasZone('table') ? 'table' : sharedZones[0];
@@ -155,5 +154,3 @@ export function freeTableModule(config: GameConfig): GameModule<FreeData> {
     },
   };
 }
-
-export default freeTableModule(json as GameConfig);

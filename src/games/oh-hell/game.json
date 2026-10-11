@@ -1,0 +1,33 @@
+{
+  "$schema": "../../../schemas/game.schema.json",
+  "id": "oh-hell",
+  "name": "Oh Hell",
+  "tagline": "Hands grow and shrink each round. Bid exactly right — no more, no less.",
+  "icon": "☁",
+  "players": { "min": 3, "max": 7, "recommended": 5 },
+  "bots": true,
+  "deck": {},
+  "zones": [
+    { "id": "deck", "visibility": "none", "layout": "stack", "area": "none" },
+    { "id": "trump", "label": "Trump", "visibility": "all", "layout": "stack", "area": "center" },
+    { "id": "hand", "perPlayer": true, "visibility": "owner", "layout": "fan", "area": "hand" },
+    { "id": "trick", "label": "Trick", "visibility": "all", "layout": "trick", "area": "center" },
+    { "id": "taken", "perPlayer": true, "visibility": "none", "layout": "stack", "area": "none" }
+  ],
+  "rules": {
+    "family": "trick-taking",
+    "handSizes": "ladder",
+    "maxHand": 7,
+    "lead": "leftOfDealer",
+    "trump": "turnUp",
+    "bidding": { "hook": true },
+    "scoring": { "type": "exact", "bonus": 10 },
+    "end": { "rounds": true }
+  },
+  "rulesSummary": [
+    "Round 1 deals one card each, then one more each round up to seven, then back down.",
+    "The card turned up after the deal sets trumps. Bid exactly how many tricks you'll take.",
+    "The dealer bids last and can't make the bids add up to the number of tricks.",
+    "Hit your bid exactly for 10 points plus 1 per trick. Miss it and score nothing."
+  ]
+}

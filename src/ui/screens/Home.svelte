@@ -2,13 +2,17 @@
   import { untrack } from 'svelte';
   import { app } from '../../app.svelte';
   import { isValidCode, normaliseCode } from '../../net/protocol';
+  import AvatarBadge from '../components/AvatarBadge.svelte';
+  import AvatarPicker from '../components/AvatarPicker.svelte';
   import Card from '../components/Card.svelte';
+  import Sheet from '../components/Sheet.svelte';
 
   let { code: initialCode = '' }: { code?: string } = $props();
   let code = $state(normaliseCode(untrack(() => initialCode)));
   let name = $state(app.name);
   const saved = app.savedHost;
   const canJoin = $derived(isValidCode(code) && name.trim().length > 0);
+  let picking = $state(false);
 
   function commitName() {
     app.setName(name.trim());
@@ -26,6 +30,12 @@
   }
 </script>
 
+{#if picking}
+  <Sheet title="Pick your look" onclose={() => (picking = false)}>
+    <AvatarPicker value={app.avatar} {name} onpick={(a) => app.setProfile(name.trim(), a)} />
+  </Sheet>
+{/if}
+
 <div class="home">
   <section class="hero">
     <div class="fan" aria-hidden="true">
@@ -39,10 +49,16 @@
   </section>
 
   <section class="form panel">
-    <label class="field">
-      <span class="eyebrow">Your name</span>
-      <input bind:value={name} onblur={commitName} maxlength="20" placeholder="e.g. Sam" autocomplete="nickname" enterkeyhint="done" />
-    </label>
+    <div class="field">
+      <span class="eyebrow">You</span>
+      <div class="who">
+        <button class="avatar-btn" onclick={() => (picking = true)} aria-label="Choose your avatar">
+          <AvatarBadge avatar={app.avatar} {name} size={46} />
+          <span class="edit">✎</span>
+        </button>
+        <input bind:value={name} onblur={commitName} maxlength="20" placeholder="e.g. Sam" autocomplete="nickname" enterkeyhint="done" aria-label="Your name" />
+      </div>
+    </div>
 
     <button class="btn primary wide" onclick={host}>Host a table</button>
 
@@ -167,6 +183,29 @@
     display: flex;
     flex-direction: column;
     gap: 0.3rem;
+  }
+  .who {
+    display: flex;
+    gap: 0.6rem;
+    align-items: center;
+  }
+  .avatar-btn {
+    position: relative;
+    padding: 0;
+    border-radius: 50%;
+  }
+  .edit {
+    position: absolute;
+    right: -3px;
+    bottom: -3px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-size: 0.7rem;
+    background: var(--ink);
+    color: #10231c;
   }
   input {
     width: 100%;

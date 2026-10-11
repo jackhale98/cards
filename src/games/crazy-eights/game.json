@@ -15,6 +15,7 @@
     { "to": "hand", "count": 7 },
     { "to": "table", "count": 1, "faceUp": true }
   ],
+  "rules": { "family": "free" },
   "rulesSummary": [
     "Config-only game: rules are on the honour system (this file has no rules.ts).",
     "Play a card matching the top card's suit or rank. Eights are wild: name a new suit.",

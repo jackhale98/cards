@@ -1,0 +1,35 @@
+{
+  "$schema": "../../../schemas/game.schema.json",
+  "id": "spades",
+  "name": "Spades",
+  "tagline": "Partners bid their tricks. Spades are always trump. Watch your bags.",
+  "icon": "♤",
+  "players": { "min": 4, "max": 4, "recommended": 4 },
+  "bots": true,
+  "deck": {},
+  "zones": [
+    { "id": "deck", "visibility": "none", "layout": "stack", "area": "none" },
+    { "id": "hand", "perPlayer": true, "visibility": "owner", "layout": "fan", "area": "hand" },
+    { "id": "trick", "label": "Trick", "visibility": "all", "layout": "trick", "area": "center" },
+    { "id": "taken", "perPlayer": true, "visibility": "none", "layout": "stack", "area": "none" }
+  ],
+  "rules": {
+    "family": "trick-taking",
+    "lead": "leftOfDealer",
+    "trump": "S",
+    "breaks": "S",
+    "teams": [[0, 2], [1, 3]],
+    "bidding": { "nil": true },
+    "scoring": { "type": "contract", "bags": { "every": 10, "penalty": 100 }, "nil": 100 },
+    "end": { "target": 500 }
+  },
+  "options": [
+    { "id": "target", "label": "Play to", "type": "number", "default": 500, "min": 100, "max": 1000, "step": 50 }
+  ],
+  "rulesSummary": [
+    "Partners sit across from each other. Everyone bids how many tricks they'll take; 0 is nil.",
+    "Follow suit if you can. Spades are trump and can't be led until one has been played.",
+    "Make your team's bid: 10 × bid, plus 1 per extra trick (a bag). Miss it: −10 × bid.",
+    "Every 10 bags costs 100. Nil scores ±100. First team to the target wins."
+  ]
+}

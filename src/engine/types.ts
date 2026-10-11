@@ -45,6 +45,11 @@ export interface GameConfig {
   rulesSummary?: string[];
   /** Free-form game options shown in the lobby. */
   options?: GameOption[];
+  /**
+   * Which family engine runs the game and how it is configured. Families: `free` (default,
+   * no rules enforced), `trick-taking`, `poker`. Each family documents its own parameters.
+   */
+  rules?: { family: string; [param: string]: unknown };
 }
 
 export interface GameOption {

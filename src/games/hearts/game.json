@@ -13,13 +13,22 @@
     { "id": "trick", "label": "Trick", "visibility": "all", "layout": "trick", "area": "center" },
     { "id": "taken", "perPlayer": true, "visibility": "none", "layout": "stack", "area": "none" }
   ],
-  "deal": [{ "to": "hand", "count": 13 }],
+  "rules": {
+    "family": "trick-taking",
+    "passing": { "count": 3, "cycle": ["left", "right", "across", "hold"] },
+    "lead": "twoOfClubs",
+    "trump": "none",
+    "breaks": "H",
+    "noPointsFirstTrick": true,
+    "scoring": { "type": "penalty", "cardPoints": { "H": 1, "QS": 13 }, "moon": true },
+    "end": { "target": 100, "lowWins": true }
+  },
   "options": [
     { "id": "target", "label": "Play to", "type": "number", "default": 100, "min": 25, "max": 200, "step": 25 }
   ],
   "rulesSummary": [
     "Pass three cards (left, right, across, then no pass), then play 13 tricks.",
-    "Follow suit if you can. The 2♣ leads the first trick.",
+    "Follow suit if you can. The 2♣ leads the first trick; hearts can't be led until broken.",
     "Each heart is 1 point, the Q♠ is 13. Lowest score wins when someone reaches the target.",
     "Take all 26 points to shoot the moon: everyone else gets 26 instead."
   ]

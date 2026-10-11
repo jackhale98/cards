@@ -2,7 +2,7 @@ import { redact } from '../engine/redact';
 import { randomSeed } from '../engine/rng';
 import { RuleError, type Action, type GameModule, type GameState } from '../engine/types';
 import { getGame, GAMES } from '../games';
-import type { ClientMsg, Lobby, LobbySeat, Msg, View } from './protocol';
+import { AVATAR_COLORS, AVATAR_EMOJI, cleanAvatar, type Avatar, type ClientMsg, type Lobby, type LobbySeat, type Msg, type View } from './protocol';
 import type { Transport } from './transport';
 
 export const LOCAL = 'local';
@@ -36,7 +36,7 @@ export class Host {
   constructor(
     private transport: Transport | null,
     code: string,
-    host: { cid: string; name: string },
+    host: { cid: string; name: string; avatar?: Avatar },
     restore?: HostSnapshot,
   ) {
     if (restore) {
@@ -44,7 +44,10 @@ export class Host {
       this.lobby.seats.forEach((s) => (s.connected = !!s.bot || !!s.host));
       // the host may be resuming from a new browser session with a new client id
       const hostSeat = this.lobby.seats.find((s) => s.host);
-      if (hostSeat) hostSeat.id = host.cid;
+      if (hostSeat) {
+        hostSeat.id = host.cid;
+        hostSeat.avatar = host.avatar ?? hostSeat.avatar;
+      }
       this.state = restore.state;
       if (this.state) this.module = getGame(this.state.game);
     } else {
@@ -52,7 +55,7 @@ export class Host {
         code,
         gameId: 'holdem',
         options: defaultOptions(GAMES.holdem),
-        seats: [{ id: host.cid, name: host.name, host: true, connected: true }],
+        seats: [{ id: host.cid, name: host.name, avatar: host.avatar, host: true, connected: true }],
         spectators: 0,
         started: false,
       };
@@ -74,7 +77,7 @@ export class Host {
 
   private receive(peer: string, raw: Msg) {
     const msg = raw as ClientMsg;
-    if (msg.t === 'hello') return this.hello(peer, msg.cid, msg.name, msg.display);
+    if (msg.t === 'hello') return this.hello(peer, String(msg.cid), String(msg.name ?? 'Player'), cleanAvatar(msg.avatar), msg.display);
     if (msg.t === 'act') {
       const cid = this.peers.get(peer);
       if (!cid) return;
@@ -83,7 +86,7 @@ export class Host {
     }
   }
 
-  private hello(peer: string, cid: string, name: string, display?: boolean) {
+  private hello(peer: string, cid: string, name: string, avatar: Avatar | undefined, display?: boolean) {
     if (display) {
       this.displays.add(peer);
       this.peers.set(peer, cid);
@@ -95,7 +98,8 @@ export class Host {
     const seat = this.lobby.seats.find((s) => s.id === cid);
     if (seat) {
       seat.connected = true;
-      if (!this.lobby.started) seat.name = name;
+      seat.avatar = avatar ?? seat.avatar;
+      if (!this.lobby.started) seat.name = name.slice(0, 20);
     } else if (!this.lobby.started) {
       const max = this.module?.config.players.max ?? getGame(this.lobby.gameId).config.players.max;
       // a human takes the place of a bot if the table is full
@@ -103,7 +107,7 @@ export class Host {
         const bot = this.lobby.seats.findIndex((s) => s.bot);
         if (bot >= 0) this.lobby.seats.splice(bot, 1);
       }
-      if (this.lobby.seats.length < max) this.lobby.seats.push({ id: cid, name: name.slice(0, 20), connected: true });
+      if (this.lobby.seats.length < max) this.lobby.seats.push({ id: cid, name: name.slice(0, 20), avatar, connected: true });
     }
     this.broadcast();
   }
@@ -220,7 +224,9 @@ export class Host {
     if (!g.bot || this.lobby.seats.length >= g.config.players.max) return;
     const used = new Set(this.lobby.seats.map((s) => s.name));
     const name = BOT_NAMES.find((n) => !used.has(n)) ?? `Bot ${this.lobby.seats.length}`;
-    this.lobby.seats.push({ id: `bot:${Math.random().toString(36).slice(2, 7)}`, name, bot: true, connected: true });
+    const n = this.lobby.seats.length;
+    const avatar = { emoji: AVATAR_EMOJI[(n * 7 + 3) % AVATAR_EMOJI.length], color: AVATAR_COLORS[(n * 3 + 1) % AVATAR_COLORS.length] };
+    this.lobby.seats.push({ id: `bot:${Math.random().toString(36).slice(2, 7)}`, name, avatar, bot: true, connected: true });
     this.broadcast();
   }
 
@@ -237,6 +243,14 @@ export class Host {
     const j = i + dir;
     if (i < 0 || j < 0 || j >= seats.length || this.lobby.started) return;
     [seats[i], seats[j]] = [seats[j], seats[i]];
+    this.broadcast();
+  }
+
+  /** The host changing their own name/avatar. */
+  updateSelf(name: string, avatar?: Avatar) {
+    const me = this.lobby.seats.find((s) => s.host)!;
+    me.avatar = avatar;
+    if (!this.lobby.started) me.name = name;
     this.broadcast();
   }
 

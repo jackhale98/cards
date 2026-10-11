@@ -1,7 +1,10 @@
 <script lang="ts">
   import type { CardRef, PlayerState, SeatInfo } from '../../engine/types';
   import { isHidden } from '../../engine/redact';
-  import { initials, seatColor } from '../seatColors';
+  import type { Relation } from '../../engine/state';
+  import type { Avatar } from '../../net/protocol';
+  import { seatColor } from '../seatColors';
+  import AvatarBadge from './AvatarBadge.svelte';
   import Card from './Card.svelte';
   import { receive, send } from '../motion';
 
@@ -13,15 +16,20 @@
     connected: boolean;
     showChips: boolean;
     compact?: boolean;
+    avatar?: Avatar;
+    /** Where this player sits relative to you. */
+    relation?: Relation | null;
   }
-  let { player, info, cards, turn, connected, showChips, compact = false }: Props = $props();
+  let { player, info, cards, turn, connected, showChips, compact = false, avatar, relation = null }: Props = $props();
+  const RELATION_LABEL: Record<Relation, string> = { left: '◂ your left', right: 'your right ▸', across: 'across' };
   const shown = $derived(cards.filter((c) => !isHidden(c.id)));
   const backs = $derived(Math.min(cards.length - shown.length, 4));
 </script>
 
-<div class="seat" class:turn class:out={info?.out} class:offline={!connected} class:compact style:--c={seatColor(player.seat)}>
+<div class="seat" class:turn class:out={info?.out} class:offline={!connected} class:compact style:--c={avatar?.color ?? seatColor(player.seat)}>
+  {#if relation}<span class="rel rel-{relation}">{RELATION_LABEL[relation]}</span>{/if}
   <div class="avatar">
-    {initials(player.name)}
+    <AvatarBadge {avatar} name={player.name} seat={player.seat} size={compact ? 30 : 34} />
     {#if info?.tag}<span class="tag">{info.tag}</span>{/if}
   </div>
   <div class="meta">
@@ -78,15 +86,24 @@
   .avatar {
     position: relative;
     flex: none;
-    width: 34px;
-    height: 34px;
-    border-radius: 50%;
     display: grid;
-    place-items: center;
+    border-radius: 50%;
+  }
+  .rel {
+    position: absolute;
+    top: -8px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 1px 7px;
+    border-radius: 6px;
+    font-size: 0.56rem;
     font-weight: 700;
-    font-size: 0.8rem;
-    color: #10231c;
-    background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--c) 60%, white), var(--c));
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: var(--ink-dim);
+    background: #0c2a21;
+    border: 1px solid var(--line);
   }
   .turn .avatar::after {
     content: '';

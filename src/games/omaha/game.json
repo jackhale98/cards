@@ -1,0 +1,27 @@
+{
+  "$schema": "../../../schemas/game.schema.json",
+  "id": "omaha",
+  "name": "Omaha",
+  "tagline": "Four hole cards — use exactly two of them with three from the board.",
+  "icon": "♧",
+  "players": { "min": 2, "max": 9, "recommended": 6 },
+  "bots": true,
+  "deck": {},
+  "zones": [
+    { "id": "deck", "visibility": "none", "layout": "stack", "area": "none" },
+    { "id": "muck", "visibility": "none", "layout": "stack", "area": "none" },
+    { "id": "hand", "perPlayer": true, "visibility": "owner", "layout": "fan", "area": "hand" },
+    { "id": "board", "label": "Board", "visibility": "all", "layout": "spread", "area": "center" }
+  ],
+  "chips": { "start": 1000, "smallBlind": 5, "bigBlind": 10 },
+  "rules": { "family": "poker", "holeCards": 4, "useHole": 2, "board": [3, 1, 1] },
+  "options": [
+    { "id": "stack", "label": "Starting chips", "type": "number", "default": 1000, "min": 100, "max": 100000, "step": 100 },
+    { "id": "bigBlind", "label": "Big blind", "type": "number", "default": 10, "min": 2, "max": 1000, "step": 2 }
+  ],
+  "rulesSummary": [
+    "Like Texas Hold'em, but you get four hole cards.",
+    "Your hand must use exactly two hole cards and exactly three board cards.",
+    "No-limit betting over four rounds; best hand at showdown takes the pot."
+  ]
+}

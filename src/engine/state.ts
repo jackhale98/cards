@@ -132,3 +132,19 @@ export function log(s: GameState<any>, text: string) {
 }
 
 export const name = (s: GameState<any>, seat: number) => s.players[seat]?.name ?? `Seat ${seat + 1}`;
+
+export type Relation = 'left' | 'right' | 'across';
+
+/**
+ * Where `other` sits relative to `you`. Play passes to the left, so the next seat in turn
+ * order is on your left and the previous one is on your right.
+ */
+export function seatRelation(you: number, other: number, n: number): Relation | null {
+  if (you < 0 || other === you) return null;
+  const rel = (other - you + n) % n;
+  if (n === 2) return 'across';
+  if (rel === 1) return 'left';
+  if (rel === n - 1) return 'right';
+  if (n % 2 === 0 && rel === n / 2) return 'across';
+  return null;
+}
