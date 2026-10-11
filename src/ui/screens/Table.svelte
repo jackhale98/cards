@@ -125,9 +125,13 @@
     };
   });
   /** Seats sit around an oval in turn order, seat 0 at the bottom (matching where trick cards land). */
+  // each seat's measured size, so a wide one is kept fully on screen instead of centred off the edge
+  let slotW = $state<Record<number, number>>({});
+  let slotH = $state<Record<number, number>>({});
   function tvSeatPos(seat: number) {
     const a = Math.PI / 2 + (seat * 2 * Math.PI) / n;
-    return { left: `${50 + Math.cos(a) * 40}%`, top: `${50 + Math.sin(a) * 39}%` };
+    const keep = (pct: number, size = 0) => `clamp(${size / 2 + 8}px, ${pct}%, calc(100% - ${size / 2 + 8}px))`;
+    return { left: keep(50 + Math.cos(a) * 40, slotW[seat]), top: keep(50 + Math.sin(a) * 39, slotH[seat]) };
   }
   const handCw = $derived(
     Math.round(
@@ -223,7 +227,7 @@
     <div class="seats">
       {#each others as seat (seat)}
         {@const pos = display ? tvSeatPos(seat) : null}
-        <div class="seat-slot" style:left={pos?.left} style:top={pos?.top}>
+        <div class="seat-slot" style:left={pos?.left} style:top={pos?.top} bind:clientWidth={slotW[seat]} bind:clientHeight={slotH[seat]}>
         <Seat
           player={s.players[seat]}
           info={status.seats[seat]}
