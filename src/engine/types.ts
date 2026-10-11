@@ -165,6 +165,8 @@ export interface ActionSpec {
   zone?: string;
   /** Requires choosing another player; the choice is sent as `Action.seat`. */
   target?: { seats: number[]; label?: string };
+  /** Requires picking one option (a trump suit, a bid…); the choice is sent as `Action.amount`. */
+  choose?: { label?: string; options: { value: number; label: string }[] };
   /**
    * Shortcut for card actions: `true` = swipe a card up, or tap a selected card again, to do it;
    * `'swipe'` = swipe only (tapping a selected card deselects it). Use `'swipe'` where an

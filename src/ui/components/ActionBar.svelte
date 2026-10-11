@@ -16,6 +16,7 @@
   }
   let { actions, selected, pot = 0, onact, onclear, seatInfo }: Props = $props();
   let targetFor = $state<ActionSpec | null>(null);
+  let chooseFor = $state<ActionSpec | null>(null);
   const RELATION: Record<Relation, string> = { left: '◂ Your left', right: 'Your right ▸', across: 'Across' };
 
   let amountFor = $state<ActionSpec | null>(null);
@@ -46,6 +47,10 @@
     menuOpen = false;
     if (a.target) {
       targetFor = a;
+      return;
+    }
+    if (a.choose) {
+      chooseFor = a;
       return;
     }
     if (a.amount) {
@@ -106,6 +111,29 @@
       {/each}
     </div>
     <div class="row"><button class="btn quiet" onclick={() => (targetFor = null)}>Cancel</button></div>
+  </div>
+{/if}
+
+{#if chooseFor?.choose}
+  {@const spec = chooseFor}
+  <button class="scrim" onclick={() => (chooseFor = null)} aria-label="Cancel"></button>
+  <div class="sheet panel">
+    <div class="chead">
+      <span class="eyebrow">{spec.choose!.label ?? spec.label}</span>
+      <button class="x" onclick={() => (chooseFor = null)} aria-label="Cancel">×</button>
+    </div>
+    <div class="choices" class:many={spec.choose!.options.length > 6}>
+      {#each spec.choose!.options as o (o.value)}
+        <button
+          class="choice"
+          class:red={/[♥♦]/.test(o.label)}
+          onclick={() => {
+            onact(spec, o.value);
+            chooseFor = null;
+          }}>{o.label}</button
+        >
+      {/each}
+    </div>
   </div>
 {/if}
 
@@ -215,6 +243,42 @@
   .row {
     display: flex;
     justify-content: flex-end;
+  }
+  .chead {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .x {
+    width: 32px;
+    height: 32px;
+    font-size: 1.3rem;
+    color: var(--ink-dim);
+  }
+  .choices {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr));
+    gap: 0.35rem;
+  }
+  .choices.many {
+    grid-template-columns: repeat(5, 1fr);
+  }
+  .choice {
+    min-height: 40px;
+    padding: 0 0.4rem;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid var(--line);
+    font-weight: 700;
+    font-size: 0.95rem;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .choice.red {
+    color: #ff8e8e;
+  }
+  .choice:active {
+    transform: scale(0.97);
   }
   .targets {
     display: grid;

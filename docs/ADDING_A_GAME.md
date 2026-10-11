@@ -13,7 +13,7 @@ src/games/my-game/
 | family         | games it can express today | engine |
 |----------------|----------------------------|--------|
 | `free`         | anything (rules not enforced), e.g. Crazy Eights. Optional zones add moves: `discard` (discard face up/down, take the top discard) and a per-player `melds` zone (lay down melds, add to anyone's) | `src/engine/families/free.ts` |
-| `trick-taking` | Hearts, Spades, Oh Hell, Whist, Black Lady… | `src/engine/families/trickTaking.ts` |
+| `trick-taking` | Hearts, Spades, Oh Hell, Euchre, 500, Whist… | `src/engine/families/trickTaking.ts` |
 | `poker`        | Texas Hold'em, Omaha, Pineapple-style variants | `src/engine/families/poker.ts` |
 | `rummy`        | Gin Rummy (style `gin`); Rummy 500 / Oklahoma next | `src/engine/families/rummy.ts` |
 | `cribbage`     | Cribbage for 2–4 (4 = partners), to 121 or 61 | `src/engine/families/cribbage.ts` |
@@ -46,13 +46,16 @@ is a different combination of the same parameters.
 |-----|--------|
 | `handSizes` | `"all"` (deal the whole deck), `"ladder"` (1 → `maxHand` → 1), or a list like `[10, 9, 8]` |
 | `passing` | `{ "count": 3, "cycle": ["left", "right", "across", "hold"] }` |
-| `lead` | `"twoOfClubs"` or `"leftOfDealer"` |
-| `trump` | `"none"`, a suit letter, or `"turnUp"` (the card after the deal sets trumps; needs a `trump` zone) |
+| `lead` | `"twoOfClubs"`, `"leftOfDealer"` or `"maker"` (whoever won the bidding) |
+| `trump` | `"none"`, a suit letter, `"turnUp"` (the card after the deal sets trumps; needs a `trump` zone) or `"chosen"` (decided by the bidding) |
+| `bowers` | the jack of trumps and the other jack of its colour are the top two trumps |
+| `joker` | a joker is the highest trump (in no trumps it wins any trick, played when void) |
+| `kitty` | cards left undealt for the bid winner |
 | `breaks` | a suit that can't be led until it has been played |
 | `noPointsFirstTrick` | no point cards on the first trick unless you have no choice |
 | `teams` | partnerships, e.g. `[[0, 2], [1, 3]]` |
-| `bidding` | `{ "nil": true, "hook": true }` (hook: the dealer can't make bids total the tricks) |
-| `scoring` | `penalty` (`cardPoints`, `moon`), `contract` (`bags`, `nil`), `exact` (`bonus`), or `tricks` |
+| `bidding` | `{ "nil": true, "hook": true }` (bid a number of tricks; hook: the dealer can't make bids total the tricks), `{ "type": "euchre", "stickTheDealer": true, "alone": true }` (order up / name trumps; needs an `upcard` zone), or `{ "type": "auction", "schedule": "avondale" }` (500 bids) |
+| `scoring` | `penalty` (`cardPoints`, `moon`), `contract` (`bags`, `nil`), `exact` (`bonus`), `tricks`, `euchre`, or `auction` (`perTrick`, `slam`) |
 | `end` | `{ "target": 100, "lowWins": true }` or `{ "rounds": true }` (play through `handSizes` once) |
 
 ### Poker parameters

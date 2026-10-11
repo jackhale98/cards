@@ -69,6 +69,8 @@ export interface DeckSpec {
   jokers?: number;
   /** Restrict to these ranks (e.g. euchre: 9–A). */
   ranks?: number[];
+  /** Leave out specific cards (e.g. 500 drops the black fours). */
+  exclude?: string[];
 }
 
 export function buildDeck(spec: DeckSpec = {}): string[] {
@@ -77,7 +79,7 @@ export function buildDeck(spec: DeckSpec = {}): string[] {
   const ranks = spec.ranks ?? RANKS;
   for (let d = 1; d <= decks; d++) {
     const suffix = decks > 1 ? `#${d}` : '';
-    for (const s of SUITS) for (const r of ranks) out.push(cardId(r, s) + suffix);
+    for (const s of SUITS) for (const r of ranks) if (!spec.exclude?.includes(cardId(r, s))) out.push(cardId(r, s) + suffix);
     for (let j = 1; j <= (spec.jokers ?? 0); j++) out.push(`X${j}${suffix}`);
   }
   return out;

@@ -1,0 +1,38 @@
+{
+  "$schema": "../../../schemas/game.schema.json",
+  "id": "euchre",
+  "name": "Euchre",
+  "tagline": "Order it up, make trumps with your partner, and watch out for the bowers.",
+  "icon": "♣",
+  "players": { "min": 4, "max": 4, "recommended": 4 },
+  "bots": true,
+  "deck": { "ranks": [9, 10, 11, 12, 13, 14] },
+  "zones": [
+    { "id": "deck", "visibility": "none", "layout": "stack", "area": "none" },
+    { "id": "upcard", "label": "Turn-up", "visibility": "all", "layout": "stack", "area": "center", "hideEmpty": true },
+    { "id": "kitty", "visibility": "none", "layout": "stack", "area": "none" },
+    { "id": "hand", "perPlayer": true, "visibility": "owner", "layout": "fan", "area": "hand" },
+    { "id": "trick", "label": "Trick", "visibility": "all", "layout": "trick", "area": "center" },
+    { "id": "taken", "perPlayer": true, "visibility": "none", "layout": "stack", "area": "none" }
+  ],
+  "rules": {
+    "family": "trick-taking",
+    "handSizes": [5],
+    "lead": "leftOfDealer",
+    "trump": "chosen",
+    "bowers": true,
+    "teams": [[0, 2], [1, 3]],
+    "bidding": { "type": "euchre", "stickTheDealer": true, "alone": true },
+    "scoring": { "type": "euchre" },
+    "end": { "target": 10 }
+  },
+  "options": [
+    { "id": "target", "label": "Play to", "type": "number", "default": 10, "min": 5, "max": 15, "step": 1 }
+  ],
+  "rulesSummary": [
+    "Partners sit across. Five cards each from a 24-card deck (9 to A); the next card is turned up.",
+    "Going round, each player may order up the turned card as trumps (the dealer picks it up and discards) or pass. If all pass, anyone may name another suit; the dealer is stuck and must name one if it gets back to them.",
+    "Trumps rank: jack of trumps (right bower), the other jack of the same colour (left bower — it counts as a trump), then A K Q 10 9.",
+    "Makers need 3 tricks: 1 point, all 5: 2 points, alone and all 5: 4. Fail and the other team scores 2 (euchred). First to 10."
+  ]
+}

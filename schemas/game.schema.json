@@ -82,6 +82,13 @@
             "maximum": 14
           },
           "description": "Ace is 14."
+        },
+        "exclude": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Card ids to leave out, e.g. [\"4S\", \"4C\"]."
         }
       }
     },
@@ -328,7 +335,8 @@
             "lead": {
               "enum": [
                 "twoOfClubs",
-                "leftOfDealer"
+                "leftOfDealer",
+                "maker"
               ]
             },
             "trump": {
@@ -338,8 +346,10 @@
                 "H",
                 "D",
                 "C",
-                "turnUp"
-              ]
+                "turnUp",
+                "chosen"
+              ],
+              "description": "\"chosen\" = decided by the bidding (euchre, 500)."
             },
             "breaks": {
               "enum": [
@@ -364,17 +374,58 @@
               }
             },
             "bidding": {
-              "type": "object",
-              "additionalProperties": false,
-              "properties": {
-                "nil": {
-                  "type": "boolean"
+              "oneOf": [
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "type": {
+                      "const": "tricks"
+                    },
+                    "nil": {
+                      "type": "boolean"
+                    },
+                    "hook": {
+                      "type": "boolean",
+                      "description": "Dealer can't make total bids equal the tricks available."
+                    }
+                  }
                 },
-                "hook": {
-                  "type": "boolean",
-                  "description": "Dealer can't make total bids equal the tricks available."
+                {
+                  "type": "object",
+                  "required": [
+                    "type"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "type": {
+                      "const": "euchre"
+                    },
+                    "stickTheDealer": {
+                      "type": "boolean"
+                    },
+                    "alone": {
+                      "type": "boolean"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "schedule"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "type": {
+                      "const": "auction"
+                    },
+                    "schedule": {
+                      "const": "avondale"
+                    }
+                  }
                 }
-              }
+              ]
             },
             "scoring": {
               "oneOf": [
@@ -458,6 +509,37 @@
                       "const": "tricks"
                     }
                   }
+                },
+                {
+                  "type": "object",
+                  "required": [
+                    "type"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "type": {
+                      "const": "euchre"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "perTrick"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "type": {
+                      "const": "auction"
+                    },
+                    "perTrick": {
+                      "type": "number"
+                    },
+                    "slam": {
+                      "type": "number"
+                    }
+                  }
                 }
               ]
             },
@@ -475,6 +557,19 @@
                   "type": "boolean"
                 }
               }
+            },
+            "bowers": {
+              "type": "boolean",
+              "description": "Jack of trumps and the same-colour jack are the top two trumps."
+            },
+            "joker": {
+              "type": "boolean",
+              "description": "A joker is the highest trump (500)."
+            },
+            "kitty": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Cards left undealt for the bid winner (500)."
             }
           }
         },
