@@ -36,6 +36,8 @@ export interface PokerData {
   acted: (string | null)[];
   /** End-of-hand summary. */
   result: { lines: string[]; winners: number[] } | null;
+  /** The hand each seat was knocked out in (null while still playing), for final placings. */
+  bustedAt?: (number | null)[];
 }
 
 type S = GameState<PokerData>;
@@ -55,6 +57,11 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
 
   function startHand(s: S) {
     const d = s.data;
+    // note who was knocked out in the hand just played: later knockouts finish higher
+    d.bustedAt ??= s.players.map(() => null);
+    s.players.forEach((p, i) => {
+      if (p.chips === 0 && d.bustedAt![i] == null) d.bustedAt![i] = d.handNo;
+    });
     const alive = s.players.filter((p) => p.chips > 0);
     if (alive.length < 2) {
       s.phase = 'gameOver';
@@ -254,6 +261,7 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
         s.players.forEach((p) => (p.chips = stack));
         s.winner = undefined;
         d.handNo = 0;
+        d.bustedAt = s.players.map(() => null);
         return startHand(s);
       }
       assertRule(s.phase === 'betting' && s.turn === seat, 'Not your turn');
@@ -283,6 +291,8 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
     },
 
     system(s) {
+      // only bots left with chips: nobody can press "Deal next hand", so keep dealing
+      if (s.phase === 'handOver' && !s.players.some((p) => !p.bot && p.chips > 0)) return { delay: 2500, run: (s) => startHand(s) };
       if (s.phase !== 'runout') return null;
       return {
         delay: 1100,
@@ -317,7 +327,9 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
     },
 
     standings(s) {
-      return placesFromScores(s.players.map((p) => p.chips));
+      // players still in by chips, then the knocked-out by how long they lasted
+      const out = s.data.bustedAt ?? [];
+      return placesFromScores(s.players.map((p, i) => (p.chips > 0 ? 1e9 + p.chips : (out[i] ?? 0))));
     },
 
     status(s, viewer) {

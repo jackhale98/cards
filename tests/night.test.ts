@@ -65,6 +65,38 @@ describe('game night', () => {
     vi.useRealTimers();
   });
 
+  it('a nine-player hold’em night: one game tallied for everyone, knockouts ranked by how long they lasted', () => {
+    vi.useFakeTimers();
+    const host = new Host(null, 'ABCD', { cid: 'h', name: 'Hana' });
+    host.setGame('holdem');
+    for (let i = 0; i < 8; i++) host.addBot();
+    expect(host.lobby.seats).toHaveLength(9);
+    host.start();
+    const order: number[] = [];
+    for (let i = 0; i < 40000 && host.state!.phase !== 'gameOver'; i++) {
+      const s = host.state! as GameState<any>;
+      // the host shoves every hand to speed things up
+      if (s.phase === 'betting' && s.turn === 0) host.act('h', { type: s.players[0].chips > 0 ? 'allin' : 'fold' });
+      if (s.phase === 'handOver' && s.players[0].chips > 0) host.act('h', { type: 'next' });
+      vi.advanceTimersByTime(1500);
+      s.players.forEach((p, k) => p.chips === 0 && !order.includes(k) && order.push(k));
+    }
+    expect(host.state!.phase).toBe('gameOver');
+    const game = host.lobby.night!.games[0];
+    expect(host.lobby.night!.games).toHaveLength(1);
+    expect(game.results).toHaveLength(9);
+    const byPlace = [...game.results].sort((a, b) => a.place - b.place);
+    expect(byPlace[0].place).toBe(0);
+    expect(byPlace[0].points).toBe(3);
+    // the last player knocked out finishes second (unless knocked out in the same hand as others)
+    const lastOut = order[order.length - 1];
+    expect(game.results[lastOut].place).toBeLessThanOrEqual(game.results[order[0]].place);
+    expect(byPlace.at(-1)!.points).toBe(0);
+    expect(nightTotals(host.lobby.night)).toHaveLength(9);
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
   it('every family with scores can rank its players', () => {
     for (const id of ['hearts', 'cribbage', 'holdem', 'gin-rummy', 'bridge']) {
       const g = GAMES[id];

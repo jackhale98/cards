@@ -15,11 +15,12 @@ for (const [path, config] of Object.entries(configs)) {
   GAMES[config.id] = custom[`${dir}/rules.ts`] ?? moduleFor(config);
 }
 
-/** Display order on the game picker; anything else follows alphabetically. */
-const ORDER = ['holdem', 'hearts', 'spades', 'euchre', 'five-hundred', 'cribbage', 'bridge', 'gin-rummy', 'rummy-500', 'canasta', 'president', 'oh-hell', 'omaha', 'freetable'];
-const rank = (id: string) => (ORDER.indexOf(id) + 1 || 99);
+/** Game picker order: alphabetical by name, with the rules-free Free Table last. */
+const LAST = ['freetable'];
 export const GAME_LIST: GameModule[] = Object.values(GAMES).sort(
-  (a, b) => rank(a.config.id) - rank(b.config.id) || a.config.name.localeCompare(b.config.name),
+  (a, b) =>
+    Number(LAST.includes(a.config.id)) - Number(LAST.includes(b.config.id)) ||
+    a.config.name.localeCompare(b.config.name, 'en', { numeric: true }),
 );
 
 export function getGame(id: string): GameModule {

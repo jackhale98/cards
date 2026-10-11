@@ -312,7 +312,10 @@
         <h2>{status.banner.title}</h2>
         {#each status.banner.lines as line}<p>{line}</p>{/each}
         {#if s.phase === 'gameOver' && tonight.length}
-          <p class="tonight">Tonight: {tonight.map((r) => `${r.name} ${r.points}`).join(' · ')}</p>
+          <!-- top four, so a nine-player night still fits -->
+          <p class="tonight">
+            Tonight: {tonight.slice(0, 4).map((r) => `${r.name} ${r.points}`).join(' · ')}{tonight.length > 4 ? ` · +${tonight.length - 4} more` : ''}
+          </p>
         {/if}
       </div>
     {/if}
