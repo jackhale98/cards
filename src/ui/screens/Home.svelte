@@ -141,12 +141,9 @@
     position: absolute;
     left: 50%;
     bottom: 0;
-    transform-origin: 50% 165%;
+    transform-origin: 50% 110%;
     margin-left: calc(var(--cw) / -2);
-    /* a quick fade-in on its own, so cards are solid (not see-through) while they fan out */
-    animation:
-      deal 0.9s var(--ease-spring) both,
-      appear 0.18s ease-out both;
+    animation: deal 0.9s var(--ease-spring) both;
   }
   .f1 {
     --r: -24deg;
@@ -167,29 +164,9 @@
   .f {
     transform: rotate(var(--r));
   }
-  /*
-   * Shadows fall down and right, away from the lamp. The long shadow is cast by the whole
-   * (unrotated) fan so it keeps pointing away from the light as the cards rotate; each card
-   * keeps only a tight contact shadow, and moves on its own GPU layer so dealing stays smooth.
-   */
-  .fan {
-    filter: drop-shadow(8px 12px 10px rgba(20, 8, 0, 0.45));
-  }
-  .f {
-    will-change: transform, opacity;
-  }
-  .fan :global(.card) {
-    box-shadow:
-      0 0.08em 0.2em rgba(0, 0, 0, 0.25),
-      inset 0 0 0 1px var(--card-edge);
-  }
   @keyframes deal {
     from {
       transform: rotate(0deg) translateY(30px);
-    }
-  }
-  @keyframes appear {
-    from {
       opacity: 0;
     }
   }
