@@ -32,7 +32,8 @@
   let { player, info, cards, turn, connected, showChips, compact = false, avatar, relation = null, said = null, ping = null, scale = 1, turnLabel = false }: Props = $props();
   const RELATION_LABEL: Record<Relation, string> = { left: '◂ your left', right: 'your right ▸', across: 'across' };
   const shown = $derived(cards.filter((c) => !isHidden(c.id)));
-  const backs = $derived(Math.min(cards.length - shown.length, 4));
+  // a crowded row shows face-down cards as one card and a count, leaving room for names
+  const backs = $derived(Math.min(cards.length - shown.length, compact ? 1 : 4));
 </script>
 
 <div class="seat" data-seat={player.seat} class:turn class:out={info?.out} class:offline={!connected} class:compact style:--c={avatar?.color ?? seatColor(player.seat)}>
@@ -51,7 +52,8 @@
     <div class="name">{player.name}{#if player.bot}<span class="bot" title="Bot">◆</span>{/if} <PingDot ms={ping} /></div>
     <div class="sub">
       {#if showChips}<span class="chips"><span class="chip-dot"></span>{player.chips.toLocaleString()}</span>{/if}
-      {#if info?.badge}<span class="badge"><SuitText text={info.badge} /></span>{/if}
+      <!-- (a crowded poker row drops the badge: each action also pops up as a bubble) -->
+      {#if info?.badge && !(compact && showChips)}<span class="badge"><SuitText text={info.badge} /></span>{/if}
       {#if !connected}<span class="badge warn">offline</span>{/if}
     </div>
   </div>
@@ -195,6 +197,7 @@
   }
   .meta {
     min-width: 0;
+    overflow: hidden;
   }
   .name {
     font-weight: 600;
@@ -215,6 +218,7 @@
     font-size: 0.72rem;
     color: var(--ink-dim);
     white-space: nowrap;
+    min-width: 0;
   }
   .chips {
     display: inline-flex;
@@ -233,11 +237,15 @@
   .badge {
     color: var(--gold);
     font-weight: 600;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .badge.warn {
     color: var(--danger);
   }
   .cards {
+    flex: none;
     display: flex;
     align-items: center;
     padding-left: 4px;

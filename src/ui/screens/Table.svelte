@@ -231,7 +231,7 @@
           turn={s.turn === seat}
           connected={view.lobby.seats[seat]?.connected ?? true}
           {showChips}
-          compact={others.length > 4}
+          compact={others.length > 4 || (others.length >= 3 && vw < 940 && !display)}
           avatar={view.lobby.seats[seat]?.avatar}
           relation={display ? null : seatRelation(you, seat, n)}
           said={saidBy(seat)}
@@ -513,6 +513,12 @@
     margin: 0;
     overflow: visible;
   }
+  /* seats share the row: each shrinks (its text trimmed) before the row has to scroll */
+  .seat-slot {
+    flex: 0 1 auto;
+    min-width: 0;
+    display: flex;
+  }
   .table.display .seat-slot {
     position: absolute;
     transform: translate(-50%, -50%);
@@ -540,7 +546,8 @@
   .seats {
     flex: 1;
     display: flex;
-    justify-content: center;
+    /* centred with auto margins (below), so a row too wide to fit scrolls instead of being cut off at both ends */
+    justify-content: flex-start;
     gap: 8px;
     min-width: 0;
     overflow-x: auto;
@@ -552,6 +559,12 @@
   }
   .seats > :global(*) {
     pointer-events: auto;
+  }
+  .seats > :global(:first-child) {
+    margin-left: auto;
+  }
+  .seats > :global(:last-child) {
+    margin-right: auto;
   }
   .icon {
     flex: none;
