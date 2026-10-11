@@ -1,3 +1,5 @@
+import type { GameConfig } from '../src/engine/types';
+import { moduleFor } from '../src/engine/families';
 import { describe, expect, it } from 'vitest';
 import { buildDeck, parseCard, sortCards } from '../src/engine/cards';
 import { redact, isHidden } from '../src/engine/redact';
@@ -46,7 +48,16 @@ describe('registry', () => {
   });
 
   it('deals config-only games from their deal recipe', () => {
-    const g = GAMES['crazy-eights'];
+    // a sandbox game with its own deal recipe and no rules
+    const g = moduleFor({
+      ...GAMES['crazy-eights'].config,
+      id: 'deal-test',
+      rules: { family: 'free' },
+      deal: [
+        { to: 'hand', count: 7 },
+        { to: 'table', count: 1, faceUp: true },
+      ],
+    } as GameConfig);
     const s = g.setup([{ name: 'A' }, { name: 'B' }, { name: 'C' }], 1, {});
     expect(s.zones['hand:0'].cards).toHaveLength(7);
     expect(s.zones.table.cards).toHaveLength(1);

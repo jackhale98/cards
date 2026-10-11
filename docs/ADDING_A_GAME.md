@@ -12,13 +12,14 @@ src/games/my-game/
 
 | family         | games it can express today | engine |
 |----------------|----------------------------|--------|
-| `free`         | anything (rules not enforced), e.g. Crazy Eights. Optional zones add moves: `discard` (discard face up/down, take the top discard) and a per-player `melds` zone (lay down melds, add to anyone's) | `src/engine/families/free.ts` |
+| `free`         | anything (rules not enforced). Optional zones add moves: `discard` (discard face up/down, take the top discard) and a per-player `melds` zone (lay down melds, add to anyone's) | `src/engine/families/free.ts` |
 | `trick-taking` | Hearts, Spades, Oh Hell, Euchre, 500, Contract Bridge, Whist… | `src/engine/families/trickTaking.ts` |
 | `poker`        | Texas Hold'em, Omaha, Pineapple-style variants | `src/engine/families/poker.ts` |
 | `rummy`        | Gin Rummy (style `gin`), Rummy 500 (style `500`) | `src/engine/families/rummy.ts`, `rummy500.ts` |
 | `canasta`      | Classic Canasta, partnerships or head to head | `src/engine/families/canasta.ts` |
 | `climbing`     | President (style `president`): beat the last play or pass, first out wins | `src/engine/families/climbing.ts` |
 | `cribbage`     | Cribbage for 2–4 (4 = partners), to 121 or 61 | `src/engine/families/cribbage.ts` |
+| `eights`       | Crazy Eights: match rank or suit, eights call a suit, optional Q/A/2 specials | `src/engine/families/eights.ts` |
 
 `schemas/game.schema.json` describes every parameter, so editors like VS Code give you
 autocomplete and validation as you type (each file points at it with `$schema`). `pnpm test`

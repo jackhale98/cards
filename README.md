@@ -5,10 +5,12 @@ One person hosts, everyone else scans a QR code, and each phone shows that playe
 the middle of the table. It needs no accounts or app store, and there's no server to pay for.
 
 - **Games are plain JSON config files** run by family engines (trick-taking, poker, rummy,
-  cribbage, free table). Included: Texas Hold'em, Omaha, Hearts, Spades, Oh Hell, Gin Rummy, Rummy 500, Canasta, President,
+  canasta, climbing, cribbage, eights, free table). Included: Texas Hold'em, Omaha, Hearts (moon shooter's choice), Spades (nil, blind nil, bags),
+  Oh Hell, Gin Rummy, Rummy 500 (jokers, Rummy! calls), Canasta (may I go out?, play after the stock), President,
   Cribbage (with a pegboard; auto scoring or count-your-own with muggins), Euchre (bowers, going alone), 500 (Avondale bids, misère and open misère, kitty, joker),
-  Contract Bridge (full auction, dummy, duplicate scoring with Chicago vulnerability), Crazy Eights,
+  Contract Bridge (full auction, dummy, duplicate scoring with Chicago vulnerability), Crazy Eights (eights call a suit, last card, Q/A/2 specials),
   and a rules-free **Free Table** for any game.
+- **Rules follow [pagat.com](https://www.pagat.com)**, with common variants as lobby options (25-point gin bonuses, defending alone in euchre, Oh Hell's short ladder…).
 - **Always know what just happened:** the last move appears under the headline, pops up as a
   bubble on that player's seat, and poker seats show each player's action this street.
 - **Bots** fill empty seats in every rules-enforced game.

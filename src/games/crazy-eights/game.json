@@ -4,21 +4,25 @@
   "name": "Crazy Eights",
   "tagline": "Match suit or rank, eights are wild. First to empty their hand wins.",
   "icon": "8",
-  "players": { "min": 2, "max": 7, "recommended": 4 },
+  "players": { "min": 2, "max": 8, "recommended": 4 },
+  "bots": true,
   "deck": {},
   "zones": [
-    { "id": "deck", "label": "Draw", "visibility": "none", "layout": "stack", "area": "center" },
+    { "id": "deck", "label": "Stock", "visibility": "none", "layout": "stack", "area": "center" },
     { "id": "table", "label": "Pile", "visibility": "all", "layout": "stack", "area": "center" },
     { "id": "hand", "perPlayer": true, "visibility": "owner", "layout": "fan", "area": "hand" }
   ],
-  "deal": [
-    { "to": "hand", "count": 7 },
-    { "to": "table", "count": 1, "faceUp": true }
+  "rules": { "family": "eights", "end": { "target": 100 } },
+  "options": [
+    { "id": "target", "label": "Play to", "type": "number", "default": 100, "min": 25, "max": 500, "step": 25 },
+    { "id": "specials", "label": "Q skips, A reverses, 2 draws two", "type": "boolean", "default": true },
+    { "id": "lastCard", "label": "Say “last card”", "type": "boolean", "default": true }
   ],
-  "rules": { "family": "free" },
   "rulesSummary": [
-    "Config-only game: rules are on the honour system (this file has no rules.ts).",
-    "Play a card matching the top card's suit or rank. Eights are wild: name a new suit.",
-    "Can't play? Draw. First to empty their hand wins."
+    "Five cards each (seven with two players). On your turn, play a card matching the rank or suit of the top of the pile — or draw one card (you may draw even if you could play).",
+    "An eight can go on anything: call the suit the next player must follow (or they play another eight). A turned-up eight lets the dealer call the suit.",
+    "Special cards (option): a queen skips the next player, an ace reverses direction, a two makes the next player draw two — unless they play another two, passing on the lot.",
+    "Down to one card? Say “last card!” before the next player moves, or draw two. When the stock runs out the pile (but its top card) is shuffled into a new one.",
+    "First out wins the hand. Everyone else scores the cards they hold: eights 50, pictures 10, others their number (ace 1). When someone reaches the target, the lowest score wins."
   ]
 }
