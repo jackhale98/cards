@@ -20,7 +20,7 @@ the middle of the table. It needs no accounts or app store, and there's no serve
 
 ## How the connection works
 
-GitHub Pages only serves static files, so there is no game server. Devices connect **directly to
+The site is static files only (hosted on Cloudflare Pages at [lamplight.cards](https://lamplight.cards)), so there is no game server. Devices connect **directly to
 each other with WebRTC**, using [Trystero](https://github.com/dmotz/trystero). The first
 "introduction" (signalling) goes through public relays. The host listens on three independent
 relay networks at once (Nostr, MQTT and WebTorrent trackers); a guest starts with Nostr and adds
@@ -56,8 +56,10 @@ tab and join from others. Each tab is its own player.
 
 ### Deploying
 
-Pushes to `main` run the tests and deploy to GitHub Pages
-(`.github/workflows/deploy.yml`). One-time setup: **Settings → Pages → Source: GitHub Actions**.
+Cloudflare Pages builds `main` (`pnpm build` → `dist`) and serves it at
+[lamplight.cards](https://lamplight.cards); every other branch gets its own preview URL. Cache
+headers live in `public/_headers`. GitHub Actions (`.github/workflows/ci.yml`) type-checks, tests
+and builds every push and pull request.
 The site uses relative paths and hash routing, so it works under any repository name.
 
 ## Project layout

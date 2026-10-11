@@ -1,0 +1,9 @@
+# Cloudflare Pages headers. Pages, the manifest and icons are revalidated so updates show up at
+# once; Vite puts a content hash in every file name under /assets, so those are cached forever
+# ("! Cache-Control" drops the value from the /* rule, since matching rules are merged).
+/*
+  Cache-Control: public, max-age=0, must-revalidate
+
+/assets/*
+  ! Cache-Control
+  Cache-Control: public, max-age=31536000, immutable
