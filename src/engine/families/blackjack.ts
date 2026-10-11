@@ -260,6 +260,11 @@ export function blackjackFamily(config: GameConfig): GameModule<BlackjackData> {
         const what = d.hands[p.seat].map((h) => h.result).join(', ');
         return `${p.name}: ${what} ${delta > 0 ? `+${delta}` : delta < 0 ? `−${-delta}` : '±0'} → ${p.chips}`;
       });
+    // what the dealer finished with leads the summary (the banner covers the dealer's cards on a TV)
+    const dealer = handTotal(dealerCards(s)).total;
+    const dealerLine =
+      dealer > 21 ? `The dealer busts with ${dealer}` : dealer === 21 && dealerCards(s).length === 2 ? 'The dealer has blackjack' : `The dealer has ${dealer}`;
+    lines.unshift(dealerLine);
     const broke = s.players.every((p) => p.chips < minBet(s));
     if (d.round >= rounds(s) || broke) {
       const best = Math.max(...s.players.map((p) => p.chips));

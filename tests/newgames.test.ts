@@ -60,6 +60,8 @@ describe('blackjack (pagat)', () => {
     // dealer 6 + 10 = 16, draws 2 = 18: P1's 20 wins
     expect(s.players[1].chips).toBe(1050);
     expect(s.phase).toBe('roundOver');
+    // the summary leads with what the dealer finished on (the banner hides the dealer's cards on a TV)
+    expect(s.data.result!.lines[0]).toBe('The dealer has 18');
   });
 
   it('double down takes one card; split makes two hands', () => {
@@ -88,6 +90,7 @@ describe('blackjack (pagat)', () => {
     // lose 20, insurance 10 pays 2:1 → back to 1000
     expect(s.phase).toBe('roundOver');
     expect(s.players[0].chips).toBe(1000);
+    expect(s.data.result!.lines[0]).toBe('The dealer has blackjack');
   });
 
   it('bots play whole games; chips only move between players and the house', () => {
