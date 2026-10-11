@@ -95,6 +95,7 @@
         {/each}
       </ul>
       {#if lobby.spectators}<p class="small">+ {lobby.spectators} watching</p>{/if}
+      {#if lobby.displays}<p class="small">📺 Table screen connected — phones will show just your hand</p>{/if}
     </div>
 
     <div class="block">

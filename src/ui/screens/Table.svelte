@@ -25,7 +25,11 @@
 
   let vw = $state(innerWidth);
   let vh = $state(innerHeight);
-  const handCw = $derived(Math.round(Math.max(52, Math.min(112, vh * 0.2, vw * 0.11))));
+  /**
+   * Hand mode: a table screen shows the middle of the table, so this phone keeps only what's
+   * yours (a bigger hand, your info and actions) plus any pile you can tap right now.
+   */
+  const handMode = $derived(!display && you >= 0 && !!view.lobby.displays && app.handMode);
   // a score track takes some height, so table cards get a little smaller with one
   const centerCw = $derived(
     Math.round(Math.max(40, Math.min(display ? 130 : 92, vh * (display ? 0.2 : status.track ? 0.13 : 0.15), vw * 0.09))),
@@ -38,7 +42,7 @@
   });
 
   const myHand = $derived(you >= 0 ? (s.zones[`hand:${you}`]?.cards ?? []) : []);
-  const centerZones = $derived(Object.values(s.zones).filter((z) => z.area === 'center' && !(z.hideEmpty && !z.cards.length)));
+  const allCenterZones = $derived(Object.values(s.zones).filter((z) => z.area === 'center' && !(z.hideEmpty && !z.cards.length)));
   const seatZone = (seat: number) => s.zones[`hand:${seat}`]?.cards ?? [];
 
   // ---- selection --------------------------------------------------------------------------
@@ -94,6 +98,18 @@
 
   /** Actions triggered by tapping a pile (draw from the deck, take the discard…). */
   const zoneAction = (zoneId: string) => view.actions.find((a) => a.zone === zoneId && !a.select);
+  /** In hand mode only piles you can use right now stay on the phone (e.g. the deck to draw from, a bridge dummy). */
+  const centerZones = $derived(
+    handMode ? allCenterZones.filter((z) => zoneAction(z.id) || z.cards.some((c) => selectable?.has(c.id))) : allCenterZones,
+  );
+  const handCw = $derived(
+    Math.round(
+      handMode
+        ? // a pile left on the phone (deck to draw from…) needs some of the height
+          Math.max(64, Math.min(168, vh * (centerZones.length ? 0.27 : 0.34), vw * 0.15))
+        : Math.max(52, Math.min(112, vh * 0.2, vw * 0.11)),
+    ),
+  );
 
   // ---- chrome -----------------------------------------------------------------------------
   let sheet = $state<'menu' | 'scores' | null>(null);
@@ -150,12 +166,17 @@
       const el = seat === you ? tableEl.querySelector('.hand-wrap') : tableEl.querySelector(`[data-seat="${seat}"]`);
       return el?.getBoundingClientRect() ?? null;
     };
-    flight.actor = rect(entry?.seat);
+    // in hand mode the table is on the big screen: your own moves fly up toward it
+    const anchor = () => {
+      const h = tableEl.querySelector('.headline')?.getBoundingClientRect();
+      return h ? new DOMRect(h.left + h.width / 2 - 24, h.top, 48, 67) : null;
+    };
+    flight.actor = handMode && entry?.seat === you ? anchor() : rect(entry?.seat);
     flight.to = rect(entry?.to);
     const pile = (id: string | undefined) => {
       if (!id) return null;
       const el = tableEl.querySelector(`[data-zone="${id}"] .stack`) ?? tableEl.querySelector(`[data-zone="${id}"]`);
-      return el?.getBoundingClientRect() ?? null;
+      return el?.getBoundingClientRect() ?? (handMode ? anchor() : null);
     };
     flight.fromZone = pile(entry?.fromZone);
     flight.toZone = pile(entry?.toZone);
@@ -179,7 +200,7 @@
 
 <svelte:window bind:innerWidth={vw} bind:innerHeight={vh} onfullscreenchange={() => (fullscreen = !!document.fullscreenElement)} />
 
-<div class="table" class:display bind:this={tableEl}>
+<div class="table" class:display class:handmode={handMode} bind:this={tableEl}>
   <!-- top: menu + opponents + scores -->
   <header>
     <button class="icon" onclick={() => (sheet = 'menu')} aria-label="Menu">
@@ -211,7 +232,7 @@
   <!-- tapping empty felt clears the selection (a touch shortcut; the Clear button is the accessible path) -->
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
   <main onclick={(e) => !(e.target as Element).closest('button, .card') && (selected = [])}>
-    {#if status.track}<Track track={status.track} avatars={view.lobby.seats.map((x) => x.avatar)} />{/if}
+    {#if status.track && !handMode}<Track track={status.track} avatars={view.lobby.seats.map((x) => x.avatar)} />{/if}
     <div class="headline" class:mine={actor === you && you >= 0}>{status.headline}</div>
     {#if lastMove}
       {#key lastMove.t}
@@ -239,7 +260,7 @@
         />
         </div>
       {/each}
-      {#if status.pot}
+      {#if status.pot && !handMode}
         <div class="pot" data-flip>
           <div class="chipstack" aria-hidden="true">
             {#each { length: Math.min(6, Math.ceil(Math.log2(status.pot + 1))) } as _, i}
@@ -278,7 +299,8 @@
           <div class="me-sub">Watching</div>
         {/if}
       </div>
-      <div class="hand-wrap">
+      <!-- bigger fanned cards tip further past the ends: keep them clear of the buttons -->
+      <div class="hand-wrap" style:padding-inline={handMode ? `${Math.round(handCw * 0.3)}px` : undefined}>
         <Hand
           cards={myHand}
           cw={handCw}
@@ -319,6 +341,11 @@
   <Sheet title="Table {view.lobby.code}" onclose={() => (sheet = null)}>
     <div class="menu-list">
       <button class="btn" onclick={toggleFullscreen}>{fullscreen ? 'Exit full screen' : 'Full screen'}</button>
+      {#if view.lobby.displays && !display}
+        <button class="btn" onclick={() => { app.setHandMode(!app.handMode); sheet = null; }}>
+          {app.handMode ? 'Show whole table' : 'Just my hand'}
+        </button>
+      {/if}
       <button class="btn" onclick={() => { navigator.clipboard?.writeText(`${location.origin}${location.pathname}#/join/${view.lobby.code}`); app.say('Invite link copied'); }}>Copy invite link</button>
       {#if app.isHost}
         <button class="btn" onclick={() => { app.host?.endGame(); sheet = null; }}>Back to lobby</button>
@@ -371,6 +398,22 @@
     padding: calc(6px + var(--safe-t)) calc(10px + var(--safe-r)) calc(4px + var(--safe-b)) calc(10px + var(--safe-l));
     gap: 4px 10px;
     overflow: hidden;
+  }
+  /* hand mode: the middle shrinks to the headline (and any pile you can tap); the hand grows */
+  .table.handmode {
+    grid-template-rows: auto auto 1fr;
+  }
+  .table.handmode main {
+    padding-top: 4px;
+  }
+  .table.handmode footer {
+    align-self: end;
+  }
+  .table.handmode .me {
+    font-size: 0.9rem;
+  }
+  .table.handmode .hint {
+    font-size: 0.85rem;
   }
   .table.display {
     grid-template-columns: 1fr;

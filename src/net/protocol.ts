@@ -34,6 +34,8 @@ export interface Lobby {
   options: Record<string, number | boolean>;
   seats: LobbySeat[];
   spectators: number;
+  /** Table screens (big-screen displays) watching; phones then show mostly their own hand. */
+  displays?: number;
   started: boolean;
 }
 

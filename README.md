@@ -15,7 +15,7 @@ the middle of the table. It needs no accounts or app store, and there's no serve
 - **Pick your look:** each player chooses an emoji avatar and colour, and every seat is labelled
   *your left*, *across* or *your right*.
 - **Built for landscape phones:** fanned hand, tap or swipe up to play, haptics, and keeps the screen awake.
-- **Table display:** put a tablet or laptop in the middle as the shared board (`Use this device as the table display`).
+- **Table display:** put a tablet or laptop in the middle as the shared board (`Use this device as the table display`). While one is connected, phones switch to *hand mode*: a bigger hand and your own info, with only the piles you can tap right now (switch back from the menu).
 - **Resilient:** a refreshed phone keeps its seat, and a refreshed host resumes the game.
 
 ## How the connection works

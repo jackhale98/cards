@@ -84,6 +84,8 @@ class App {
   pings = $state.raw<(number | null)[]>([]);
   /** Relay networks in use and how many of their relays are reachable. */
   netStatus = $state.raw<NetworkStatus | null>(null);
+  /** With a table screen connected, show just your hand and private info on this phone. */
+  handMode = $state(store.get('cards.handMode') !== 'off');
   /** When this device started trying to join the current table (for the "Finding table" screen). */
   joinStarted = $state(0);
   readonly cid = clientId();
@@ -106,6 +108,11 @@ class App {
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') this.client?.nudge();
     });
+  }
+
+  setHandMode(on: boolean) {
+    this.handMode = on;
+    store.set('cards.handMode', on ? null : 'off');
   }
 
   setName(n: string) {

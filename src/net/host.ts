@@ -368,7 +368,10 @@ export class Host {
   broadcast() {
     this.v++;
     const seated = new Set(this.lobby.seats.map((s) => s.id));
-    this.lobby.spectators = [...this.peers.values()].filter((c) => !seated.has(c)).length;
+    // a device can reach us on several networks: count devices (client ids), not connections
+    const screens = new Set([...this.displays].map((p) => this.peers.get(p)));
+    this.lobby.displays = screens.size;
+    this.lobby.spectators = new Set([...this.peers.values()].filter((c) => !seated.has(c) && !screens.has(c))).size;
     if (this.state) this.state.v = this.v;
     this.onLocalView(this.viewFor(this.hostCid));
     if (this.transport) {
