@@ -55,14 +55,23 @@ export function candidateMelds(ids: string[]): string[][] {
 }
 
 /** The meld arrangement that leaves the least deadwood (exhaustive search; hands are small). */
-export function bestMelds(ids: string[]): MeldResult {
+/**
+ * The arrangement of a hand into melds that leaves the least deadwood. With `layOffOnto` (the
+ * knocker's melds, when defending in gin) it counts deadwood after laying off, so the defender
+ * keeps whichever arrangement lays off best; `laid` then lists the cards laid off.
+ */
+export function bestMelds(ids: string[], layOffOnto?: string[][]): MeldResult & { laid: string[] } {
   const candidates = candidateMelds(ids);
-  let best: MeldResult = { melds: [], deadwood: [...ids], points: total(ids) };
+  const after = (deadwood: string[]) => {
+    const laid = layOffOnto ? layOff(deadwood, layOffOnto.map((m) => [...m])) : [];
+    return { laid, points: total(deadwood.filter((c) => !laid.includes(c))) };
+  };
+  let best: MeldResult & { laid: string[] } = { melds: [], deadwood: [...ids], ...after([...ids]) };
 
   function search(start: number, used: Set<string>, chosen: string[][]) {
     const deadwood = ids.filter((id) => !used.has(id));
-    const points = total(deadwood);
-    if (points < best.points) best = { melds: chosen.map((m) => [...m]), deadwood, points };
+    const { laid, points } = after(deadwood);
+    if (points < best.points) best = { melds: chosen.map((m) => [...m]), deadwood, points, laid };
     for (let i = start; i < candidates.length; i++) {
       const m = candidates[i];
       if (m.some((id) => used.has(id))) continue;

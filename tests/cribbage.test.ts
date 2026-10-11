@@ -4,6 +4,14 @@ import { describeShow, pegPoints, scoreHand } from '../src/engine/lib/cribbageSc
 
 const h = (s: string) => s.split(' ');
 
+/** These tests rig hands for a known dealer, the last seat: pick a seed whose cut gives that. */
+function setupLastDeals(players: { name: string; bot?: boolean }[], seed: number, options: Record<string, number | boolean>) {
+  for (let k = seed; ; k += 1000) {
+    const s = crib.setup(players, k, options);
+    if (s.dealer === players.length - 1) return s;
+  }
+}
+
 describe('cribbage hand counting', () => {
   it.each([
     // the perfect 29: three 5s + jack of the starter's suit, starter a 5
@@ -77,7 +85,7 @@ function play(s: GameState<CribData>, onShow?: (s: GameState<CribData>) => void)
 
 describe('cribbage game', () => {
   it.each([2, 3, 4])('%i players play to 121 with every card accounted for', (n) => {
-    const s = crib.setup(bots(n), 30 + n, {});
+    const s = setupLastDeals(bots(n), 30 + n, {});
     expect(s.zones['hand:0'].cards).toHaveLength(n === 2 ? 6 : 5);
     let hands = 0;
     play(s, (r) => {
@@ -93,7 +101,7 @@ describe('cribbage game', () => {
   });
 
   it('pegs 15s, pairs, go and last card', () => {
-    const s = crib.setup(bots(2), 1, {});
+    const s = setupLastDeals(bots(2), 1, {});
     // rig: after the cut, pone (seat 0) and dealer (seat 1) each hold 4 cards
     for (const z of Object.values(s.zones)) z.cards = [];
     s.zones['hand:0'].cards = ['5H', 'KC', '9D', '2S'].map((id) => ({ id }));
@@ -129,7 +137,7 @@ describe('cribbage game', () => {
   });
 
   it('counts the show, pone first, and gives the dealer his heels', () => {
-    const s = crib.setup(bots(2), 2, {});
+    const s = setupLastDeals(bots(2), 2, {});
     // force a jack starter
     const deck = s.zones.deck.cards;
     s.players.forEach((_, i) => crib.apply(s, i, { type: 'crib', cards: s.zones[`hand:${i}`].cards.slice(0, 2).map((c) => c.id) }));
@@ -157,7 +165,7 @@ describe('cribbage: counting your own hands (muggins)', () => {
   const STARTER = '5D';
   /** A two-player hand at the start of the show, pone (seat 0) about to count. */
   function atShow(scores = [0, 0]) {
-    const s = crib.setup(bots(2), 3, { muggins: true });
+    const s = setupLastDeals(bots(2), 3, { muggins: true });
     s.players.forEach((p) => (p.bot = false));
     for (const z of Object.values(s.zones)) z.cards = [];
     s.zones['played:0'].cards = PONE.map((id) => ({ id, up: true }));
@@ -244,7 +252,7 @@ describe('cribbage: counting your own hands (muggins)', () => {
   });
 
   it('in partnerships only the other side checks the count', () => {
-    const s = crib.setup(bots(4), 9, { muggins: true });
+    const s = setupLastDeals(bots(4), 9, { muggins: true });
     while (s.phase !== 'count') {
       const sys = crib.system!(s);
       if (sys) sys.run(s);
@@ -261,7 +269,7 @@ describe('cribbage: counting your own hands (muggins)', () => {
   });
 
   it.each([2, 3, 4])('%i players play a whole game with bots counting', (n) => {
-    const s = crib.setup(bots(n), 50 + n, { muggins: true });
+    const s = setupLastDeals(bots(n), 50 + n, { muggins: true });
     let hands = 0;
     play(s, (r) => {
       hands++;

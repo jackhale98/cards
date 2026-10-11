@@ -1,4 +1,4 @@
-import { buildDeck, sortCards } from './cards';
+import { buildDeck, cardName, parseCard, sortCards } from './cards';
 import { shuffle } from './rng';
 import type { CardRef, DealStep, GameConfig, GameState, SetupPlayer, ZoneState } from './types';
 import { assertRule } from './types';
@@ -43,6 +43,23 @@ export function createState<D>(
   };
   if (zones.deck) resetDeck(s, config);
   return s;
+}
+
+/**
+ * Cut for the first deal: everyone cuts a card and the lowest deals (aces low; a tie cuts again).
+ * Uses its own shuffled pack, so the real deck is untouched. Returns the dealer's seat.
+ */
+export function cutForDeal(s: GameState<any>): number {
+  const pack = shuffle(buildDeck(), s);
+  const low = (id: string) => (parseCard(id).rank === 14 ? 1 : parseCard(id).rank);
+  let seats = s.players.map((p) => p.seat);
+  while (seats.length > 1 && pack.length >= seats.length) {
+    const cuts = seats.map((seat) => ({ seat, card: pack.pop()! }));
+    log(s, `Cut for deal: ${cuts.map((c) => `${name(s, c.seat)} ${cardName(c.card)}`).join(', ')}`);
+    const min = Math.min(...cuts.map((c) => low(c.card)));
+    seats = cuts.filter((c) => low(c.card) === min).map((c) => c.seat);
+  }
+  return seats[0];
 }
 
 /** Put every card back in `deck`, shuffled. */

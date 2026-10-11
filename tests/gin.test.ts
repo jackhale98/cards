@@ -59,15 +59,15 @@ describe('gin rummy', () => {
   it('awards an undercut to the defender', () => {
     const s = rig(4, '2H 3H 4H 7C 7D 7S 9S TS JS 9D KC', 'QC QD QH AS AC AD 2S 3S 4S 5C');
     gin.apply(s, 0, { type: 'knock', cards: ['KC'] });
-    // knocker 9, defender 5 → defender gets 4 + 25
-    expect(s.data.scores).toEqual([0, 29]);
+    // knocker 9, defender 5 → defender gets 4 + 10 (pagat)
+    expect(s.data.scores).toEqual([0, 14]);
   });
 
   it('scores gin with the bonus and no layoffs', () => {
     const s = rig(5, '2H 3H 4H 7C 7D 7S 9S TS JS QS KC', 'QC QD QH 5H KD 8D 2C 3C 6S 6D');
     gin.apply(s, 0, { type: 'gin', cards: ['KC'] });
     // defender: QC QD QH meld, deadwood 5H KD 8D 2C 3C 6S 6D = 40 (no layoff onto gin)
-    expect(s.data.scores).toEqual([65, 0]);
+    expect(s.data.scores).toEqual([60, 0]); // 40 + the gin bonus of 20
   });
 
   it('plays complete games between bots with consistent cards and scores', () => {

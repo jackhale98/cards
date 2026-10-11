@@ -18,17 +18,22 @@
     "style": "gin",
     "handSize": 10,
     "knockMax": 10,
-    "bonuses": { "gin": 25, "bigGin": 31, "undercut": 25, "box": 25, "game": 100 },
+    "bonuses": { "gin": 20, "bigGin": 31, "undercut": 10, "box": 20, "game": 100 },
     "end": { "target": 100 }
   },
   "options": [
-    { "id": "target", "label": "Play to", "type": "number", "default": 100, "min": 25, "max": 250, "step": 25 }
+    { "id": "target", "label": "Play to", "type": "number", "default": 100, "min": 25, "max": 250, "step": 25 },
+    { "id": "bonus25", "label": "25-point bonuses", "type": "boolean", "default": false },
+    { "id": "bigGin", "label": "Big gin (+31)", "type": "boolean", "default": false }
   ],
   "rulesSummary": [
-    "Each turn, draw from the stock or take the top discard, then discard one card.",
+    "Ten cards each; the low cut deals. The non-dealer may take the first upcard, then the dealer; if both refuse, the non-dealer draws from the stock.",
+    "Each turn, draw from the stock or take the top discard, then discard one card (not the one you just took).",
     "Melds are sets (3–4 of a rank) or runs (3+ in a suit, ace low). Everything else is deadwood (faces 10, ace 1).",
-    "Knock when your deadwood is 10 or less. Your opponent lays off what they can on your melds.",
-    "Lower deadwood scores the difference. Undercut the knocker for +25; gin (no deadwood) is +25.",
+    "Knock when your deadwood is 10 or less. Your opponent lays off what they can on your melds (not after gin).",
+    "Lower deadwood scores the difference. An undercut (equal or lower) scores the difference +10; gin (no deadwood) scores +20.",
+    "If nobody knocks before the last two cards of the stock, the hand is void. The winner of each hand deals the next.",
+    "First to the target gets 100 (200 if the loser didn't score), plus 20 for every hand each player won.",
     "Your melds are arranged for you automatically — the hint shows your deadwood."
   ]
 }

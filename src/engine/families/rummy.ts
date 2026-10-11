@@ -1,6 +1,6 @@
 import { cardName, parseCard, rankLabel, SUIT_SYMBOL } from '../cards';
-import { bestMelds, deadwoodValue, layOff, meldOrder } from '../lib/melds';
-import { createState, hand, ids, log, moveCards, moveTop, name, placesFromScores, resetDeck, zone } from '../state';
+import { bestMelds, deadwoodValue, meldOrder } from '../lib/melds';
+import { createState, cutForDeal, hand, ids, log, moveCards, moveTop, name, placesFromScores, resetDeck, zone } from '../state';
 import { assertRule, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
 
 /**
@@ -12,7 +12,7 @@ import { assertRule, type ActionSpec, type GameConfig, type GameModule, type Gam
  *   "style": "gin",
  *   "handSize": 10,
  *   "knockMax": 10,                 // most deadwood you may knock with (0 = gin only)
- *   "bonuses": { "gin": 25, "bigGin": 31, "undercut": 25, "box": 25, "game": 100 },
+ *   "bonuses": { "gin": 20, "bigGin": 31, "undercut": 10, "box": 20, "game": 100 },
  *   "end": { "target": 100 }
  * }
  * ```
@@ -107,13 +107,17 @@ export function rummyFamily(config: GameConfig): GameModule<RummyData> {
     s.phase = 'discard';
   }
 
+  /** Pagat's bonuses (gin 20, undercut 10, box 20), or the common 25-each variant. */
+  const bonusesFor = (s: S) => ({ ...R.bonuses, ...(s.options.bonus25 ? { gin: 25, undercut: 25, box: 25 } : {}) });
+
   function endHand(s: S, knocker: number, kind: 'knock' | 'gin' | 'bigGin') {
     const d = s.data;
+    const B = bonusesFor(s);
     const defender = other(knocker);
     const k = bestMelds(ids(hand(s, knocker)));
-    const def = bestMelds(ids(hand(s, defender)));
-    const knockerMelds = k.melds.map((m) => [...m]);
-    const laid = kind === 'knock' ? layOff(def.deadwood, knockerMelds) : [];
+    // the defender arranges their hand to lay off as much as possible (none on gin)
+    const def = bestMelds(ids(hand(s, defender)), kind === 'knock' ? k.melds : undefined);
+    const laid = def.laid;
     const defDead = def.deadwood.filter((c) => !laid.includes(c));
     const dd = defDead.reduce((n, c) => n + deadwoodValue(c), 0);
     const kd = k.points;
@@ -123,20 +127,20 @@ export function rummyFamily(config: GameConfig): GameModule<RummyData> {
     const lines: string[] = [];
     if (kind === 'bigGin') {
       winner = knocker;
-      points = (R.bonuses.bigGin ?? R.bonuses.gin) + dd;
-      lines.push(`${name(s, knocker)} goes BIG GIN! +${R.bonuses.bigGin ?? R.bonuses.gin} bonus`);
+      points = (B.bigGin ?? B.gin) + dd;
+      lines.push(`${name(s, knocker)} goes BIG GIN! +${B.bigGin ?? B.gin} bonus`);
     } else if (kind === 'gin') {
       winner = knocker;
-      points = R.bonuses.gin + dd;
-      lines.push(`${name(s, knocker)} goes gin! +${R.bonuses.gin} bonus`);
+      points = B.gin + dd;
+      lines.push(`${name(s, knocker)} goes gin! +${B.gin} bonus`);
     } else if (kd < dd) {
       winner = knocker;
       points = dd - kd;
       lines.push(`${name(s, knocker)} knocks with ${kd}`);
     } else {
       winner = defender;
-      points = kd - dd + R.bonuses.undercut;
-      lines.push(`${name(s, defender)} undercuts ${name(s, knocker)}! +${R.bonuses.undercut} bonus`);
+      points = kd - dd + B.undercut;
+      lines.push(`${name(s, defender)} undercuts ${name(s, knocker)}! +${B.undercut} bonus`);
     }
     if (laid.length) lines.push(`${name(s, defender)} lays off ${laid.map(label).join(' ')}`);
     lines.push(`${name(s, knocker)} ${kd} deadwood · ${name(s, defender)} ${dd} deadwood`);
@@ -159,8 +163,10 @@ export function rummyFamily(config: GameConfig): GameModule<RummyData> {
     s.turn = null;
     s.dealer = winner; // the winner deals the next hand
     if (d.scores[winner] >= target(s)) {
-      const finals = [0, 1].map((i) => d.scores[i] + (i === winner ? (R.bonuses.game ?? 0) : 0) + d.boxes[i] * (R.bonuses.box ?? 0));
-      lines.push(...[0, 1].map((i) => `${name(s, i)}: ${d.scores[i]} + ${d.boxes[i]} hands won${i === winner && R.bonuses.game ? ` + ${R.bonuses.game} game` : ''} = ${finals[i]}`));
+      // the game bonus doubles if the loser didn't score at all (a shutout)
+      const game = (B.game ?? 0) * (d.scores[other(winner)] === 0 ? 2 : 1);
+      const finals = [0, 1].map((i) => d.scores[i] + (i === winner ? game : 0) + d.boxes[i] * (B.box ?? 0));
+      lines.push(...[0, 1].map((i) => `${name(s, i)}: ${d.scores[i]} + ${d.boxes[i]} hands won${i === winner && game ? ` + ${game} ${d.scores[other(winner)] === 0 ? 'shutout' : 'game'}` : ''} = ${finals[i]}`));
       s.winner = [finals[0] >= finals[1] ? 0 : 1];
       s.phase = 'gameOver';
     } else s.phase = 'handOver';
@@ -181,7 +187,7 @@ export function rummyFamily(config: GameConfig): GameModule<RummyData> {
         received: [[], []],
         result: null,
       });
-      s.dealer = 1;
+      s.dealer = cutForDeal(s); // low card deals
       startHand(s);
       return s;
     },
@@ -208,7 +214,7 @@ export function rummyFamily(config: GameConfig): GameModule<RummyData> {
         const out: ActionSpec[] = [{ type: 'discard', label: 'Discard', style: 'primary', quick: true, select: { min: 1, max: 1, cards } }];
         const gin = opts.filter((o) => o.points === 0).map((o) => o.card);
         const knock = opts.filter((o) => o.points > 0 && o.points <= R.knockMax).map((o) => o.card);
-        if (bestMelds(ids(hand(s, seat))).points === 0) out.unshift({ type: 'bigGin', label: 'Big Gin!', style: 'primary' });
+        if (s.options.bigGin && bestMelds(ids(hand(s, seat))).points === 0) out.unshift({ type: 'bigGin', label: 'Big Gin!', style: 'primary' });
         if (gin.length) out.push({ type: 'gin', label: 'Gin!', select: { min: 1, max: 1, cards: gin } });
         if (knock.length) out.push({ type: 'knock', label: 'Knock', select: { min: 1, max: 1, cards: knock } });
         return out;
@@ -286,7 +292,7 @@ export function rummyFamily(config: GameConfig): GameModule<RummyData> {
           return;
         }
         case 'bigGin':
-          assertRule(s.phase === 'discard' && bestMelds(ids(hand(s, seat))).points === 0, 'Not big gin');
+          assertRule(!!s.options.bigGin && s.phase === 'discard' && bestMelds(ids(hand(s, seat))).points === 0, 'Not big gin');
           return endHand(s, seat, 'bigGin');
       }
       assertRule(false, `Unknown action ${a.type}`);
@@ -305,7 +311,7 @@ export function rummyFamily(config: GameConfig): GameModule<RummyData> {
       if (s.phase === 'firstPick') return wants(top) ? { type: 'take' } : { type: 'pass' };
       if (s.phase === 'draw') return !s.data.mustDrawStock && wants(top) ? { type: 'take' } : { type: 'draw' };
       if (s.phase === 'discard') {
-        if (now === 0) return { type: 'bigGin' };
+        if (now === 0 && s.options.bigGin) return { type: 'bigGin' };
         const opts = discardOptions(s, seat).sort((a, b) => a.points - b.points || deadwoodValue(b.card) - deadwoodValue(a.card));
         const best = opts[0];
         if (best.points === 0) return { type: 'gin', cards: [best.card] };

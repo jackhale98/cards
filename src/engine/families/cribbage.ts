@@ -1,7 +1,7 @@
 import { buildDeck, cardName, parseCard, rankLabel, SUIT_SYMBOL } from '../cards';
 import { nextRandom } from '../rng';
 import { describeShow, pegPoints, pipValue, scoreHand } from '../lib/cribbageScore';
-import { createState, deal, hand, ids, log, moveCards, moveTop, name, nextSeat, placesFromScores, resetDeck, seatOrderFrom, sortHand, zone } from '../state';
+import { createState, cutForDeal, deal, hand, ids, log, moveCards, moveTop, name, nextSeat, placesFromScores, resetDeck, seatOrderFrom, sortHand, zone } from '../state';
 import { assertRule, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
 
 /**
@@ -92,7 +92,9 @@ export function cribbageFamily(config: GameConfig): GameModule<CribData> {
       s.winner = teamsFor(s.players.length)[t];
       s.phase = 'gameOver';
       s.turn = null;
-      d.result = { lines: [`${teamName(s, t)} reach ${target(s)}!`, ...d.scores.map((sc, i) => `${teamName(s, i)}: ${sc}`)] };
+      // a loser short of 91 (in a game to 121) is skunked; short of 61, double skunked
+      const skunk = (sc: number) => (target(s) === 121 && sc < 61 ? ' — double skunk' : target(s) === 121 && sc < 91 ? ' — skunked' : '');
+      d.result = { lines: [`${teamName(s, t)} reach ${target(s)}!`, ...d.scores.map((sc, i) => `${teamName(s, i)}: ${sc}${i === t ? '' : skunk(sc)}`)] };
       return true;
     }
     return false;
@@ -301,7 +303,7 @@ export function cribbageFamily(config: GameConfig): GameModule<CribData> {
         showStep: 0,
         result: null,
       });
-      s.dealer = players.length - 1;
+      s.dealer = cutForDeal(s); // low card deals
       startHand(s);
       return s;
     },
@@ -425,13 +427,18 @@ export function cribbageFamily(config: GameConfig): GameModule<CribData> {
           for (const z of Object.values(s.zones)) if (z.id !== 'deck') z.cards = [];
           s.dealer = nextSeat(s, s.dealer);
           return startHand(s);
-        case 'rematch':
+        case 'rematch': {
           assertRule(s.phase === 'gameOver', 'Game not over');
+          // the loser deals first in the next game (with partners, the losing side's next player)
+          const losers = s.players.map((p) => p.seat).filter((i) => !s.winner?.includes(i));
+          const low = Math.min(...losers.map((i) => d.scores[teamOf(s, i)]));
+          s.dealer = seatOrderFrom(s, s.dealer + 1).find((i) => losers.includes(i) && d.scores[teamOf(s, i)] === low) ?? s.dealer;
           d.scores = d.scores.map(() => 0);
           d.prev = d.prev.map(() => 0);
           d.handNo = 0;
           s.winner = undefined;
           return startHand(s);
+        }
       }
       assertRule(false, `Unknown action ${a.type}`);
     },

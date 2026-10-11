@@ -24,11 +24,12 @@
     { "id": "muggins", "label": "Count your own hands (muggins)", "type": "boolean", "default": false }
   ],
   "rulesSummary": [
-    "Everyone puts cards in the dealer's crib, then the deck is cut for a starter (a jack gives the dealer 2).",
-    "Pegging: take turns playing, keeping a running count up to 31. Score 15s and 31s (2), pairs (2/6/12) and runs.",
+    "Low cut deals first. Two players get six cards and discard two to the dealer's crib; three or four get five and discard one (with three, one card from the deck joins the crib). Four play as partners across.",
+    "The player left of the dealer cuts for a starter (a jack gives the dealer 2 — his heels).",
+    "Pegging: take turns playing, keeping a running count up to 31. Score 15s and 31s (2), pairs (2/6/12) and runs (in any order, among the cards played since the count restarted).",
     "Can't play without passing 31? Say Go. The last player to play scores 1 (2 for exactly 31), then the count restarts.",
-    "The show: each hand counts with the starter — fifteens 2 each, pairs, runs, flushes, and nobs (the jack of the starter's suit).",
-    "The dealer then counts the crib. First to 121 wins, even mid-hand.",
+    "The show: each hand counts with the starter — fifteens 2 each, pairs, runs, a flush (4 in hand, or 5 with the starter), and nobs (the jack of the starter's suit).",
+    "The dealer then counts the crib, which only scores a flush if all five match. First to 121 wins, even mid-hand; a loser short of 91 is skunked. The loser deals the next game.",
     "Muggins option: you count your own hand and crib. Opponents accept, or call muggins and say what it's really worth: they take any points you missed, and an overcount is cut back with the excess going to them. Call it wrongly and the counter gets the difference."
   ]
 }

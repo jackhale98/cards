@@ -304,3 +304,57 @@ describe('500 joker (pagat)', () => {
     }
   });
 });
+
+describe('cut for deal (pagat: low card deals)', () => {
+  it.each(['cribbage', 'gin-rummy'])('%s cuts for the first dealer', (id) => {
+    const g = GAMES[id];
+    const dealers = new Set<number>();
+    for (let seed = 1; seed <= 20; seed++) {
+      const s = g.setup(bots(2), seed, defaults(g));
+      expect(s.log.some((l) => l.text.startsWith('Cut for deal'))).toBe(true);
+      dealers.add(s.dealer);
+    }
+    expect(dealers.size).toBe(2);
+  });
+});
+
+describe('cribbage (pagat)', () => {
+  const g = GAMES.cribbage as GameModule<any>;
+  it('the loser deals first in the next game, and a skunk is called', () => {
+    const s = g.setup(bots(2), 4, { ...defaults(g), target: 121 });
+    run(g, s);
+    expect(s.phase).toBe('gameOver');
+    const loser = s.winner!.includes(0) ? 1 : 0;
+    const lost = s.data.scores[loser];
+    if (lost < 91) expect(s.data.result.lines.join(' ')).toMatch(/skunk/);
+    g.apply(s, 0, { type: 'rematch' });
+    expect(s.dealer).toBe(loser);
+  });
+});
+
+describe('gin rummy (pagat)', () => {
+  it('the defender arranges melds to lay off as much as possible', async () => {
+    const { bestMelds } = await import('../src/engine/lib/melds');
+    // 7-8-9♠ would leave 7♥ 7♦; the three 7s instead let 8♠ 9♠ go on the knocker's 10-J-Q♠
+    const r = bestMelds(['7S', '7H', '7D', '8S', '9S'], [['TS', 'JS', 'QS']]);
+    expect(r.points).toBe(0);
+    expect(r.laid.sort()).toEqual(['8S', '9S']);
+    expect(bestMelds(['7S', '7H', '7D', '8S', '9S']).points).toBe(14);
+  });
+
+  it('the game bonus doubles on a shutout', () => {
+    const g = GAMES['gin-rummy'] as GameModule<any>;
+    const s = g.setup(people(2), 3, defaults(g));
+    s.data.scores = [95, 0];
+    const me = 0;
+    // rig a gin hand for seat 0 with a spare card to discard
+    for (const z of Object.values(s.zones)) if (z.id.startsWith('hand')) z.cards = [];
+    s.zones['hand:0'].cards = ['AS', '2S', '3S', '4H', '5H', '6H', '7C', '8C', '9C', 'TC', 'KD'].map((id) => ({ id }));
+    s.zones['hand:1'].cards = ['KS', 'QH', 'JD', '9S', '8H', '7D', '6S', '5C', '4D', '3H'].map((id) => ({ id }));
+    s.phase = 'discard';
+    s.turn = me;
+    g.apply(s, me, { type: 'gin', cards: ['KD'] });
+    expect(s.phase).toBe('gameOver');
+    expect(s.data.result.lines.join(' ')).toMatch(/200 shutout/);
+  });
+});
