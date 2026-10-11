@@ -1,0 +1,31 @@
+{
+  "name": "cards",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Local multiplayer card table — your phone is your hand.",
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "check": "svelte-check --tsconfig ./tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "qrcode": "^1.5.4",
+    "trystero": "^0.26.0"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^7.3.1",
+    "@tsconfig/svelte": "^5.0.8",
+    "@types/qrcode": "^1.5.6",
+    "ajv": "^8.20.0",
+    "svelte": "^5.57.2",
+    "svelte-check": "^4.7.6",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.4",
+    "vitest": "^5.0.3"
+  }
+}

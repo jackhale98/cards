@@ -1,0 +1,27 @@
+{
+  "$schema": "../../../schemas/game.schema.json",
+  "id": "freetable",
+  "name": "Free Table",
+  "tagline": "A real deck on a virtual table. Play any game, house rules welcome.",
+  "icon": "🂠",
+  "players": { "min": 1, "max": 10, "recommended": 4 },
+  "deck": {},
+  "zones": [
+    { "id": "deck", "label": "Deck", "visibility": "none", "layout": "stack", "area": "center" },
+    { "id": "table", "label": "Table", "visibility": "all", "layout": "spread", "area": "center" },
+    { "id": "discard", "label": "Discard", "visibility": "all", "layout": "stack", "area": "center" },
+    { "id": "hand", "perPlayer": true, "visibility": "owner", "layout": "fan", "area": "hand" }
+  ],
+  "chips": { "start": 1000 },
+  "undo": true,
+  "options": [
+    { "id": "jokers", "label": "Jokers", "type": "number", "default": 0, "min": 0, "max": 2, "step": 1 },
+    { "id": "decks", "label": "Decks", "type": "number", "default": 1, "min": 1, "max": 3, "step": 1 },
+    { "id": "chips", "label": "Starting chips", "type": "number", "default": 1000, "min": 0, "max": 100000, "step": 100 }
+  ],
+  "rulesSummary": [
+    "No rules enforced: deal, draw, play, discard and bet however your game works.",
+    "Tap cards to select them, then pick an action. Swipe a card up to play it face up.",
+    "Undo is available for everyone, so mistakes are cheap."
+  ]
+}

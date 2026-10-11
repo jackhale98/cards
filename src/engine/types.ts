@@ -1,0 +1,194 @@
+import type { DeckSpec } from './cards';
+
+// ---------------------------------------------------------------------------
+// Game configuration (the `game.json` file of each game, see schemas/game.schema.json)
+// ---------------------------------------------------------------------------
+
+export type Visibility = 'all' | 'owner' | 'none';
+export type Layout = 'fan' | 'stack' | 'spread' | 'trick';
+export type Area = 'hand' | 'center' | 'seat' | 'none';
+
+export interface ZoneConfig {
+  id: string;
+  label?: string;
+  /** One copy of this zone per seat, with ids `<id>:<seat>`. */
+  perPlayer?: boolean;
+  visibility: Visibility;
+  layout: Layout;
+  area: Area;
+}
+
+export interface DealStep {
+  /** Zone id to deal into. Per-player zones receive `count` cards each. */
+  to: string;
+  count: number;
+  faceUp?: boolean;
+}
+
+export interface GameConfig {
+  id: string;
+  name: string;
+  tagline: string;
+  /** Short emoji/glyph shown on the game tile. */
+  icon: string;
+  players: { min: number; max: number; recommended?: number };
+  /** Seats that may be filled by bots, if the game supports them. */
+  bots?: boolean;
+  deck: DeckSpec;
+  zones: ZoneConfig[];
+  deal?: DealStep[];
+  chips?: { start: number; smallBlind?: number; bigBlind?: number };
+  /** Hand sorting preference. */
+  sort?: { aceLow?: boolean };
+  /** Enables generic undo in the host. */
+  undo?: boolean;
+  rulesSummary?: string[];
+  /** Free-form game options shown in the lobby. */
+  options?: GameOption[];
+}
+
+export interface GameOption {
+  id: string;
+  label: string;
+  type: 'number' | 'boolean';
+  default: number | boolean;
+  min?: number;
+  max?: number;
+  step?: number;
+}
+
+// ---------------------------------------------------------------------------
+// Runtime state (owned by the host, serialisable)
+// ---------------------------------------------------------------------------
+
+export interface CardRef {
+  id: string;
+  /** Face up? Only meaningful in zones visible to everyone. */
+  up?: boolean;
+  /** Seat that placed this card (used by trick layouts). */
+  by?: number;
+}
+
+export interface ZoneState {
+  id: string;
+  base: string;
+  owner?: number;
+  label?: string;
+  visibility: Visibility;
+  layout: Layout;
+  area: Area;
+  cards: CardRef[];
+}
+
+export interface PlayerState {
+  seat: number;
+  name: string;
+  bot?: boolean;
+  chips: number;
+}
+
+export interface LogEntry {
+  t: number;
+  text: string;
+}
+
+export interface GameState<D = unknown> {
+  game: string;
+  /** Monotonic version, bumped by the host on every change. */
+  v: number;
+  rng: number;
+  players: PlayerState[];
+  zones: Record<string, ZoneState>;
+  /** Seat whose turn it is, or null when nobody/everybody may act. */
+  turn: number | null;
+  phase: string;
+  dealer: number;
+  data: D;
+  log: LogEntry[];
+  options: Record<string, number | boolean>;
+  /** Set when the game is finished. */
+  winner?: number[];
+}
+
+// ---------------------------------------------------------------------------
+// Actions
+// ---------------------------------------------------------------------------
+
+export interface Action {
+  type: string;
+  cards?: string[];
+  amount?: number;
+  zone?: string;
+  seat?: number;
+}
+
+/** Describes a button the player may press. Clients render these without knowing the rules. */
+export interface ActionSpec {
+  type: string;
+  label: string;
+  style?: 'primary' | 'danger' | 'quiet';
+  /** Requires a card selection. `cards` lists the ids that may be selected. */
+  select?: { min: number; max: number; cards: string[] };
+  /** Requires an amount (bets, deal counts). */
+  amount?: { min: number; max: number; step: number; default: number; label?: string };
+  /** Show under the overflow menu instead of the main action bar. */
+  menu?: boolean;
+  /** A single tap/swipe on a selectable card triggers this action directly. */
+  quick?: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// The interface every game implements
+// ---------------------------------------------------------------------------
+
+export interface SeatInfo {
+  /** Short status text, e.g. "Bet 40", "Passed", "12 pts". */
+  badge?: string;
+  /** Highlight (e.g. dealer button). */
+  tag?: string;
+  out?: boolean;
+}
+
+export interface Scoreboard {
+  columns: string[];
+  rows: { name: string; values: (string | number)[]; highlight?: boolean }[];
+}
+
+export interface GameStatus {
+  headline: string;
+  seats: SeatInfo[];
+  /** Chips in the middle of the table. */
+  pot?: number;
+  /** Private hint for the viewer, e.g. "Two pair". */
+  hint?: string;
+  scoreboard?: Scoreboard;
+  /** Banner shown at end of a round / game. */
+  banner?: { title: string; lines: string[] };
+}
+
+export interface SetupPlayer {
+  name: string;
+  bot?: boolean;
+}
+
+export interface GameModule<D = any> {
+  config: GameConfig;
+  setup(players: SetupPlayer[], seed: number, options: Record<string, number | boolean>): GameState<D>;
+  /** Actions available to `seat` right now. */
+  actions(s: GameState<D>, seat: number): ActionSpec[];
+  /** Apply an action to a (cloned) state. Throw `RuleError` if illegal. */
+  apply(s: GameState<D>, seat: number, a: Action): void;
+  /** Automatic step the host should run after a short pause (e.g. collect a finished trick). */
+  system?(s: GameState<D>): { delay: number; run: (s: GameState<D>) => void } | null;
+  /** Pick an action for a bot seat, or null if it has nothing to do. */
+  bot?(s: GameState<D>, seat: number): Action | null;
+  /** Remove private information from `data` for `viewer` (-1 = spectator). */
+  redactData?(s: GameState<D>, viewer: number): D;
+  status(s: GameState<D>, viewer: number): GameStatus;
+}
+
+export class RuleError extends Error {}
+
+export function assertRule(cond: unknown, msg: string): asserts cond {
+  if (!cond) throw new RuleError(msg);
+}

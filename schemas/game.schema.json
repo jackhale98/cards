@@ -1,0 +1,97 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/jackhale98/cards/schemas/game.schema.json",
+  "title": "Card game definition",
+  "description": "Declarative setup for a game in src/games/<id>/game.json. Add a rules.ts beside it to enforce rules; without one the game runs on the Free Table engine.",
+  "type": "object",
+  "required": ["id", "name", "tagline", "icon", "players", "deck", "zones"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "id": { "type": "string", "pattern": "^[a-z0-9-]+$", "description": "Must match the folder name." },
+    "name": { "type": "string" },
+    "tagline": { "type": "string" },
+    "icon": { "type": "string", "maxLength": 4 },
+    "players": {
+      "type": "object",
+      "required": ["min", "max"],
+      "additionalProperties": false,
+      "properties": {
+        "min": { "type": "integer", "minimum": 1 },
+        "max": { "type": "integer", "minimum": 1, "maximum": 12 },
+        "recommended": { "type": "integer" }
+      }
+    },
+    "bots": { "type": "boolean", "description": "Seats may be filled by bots (rules.ts must implement bot())." },
+    "deck": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "decks": { "type": "integer", "minimum": 1, "maximum": 8 },
+        "jokers": { "type": "integer", "minimum": 0, "maximum": 4 },
+        "ranks": { "type": "array", "items": { "type": "integer", "minimum": 2, "maximum": 14 }, "description": "Ace is 14." }
+      }
+    },
+    "zones": {
+      "type": "array",
+      "minItems": 1,
+      "contains": { "type": "object", "properties": { "id": { "const": "deck" } } },
+      "items": {
+        "type": "object",
+        "required": ["id", "visibility", "layout", "area"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z][a-zA-Z0-9]*$" },
+          "label": { "type": "string" },
+          "perPlayer": { "type": "boolean" },
+          "visibility": { "enum": ["all", "owner", "none"], "description": "Who may see the cards." },
+          "layout": { "enum": ["fan", "stack", "spread", "trick"] },
+          "area": { "enum": ["hand", "center", "seat", "none"], "description": "Where the zone is drawn." }
+        }
+      }
+    },
+    "deal": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["to", "count"],
+        "additionalProperties": false,
+        "properties": {
+          "to": { "type": "string" },
+          "count": { "type": "integer", "minimum": 1 },
+          "faceUp": { "type": "boolean" }
+        }
+      }
+    },
+    "chips": {
+      "type": "object",
+      "required": ["start"],
+      "additionalProperties": false,
+      "properties": {
+        "start": { "type": "integer", "minimum": 0 },
+        "smallBlind": { "type": "integer" },
+        "bigBlind": { "type": "integer" }
+      }
+    },
+    "sort": { "type": "object", "properties": { "aceLow": { "type": "boolean" } }, "additionalProperties": false },
+    "undo": { "type": "boolean" },
+    "rulesSummary": { "type": "array", "items": { "type": "string" } },
+    "options": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "label", "type", "default"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string" },
+          "label": { "type": "string" },
+          "type": { "enum": ["number", "boolean"] },
+          "default": { "type": ["number", "boolean"] },
+          "min": { "type": "number" },
+          "max": { "type": "number" },
+          "step": { "type": "number" }
+        }
+      }
+    }
+  }
+}

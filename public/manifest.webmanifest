@@ -1,0 +1,11 @@
+{
+  "name": "Cards — play together",
+  "short_name": "Cards",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#071a14",
+  "theme_color": "#0b2a21",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}

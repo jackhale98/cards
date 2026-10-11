@@ -1,0 +1,134 @@
+import { buildDeck, sortCards } from './cards';
+import { shuffle } from './rng';
+import type { CardRef, DealStep, GameConfig, GameState, SetupPlayer, ZoneState } from './types';
+import { assertRule } from './types';
+
+/** Build the initial state for a game from its config: zones, players and a shuffled deck in `deck`. */
+export function createState<D>(
+  config: GameConfig,
+  players: SetupPlayer[],
+  seed: number,
+  options: Record<string, number | boolean>,
+  data: D,
+): GameState<D> {
+  const zones: Record<string, ZoneState> = {};
+  for (const z of config.zones) {
+    const make = (id: string, owner?: number): ZoneState => ({
+      id,
+      base: z.id,
+      owner,
+      label: z.label,
+      visibility: z.visibility,
+      layout: z.layout,
+      area: z.area,
+      cards: [],
+    });
+    if (z.perPlayer) players.forEach((_, i) => (zones[`${z.id}:${i}`] = make(`${z.id}:${i}`, i)));
+    else zones[z.id] = make(z.id);
+  }
+  const s: GameState<D> = {
+    game: config.id,
+    v: 0,
+    rng: seed >>> 0,
+    players: players.map((p, seat) => ({ seat, name: p.name, bot: p.bot, chips: config.chips?.start ?? 0 })),
+    zones,
+    turn: null,
+    phase: 'start',
+    dealer: 0,
+    data,
+    log: [],
+    options,
+  };
+  if (zones.deck) resetDeck(s, config);
+  return s;
+}
+
+/** Put every card back in `deck`, shuffled. */
+export function resetDeck(s: GameState<any>, config: GameConfig) {
+  for (const z of Object.values(s.zones)) z.cards = [];
+  s.zones.deck.cards = shuffle(buildDeck(config.deck), s).map((id) => ({ id }));
+}
+
+export function zone(s: GameState<any>, id: string): ZoneState {
+  const z = s.zones[id];
+  assertRule(z, `No zone ${id}`);
+  return z;
+}
+
+export const hand = (s: GameState<any>, seat: number) => zone(s, `hand:${seat}`);
+export const ids = (z: ZoneState) => z.cards.map((c) => c.id);
+
+/** Move specific cards (by id) between zones. */
+export function moveCards(
+  s: GameState<any>,
+  from: string,
+  to: string,
+  cardIds: string[],
+  extra: Partial<CardRef> = {},
+) {
+  const src = zone(s, from);
+  const dst = zone(s, to);
+  for (const id of cardIds) {
+    const i = src.cards.findIndex((c) => c.id === id);
+    assertRule(i >= 0, `Card not in ${from}`);
+    const [c] = src.cards.splice(i, 1);
+    dst.cards.push({ id: c.id, ...extra });
+  }
+}
+
+/** Move the top `n` cards (end of array) of a zone. */
+export function moveTop(s: GameState<any>, from: string, to: string, n: number, extra: Partial<CardRef> = {}) {
+  const src = zone(s, from);
+  const top = src.cards.slice(-n).reverse();
+  moveCards(s, from, to, top.map((c) => c.id), extra);
+}
+
+/** Find which zone currently holds a card. */
+export function findCard(s: GameState<any>, id: string): ZoneState | undefined {
+  return Object.values(s.zones).find((z) => z.cards.some((c) => c.id === id));
+}
+
+/** Deal from `deck` round-robin starting left of the dealer. */
+export function deal(s: GameState<any>, steps: DealStep[], seats?: number[]) {
+  const order = seats ?? seatOrderFrom(s, s.dealer + 1);
+  for (const step of steps) {
+    if (s.zones[step.to]) {
+      moveTop(s, 'deck', step.to, step.count, { up: step.faceUp });
+      continue;
+    }
+    for (let i = 0; i < step.count; i++) {
+      for (const seat of order) {
+        if (zone(s, 'deck').cards.length === 0) return;
+        moveTop(s, 'deck', `${step.to}:${seat}`, 1, { up: step.faceUp });
+      }
+    }
+  }
+}
+
+/** All seats starting from `start`, wrapping around. */
+export function seatOrderFrom(s: GameState<any>, start: number): number[] {
+  const n = s.players.length;
+  return Array.from({ length: n }, (_, i) => (((start + i) % n) + n) % n);
+}
+
+export function nextSeat(s: GameState<any>, seat: number, skip: (seat: number) => boolean = () => false) {
+  const n = s.players.length;
+  for (let i = 1; i <= n; i++) {
+    const next = (seat + i) % n;
+    if (!skip(next)) return next;
+  }
+  return seat;
+}
+
+export function sortHand(s: GameState<any>, seat: number, opts: Parameters<typeof sortCards>[1] = {}) {
+  const z = hand(s, seat);
+  const order = sortCards(ids(z), opts);
+  z.cards.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
+}
+
+export function log(s: GameState<any>, text: string) {
+  s.log.push({ t: Date.now(), text });
+  if (s.log.length > 40) s.log.splice(0, s.log.length - 40);
+}
+
+export const name = (s: GameState<any>, seat: number) => s.players[seat]?.name ?? `Seat ${seat + 1}`;

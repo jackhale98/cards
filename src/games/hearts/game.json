@@ -1,0 +1,26 @@
+{
+  "$schema": "../../../schemas/game.schema.json",
+  "id": "hearts",
+  "name": "Hearts",
+  "tagline": "Dodge the hearts and the Queen of Spades — or shoot the moon.",
+  "icon": "♥",
+  "players": { "min": 4, "max": 4, "recommended": 4 },
+  "bots": true,
+  "deck": {},
+  "zones": [
+    { "id": "deck", "visibility": "none", "layout": "stack", "area": "none" },
+    { "id": "hand", "perPlayer": true, "visibility": "owner", "layout": "fan", "area": "hand" },
+    { "id": "trick", "label": "Trick", "visibility": "all", "layout": "trick", "area": "center" },
+    { "id": "taken", "perPlayer": true, "visibility": "none", "layout": "stack", "area": "none" }
+  ],
+  "deal": [{ "to": "hand", "count": 13 }],
+  "options": [
+    { "id": "target", "label": "Play to", "type": "number", "default": 100, "min": 25, "max": 200, "step": 25 }
+  ],
+  "rulesSummary": [
+    "Pass three cards (left, right, across, then no pass), then play 13 tricks.",
+    "Follow suit if you can. The 2♣ leads the first trick.",
+    "Each heart is 1 point, the Q♠ is 13. Lowest score wins when someone reaches the target.",
+    "Take all 26 points to shoot the moon: everyone else gets 26 instead."
+  ]
+}

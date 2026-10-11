@@ -1,0 +1,23 @@
+{
+  "$schema": "../../../schemas/game.schema.json",
+  "id": "crazy-eights",
+  "name": "Crazy Eights",
+  "tagline": "Match suit or rank, eights are wild. First to empty their hand wins.",
+  "icon": "8",
+  "players": { "min": 2, "max": 7, "recommended": 4 },
+  "deck": {},
+  "zones": [
+    { "id": "deck", "label": "Draw", "visibility": "none", "layout": "stack", "area": "center" },
+    { "id": "table", "label": "Pile", "visibility": "all", "layout": "stack", "area": "center" },
+    { "id": "hand", "perPlayer": true, "visibility": "owner", "layout": "fan", "area": "hand" }
+  ],
+  "deal": [
+    { "to": "hand", "count": 7 },
+    { "to": "table", "count": 1, "faceUp": true }
+  ],
+  "rulesSummary": [
+    "Config-only game: rules are on the honour system (this file has no rules.ts).",
+    "Play a card matching the top card's suit or rank. Eights are wild: name a new suit.",
+    "Can't play? Draw. First to empty their hand wins."
+  ]
+}
