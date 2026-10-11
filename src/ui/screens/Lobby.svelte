@@ -6,6 +6,7 @@
   import AvatarPicker from '../components/AvatarPicker.svelte';
   import GameIcon from '../components/GameIcon.svelte';
   import NetStatus from '../components/NetStatus.svelte';
+  import { keepAwake } from '../wakeLock';
   import NightBoard from '../components/NightBoard.svelte';
   import PingDot from '../components/PingDot.svelte';
   import Sheet from '../components/Sheet.svelte';
@@ -26,9 +27,12 @@
     );
   });
 
+  // the host's phone keeps the table alive: don't let it sleep while friends are joining
+  $effect(() => (app.isHost ? keepAwake() : undefined));
+
   async function share() {
     try {
-      if (navigator.share) await navigator.share({ title: 'Join my card table', text: `Table code ${lobby.code}`, url: joinUrl });
+      if (navigator.share) await navigator.share({ title: 'Join my Lamplight table', text: `Pull up a chair — table ${lobby.code}`, url: joinUrl });
       else {
         await navigator.clipboard.writeText(joinUrl);
         app.say('Invite link copied');
@@ -54,7 +58,7 @@
     <div class="code">{#each lobby.code.split('') as ch}<span>{ch}</span>{/each}</div>
     <!-- the QR is generated a moment later: hold its place so the page doesn't jump -->
     {#if qr}<img class="qr" src={qr} alt="QR code to join this table" />{:else}<div class="qr" aria-hidden="true"></div>{/if}
-    <p class="small">Scan, or open the site and enter the code. Everyone should be on the same WiFi for the fastest play.</p>
+    <p class="small">Scan, or open the site and enter the code. Friends somewhere else can join with the invite link — pair it with a video call. Same WiFi is fastest.</p>
     <div class="row">
       <button class="btn" onclick={share}>Share invite</button>
       <button class="btn quiet" onclick={() => { app.leave(); app.go('/'); }}>Leave</button>

@@ -39,8 +39,8 @@
         <li>Is the host's screen on, with the table open? Phones pause background tabs.</li>
         <li>Double-check the code: <b>{route.code}</b>.</li>
         {#if app.net === 'local'}<li>Local test mode only links tabs in the same browser — not private tabs or other devices.</li>{/if}
-        {#if app.netStatus && !relaysUp}<li>This device can't reach the relay networks — check its internet connection.</li>{/if}
-        <li>Some networks (hotel or guest WiFi) block devices from seeing each other. A phone hotspot works well.</li>
+        {#if app.netStatus && !relaysUp}<li>This device can't reach the internet — check its connection.</li>{/if}
+        <li>Joining from somewhere else works too — the host just needs to be online with the table open.</li>
       </ul>
     {/if}
     <div class="row">

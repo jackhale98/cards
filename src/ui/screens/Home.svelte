@@ -9,6 +9,8 @@
 
   let { code: initialCode = '' }: { code?: string } = $props();
   let code = $state(normaliseCode(untrack(() => initialCode)));
+  /** Arrived by an invite link (`#/join/ABCD`). */
+  const invited = untrack(() => (isValidCode(normaliseCode(initialCode)) ? normaliseCode(initialCode) : ''));
   let name = $state(app.name);
   const saved = app.savedHost;
   // the button lights up as soon as the code is complete; a missing name is asked for on tap
@@ -74,8 +76,12 @@
       </div>
     </div>
 
-    <button class="btn primary wide light" onclick={host}>Start a table</button>
+    <!-- arriving by an invite, joining is the main thing to do -->
+    <button class="btn wide" class:primary={!invited} class:light={!invited} onclick={host}>Start a table</button>
 
+    {#if invited}
+      <p class="invited">You're invited to table <b>{invited}</b> — add your name and deal yourself in.</p>
+    {/if}
     <div class="or"><span>or join one</span></div>
 
     <div class="join">
@@ -91,7 +97,7 @@
         spellcheck="false"
         aria-label="Table code"
       />
-      <button class="btn" disabled={!canJoin} onclick={() => join()}>Deal me in</button>
+      <button class="btn" class:primary={!!invited} class:light={!!invited} disabled={!canJoin} onclick={() => join()}>Deal me in</button>
     </div>
     <button class="link" disabled={!isValidCode(code)} onclick={() => join(true)}>Use this device as the table display</button>
 
@@ -312,5 +318,14 @@
   input.need {
     border-color: var(--gold);
     box-shadow: 0 0 0 3px rgba(233, 196, 106, 0.35);
+  }
+  .invited {
+    margin: 0.2rem 0 0;
+    padding: 0.5rem 0.7rem;
+    border-radius: 12px;
+    background: rgba(233, 196, 106, 0.12);
+    border: 1px solid rgba(233, 196, 106, 0.3);
+    font-size: 0.85rem;
+    text-align: center;
   }
 </style>

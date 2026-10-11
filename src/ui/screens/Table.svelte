@@ -15,6 +15,7 @@
   import { seatRelation } from '../../engine/state';
   import { flight, haptic, play, snapshot } from '../motion';
   import { seatColor } from '../seatColors';
+  import { keepAwake } from '../wakeLock';
 
   let { view, display = false }: { view: View; display?: boolean } = $props();
 
@@ -155,23 +156,8 @@
   }
 
   // keep the screen awake while at the table
-  $effect(() => {
-    let lock: any = null;
-    const get = async () => {
-      try {
-        lock = await (navigator as any).wakeLock?.request('screen');
-      } catch {
-        /* not supported */
-      }
-    };
-    const onVis = () => document.visibilityState === 'visible' && get();
-    void get();
-    document.addEventListener('visibilitychange', onVis);
-    return () => {
-      document.removeEventListener('visibilitychange', onVis);
-      lock?.release?.();
-    };
-  });
+  $effect(() => keepAwake());
+
 
   // ---- what just happened ------------------------------------------------------------------
   const lastEntry = $derived(s.log.at(-1));
