@@ -33,34 +33,77 @@ function pin(node: HTMLElement) {
   if (style.position === 'absolute' || style.position === 'fixed') return;
   const { width, height } = style;
   const a = node.getBoundingClientRect();
+  const parent = node.offsetParent as HTMLElement | null;
   node.dataset.pinned = '1';
   node.style.position = 'absolute';
   node.style.width = width;
   node.style.height = height;
   node.style.margin = '0';
+  if (parent) {
+    // explicit coordinates: an absolutely positioned flex child would otherwise sit at its
+    // "static position", which moves as the rest of the row re-centres
+    const p = parent.getBoundingClientRect();
+    node.style.left = `${a.left - p.left - parent.clientLeft}px`;
+    node.style.top = `${a.top - p.top - parent.clientTop}px`;
+  }
   const b = node.getBoundingClientRect();
-  if (a.left !== b.left || a.top !== b.top) {
+  if (Math.abs(a.left - b.left) > 0.5 || Math.abs(a.top - b.top) > 0.5) {
     const shift = `translate(${a.left - b.left}px, ${a.top - b.top}px)`;
     node.style.transform = node.style.transform ? `${node.style.transform} ${shift}` : shift;
   }
 }
 
-/** Glide `node` (already in its final place) from the rectangle `from`. */
-function glide(from: DOMRect, node: Element): TransitionConfig {
-  const to = node.getBoundingClientRect();
-  const a = center(from);
-  const b = center(to);
-  const dx = a.x - b.x;
-  const dy = a.y - b.y;
-  const scale = to.width ? from.width / to.width : 1;
-  const base = getComputedStyle(node).transform;
-  const rest = base === 'none' ? '' : base;
+/** Where an element was on screen before this update (falls back to where it is now). */
+function origin(node: Element): DOMRect {
+  return lastRects.get(node) ?? node.getBoundingClientRect();
+}
+
+/** The element's own transform split into translation + rotation (hand cards are fanned). */
+function ownTransform(node: Element) {
+  const t = getComputedStyle(node).transform;
+  const m = new DOMMatrixReadOnly(t === 'none' ? undefined : t);
+  return { tx: m.e, ty: m.f, angle: Math.atan2(m.b, m.a) };
+}
+
+/**
+ * Build a move between the element's home (u = 0) and an "away" rectangle (u = 1): where it
+ * comes from (intro) or goes to (outro). Rotation unwinds toward away; size matches away.
+ * `home` optionally shifts the home end (a leaving card whose row has already moved).
+ */
+function move(node: HTMLElement, away: DOMRect, opts: { fade?: 'in' | 'out'; scale?: number; home?: { x: number; y: number } } = {}): TransitionConfig {
+  const r = node.getBoundingClientRect();
+  const { tx, ty, angle } = ownTransform(node);
+  const k = opts.scale ?? (r.width ? away.width / r.width : 1);
+  const hx = opts.home?.x ?? 0;
+  const hy = opts.home?.y ?? 0;
+  let dx = center(away).x - center(r).x;
+  let dy = center(away).y - center(r).y;
+  // transform-origin (hand cards pivot below the card) shifts a scaled card; measure the away
+  // end once and correct, so it lines up exactly with the rectangle it comes from / goes to
+  // (CSS transitions are paused while probing, or we'd read their starting value)
+  const keep = node.style.transform;
+  const keepTransition = node.style.transition;
+  node.style.transition = 'none';
+  node.style.transform = `translate(${dx}px,${dy}px) translate(${tx}px,${ty}px) scale(${k})`;
+  const probe = node.getBoundingClientRect();
+  node.style.transform = keep;
+  void node.offsetWidth; // apply the restore before transitions come back
+  node.style.transition = keepTransition;
+  dx += center(away).x - center(probe).x;
+  dy += center(away).y - center(probe).y;
+  const fade = opts.fade;
   return {
     duration: travel(dx, dy),
     easing: EASE,
-    css: (_t, u) =>
-      `z-index:30;transform:translate(${u * dx}px,${u * dy}px) ${rest} scale(${1 + (scale - 1) * u})`,
+    css: (t, u) =>
+      `z-index:30;transform:translate(${u * dx + t * hx}px,${u * dy + t * hy}px) translate(${tx}px,${ty}px) rotate(${angle * t}rad) scale(${1 + (k - 1) * u})` +
+      (fade === 'in' ? `;opacity:${Math.min(1, t * 3)}` : fade === 'out' ? `;opacity:${Math.min(1, t * 2)}` : ''),
   };
+}
+
+/** Glide `node` (already in its final place) from the rectangle `from`. */
+function glide(from: DOMRect, node: HTMLElement): TransitionConfig {
+  return move(node, from);
 }
 
 /**
@@ -68,30 +111,24 @@ function glide(from: DOMRect, node: Element): TransitionConfig {
  * their spot, matching the pile's card size. Cards going to or coming from someone's hidden hand
  * fly to/from their seat, shrinking and fading. Otherwise, a short fade.
  */
-function fallback(node: Element, intro: boolean): TransitionConfig {
-  const base = getComputedStyle(node).transform;
-  const rest = base === 'none' ? '' : base;
+function fallback(node: HTMLElement, intro: boolean): TransitionConfig {
   const pile = intro ? flight.fromZone : flight.toZone;
   const seat = intro ? flight.actor : (flight.to ?? flight.actor);
   const target = pile ?? seat;
   if (target) {
+    // a leaving card starts from where it was before the update, even if its row has shifted
     const r = node.getBoundingClientRect();
-    const dx = center(target).x - center(r).x;
-    const dy = center(target).y - center(r).y;
-    // a pile is drawn with real cards: end/start at that size, fully opaque
-    const endScale = pile && r.width ? Math.min(1.5, Math.max(0.4, target.width / r.width)) : 0.45;
-    return {
-      duration: travel(dx, dy),
-      easing: EASE,
-      css: (t, u) =>
-        `z-index:30;transform:translate(${u * dx}px,${u * dy}px) ${rest} scale(${1 + (endScale - 1) * u})` +
-        (pile ? '' : `;opacity:${Math.min(1, t * (intro ? 3 : 2))}`),
-    };
+    const was = intro ? r : origin(node);
+    const home = { x: center(was).x - center(r).x, y: center(was).y - center(r).y };
+    // a pile is drawn with real cards (match its size, stay opaque); a seat is a small avatar
+    const scale = pile ? undefined : 0.45;
+    return move(node, target, { scale, home, fade: pile ? undefined : intro ? 'in' : 'out' });
   }
+  const { tx, ty, angle } = ownTransform(node);
   return {
     duration: 240,
     easing: EASE,
-    css: (t, u) => `opacity:${t};transform:${rest} translateY(${u * -16}px) scale(${0.9 + 0.1 * t})`,
+    css: (t, u) => `opacity:${t};transform:translate(${tx}px,${ty + u * -16}px) rotate(${angle}rad) scale(${0.9 + 0.1 * t})`,
   };
 }
 
@@ -103,7 +140,7 @@ function unpin(node: HTMLElement) {
   node.style.visibility = '';
   if (!node.dataset.pinned) return;
   delete node.dataset.pinned;
-  for (const prop of ['position', 'width', 'height', 'margin', 'transform'] as const) node.style[prop] = '';
+  for (const prop of ['position', 'width', 'height', 'margin', 'transform', 'left', 'top'] as const) node.style[prop] = '';
 }
 
 function pair(intro: boolean) {
@@ -118,7 +155,7 @@ function pair(intro: boolean) {
       const other = theirs.get(params.key);
       if (other) {
         theirs.delete(params.key);
-        if (intro) return glide(other.getBoundingClientRect(), node);
+        if (intro) return glide(origin(other), node);
         // hide the copy left behind right now (not one frame later via the animation)
         node.style.visibility = 'hidden';
         return { duration: travel(0, 0), css: () => 'opacity:0' };
@@ -134,19 +171,20 @@ export const receive = pair(true);
 
 // ---- layout shifts ----------------------------------------------------------------------
 
-let before = new Map<Element, DOMRect>();
+/** Positions of `data-flip` elements just before the latest update (also used by card moves). */
+let lastRects = new Map<Element, DOMRect>();
 
 /** Record where every `data-flip` element is, right before the DOM updates. */
 export function snapshot(root: Element) {
-  before = new Map();
-  root.querySelectorAll('[data-flip]').forEach((el) => before.set(el, el.getBoundingClientRect()));
+  lastRects = new Map();
+  root.querySelectorAll('[data-flip]').forEach((el) => lastRects.set(el, el.getBoundingClientRect()));
 }
 
 /** After the update, slide every element that moved back from where it was. */
 export function play(root: Element) {
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   root.querySelectorAll<HTMLElement>('[data-flip]').forEach((el) => {
-    const a = before.get(el);
+    const a = lastRects.get(el);
     if (!a) return; // new element: its own transition handles it
     const b = el.getBoundingClientRect();
     const dx = a.left - b.left;
@@ -158,7 +196,6 @@ export function play(root: Element) {
       composite: 'add',
     });
   });
-  before = new Map();
 }
 
 export function haptic(ms = 8) {
