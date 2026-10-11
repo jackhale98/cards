@@ -1,0 +1,23 @@
+{
+  "$schema": "../../../schemas/game.schema.json",
+  "id": "cheat",
+  "name": "Cheat",
+  "tagline": "Play your cards face down and lie with a straight face. Call Cheat! when you smell a bluff.",
+  "icon": "?",
+  "players": { "min": 3, "max": 10, "recommended": 5 },
+  "bots": true,
+  "deck": {},
+  "zones": [
+    { "id": "deck", "visibility": "none", "layout": "stack", "area": "none" },
+    { "id": "pile", "label": "Pile", "visibility": "all", "layout": "stack", "area": "center" },
+    { "id": "shown", "label": "Turned up", "visibility": "all", "layout": "spread", "area": "center", "hideEmpty": true },
+    { "id": "hand", "perPlayer": true, "visibility": "owner", "layout": "fan", "area": "hand" }
+  ],
+  "rules": { "family": "cheat" },
+  "rulesSummary": [
+    "Also called Bullshit or I Doubt It. All the cards are dealt (two decks for seven or more players).",
+    "In turn, put one or more cards face down on the pile and say they are the next rank: aces, then twos, threes … kings, then aces again. You don't have to tell the truth.",
+    "Before the next player plays, anyone may call Cheat! The cards are turned up: if any isn't the rank that was said, the player takes the whole pile; if they were all true, the caller takes it.",
+    "Play carries on from the left of whoever was challenged. The first player to get rid of all their cards — and survive any challenge to that last play — wins."
+  ]
+}

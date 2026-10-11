@@ -1,0 +1,33 @@
+{
+  "$schema": "../../../schemas/game.schema.json",
+  "id": "blackjack",
+  "name": "Blackjack",
+  "tagline": "Beat the dealer to 21 without going over.",
+  "icon": "21",
+  "players": { "min": 1, "max": 7, "recommended": 4 },
+  "bots": true,
+  "deck": {},
+  "zones": [
+    { "id": "deck", "label": "Shoe", "visibility": "none", "layout": "stack", "area": "none" },
+    { "id": "discard", "visibility": "none", "layout": "stack", "area": "none" },
+    { "id": "dealer", "label": "Dealer", "visibility": "all", "layout": "spread", "area": "center" },
+    { "id": "hand", "perPlayer": true, "visibility": "owner", "layout": "fan", "area": "hand" }
+  ],
+  "chips": { "start": 1000 },
+  "rules": { "family": "blackjack", "minBet": 10, "maxBet": 500 },
+  "options": [
+    { "id": "stack", "label": "Starting chips", "type": "number", "default": 1000, "min": 100, "max": 100000, "step": 100 },
+    { "id": "minBet", "label": "Minimum bet", "type": "number", "default": 10, "min": 2, "max": 100, "step": 2 },
+    { "id": "rounds", "label": "Rounds", "type": "number", "default": 10, "min": 1, "max": 50, "step": 1 },
+    { "id": "decks", "label": "Decks in the shoe", "type": "number", "default": 2, "min": 1, "max": 8, "step": 1 },
+    { "id": "hitSoft17", "label": "Dealer hits soft 17", "type": "boolean", "default": false },
+    { "id": "surrender", "label": "Allow surrender", "type": "boolean", "default": false }
+  ],
+  "rulesSummary": [
+    "Everyone plays against the dealer (the house). Place a bet, then you get two cards face up; the dealer gets one up and one down.",
+    "Cards count their number, faces 10, aces 1 or 11. Get closer to 21 than the dealer without going over.",
+    "Hit for another card or stand. Double down on your first two cards: double the bet, take exactly one more card. Split a pair into two hands (up to four; split aces get one card each).",
+    "With an ace showing, you may insure for half your bet (pays 2:1 if the dealer has blackjack). The dealer checks for blackjack under an ace or ten.",
+    "The dealer draws to 17. A win pays 1:1, blackjack (ace and a ten on the first two cards) pays 3:2, a tie is a push. Most chips after the last round wins."
+  ]
+}

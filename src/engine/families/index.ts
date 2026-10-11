@@ -1,9 +1,12 @@
 import type { GameConfig, GameModule } from '../types';
+import { blackjackFamily } from './blackjack';
 import { canastaFamily } from './canasta';
+import { cheatFamily } from './cheat';
 import { climbingFamily } from './climbing';
 import { cribbageFamily } from './cribbage';
 import { eightsFamily } from './eights';
 import { freeFamily } from './free';
+import { goFishFamily } from './gofish';
 import { pokerFamily } from './poker';
 import { rummyFamily } from './rummy';
 import { rummy500Family } from './rummy500';
@@ -16,6 +19,9 @@ import { trickTakingFamily } from './trickTaking';
  */
 export const FAMILIES: Record<string, (config: GameConfig) => GameModule> = {
   free: freeFamily,
+  blackjack: blackjackFamily,
+  cheat: cheatFamily,
+  gofish: goFishFamily,
   canasta: canastaFamily,
   climbing: climbingFamily,
   cribbage: cribbageFamily,

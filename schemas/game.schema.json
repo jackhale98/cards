@@ -870,12 +870,54 @@
               }
             }
           }
+        },
+        {
+          "required": [
+            "family"
+          ],
+          "additionalProperties": false,
+          "description": "Blackjack against the house.",
+          "properties": {
+            "family": {
+              "const": "blackjack"
+            },
+            "minBet": {
+              "type": "integer"
+            },
+            "maxBet": {
+              "type": "integer"
+            }
+          }
+        },
+        {
+          "required": [
+            "family"
+          ],
+          "additionalProperties": false,
+          "description": "Cheat (Bullshit, I Doubt It): play face down, claim the next rank, call Cheat!",
+          "properties": {
+            "family": {
+              "const": "cheat"
+            }
+          }
+        },
+        {
+          "required": [
+            "family"
+          ],
+          "additionalProperties": false,
+          "description": "Go Fish: ask for ranks and collect books of four.",
+          "properties": {
+            "family": {
+              "const": "gofish"
+            }
+          }
         }
       ]
     },
     "category": {
       "type": "string",
-      "description": "Picker section (Poker, Trick-taking, Rummy, Shedding, More). Defaults to one based on the rules family."
+      "description": "Picker section (Poker, Casino, Trick-taking, Rummy, Shedding, Family, More). Defaults to one based on the rules family."
     }
   }
 }

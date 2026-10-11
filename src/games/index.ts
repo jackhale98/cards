@@ -24,7 +24,7 @@ export const GAME_LIST: GameModule[] = Object.values(GAMES).sort(
 );
 
 /** Picker sections, in order. Games pick one with `category`, or get one from their rules family. */
-export const CATEGORIES = ['Poker', 'Trick-taking', 'Rummy', 'Shedding', 'More'] as const;
+export const CATEGORIES = ['Poker', 'Casino', 'Trick-taking', 'Rummy', 'Shedding', 'Family', 'More'] as const;
 const BY_FAMILY: Record<string, string> = {
   poker: 'Poker',
   'trick-taking': 'Trick-taking',
@@ -32,6 +32,9 @@ const BY_FAMILY: Record<string, string> = {
   canasta: 'Rummy',
   climbing: 'Shedding',
   eights: 'Shedding',
+  cheat: 'Shedding',
+  gofish: 'Family',
+  blackjack: 'Casino',
 };
 export function categoryOf(g: GameModule): string {
   const c = g.config.category ?? BY_FAMILY[g.config.rules?.family ?? 'free'] ?? 'More';

@@ -19,6 +19,9 @@ src/games/my-game/
 | `canasta`      | Classic Canasta, partnerships or head to head | `src/engine/families/canasta.ts` |
 | `climbing`     | President (style `president`): beat the last play or pass, first out wins | `src/engine/families/climbing.ts` |
 | `cribbage`     | Cribbage for 2–4 (4 = partners), to 121 or 61 | `src/engine/families/cribbage.ts` |
+| `blackjack`    | Blackjack against the house (the host's phone deals) | `src/engine/families/blackjack.ts` |
+| `cheat`        | Cheat / Bullshit / I Doubt It | `src/engine/families/cheat.ts` |
+| `gofish`       | Go Fish | `src/engine/families/gofish.ts` |
 | `eights`       | Crazy Eights: match rank or suit, eights call a suit, optional Q/A/2 specials | `src/engine/families/eights.ts` |
 
 `schemas/game.schema.json` describes every parameter, so editors like VS Code give you

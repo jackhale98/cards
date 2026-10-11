@@ -17,7 +17,7 @@
   const DRAWN = new Set([
     'holdem', 'omaha', 'hearts', 'spades', 'euchre', 'five-hundred', 'cribbage',
     'bridge', 'gin-rummy', 'oh-hell', 'freetable', 'crazy-eights', 'rummy-500', 'president', 'canasta',
-    'five-card-draw',
+    'five-card-draw', 'blackjack', 'cheat', 'go-fish',
   ]);
 
   // Suit shapes in a 100-unit box centred on the origin.
@@ -200,6 +200,36 @@
           {@render suit(k as Suit, -3, -1, 10, fill as string)}
         </g>
       {/each}
+    {:else if id === 'blackjack'}
+      <!-- the natural: an ace and a king, with a chip riding on it -->
+      <g transform="translate(25 32) rotate(-10)">{@render card()}{@render corner('A', 'S', INK)}{@render suit('S', -5, -3, 13, INK)}</g>
+      <g transform="translate(37 34) rotate(9)">
+        {@render card()}
+        {@render corner('K', 'H', RED)}
+        <rect x="-4.5" y="-7.5" width="12" height="17" rx="1" fill="#e9c46a" fill-opacity="0.22" stroke={RED} stroke-width="0.6" />
+        <text x="1.5" y="4" font-size="10" font-style="italic" font-weight="700" text-anchor="middle" fill={RED} font-family={SERIF}>K</text>
+      </g>
+      {@render chip(48, 50)}
+    {:else if id === 'cheat'}
+      <!-- cards slapped face down on the pile, and someone calling it -->
+      <g transform="translate(26 40) rotate(-14)">{@render cardBack()}</g>
+      <g transform="translate(31 38) rotate(6)">{@render cardBack()}</g>
+      <g transform="translate(44 17)">
+        <path d="M-13,-9 h26 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-14 l-6,6 l1,-6 h-7 a4,4 0 0 1 -4,-4 v-10 a4,4 0 0 1 4,-4z" fill="#000" opacity="0.3" transform="translate(0.8 1.2)" />
+        <path d="M-13,-9 h26 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-14 l-6,6 l1,-6 h-7 a4,4 0 0 1 -4,-4 v-10 a4,4 0 0 1 4,-4z" fill="#fbf8f1" stroke="#d6cbb4" stroke-width="0.8" />
+        <text x="0" y="5" font-size="12" font-weight="800" text-anchor="middle" fill={RED} font-family={SERIF}>?!</text>
+      </g>
+    {:else if id === 'go-fish'}
+      <!-- a card held up, and a fish jumping out of the pond -->
+      <g transform="translate(24 34) rotate(-10)">{@render card()}{@render corner('7', 'H', RED)}{@render suit('H', -5, -3, 13, RED)}</g>
+      <ellipse cx="42" cy="54" rx="17" ry="4.5" fill="#23395b" opacity="0.9" />
+      <g transform="translate(42 38) rotate(-28)">
+        <path d="M-12,0 C-6,-8 6,-8 10,0 C6,8 -6,8 -12,0Z" fill="#000" opacity="0.3" transform="translate(0.8 1.2)" />
+        <path d="M-12,0 C-6,-8 6,-8 10,0 C6,8 -6,8 -12,0Z" fill="#e9c46a" stroke="#a87b1c" stroke-width="0.8" />
+        <path d="M9,0 L17,-6 L15,0 L17,6Z" fill="#e9c46a" stroke="#a87b1c" stroke-width="0.8" stroke-linejoin="round" />
+        <circle cx="-6" cy="-1.5" r="1.4" fill={INK} />
+        <path d="M-1,-5 C1,-1 1,1 -1,5" fill="none" stroke="#a87b1c" stroke-width="0.8" />
+      </g>
     {:else if id === 'president'}
       <!-- the top cards (a pair of 2s) wearing the crown -->
       <g transform="translate(25 38) rotate(-9)">{@render card()}{@render corner('2', 'S', INK)}{@render suit('S', -4, -2, 11, INK)}</g>

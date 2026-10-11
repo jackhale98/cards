@@ -1,0 +1,26 @@
+{
+  "$schema": "../../../schemas/game.schema.json",
+  "id": "go-fish",
+  "name": "Go Fish",
+  "tagline": "Ask for the cards you need and collect books of four. Great with kids.",
+  "icon": "🐟",
+  "players": { "min": 2, "max": 6, "recommended": 4 },
+  "bots": true,
+  "deck": {},
+  "zones": [
+    { "id": "deck", "label": "Pond", "visibility": "none", "layout": "stack", "area": "center" },
+    { "id": "hand", "perPlayer": true, "visibility": "owner", "layout": "fan", "area": "hand" },
+    { "id": "books", "perPlayer": true, "label": "Books", "visibility": "all", "layout": "spread", "area": "strip", "hideEmpty": true, "scale": 0.62 }
+  ],
+  "rules": { "family": "gofish" },
+  "options": [
+    { "id": "allBooks", "label": "Play until every book is made", "type": "boolean", "default": false }
+  ],
+  "rulesSummary": [
+    "Five cards each (seven with two players); the rest make the pond.",
+    "On your turn, pick a card and ask another player for that rank. If they have any, they hand them all over and you ask again.",
+    "If not — “Go fish!” — draw from the pond. Drew the rank you asked for? Show it and go again. Otherwise the turn passes left.",
+    "Four of a kind is a book: it goes down at once. The game ends when someone runs out of cards or the pond runs dry, and the most books wins.",
+    "Option: play until every book is made — an empty hand draws five more, and once the pond is empty a wrong guess just passes the turn."
+  ]
+}
