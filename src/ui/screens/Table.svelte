@@ -274,7 +274,7 @@
         <div class="zone-slot">
           <Zone
           zone={z}
-          cw={centerCw}
+          cw={z.layout === 'spread' && z.cards.length >= 10 && !display ? Math.round(centerCw * 0.82) : centerCw}
           {you}
           players={n}
           {selected}
@@ -590,6 +590,11 @@
     background: var(--gold);
     color: #2a1d05;
     box-shadow: 0 0 24px rgba(233, 196, 106, 0.45);
+  }
+  /* never squash the headline or last move when the middle is short of room */
+  .headline,
+  .last {
+    flex-shrink: 0;
   }
   .zones {
     display: flex;

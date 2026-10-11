@@ -1173,7 +1173,8 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
         if (d.bridge && d.maker != null) headline += ` · ${bridgeLabel(d.bridge, true)} by ${name(s, d.maker)}`;
       } else if (s.phase === 'roundOver') headline = 'Hand complete';
       else if (s.phase === 'gameOver') headline = 'Game over';
-      if (d.trump && s.phase !== 'gameOver') headline += ` · trumps ${SUIT_SYMBOL[d.trump]}`;
+      // (a bridge contract already names its trump suit)
+      if (d.trump && s.phase !== 'gameOver' && !d.bridge) headline += ` · trumps ${SUIT_SYMBOL[d.trump]}`;
       else if (auction && d.contract && d.maker != null && s.phase === 'play') headline += d.contract.misere ? ` · ${contractLabel(d.contract)}` : ' · no trumps';
 
       const seatBadge = (i: number) => {
@@ -1181,11 +1182,15 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
         if (bridgeBids) {
           const last = [...(d.calls ?? [])].reverse().find((c) => c.seat === i);
           const playing = s.phase === 'play' || s.phase === 'trickEnd';
-          const role = playing && d.bridge ? (i === d.maker ? `Declarer ${bridgeLabel(d.bridge, true)}` : i === d.dummy ? 'Dummy' : '') : s.phase === 'call' && last ? callLabel(last.call) : '';
           const side = teamOf(s, i);
-          return [role, playing ? `${teamsFor(s.players.length)[side].reduce((n, x) => n + d.tricks[x], 0)} tricks` : '', `${d.scores[side]} pts`, d.vul?.[side] && s.phase === 'call' ? 'vul' : '']
-            .filter(Boolean)
-            .join(' · ');
+          if (playing && d.bridge) {
+            // keep it short: the side's tricks once (on the declarer and the defenders), scores live in the scoreboard
+            const won = teamsFor(s.players.length)[side].reduce((n, x) => n + d.tricks[x], 0);
+            const tricks = `${won} trick${won === 1 ? '' : 's'}`;
+            return i === d.maker ? `Declarer ${bridgeLabel(d.bridge, true)} · ${tricks}` : i === d.dummy ? 'Dummy' : tricks;
+          }
+          const call = s.phase === 'call' && last ? callLabel(last.call) : '';
+          return [call, `${d.scores[side]} pts`, d.vul?.[side] && s.phase === 'call' ? 'vul' : ''].filter(Boolean).join(' · ');
         }
         if (euchreBids || auction) {
           const role =

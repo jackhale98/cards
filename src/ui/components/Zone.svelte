@@ -149,7 +149,7 @@
     margin-left: calc(var(--cw) * 0.22) !important;
   }
   .spread:has(> :nth-child(12)) .scard.newgroup {
-    margin-left: calc(var(--cw) * -0.4) !important;
+    margin-left: calc(var(--cw) * -0.5) !important;
   }
   .scard:disabled {
     cursor: default;
