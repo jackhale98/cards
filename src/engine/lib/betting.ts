@@ -75,7 +75,8 @@ export function options(b: BettingState, chips: number[], seat: number): BetOpti
     toCall,
     minRaiseTo,
     maxRaiseTo,
-    canRaise: maxRaiseTo > b.currentBet,
+    // an all-in short of a full raise doesn't reopen the betting: whoever already acted may only call or fold
+    canRaise: maxRaiseTo > b.currentBet && !b.acted[seat],
   };
 }
 
@@ -99,6 +100,7 @@ export function act(b: BettingState, chips: number[], seat: number, a: BetAction
         post(b, chips, seat, to - b.bets[seat]);
         break;
       }
+      if (!o.canRaise) throw new Error('The betting is not open to you again: call or fold');
       if (to < o.minRaiseTo && to !== o.maxRaiseTo) throw new Error(`Minimum raise is to ${o.minRaiseTo}`);
       const raiseBy = to - b.currentBet;
       post(b, chips, seat, to - b.bets[seat]);

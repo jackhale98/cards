@@ -28,8 +28,9 @@
   ],
   "rulesSummary": [
     "Pass three cards (left, right, across, then no pass), then play 13 tricks.",
-    "Follow suit if you can. The 2♣ leads the first trick; hearts can't be led until broken.",
+    "Follow suit if you can. The 2♣ leads the first trick; hearts can't be led until broken (unless you hold nothing else).",
+    "No hearts or Q♠ on the first trick, unless you have nothing else to play.",
     "Each heart is 1 point, the Q♠ is 13. Lowest score wins when someone reaches the target.",
-    "Take all 26 points to shoot the moon: everyone else gets 26 instead."
+    "Take all 26 points to shoot the moon: take 26 off your own score, or give everyone else 26 — your choice."
   ]
 }

@@ -86,6 +86,8 @@ export interface CardRef {
    * stable placeholder (so it animates smoothly) without linking it to where it came from.
    */
   k?: number;
+  /** Not yet looked at, even by the owner (a spades player deciding on blind nil). */
+  blind?: boolean;
 }
 
 export interface ZoneState {

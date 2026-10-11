@@ -24,12 +24,15 @@
     "end": { "target": 500 }
   },
   "options": [
-    { "id": "target", "label": "Play to", "type": "number", "default": 500, "min": 100, "max": 1000, "step": 50 }
+    { "id": "target", "label": "Play to", "type": "number", "default": 500, "min": 100, "max": 1000, "step": 50 },
+    { "id": "blindNil", "label": "Blind nil (100 behind)", "type": "boolean", "default": true }
   ],
   "rulesSummary": [
     "Partners sit across from each other. Everyone bids how many tricks they'll take; 0 is nil.",
-    "Follow suit if you can. Spades are trump and can't be led until one has been played.",
+    "Follow suit if you can. Spades are trump and can't be led until one has been played (unless you hold nothing else).",
     "Make your team's bid: 10 × bid, plus 1 per extra trick (a bag). Miss it: −10 × bid.",
-    "Every 10 bags costs 100. Nil scores ±100. First team to the target wins."
+    "Nil scores ±100; a nil player's tricks don't count towards the partner's bid but do count as bags. Every 10 bags costs 100.",
+    "Blind nil: a side 100 or more behind may bid nil before looking at their cards, for ±200. Partners then swap two cards.",
+    "First team to the target wins; if both sides are level, play another hand."
   ]
 }

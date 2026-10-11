@@ -22,6 +22,6 @@
   "rulesSummary": [
     "Each player gets two hole cards. Five shared cards come out: the flop (3), turn and river.",
     "Bet, call, raise or fold in four rounds. No limit: you can go all in at any time.",
-    "Best five-card hand from your two cards plus the board wins the pot."
+    "Best five of the seven cards (your two and the board — you may use one, both or neither of yours) wins the pot. Ties split it."
   ]
 }

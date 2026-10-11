@@ -27,12 +27,15 @@
     "end": { "target": 10 }
   },
   "options": [
-    { "id": "target", "label": "Play to", "type": "number", "default": 10, "min": 5, "max": 15, "step": 1 }
+    { "id": "target", "label": "Play to", "type": "number", "default": 10, "min": 5, "max": 15, "step": 1 },
+    { "id": "defendAlone", "label": "Defenders may go alone", "type": "boolean", "default": false }
   ],
   "rulesSummary": [
     "Partners sit across. Five cards each from a 24-card deck (9 to A); the next card is turned up.",
     "Going round, each player may order up the turned card as trumps (the dealer picks it up and discards) or pass. If all pass, anyone may name another suit; the dealer is stuck and must name one if it gets back to them.",
     "Trumps rank: jack of trumps (right bower), the other jack of the same colour (left bower — it counts as a trump), then A K Q 10 9.",
-    "Makers need 3 tricks: 1 point, all 5: 2 points, alone and all 5: 4. Fail and the other team scores 2 (euchred). First to 10."
+    "Whoever makes trumps may go alone: their partner sits out and the player on the lone player's left leads. Otherwise the player left of the dealer leads.",
+    "The suit turned down can't be named in the second round.",
+    "Makers need 3 tricks: 1 point, all 5: 2 points, alone and all 5: 4. Fail and the other team scores 2 (euchred; 4 if a lone defender does it). First to 10."
   ]
 }

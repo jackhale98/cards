@@ -21,7 +21,7 @@ import { assertRule, type Action, type ActionSpec, type GameConfig, type GameMod
  *   "bidding": { "nil": true, "hook": false },  // bid number of tricks before play
  *   "scoring": { "type": "penalty", "cardPoints": { "H": 1, "QS": 13 }, "moon": true },
  *              // or { "type": "contract", "bags": { "every": 10, "penalty": 100 }, "nil": 100 }
- *              // or { "type": "exact", "bonus": 10 }    (Oh Hell: 1/trick + bonus if exact)
+ *              // or { "type": "exact", "bonus": 10 }    (Oh Hell: 1 a trick, +10 for an exact bid)
  *              // or { "type": "tricks" }                (1 point per trick)
  *   "end": { "target": 100, "lowWins": true }           // or { "rounds": true } for handSizes
  * }
@@ -170,6 +170,21 @@ export interface TrickData {
   dummy?: number | null;
   dummyUp?: boolean;
   vul?: boolean[];
+  /** Hearts: the moon shooter's choice — add 26 to everyone else or take 26 off their own score. */
+  moon?: 'add' | 'sub' | null;
+  /** Euchre: a defender playing alone (their partner sits out too). */
+  defAlone?: number | null;
+  defendAsked?: boolean;
+  /** 500: the suit the contractor's joker belongs to in no trumps / misère (null = no suit). */
+  jokerSuit?: Suit | null;
+  jokerAsked?: boolean;
+  /** 500: the suit called when a suitless joker is led, and the suits led so far this hand. */
+  jokerLed?: Suit | null;
+  ledSuits?: string[];
+  /** Spades: blind nil bidders this hand, and who still has to decide (before looking). */
+  blind?: boolean[];
+  blindToAsk?: number[];
+  defToAsk?: number[];
 }
 
 type S = GameState<TrickData>;
@@ -195,25 +210,27 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
   const nilAllowed = !!trickBids?.nil;
   const target = (s: S) => Number(s.options.target ?? R.end.target ?? 100);
 
-  function sizeForRound(n: number, round: number): number {
+  function sizeForRound(s: S, round: number): number {
+    const n = s.players.length;
     const all = Math.floor((deckSize - (R.trump === 'turnUp' ? 1 : 0) - (R.kitty ?? 0)) / n);
     if (!R.handSizes || R.handSizes === 'all') return Math.floor((deckSize - (R.kitty ?? 0)) / n);
-    const seq = sequence(n);
+    const seq = sequence(s);
     return Math.min(all, seq[round % seq.length]);
   }
-  function sequence(n: number): number[] {
+  /** "ladder": from the most cards (as many as the deck allows, up to `maxHand`) down to one and back up. */
+  function sequence(s: S): number[] {
     if (Array.isArray(R.handSizes)) return R.handSizes;
-    const max = Math.min(R.maxHand ?? 99, Math.floor((deckSize - 1) / n));
-    const up = Array.from({ length: max }, (_, i) => i + 1);
-    return [...up, ...up.slice(0, -1).reverse()];
+    const max = Math.min(Number(s.options.maxHand ?? R.maxHand ?? 99), Math.floor((deckSize - 1) / s.players.length));
+    const down = Array.from({ length: max }, (_, i) => max - i);
+    return [...down, ...down.slice(0, -1).reverse()];
   }
-  const totalRounds = (n: number) => (R.end.rounds ? sequence(n).length : Infinity);
+  const totalRounds = (s: S) => (R.end.rounds ? sequence(s).length : Infinity);
 
   function startRound(s: S) {
     const d = s.data;
     const n = s.players.length;
     resetDeck(s, config);
-    d.handSize = sizeForRound(n, d.round);
+    d.handSize = sizeForRound(s, d.round);
     deal(s, [{ to: 'hand', count: d.handSize }]);
     d.trump = R.trump && R.trump !== 'none' && R.trump !== 'turnUp' && R.trump !== 'chosen' ? R.trump : null;
     d.maker = null;
@@ -224,6 +241,15 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
     d.declines = 0;
     d.bidRound = 1;
     d.upcard = null;
+    d.moon = null;
+    d.defAlone = null;
+    d.defendAsked = false;
+    d.jokerSuit = null;
+    d.jokerAsked = false;
+    d.jokerLed = null;
+    d.ledSuits = [];
+    d.blind = s.players.map(() => false);
+    d.blindToAsk = [];
     if (bridgeBids) {
       d.calls = [];
       d.bridge = null;
@@ -253,6 +279,13 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
     d.broken = false;
     d.trickNo = 0;
     d.result = null;
+    if (nilAllowed && s.options.blindNil) {
+      // blind nil: players whose side is 100 or more behind decide before looking at their cards
+      const best = Math.max(...d.scores);
+      const behind = (i: number) => d.scores[teamOf(s, i)] <= best - 100;
+      d.blindToAsk = Array.from({ length: n }, (_, k) => (s.dealer + 1 + k) % n).filter(behind);
+      for (const i of d.blindToAsk) for (const c of hand(s, i).cards) c.blind = true;
+    }
     if (d.passDir && d.passDir !== 'hold') {
       s.phase = 'pass';
       s.turn = null;
@@ -261,9 +294,25 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
 
   function startBidding(s: S) {
     if (!R.bidding) return startPlay(s);
+    if (s.data.blindToAsk?.length) {
+      s.phase = 'blind';
+      s.turn = s.data.blindToAsk[0];
+      return;
+    }
     s.phase = euchreBids ? 'order' : auction ? 'auction' : bridgeBids ? 'call' : 'bid';
     // in bridge the dealer calls first
     s.turn = bridgeBids ? s.dealer : nextSeat(s, s.dealer);
+    // a blind nil bid is already in
+    if (s.phase === 'bid' && s.data.bids[s.turn] != null) s.turn = nextSeat(s, s.turn, (x) => s.data.bids[x] != null);
+  }
+
+  /** Look at your cards (passing on blind nil); then the next player behind decides, or bidding starts. */
+  function lookAtCards(s: S, seat: number) {
+    const d = s.data;
+    for (const c of hand(s, seat).cards) delete c.blind;
+    d.blindToAsk = d.blindToAsk!.filter((x) => x !== seat);
+    if (d.blindToAsk.length) s.turn = d.blindToAsk[0];
+    else startBidding(s);
   }
 
   function startPlay(s: S) {
@@ -274,7 +323,32 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
     if (R.lead === 'twoOfClubs' && twoClubs >= 0) s.turn = twoClubs;
     else if (R.lead === 'maker' && d.maker != null) s.turn = d.maker;
     else if (bridgeBids && d.maker != null) s.turn = nextSeat(s, d.maker); // left of the declarer leads
+    else if (euchreBids && d.defAlone != null) s.turn = d.defAlone; // a lone defender leads
+    else if (euchreBids && d.sittingOut != null) s.turn = nextActive(s, d.maker!); // left of a lone maker
     else s.turn = active(s, nextSeat(s, s.dealer)) ? nextSeat(s, s.dealer) : nextActive(s, nextSeat(s, s.dealer));
+  }
+
+  /**
+   * Last questions before the first lead: in euchre a defender may go alone (when that option is
+   * on); in 500 a contractor holding the joker in no trumps or misère may give it a suit.
+   */
+  function beforePlay(s: S) {
+    const d = s.data;
+    if (euchreBids?.alone && s.options.defendAlone && !d.defendAsked) {
+      d.defendAsked = true;
+      const defenders = [1, 2, 3, 4].map((k) => (s.dealer + k) % s.players.length).filter((i) => teamOf(s, i) !== teamOf(s, d.maker!));
+      d.defToAsk = defenders;
+      s.phase = 'defend';
+      s.turn = defenders[0];
+      return;
+    }
+    if (R.joker && !d.trump && !d.jokerAsked && d.maker != null && ids(hand(s, d.maker)).some((c) => parseCard(c).suit === 'X')) {
+      d.jokerAsked = true;
+      s.phase = 'joker';
+      s.turn = d.maker;
+      return;
+    }
+    startPlay(s);
   }
 
   /** Nobody wanted trumps / nobody bid: throw the hand in and deal again. */
@@ -298,7 +372,7 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
       return;
     }
     moveCards(s, 'upcard', 'kitty', ids(zone(s, 'upcard')));
-    startPlay(s);
+    beforePlay(s);
   }
 
   /** 500: the auction is over; the winner picks up the kitty and discards. */
@@ -398,30 +472,48 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
     return c.rank;
   }
 
-  const suitOf = (s: S, id: string) => suitFor(id, s.data.trump);
+  const suitOf = (s: S, id: string) => (!s.data.trump && s.data.jokerSuit && parseCard(id).suit === 'X' ? s.data.jokerSuit : suitFor(id, s.data.trump));
+  /** A joker with no suit (no trumps, not nominated): it wins any trick and is led by calling a suit. */
+  const suitless = (s: S, id: string) => parseCard(id).suit === 'X' && suitOf(s, id) === 'X';
+  /** The suit everyone must follow: a led suitless joker calls one. */
+  const ledSuit = (s: S) => {
+    const first = zone(s, 'trick').cards[0];
+    return first && suitless(s, first.id) ? (s.data.jokerLed ?? 'X') : first ? suitOf(s, first.id) : null;
+  };
+  /** 500: a suitless joker may be led (calling a suit not yet led) until all four suits have been led, and always to the last trick. */
+  const jokerLeadSuits = (s: S): Suit[] => {
+    const d = s.data;
+    const last = d.trickNo === d.handSize - 1;
+    const open = NAMEABLE.filter((x) => !d.ledSuits?.includes(x));
+    return open.length ? open : last ? NAMEABLE : [];
+  };
   const rankOf = (s: S, id: string) => rankFor(id, s.data.trump);
 
   /** Seats taking part this hand, in turn order from `seat` (someone going alone leaves their partner out). */
-  const active = (s: S, seat: number) => s.data.sittingOut !== seat;
-  const playersThisHand = (s: S) => s.players.length - (s.data.sittingOut != null ? 1 : 0);
+  const active = (s: S, seat: number) =>
+    s.data.sittingOut !== seat && !(s.data.defAlone != null && (s.data.defAlone + 2) % s.players.length === seat);
+  const playersThisHand = (s: S) => s.players.filter((p) => active(s, p.seat)).length;
   const nextActive = (s: S, seat: number) => nextSeat(s, seat, (x) => !active(s, x));
 
   function legalCards(s: S, seat: number): string[] {
-    const cards = ids(zone(s, sourceZone(s, seat)));
+    let cards = ids(zone(s, sourceZone(s, seat)));
     const trick = zone(s, 'trick').cards;
     const d = s.data;
     if (trick.length === 0) {
       if (d.trickNo === 0 && R.lead === 'twoOfClubs' && cards.includes('2C')) return ['2C'];
+      // a suitless joker is led with its own action, which calls a suit
+      cards = cards.filter((c) => !suitless(s, c));
       if (R.breaks && !d.broken) {
         const safe = cards.filter((c) => parseCard(c).suit !== R.breaks);
         if (safe.length) return safe;
       }
       return cards;
     }
-    const legal = followSuit(cards, suitOf(s, trick[0].id) as Suit, (c) => suitOf(s, c) as Suit);
-    // misère: a player who can't follow suit must play the joker
-    const joker = cards.find((c) => parseCard(c).suit === 'X');
-    if (isMisere(s) && joker && legal.length === cards.length && !cards.some((c) => suitOf(s, c) === suitOf(s, trick[0].id))) return [joker];
+    const led = ledSuit(s)!;
+    const legal = followSuit(cards, led as Suit, (c) => suitOf(s, c) as Suit);
+    // misère: a player who can't follow suit must play a suitless joker
+    const joker = cards.find((c) => suitless(s, c));
+    if (isMisere(s) && joker && !cards.some((c) => suitOf(s, c) === led)) return [joker];
     if (d.trickNo === 0 && R.noPointsFirstTrick) {
       const clean = legal.filter((c) => !pointsOf(c));
       if (clean.length) return clean;
@@ -432,9 +524,10 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
   function currentWinner(s: S) {
     const trick = zone(s, 'trick').cards;
     if (!trick.length) return null;
-    // a joker always wins (in no trumps it has no suit to be compared within)
+    // the joker is the top trump; with no trumps and no suit it beats everything
     const joker = trick.find((c) => parseCard(c.id).suit === 'X');
-    if (joker) return joker;
+    if (joker && (s.data.trump || suitless(s, joker.id))) return joker;
+    // a led suitless joker has been handled above; otherwise the led card's suit is the one to beat
     return trick[trickWinner(trick, { trump: s.data.trump, suitOf: (c) => suitOf(s, c), rankOf: (c) => rankOf(s, c) })];
   }
 
@@ -449,6 +542,7 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
     moveCards(s, 'trick', `taken:${winner}`, cards);
     log(s, `${name(s, winner)} wins the trick${pts ? ` (+${pts})` : ''}`, winner, pts ? `Won trick +${pts}` : 'Won trick');
     d.trickNo++;
+    d.jokerLed = null;
     if (d.trickNo === d.handSize) return endRound(s);
     if (isMisere(s) && winner === d.maker) {
       log(s, `${name(s, winner)} has taken a trick — the misère fails`);
@@ -475,15 +569,17 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
     const deltas = teams.map(() => 0);
     if (sc.type === 'penalty') {
       const shooter = sc.moon ? d.points.findIndex((p) => p === totalPoints && p > 0) : -1;
-      if (shooter >= 0) lines.push(`🌙 ${name(s, shooter)} shot the moon!`);
+      const sub = shooter >= 0 && d.moon === 'sub';
+      if (shooter >= 0) lines.push(`🌙 ${name(s, shooter)} shot the moon${sub ? ` and takes ${totalPoints} off` : ''}!`);
       teams.forEach((t, ti) => {
-        deltas[ti] = shooter >= 0 ? (t.includes(shooter) ? 0 : totalPoints) : t.reduce((n, i) => n + d.points[i], 0);
+        deltas[ti] = shooter >= 0 ? (t.includes(shooter) ? (sub ? -totalPoints : 0) : sub ? 0 : totalPoints) : t.reduce((n, i) => n + d.points[i], 0);
       });
     } else if (sc.type === 'tricks') {
       teams.forEach((t, ti) => (deltas[ti] = t.reduce((n, i) => n + d.tricks[i], 0)));
     } else if (sc.type === 'exact') {
       teams.forEach((t, ti) => {
-        for (const i of t) deltas[ti] += d.tricks[i] === d.bids[i] ? d.tricks[i] + sc.bonus : 0;
+        // a point a trick plus the bonus for an exact bid (or, with `exactOnly`, nothing for a miss)
+        for (const i of t) deltas[ti] += d.tricks[i] === d.bids[i] ? d.tricks[i] + sc.bonus : s.options.exactOnly ? 0 : d.tricks[i];
       });
     } else if (sc.type === 'euchre') {
       const makers = teamOf(s, d.maker!);
@@ -493,8 +589,9 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
         deltas[makers] = won === 5 ? (alone ? 4 : 2) : 1;
         lines.push(`${teamName(s, makers)} make it${won === 5 ? (alone ? ' — a loner march!' : ' — march!') : ''} (${won} tricks)`);
       } else {
-        deltas[1 - makers] = 2;
-        lines.push(`${teamName(s, makers)} are euchred! (${won} tricks)`);
+        // a lone defender who euchres the makers scores 4
+        deltas[1 - makers] = d.defAlone != null ? 4 : 2;
+        lines.push(`${teamName(s, makers)} are euchred${d.defAlone != null ? ` by ${name(s, d.defAlone)} alone` : ''}! (${won} tricks)`);
       }
     } else if (sc.type === 'bridge') {
       const c = d.bridge!;
@@ -535,28 +632,34 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
       teams.forEach((t, ti) => {
         let bid = 0;
         let won = 0;
+        // tricks taken by a failed nil don't help the partner's bid, but they are still bags
+        let nilBags = 0;
         for (const i of t) {
           if (d.bids[i] === 0 && nilAllowed) {
             const ok = d.tricks[i] === 0;
-            deltas[ti] += ok ? nilBonus : -nilBonus;
-            lines.push(`${name(s, i)} ${ok ? 'made' : 'failed'} nil`);
+            const worth = d.blind?.[i] ? nilBonus * 2 : nilBonus;
+            deltas[ti] += ok ? worth : -worth;
+            nilBags += d.tricks[i];
+            lines.push(`${name(s, i)} ${ok ? 'made' : 'failed'} ${d.blind?.[i] ? 'blind nil' : 'nil'}`);
           } else {
             bid += d.bids[i] ?? 0;
             won += d.tricks[i];
           }
         }
+        let newBags = nilBags;
         if (bid > 0 || won > 0) {
           if (won >= bid) {
-            const over = won - bid;
-            deltas[ti] += bid * 10 + over;
-            d.bags[ti] += over;
-            const bags = (sc as { bags?: { every: number; penalty: number } }).bags;
-            if (bags && d.bags[ti] >= bags.every) {
-              d.bags[ti] -= bags.every;
-              deltas[ti] -= bags.penalty;
-              lines.push(`${teamName(s, ti)}: ${bags.every} bags, −${bags.penalty}`);
-            }
+            deltas[ti] += bid * 10;
+            newBags += won - bid;
           } else deltas[ti] -= bid * 10;
+        }
+        deltas[ti] += newBags;
+        d.bags[ti] += newBags;
+        const bags = (sc as { bags?: { every: number; penalty: number } }).bags;
+        while (bags && d.bags[ti] >= bags.every) {
+          d.bags[ti] -= bags.every;
+          deltas[ti] -= bags.penalty;
+          lines.push(`${teamName(s, ti)}: ${bags.every} bags, −${bags.penalty}`);
         }
       });
     }
@@ -565,6 +668,15 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
 
   function endRound(s: S) {
     const d = s.data;
+    if (R.scoring.type === 'penalty' && R.scoring.moon && d.moon == null) {
+      const shooter = d.points.findIndex((p) => p === totalPoints && p > 0);
+      if (shooter >= 0) {
+        // the shooter chooses: everyone else +26, or 26 off their own score
+        s.phase = 'moon';
+        s.turn = shooter;
+        return;
+      }
+    }
     const { deltas, lines } = roundScores(s);
     deltas.forEach((v, ti) => (d.scores[ti] += v));
     teamsFor(s.players.length).forEach((_, ti) =>
@@ -577,11 +689,16 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
     const reached = R.end.deals
       ? d.round + 1 >= Number(s.options.deals ?? R.end.deals)
       : R.end.rounds
-      ? d.round + 1 >= totalRounds(s.players.length)
+      ? d.round + 1 >= totalRounds(s)
       : lowWins
         ? Math.max(...d.scores) >= target(s)
         : best >= target(s);
-    if (reached) {
+    const tied = d.scores.filter((x) => x === best).length > 1;
+    if (reached && tied && !lowWins && !R.end.rounds && !R.end.deals) {
+      // sides level at the top: play another hand to settle it
+      lines.push(`Level at ${best} — play another hand`);
+      s.phase = 'roundOver';
+    } else if (reached) {
       const teams = teamsFor(s.players.length);
       s.winner = teams.flatMap((t, ti) => (d.scores[ti] === best ? t : []));
       s.phase = 'gameOver';
@@ -921,7 +1038,34 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
         out.push({ type: 'bury', label: k > 1 ? `Discard ${k}` : 'Discard', style: 'primary', select: { min: k, max: k, cards: ids(hand(s, seat)) } });
       } else if (s.phase === 'play' && controller(s) === seat) {
         const fromDummy = s.turn !== seat;
-        out.push({ type: 'play', label: fromDummy ? 'Play from dummy' : 'Play', style: 'primary', quick: true, select: { min: 1, max: 1, cards: legalCards(s, s.turn!) } });
+        const legal = legalCards(s, s.turn!);
+        if (legal.length) out.push({ type: 'play', label: fromDummy ? 'Play from dummy' : 'Play', style: 'primary', quick: true, select: { min: 1, max: 1, cards: legal } });
+        const joker = ids(zone(s, sourceZone(s, s.turn!))).find((c) => suitless(s, c));
+        if (joker && !zone(s, 'trick').cards.length && jokerLeadSuits(s).length)
+          out.push({
+            type: 'leadJoker',
+            label: 'Lead the joker',
+            style: legal.length ? undefined : 'primary',
+            choose: { label: 'Call a suit for the others to follow', options: jokerLeadSuits(s).map((x) => ({ value: NAMEABLE.indexOf(x), label: `${SUIT_SYMBOL[x]} ${SUIT_NAME[x]}` })) },
+          });
+      } else if (s.phase === 'blind' && s.turn === seat) {
+        out.push({ type: 'blindNil', label: `Bid blind nil · ${((R.scoring as { nil?: number }).nil ?? 100) * 2}`, style: 'danger' });
+        out.push({ type: 'look', label: 'Look at my cards', style: 'primary' });
+      } else if (s.phase === 'blindPass' && s.turn === seat) {
+        out.push({ type: 'blindGive', label: `Give 2 to ${name(s, (seat + 2) % s.players.length)}`, style: 'primary', select: { min: 2, max: 2, cards: ids(hand(s, seat)) } });
+      } else if (s.phase === 'blindReturn' && s.turn === seat) {
+        out.push({ type: 'blindGive', label: `Give 2 back to ${name(s, (seat + 2) % s.players.length)}`, style: 'primary', select: { min: 2, max: 2, cards: ids(hand(s, seat)) } });
+      } else if (s.phase === 'defend' && s.turn === seat) {
+        out.push({ type: 'defendAlone', label: 'Defend alone' });
+        out.push({ type: 'stayIn', label: 'Play with partner', style: 'primary' });
+      } else if (s.phase === 'joker' && s.turn === seat) {
+        const options = NAMEABLE.map((x) => ({ value: NAMEABLE.indexOf(x), label: `${SUIT_SYMBOL[x]} ${SUIT_NAME[x]}` }));
+        // in misère an un-nominated joker would make the bid fail, so a suit must be chosen
+        if (!d.contract?.misere) options.push({ value: 4, label: 'No suit (wins any trick; play it only when void)' });
+        out.push({ type: 'nominate', label: 'Joker’s suit', style: 'primary', choose: { label: 'The joker counts as the top card of', options } });
+      } else if (s.phase === 'moon' && s.turn === seat) {
+        out.push({ type: 'moonSub', label: `Take ${totalPoints} off my score`, style: 'primary' });
+        out.push({ type: 'moonAdd', label: `Give everyone else ${totalPoints}` });
       } else if (s.phase === 'roundOver') {
         out.push({ type: 'next', label: 'Next hand', style: 'primary' });
       } else if (s.phase === 'gameOver') {
@@ -970,7 +1114,7 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
           const bidText = bid === 0 && nilAllowed ? 'nil' : String(bid);
           log(s, `${name(s, seat)} bids ${bidText}`, seat, `Bid ${bidText}`);
           if (d.bids.every((b) => b != null)) startPlay(s);
-          else s.turn = nextSeat(s, seat);
+          else s.turn = nextSeat(s, seat, (x) => d.bids[x] != null);
           return;
         }
         case 'order':
@@ -1056,7 +1200,7 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
           assertRule(cards.length === k && new Set(cards).size === k && cards.every((c) => own.includes(c)), `Choose ${k} card${k > 1 ? 's' : ''} to discard`);
           moveCards(s, `hand:${seat}`, 'kitty', cards);
           log(s, `${who} discards ${k > 1 ? `${k} cards` : 'a card'}`, seat, 'Discarded', undefined, { to: 'kitty' });
-          return startPlay(s);
+          return beforePlay(s);
         }
         case 'play': {
           assertRule(s.phase === 'play' && controller(s) === seat, 'Not your turn');
@@ -1064,6 +1208,7 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
           const turn = s.turn!;
           const card = a.cards?.[0];
           assertRule(card && legalCards(s, turn).includes(card), 'You can’t play that card');
+          if (!zone(s, 'trick').cards.length) d.ledSuits = [...(d.ledSuits ?? []), suitOf(s, card)];
           moveCards(s, sourceZone(s, turn), 'trick', [card], { by: turn, up: true });
           d.received[turn] = [];
           log(s, `${name(s, seat)} plays the ${cardName(card)}${turn !== seat ? ' from dummy' : ''}`, seat, `${rankLabel(parseCard(card).rank)}${SUIT_SYMBOL[parseCard(card).suit]}`);
@@ -1086,6 +1231,82 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
           } else s.turn = nextActive(s, turn);
           return;
         }
+        case 'leadJoker': {
+          assertRule(s.phase === 'play' && controller(s) === seat && !zone(s, 'trick').cards.length, 'Not your lead');
+          const turn = s.turn!;
+          const joker = ids(zone(s, sourceZone(s, turn))).find((c) => suitless(s, c));
+          const suit = NAMEABLE[a.amount ?? -1];
+          assertRule(joker && suit && jokerLeadSuits(s).includes(suit), 'Call a suit that hasn’t been led yet');
+          d.jokerLed = suit;
+          d.ledSuits = [...(d.ledSuits ?? []), suit];
+          moveCards(s, sourceZone(s, turn), 'trick', [joker], { by: turn, up: true });
+          log(s, `${name(s, seat)} leads the joker and calls ${SUIT_SYMBOL[suit]}`, seat, `Joker → ${SUIT_SYMBOL[suit]}`);
+          s.turn = nextActive(s, turn);
+          return;
+        }
+        case 'nominate': {
+          assertRule(s.phase === 'joker' && s.turn === seat, 'Not your turn');
+          const suit = a.amount === 4 && !d.contract?.misere ? null : NAMEABLE[a.amount ?? -1];
+          assertRule(suit !== undefined, 'Choose a suit');
+          d.jokerSuit = suit;
+          log(s, suit ? `${who}’s joker is the top ${SUIT_NAME[suit].toLowerCase().replace(/s$/, '')}` : `${who}’s joker has no suit`, seat, suit ? `Joker ${SUIT_SYMBOL[suit]}` : 'Joker');
+          s.players.forEach((_, i) => sortHand(s, i, { trump: d.trump }));
+          return startPlay(s);
+        }
+        case 'defendAlone':
+        case 'stayIn': {
+          assertRule(s.phase === 'defend' && s.turn === seat, 'Not your turn');
+          d.defToAsk = (d.defToAsk ?? []).filter((x) => x !== seat);
+          if (a.type === 'defendAlone') {
+            d.defAlone = seat;
+            d.defToAsk = [];
+            log(s, `${who} defends alone`, seat, 'Alone');
+          }
+          if (d.defToAsk.length) s.turn = d.defToAsk[0];
+          else beforePlay(s);
+          return;
+        }
+        case 'blindNil':
+        case 'look': {
+          assertRule(s.phase === 'blind' && s.turn === seat, 'Not your turn');
+          if (a.type === 'look') return lookAtCards(s, seat);
+          const partner = (seat + 2) % s.players.length;
+          d.blind![seat] = true;
+          d.bids[seat] = 0;
+          log(s, `${who} bids blind nil!`, seat, 'Blind nil');
+          // the partner looks at their cards and passes two across; then the blind bidder passes two back
+          for (const c of hand(s, partner).cards) delete c.blind;
+          d.blindToAsk = d.blindToAsk!.filter((x) => x !== seat && x !== partner);
+          s.phase = 'blindPass';
+          s.turn = partner;
+          return;
+        }
+        case 'blindGive': {
+          assertRule((s.phase === 'blindPass' || s.phase === 'blindReturn') && s.turn === seat, 'Not your turn');
+          const cards = a.cards ?? [];
+          const own = ids(hand(s, seat));
+          assertRule(cards.length === 2 && new Set(cards).size === 2 && cards.every((c) => own.includes(c)), 'Choose 2 cards');
+          const to = (seat + 2) % s.players.length;
+          moveCards(s, `hand:${seat}`, `hand:${to}`, cards);
+          d.received[to] = cards;
+          log(s, `${who} passes 2 cards to ${name(s, to)}`, seat, 'Passed 2');
+          if (s.phase === 'blindPass') {
+            // the blind bidder now picks up their cards
+            for (const c of hand(s, to).cards) delete c.blind;
+            sortHand(s, to, { trump: d.trump });
+            s.phase = 'blindReturn';
+            s.turn = to;
+          } else {
+            sortHand(s, to, { trump: d.trump });
+            startBidding(s);
+          }
+          return;
+        }
+        case 'moonAdd':
+        case 'moonSub':
+          assertRule(s.phase === 'moon' && s.turn === seat, 'Not your turn');
+          d.moon = a.type === 'moonSub' ? 'sub' : 'add';
+          return endRound(s);
         case 'next':
           assertRule(s.phase === 'roundOver', 'Round not over');
           d.round++;
@@ -1123,7 +1344,34 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
       if (s.phase === 'auction' && s.turn === seat) return botAuction(s, seat);
       if (s.phase === 'discard' && s.turn === seat) return botBury(s, seat);
       if (s.phase === 'call' && s.turn === seat) return botCall(s, seat);
-      if (s.phase === 'play' && controller(s) === seat) return { type: 'play', cards: [botCard(s, s.turn!)] };
+      if (s.phase === 'play' && controller(s) === seat) {
+        if (!legalCards(s, s.turn!).length) return { type: 'leadJoker', amount: NAMEABLE.indexOf(jokerLeadSuits(s)[0]) };
+        return { type: 'play', cards: [botCard(s, s.turn!)] };
+      }
+      if (s.phase === 'blind' && s.turn === seat) {
+        // a long way behind: gamble on blind nil
+        const best = Math.max(...d.scores);
+        return { type: best - d.scores[teamOf(s, seat)] >= 200 ? 'blindNil' : 'look' };
+      }
+      if ((s.phase === 'blindPass' || s.phase === 'blindReturn') && s.turn === seat) {
+        // partner passes low cards to the nil bidder, who passes high ones back
+        const v = (c: string) => rankOf(s, c) + (suitOf(s, c) === d.trump ? 20 : 0);
+        const sorted = [...ids(hand(s, seat))].sort((a, b) => v(a) - v(b));
+        return { type: 'blindGive', cards: s.phase === 'blindPass' ? sorted.slice(0, 2) : sorted.slice(-2) };
+      }
+      if (s.phase === 'defend' && s.turn === seat) return { type: strength(ids(hand(s, seat)), d.trump) >= 4.8 ? 'defendAlone' : 'stayIn' };
+      if (s.phase === 'joker' && s.turn === seat) {
+        // make the joker the top card of the longest suit
+        const cards = ids(hand(s, seat));
+        const longest = [...NAMEABLE].sort((x, y) => cards.filter((c) => parseCard(c).suit === y).length - cards.filter((c) => parseCard(c).suit === x).length)[0];
+        return { type: 'nominate', amount: NAMEABLE.indexOf(longest) };
+      }
+      if (s.phase === 'moon' && s.turn === seat) {
+        // adding to everyone else only if that ends the game with the shooter on top
+        const after = d.scores.map((x, ti) => (ti === teamOf(s, seat) ? x : x + totalPoints));
+        const wins = Math.max(...after) >= target(s) && after[teamOf(s, seat)] < Math.min(...after.filter((_, ti) => ti !== teamOf(s, seat)));
+        return { type: wins ? 'moonAdd' : 'moonSub' };
+      }
       return null;
     },
 
@@ -1178,11 +1426,26 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
         else if (ctl != null && ctl !== s.turn) headline = `${name(s, ctl)} to play from dummy`;
         else if (s.turn != null) headline = `${name(s, s.turn)} to play`;
         if (d.bridge && d.maker != null) headline += ` · ${bridgeLabel(d.bridge, true)} by ${name(s, d.maker)}`;
+      } else if (s.phase === 'blind') {
+        headline = s.turn === viewer ? 'Bid blind nil before looking at your cards, or look?' : `${name(s, s.turn!)} is deciding on blind nil`;
+      } else if (s.phase === 'blindPass' || s.phase === 'blindReturn') {
+        headline = s.turn === viewer ? `Pass 2 cards to ${name(s, (viewer + 2) % s.players.length)}` : `${name(s, s.turn!)} is passing 2 cards`;
+      } else if (s.phase === 'defend') {
+        headline = s.turn === viewer ? 'Defend alone, or play with your partner?' : `${name(s, s.turn!)} may defend alone`;
+      } else if (s.phase === 'joker') {
+        headline = s.turn === viewer ? 'Give the joker a suit' : `${name(s, s.turn!)} is choosing the joker’s suit`;
+      } else if (s.phase === 'moon') {
+        headline = s.turn === viewer ? `You shot the moon! Take ${totalPoints} off, or give everyone ${totalPoints}?` : `🌙 ${name(s, s.turn!)} shot the moon`;
       } else if (s.phase === 'roundOver') headline = 'Hand complete';
       else if (s.phase === 'gameOver') headline = 'Game over';
       // (a bridge contract already names its trump suit)
       if (d.trump && s.phase !== 'gameOver' && !d.bridge) headline += ` · trumps ${SUIT_SYMBOL[d.trump]}`;
-      else if (auction && d.contract && d.maker != null && s.phase === 'play') headline += d.contract.misere ? ` · ${contractLabel(d.contract)}` : ' · no trumps';
+      else if (auction && d.contract && d.maker != null && s.phase === 'play') {
+        headline += d.contract.misere ? ` · ${contractLabel(d.contract)}` : ' · no trumps';
+        if (d.jokerSuit) headline += ` · joker ${SUIT_SYMBOL[d.jokerSuit]}`;
+        const lead = zone(s, 'trick').cards[0];
+        if (lead && suitless(s, lead.id) && d.jokerLed) headline += ` · ${SUIT_SYMBOL[d.jokerLed]} called`;
+      }
 
       const seatBadge = (i: number) => {
         if (s.phase === 'pass' && d.passes[i]) return 'Passed ✓';
@@ -1201,7 +1464,7 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
         }
         if (euchreBids || auction) {
           const role =
-            d.sittingOut === i ? 'Sitting out' : d.maker === i && (s.phase === 'play' || s.phase === 'trickEnd' || s.phase === 'discard') ? (auction ? contractLabel(d.contract!) : d.sittingOut != null ? 'Alone' : 'Maker') : auction && d.passedOut?.[i] && s.phase === 'auction' ? 'Passed' : '';
+            !active(s, i) ? 'Sitting out' : d.defAlone === i ? 'Defending alone' : d.maker === i && (s.phase === 'play' || s.phase === 'trickEnd' || s.phase === 'discard') ? (auction ? contractLabel(d.contract!) : d.sittingOut != null ? 'Alone' : 'Maker') : auction && d.passedOut?.[i] && s.phase === 'auction' ? 'Passed' : '';
           return [role, s.phase === 'play' || s.phase === 'trickEnd' ? `${d.tricks[i]} tricks` : '', `${d.scores[teamOf(s, i)]} pts`].filter(Boolean).join(' · ');
         }
         const parts: string[] = [];

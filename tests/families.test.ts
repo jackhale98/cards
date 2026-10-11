@@ -64,32 +64,43 @@ describe('spades (config only)', () => {
     s.turn = 0;
     for (let i = 0; i < 4; i++) g.apply(s, i, { type: 'play', cards: [s.zones[`hand:${i}`].cards[0].id] });
     g.system!(s)!.run(s);
-    // team 0: seat 0 bid 4 took 6 (2 bags → 10 bags → −100), seat 2 nil failed (−100): 40 + 2 − 100 − 100
+    // team 0: seat 0 bid 4 took 6 (2 bags), seat 2 nil failed (−100) and its trick is a bag too:
+    // 8 + 3 = 11 bags → −100, 1 left over. 40 + 3 − 100 − 100
     // team 1: bid 5 took 6: 51
-    expect(s.data.scores).toEqual([-158, 51]);
-    expect(s.data.bags).toEqual([0, 1]);
+    expect(s.data.scores).toEqual([-157, 51]);
+    expect(s.data.bags).toEqual([1, 1]);
   });
 });
 
 describe('oh hell (config only)', () => {
   const g = GAMES['oh-hell'] as GameModule<TrickData>;
 
-  it('climbs and descends the ladder with a trump turn-up and the dealer hook', () => {
-    const s = g.setup(bots(4), 7, {});
+  it('deals 10 down to 1 and back up by default (pagat)', () => {
+    const s = g.setup(bots(4), 7, Object.fromEntries((g.config.options ?? []).map((o) => [o.id, o.default])));
+    expect(s.data.handSize).toBe(10);
+    const s6 = g.setup(bots(6), 7, { maxHand: 10 });
+    expect(s6.data.handSize).toBe(8);
+  });
+
+  it('descends and climbs the ladder with a trump turn-up and the dealer hook', () => {
+    const s = g.setup(bots(4), 7, { maxHand: 3 });
     const sizes: number[] = [];
     expect(s.zones.trump.cards).toHaveLength(1);
     expect(s.data.trump).not.toBeNull();
     // dealer may not make bids add up to the hand size
     while (s.turn !== s.dealer) g.apply(s, s.turn!, { type: 'bid', amount: 0 });
-    expect(() => g.apply(s, s.dealer, { type: 'bid', amount: 1 })).toThrow(/dealer/i);
+    expect(() => g.apply(s, s.dealer, { type: 'bid', amount: 3 })).toThrow(/dealer/i);
     g.apply(s, s.dealer, { type: 'bid', amount: 0 });
     playOut(g, s, (r) => sizes.push(r.data.handSize));
     sizes.push(s.data.handSize); // the final round ends the game
-    expect(sizes).toEqual([1, 2, 3, 4, 5, 6, 7, 6, 5, 4, 3, 2, 1]);
+    expect(sizes).toEqual([3, 2, 1, 2, 3]);
   });
 
-  it('pays only exact bids', () => {
-    const s = g.setup(bots(3), 1, {});
+  it.each([
+    [false, [2, 1, 10]],
+    [true, [0, 0, 10]],
+  ])('scores a point a trick plus 10 for an exact bid (exact bids only: %s)', (exactOnly, expected) => {
+    const s = g.setup(bots(3), 1, { exactOnly });
     Object.assign(s.data, { bids: [1, 0, 0], tricks: [1, 1, 0] });
     for (const z of Object.values(s.zones)) if (z.id !== 'trump') z.cards = [];
     s.zones.trick.cards = [];
@@ -101,8 +112,8 @@ describe('oh hell (config only)', () => {
     s.turn = 0;
     for (let i = 0; i < 3; i++) g.apply(s, i, { type: 'play', cards: [s.zones[`hand:${i}`].cards[0].id] });
     g.system!(s)!.run(s);
-    // seat 0 took 2 (bid 1) → 0; seat 1 took 1 (bid 0) → 0; seat 2 took 0 (bid 0) → 10
-    expect(s.data.scores).toEqual([0, 0, 10]);
+    // seat 0 took 2 (bid 1); seat 1 took 1 (bid 0); seat 2 took 0 (bid 0) → 10
+    expect(s.data.scores).toEqual(expected);
   });
 });
 

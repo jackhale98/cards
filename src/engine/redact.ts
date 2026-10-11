@@ -20,7 +20,7 @@ export function canSee(z: ZoneState, c: CardRef, viewer: number): boolean {
     case 'none':
       return false;
     case 'owner':
-      return z.owner === viewer || !!c.up;
+      return (z.owner === viewer && !c.blind) || !!c.up;
     case 'all':
       return c.up !== false;
   }

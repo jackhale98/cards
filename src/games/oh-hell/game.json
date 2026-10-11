@@ -17,17 +17,21 @@
   "rules": {
     "family": "trick-taking",
     "handSizes": "ladder",
-    "maxHand": 7,
+    "maxHand": 10,
     "lead": "leftOfDealer",
     "trump": "turnUp",
     "bidding": { "hook": true },
     "scoring": { "type": "exact", "bonus": 10 },
     "end": { "rounds": true }
   },
+  "options": [
+    { "id": "maxHand", "label": "Most cards", "type": "number", "default": 10, "min": 3, "max": 10, "step": 1 },
+    { "id": "exactOnly", "label": "Only exact bids score", "type": "boolean", "default": false }
+  ],
   "rulesSummary": [
-    "Round 1 deals one card each, then one more each round up to seven, then back down.",
+    "The first deal is 10 cards each (fewer with 6 or 7 players), then one fewer each round down to one, then back up.",
     "The card turned up after the deal sets trumps. Bid exactly how many tricks you'll take.",
     "The dealer bids last and can't make the bids add up to the number of tricks.",
-    "Hit your bid exactly for 10 points plus 1 per trick. Miss it and score nothing."
+    "Score 1 point per trick, plus 10 for hitting your bid exactly. Highest total after the last deal wins."
   ]
 }

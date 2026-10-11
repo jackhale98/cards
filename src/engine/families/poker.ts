@@ -175,8 +175,9 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
       const potWinners = pot.eligible.filter((i) => values.get(i)!.score === top);
       const share = Math.floor(pot.amount / potWinners.length);
       let odd = pot.amount - share * potWinners.length;
-      // odd chips go to the first winner left of the button
-      const ordered = [...potWinners].sort((a, b) => ((a - d.button + 99) % s.players.length) - ((b - d.button + 99) % s.players.length));
+      // odd chips go to the winner nearest the dealer's left (the button itself is last)
+      const n = s.players.length;
+      const ordered = [...potWinners].sort((a, b) => ((a - d.button - 1 + n) % n) - ((b - d.button - 1 + n) % n));
       for (const w of ordered) {
         collect(s, w, share + (odd-- > 0 ? 1 : 0));
         winners.add(w);

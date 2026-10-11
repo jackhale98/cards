@@ -87,7 +87,10 @@ describe('hearts', () => {
     expect(s.winner!.every((w) => s.data.scores[w] === Math.min(...s.data.scores))).toBe(true);
   });
 
-  it('applies shoot-the-moon scoring', () => {
+  it.each([
+    ['moonAdd', [10, 46, 56, 66]],
+    ['moonSub', [-16, 20, 30, 40]],
+  ])('lets the moon shooter choose (%s)', (choice, expected) => {
     const s = hearts.setup(players, 5, {}) as GameState<HeartsData>;
     // rig the last trick: seat 0 has taken every point so far and wins this one too
     for (const z of Object.values(s.zones)) z.cards = [];
@@ -97,8 +100,11 @@ describe('hearts', () => {
     s.turn = 0;
     for (let i = 0; i < 4; i++) hearts.apply(s, i, { type: 'play', cards: [s.zones[`hand:${i}`].cards[0].id] });
     hearts.system!(s)!.run(s);
+    expect(s.phase).toBe('moon');
+    expect(hearts.actions(s, 0).map((x) => x.type)).toEqual(['moonSub', 'moonAdd']);
+    hearts.apply(s, 0, { type: choice });
     expect(s.phase).toBe('roundOver');
-    expect(s.data.scores).toEqual([10, 46, 56, 66]);
+    expect(s.data.scores).toEqual(expected);
   });
 });
 
