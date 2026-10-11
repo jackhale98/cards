@@ -10,6 +10,12 @@ const ROOM_PREFIX = 'lamplight-v1-';
 const ICE_SERVERS: RTCIceServer[] = [{ urls: 'stun:stun.cloudflare.com:3478' }];
 const KEEPALIVE_MS = 25_000;
 const QUEUE_LIMIT = 200;
+/**
+ * Messages exchanged through the relay with a peer before a direct link is worth setting up.
+ * Guests only say hello to each other (all game traffic goes through the host), so this keeps a
+ * table to one link per guest instead of a link between every pair of phones.
+ */
+const LINK_AFTER = 3;
 
 type FromRelay =
   | { t: 'welcome'; peers: string[] }
@@ -45,6 +51,8 @@ export class RelayTransport implements Transport {
   /** Peers we've told our owner about (here via the relay, a direct link, or both). */
   private known = new Set<string>();
   private links = new Map<string, Link>();
+  /** Messages exchanged with each peer through the relay (see LINK_AFTER). */
+  private traffic = new Map<string, number>();
   private queue: string[] = [];
   private closed = false;
   private retries = 0;
@@ -108,14 +116,23 @@ export class RelayTransport implements Transport {
       this.update(m.peer);
     } else if (m.t === 'msg') {
       if (m.s) void this.signal(m.from, m.s);
-      else if (m.d) this.onMessage(m.d, m.from);
+      else if (m.d) {
+        this.counted(m.from);
+        this.onMessage(m.d, m.from);
+      }
     }
   }
 
   private arrived(peer: string) {
     this.present.add(peer);
     this.update(peer);
-    this.offerLink(peer);
+  }
+
+  /** Count a message through the relay; peers that really talk get a direct link. */
+  private counted(peer: string) {
+    const n = (this.traffic.get(peer) ?? 0) + 1;
+    this.traffic.set(peer, n);
+    if (n >= LINK_AFTER) this.offerLink(peer);
   }
 
   /** Tell our owner when a peer becomes reachable (relay or direct) or stops being reachable. */
@@ -236,6 +253,7 @@ export class RelayTransport implements Transport {
         /* fall back to the relay */
       }
     }
+    this.counted(to);
     this.toRelay({ to, d: msg });
   }
 
