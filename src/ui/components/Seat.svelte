@@ -23,8 +23,12 @@
     /** What this player just did; shown as a speech bubble that fades out. */
     said?: { text: string; key: number } | null;
     ping?: number | null;
+    /** Size multiplier for pixel-sized parts (avatar, mini cards) on a big table screen. */
+    scale?: number;
+    /** Label the seat whose move it is (table screen). */
+    turnLabel?: boolean;
   }
-  let { player, info, cards, turn, connected, showChips, compact = false, avatar, relation = null, said = null, ping = null }: Props = $props();
+  let { player, info, cards, turn, connected, showChips, compact = false, avatar, relation = null, said = null, ping = null, scale = 1, turnLabel = false }: Props = $props();
   const RELATION_LABEL: Record<Relation, string> = { left: '◂ your left', right: 'your right ▸', across: 'across' };
   const shown = $derived(cards.filter((c) => !isHidden(c.id)));
   const backs = $derived(Math.min(cards.length - shown.length, 4));
@@ -32,13 +36,14 @@
 
 <div class="seat" data-seat={player.seat} class:turn class:out={info?.out} class:offline={!connected} class:compact style:--c={avatar?.color ?? seatColor(player.seat)}>
   {#if relation}<span class="rel rel-{relation}">{RELATION_LABEL[relation]}</span>{/if}
+  {#if turnLabel && turn}<span class="rel now">to play</span>{/if}
   {#if said}
     {#key said.key}
       <span class="said">{said.text}</span>
     {/key}
   {/if}
   <div class="avatar">
-    <AvatarBadge {avatar} name={player.name} seat={player.seat} size={compact ? 30 : 34} />
+    <AvatarBadge {avatar} name={player.name} seat={player.seat} size={(compact ? 30 : 34) * scale} />
     {#if info?.tag}<span class="tag">{info.tag}</span>{/if}
   </div>
   <div class="meta">
@@ -50,7 +55,7 @@
     </div>
   </div>
   {#if cards.length}
-    <div class="cards" style:--cw="{compact ? 18 : 22}px">
+    <div class="cards" style:--cw="{(compact ? 18 : 22) * scale}px">
       {#each shown as c (c.id)}
         <div class="mini" in:receive={{ key: c.id }} out:send={{ key: c.id }}>
           <Card id={c.id} />
@@ -145,6 +150,13 @@
     color: var(--ink-dim);
     background: #0c2a21;
     border: 1px solid var(--line);
+  }
+  .rel.now {
+    top: -0.75rem;
+    font-size: 0.62rem;
+    color: #2a1d05;
+    background: var(--c);
+    border-color: transparent;
   }
   .turn .avatar::after {
     content: '';

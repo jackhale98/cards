@@ -32,7 +32,11 @@
   const handMode = $derived(!display && you >= 0 && !!view.lobby.displays && app.handMode);
   // a score track takes some height, so table cards get a little smaller with one
   const centerCw = $derived(
-    Math.round(Math.max(40, Math.min(display ? 130 : 92, vh * (display ? 0.2 : status.track ? 0.13 : 0.15), vw * 0.09))),
+    Math.round(
+      display
+        ? Math.max(60, Math.min(300, vh * (status.track ? 0.18 : 0.22), vw * 0.1))
+        : Math.max(40, Math.min(92, vh * (status.track ? 0.13 : 0.15), vw * 0.09)),
+    ),
   );
 
   /** Opponents in turn order starting to your left. */
@@ -102,6 +106,22 @@
   const centerZones = $derived(
     handMode ? allCenterZones.filter((z) => zoneAction(z.id) || z.cards.some((c) => selectable?.has(c.id))) : allCenterZones,
   );
+  // ---- table screen -----------------------------------------------------------------------
+  /** On a table screen everything sized in rem grows with the screen (1rem = this many px). */
+  // (a little smaller with lots of players, so seats don't collide around the oval)
+  const tvRem = $derived(display ? Math.round(Math.max(16, Math.min(56, vw * (n > 6 ? 0.014 : 0.0175), vh * 0.031))) : 16);
+  $effect(() => {
+    if (!display) return;
+    document.documentElement.style.fontSize = `${tvRem}px`;
+    return () => {
+      document.documentElement.style.fontSize = '';
+    };
+  });
+  /** Seats sit around an oval in turn order, seat 0 at the bottom (matching where trick cards land). */
+  function tvSeatPos(seat: number) {
+    const a = Math.PI / 2 + (seat * 2 * Math.PI) / n;
+    return { left: `${50 + Math.cos(a) * 40}%`, top: `${50 + Math.sin(a) * 39}%` };
+  }
   const handCw = $derived(
     Math.round(
       handMode
@@ -208,6 +228,8 @@
     </button>
     <div class="seats">
       {#each others as seat (seat)}
+        {@const pos = display ? tvSeatPos(seat) : null}
+        <div class="seat-slot" style:left={pos?.left} style:top={pos?.top}>
         <Seat
           player={s.players[seat]}
           info={status.seats[seat]}
@@ -220,7 +242,10 @@
           relation={display ? null : seatRelation(you, seat, n)}
           said={saidBy(seat)}
           ping={view.lobby.seats[seat]?.host ? null : app.pings[seat]}
+          scale={tvRem / 16}
+          turnLabel={display}
         />
+        </div>
       {/each}
     </div>
     <button class="icon" onclick={() => (sheet = 'scores')} aria-label="Scores and log">
@@ -233,7 +258,7 @@
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
   <main onclick={(e) => !(e.target as Element).closest('button, .card') && (selected = [])}>
     {#if status.track && !handMode}<Track track={status.track} avatars={view.lobby.seats.map((x) => x.avatar)} />{/if}
-    <div class="headline" class:mine={actor === you && you >= 0}>{status.headline}</div>
+    {#if status.headline}<div class="headline" class:mine={actor === you && you >= 0}>{status.headline}</div>{/if}
     {#if lastMove}
       {#key lastMove.t}
         <div class="last" aria-live="polite">
@@ -415,10 +440,67 @@
   .table.handmode .hint {
     font-size: 0.85rem;
   }
+  /* ---- table screen: an oval table filling the screen, players around it ---- */
   .table.display {
-    grid-template-columns: 1fr;
-    grid-template-areas: 'top' 'center';
-    grid-template-rows: auto 1fr;
+    display: block;
+    padding: 0;
+  }
+  .table.display::before {
+    content: '';
+    position: absolute;
+    inset: 9% 7%;
+    border-radius: 50%;
+    background: radial-gradient(ellipse at 50% 45%, rgba(255, 214, 140, 0.1), transparent 70%);
+    box-shadow:
+      inset 0 0 0 0.35rem rgba(0, 0, 0, 0.22),
+      inset 0 0 3rem rgba(0, 0, 0, 0.35);
+    pointer-events: none;
+  }
+  .table.display header {
+    position: absolute;
+    inset: 0;
+    display: block;
+    pointer-events: none;
+  }
+  .table.display header > .icon {
+    position: absolute;
+    top: 1rem;
+    left: 1rem;
+    width: 2.4rem;
+    height: 2.4rem;
+    pointer-events: auto;
+  }
+  .table.display header > .icon :global(svg) {
+    width: 1.2rem;
+    height: 1.2rem;
+  }
+  .table.display header > .icon:last-child {
+    left: auto;
+    right: 1rem;
+  }
+  .table.display .seats {
+    position: absolute;
+    inset: 0;
+    display: block;
+    padding: 0;
+    margin: 0;
+    overflow: visible;
+  }
+  .table.display .seat-slot {
+    position: absolute;
+    transform: translate(-50%, -50%);
+  }
+  .table.display main {
+    position: absolute;
+    inset: 17% 21%;
+    gap: 0.6rem;
+  }
+  .table.display .headline {
+    font-size: 1.15rem;
+    padding: 0.4rem 1.2rem;
+  }
+  .table.display .last {
+    font-size: 0.95rem;
   }
   header {
     grid-area: top;
