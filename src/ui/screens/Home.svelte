@@ -45,7 +45,7 @@
       <div class="f f4"><Card id="JC" /></div>
     </div>
     <h1>Lamplight</h1>
-    <p class="tag">Your phone is your hand. Pull up a chair, any game.</p>
+    <p class="tag">Pull up a chair. Your phone is your hand.</p>
   </section>
 
   <section class="form panel">
@@ -60,7 +60,7 @@
       </div>
     </div>
 
-    <button class="btn primary wide light" onclick={host}>Light a table</button>
+    <button class="btn primary wide light" onclick={host}>Start a table</button>
 
     <div class="or"><span>or join one</span></div>
 
@@ -77,7 +77,7 @@
         spellcheck="false"
         aria-label="Table code"
       />
-      <button class="btn" disabled={!canJoin} onclick={() => join()}>Join</button>
+      <button class="btn" disabled={!canJoin} onclick={() => join()}>Deal me in</button>
     </div>
     <button class="link" disabled={!isValidCode(code)} onclick={() => join(true)}>Use this device as the table display</button>
 
