@@ -140,6 +140,10 @@
               "none"
             ],
             "description": "Where the zone is drawn."
+          },
+          "hideEmpty": {
+            "type": "boolean",
+            "description": "Don't draw the zone while it's empty."
           }
         }
       }
@@ -503,6 +507,75 @@
                 "minimum": 1
               },
               "description": "Community cards dealt on each street."
+            }
+          }
+        },
+        {
+          "description": "Rummy games. Style \"gin\": two players draw and discard until someone knocks.",
+          "required": [
+            "family",
+            "style",
+            "handSize",
+            "knockMax",
+            "bonuses",
+            "end"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "family": {
+              "const": "rummy"
+            },
+            "style": {
+              "enum": [
+                "gin"
+              ]
+            },
+            "handSize": {
+              "type": "integer",
+              "minimum": 3,
+              "maximum": 13
+            },
+            "knockMax": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Most deadwood you may knock with; 0 = gin only."
+            },
+            "bonuses": {
+              "type": "object",
+              "required": [
+                "gin",
+                "undercut"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "gin": {
+                  "type": "number"
+                },
+                "bigGin": {
+                  "type": "number"
+                },
+                "undercut": {
+                  "type": "number"
+                },
+                "box": {
+                  "type": "number"
+                },
+                "game": {
+                  "type": "number"
+                }
+              }
+            },
+            "end": {
+              "type": "object",
+              "required": [
+                "target"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "target": {
+                  "type": "number"
+                }
+              }
             }
           }
         }

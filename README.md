@@ -4,9 +4,11 @@
 One person hosts, everyone else scans a QR code, and each phone shows that player's hand plus
 the middle of the table. It needs no accounts or app store, and there's no server to pay for.
 
-- **Games are plain JSON config files** run by family engines (trick-taking, poker, free table).
-  Included: Texas Hold'em, Omaha, Hearts, Spades, Oh Hell, Crazy Eights, and a rules-free
-  **Free Table** for any game. Rummy (Gin) and Cribbage families are next, then Bridge.
+- **Games are plain JSON config files** run by family engines (trick-taking, poker, rummy, free
+  table). Included: Texas Hold'em, Omaha, Hearts, Spades, Oh Hell, Gin Rummy, Crazy Eights, and
+  a rules-free **Free Table** for any game. Cribbage and Bridge are next.
+- **Always know what just happened:** the last move appears under the headline, pops up as a
+  bubble on that player's seat, and poker seats show each player's action this street.
 - **Bots** fill empty seats in every rules-enforced game.
 - **Pick your look:** each player chooses an emoji avatar and colour, and every seat is labelled
   *your left*, *across* or *your right*.
@@ -55,8 +57,8 @@ The site uses relative paths and hash routing, so it works under any repository 
 ```
 src/
   engine/     pure TypeScript: cards, seeded RNG, zones, redaction
-    families/ family engines: free, trick-taking, poker (configured by game.json)
-    lib/      betting (side pots), pokerEval, trickTaking, passing
+    families/ family engines: free, trick-taking, poker, rummy (configured by game.json)
+    lib/      betting (side pots), pokerEval, trickTaking, passing, melds
   games/      one folder per game: game.json (+ optional rules.ts escape hatch)
   net/      transports (WebRTC / local), authoritative Host, Client, protocol
   ui/       Svelte 5 components and screens
@@ -69,7 +71,7 @@ Adding a game is usually a single JSON file. See **[docs/ADDING_A_GAME.md](docs/
 ## Roadmap
 
 1. ✅ Engine, Free Table, multiplayer, lobby, poker & trick-taking families, avatars
-2. Rummy family (Gin, Rummy 500), Cribbage, Contract Bridge (auction, dummy)
+2. ✅ Rummy family (Gin) · next: Rummy 500, Cribbage, Contract Bridge (auction, dummy)
 3. Polish: sounds, PWA offline install, offline QR pairing, custom card backs
 4. Remote play (TURN fallback), leaderboards, tournaments, host migration
 

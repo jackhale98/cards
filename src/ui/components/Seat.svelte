@@ -19,8 +19,10 @@
     avatar?: Avatar;
     /** Where this player sits relative to you. */
     relation?: Relation | null;
+    /** What this player just did; shown as a speech bubble that fades out. */
+    said?: { text: string; key: number } | null;
   }
-  let { player, info, cards, turn, connected, showChips, compact = false, avatar, relation = null }: Props = $props();
+  let { player, info, cards, turn, connected, showChips, compact = false, avatar, relation = null, said = null }: Props = $props();
   const RELATION_LABEL: Record<Relation, string> = { left: '◂ your left', right: 'your right ▸', across: 'across' };
   const shown = $derived(cards.filter((c) => !isHidden(c.id)));
   const backs = $derived(Math.min(cards.length - shown.length, 4));
@@ -28,6 +30,11 @@
 
 <div class="seat" class:turn class:out={info?.out} class:offline={!connected} class:compact style:--c={avatar?.color ?? seatColor(player.seat)}>
   {#if relation}<span class="rel rel-{relation}">{RELATION_LABEL[relation]}</span>{/if}
+  {#if said}
+    {#key said.key}
+      <span class="said">{said.text}</span>
+    {/key}
+  {/if}
   <div class="avatar">
     <AvatarBadge {avatar} name={player.name} seat={player.seat} size={compact ? 30 : 34} />
     {#if info?.tag}<span class="tag">{info.tag}</span>{/if}
@@ -88,6 +95,38 @@
     flex: none;
     display: grid;
     border-radius: 50%;
+  }
+  /* pops over the right end of the seat pill so it never covers the table */
+  .said {
+    position: absolute;
+    z-index: 3;
+    top: 50%;
+    right: -4px;
+    padding: 0.25rem 0.65rem;
+    border-radius: 10px;
+    background: var(--card-face);
+    color: #10231c;
+    font-weight: 700;
+    font-size: 0.78rem;
+    white-space: nowrap;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+    pointer-events: none;
+    animation: said 3.6s var(--ease-out) forwards;
+  }
+  @keyframes said {
+    0% {
+      opacity: 0;
+      transform: translateY(-50%) scale(0.6);
+    }
+    8%,
+    82% {
+      opacity: 1;
+      transform: translateY(-50%) scale(1);
+    }
+    100% {
+      opacity: 0;
+      transform: translateY(-50%) scale(0.95);
+    }
   }
   .rel {
     position: absolute;

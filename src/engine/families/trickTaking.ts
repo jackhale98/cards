@@ -1,4 +1,4 @@
-import { buildDeck, parseCard, SUIT_SYMBOL, type Suit } from '../cards';
+import { buildDeck, cardName, parseCard, rankLabel, SUIT_SYMBOL, type Suit } from '../cards';
 import { passTarget, type PassDirection } from '../lib/passing';
 import { followSuit, trickWinner } from '../lib/trickTaking';
 import { createState, deal, hand, ids, log, moveCards, moveTop, name, nextSeat, resetDeck, sortHand, zone } from '../state';
@@ -172,7 +172,7 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
     d.points[winner] += pts;
     d.tricks[winner]++;
     moveCards(s, 'trick', `taken:${winner}`, cards);
-    log(s, `${name(s, winner)} takes the trick${pts ? ` (+${pts})` : ''}`);
+    log(s, `${name(s, winner)} wins the trick${pts ? ` (+${pts})` : ''}`, winner, pts ? `Won trick +${pts}` : 'Won trick');
     d.trickNo++;
     if (d.trickNo === d.handSize) return endRound(s);
     s.phase = 'play';
@@ -390,6 +390,7 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
           const count = R.passing!.count;
           assertRule(cards.length === count && new Set(cards).size === count && cards.every((c) => own.includes(c)), `Choose ${count} cards to pass`);
           d.passes[seat] = cards;
+          log(s, `${name(s, seat)} passes ${count} cards`, seat, 'Passed');
           if (d.passes.every(Boolean)) {
             d.passes.forEach((cards, from) => {
               const to = passTarget(from, d.passDir!, s.players.length);
@@ -415,7 +416,8 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
             assertRule(others + bid !== d.handSize, `The dealer can’t bid ${bid}: total bids can’t equal ${d.handSize}`);
           }
           d.bids[seat] = bid;
-          log(s, `${name(s, seat)} bids ${bid === 0 && R.bidding?.nil ? 'nil' : bid}`);
+          const bidText = bid === 0 && R.bidding?.nil ? 'nil' : String(bid);
+          log(s, `${name(s, seat)} bids ${bidText}`, seat, `Bid ${bidText}`);
           if (d.bids.every((b) => b != null)) startPlay(s);
           else s.turn = nextSeat(s, seat);
           return;
@@ -426,6 +428,7 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
           assertRule(card && legalCards(s, seat).includes(card), 'You can’t play that card');
           moveCards(s, `hand:${seat}`, 'trick', [card], { by: seat, up: true });
           d.received[seat] = [];
+          log(s, `${name(s, seat)} plays the ${cardName(card)}`, seat, `${rankLabel(parseCard(card).rank)}${SUIT_SYMBOL[parseCard(card).suit]}`);
           if (R.breaks && parseCard(card).suit === R.breaks && !d.broken) {
             d.broken = true;
             log(s, `${SUIT_SYMBOL[R.breaks]} broken`);

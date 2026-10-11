@@ -34,7 +34,7 @@
   });
 
   const myHand = $derived(you >= 0 ? (s.zones[`hand:${you}`]?.cards ?? []) : []);
-  const centerZones = $derived(Object.values(s.zones).filter((z) => z.area === 'center'));
+  const centerZones = $derived(Object.values(s.zones).filter((z) => z.area === 'center' && !(z.hideEmpty && !z.cards.length)));
   const seatZone = (seat: number) => s.zones[`hand:${seat}`]?.cards ?? [];
 
   // ---- selection --------------------------------------------------------------------------
@@ -84,7 +84,8 @@
     haptic(10);
   }
 
-  const drawAction = $derived(view.actions.find((a) => a.type === 'draw'));
+  /** Actions triggered by tapping a pile (draw from the deck, take the discard…). */
+  const zoneAction = (zoneId: string) => view.actions.find((a) => a.zone === zoneId && !a.select);
 
   // ---- chrome -----------------------------------------------------------------------------
   let sheet = $state<'menu' | 'scores' | null>(null);
@@ -124,6 +125,13 @@
     };
   });
 
+  // ---- what just happened ------------------------------------------------------------------
+  const lastEntry = $derived(s.log.at(-1));
+  /** Latest player move, shown under the headline (unless the headline already says it). */
+  const lastMove = $derived(lastEntry && lastEntry.text !== status.headline ? lastEntry : null);
+  const saidBy = (seat: number) =>
+    lastEntry?.seat === seat && lastEntry.short ? { text: lastEntry.short, key: lastEntry.t } : null;
+
   const me = $derived(you >= 0 ? s.players[you] : null);
   const myInfo = $derived(you >= 0 ? status.seats[you] : undefined);
 </script>
@@ -148,6 +156,7 @@
           compact={others.length > 4}
           avatar={view.lobby.seats[seat]?.avatar}
           relation={display ? null : seatRelation(you, seat, n)}
+          said={saidBy(seat)}
         />
       {/each}
     </div>
@@ -159,6 +168,16 @@
   <!-- centre: shared zones, pot, headline -->
   <main>
     <div class="headline" class:mine={s.turn === you && you >= 0}>{status.headline}</div>
+    {#if lastMove}
+      {#key lastMove.t}
+        <div class="last" aria-live="polite">
+          {#if lastMove.seat != null}
+            <AvatarBadge avatar={view.lobby.seats[lastMove.seat]?.avatar} name={s.players[lastMove.seat]?.name ?? ''} seat={lastMove.seat} size={16} />
+          {/if}
+          <span>{lastMove.text}</span>
+        </div>
+      {/key}
+    {/if}
     <div class="zones">
       {#each centerZones as z (z.id)}
         <Zone
@@ -169,8 +188,8 @@
           {selected}
           {selectable}
           ontap={tap}
-          zoneActive={z.id === 'deck' && !!drawAction}
-          onzone={z.id === 'deck' && drawAction ? () => run(drawAction) : undefined}
+          zoneActive={!!zoneAction(z.id)}
+          onzone={zoneAction(z.id) ? () => run(zoneAction(z.id)!) : undefined}
         />
       {/each}
       {#if status.pot}
@@ -302,6 +321,8 @@
   }
   header {
     grid-area: top;
+    position: relative;
+    z-index: 4;
     display: flex;
     align-items: center;
     gap: 8px;
@@ -314,7 +335,13 @@
     min-width: 0;
     overflow-x: auto;
     scrollbar-width: none;
-    padding: 10px 2px 6px;
+    /* extra room below (overlapping the table) so speech bubbles aren't clipped */
+    padding: 10px 2px 40px;
+    margin-bottom: -34px;
+    pointer-events: none;
+  }
+  .seats > :global(*) {
+    pointer-events: auto;
   }
   .icon {
     flex: none;
@@ -354,6 +381,27 @@
     line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
+  }
+  .last {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    max-width: 100%;
+    margin-top: -2px;
+    font-size: 0.74rem;
+    color: var(--ink-dim);
+    animation: lastIn 0.35s var(--ease-out);
+  }
+  .last span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  @keyframes lastIn {
+    from {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
   }
   .headline.mine {
     background: var(--gold);

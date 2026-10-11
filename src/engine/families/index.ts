@@ -1,6 +1,7 @@
 import type { GameConfig, GameModule } from '../types';
 import { freeFamily } from './free';
 import { pokerFamily } from './poker';
+import { rummyFamily } from './rummy';
 import { trickTakingFamily } from './trickTaking';
 
 /**
@@ -12,6 +13,7 @@ export const FAMILIES: Record<string, (config: GameConfig) => GameModule> = {
   free: freeFamily,
   'trick-taking': trickTakingFamily,
   poker: pokerFamily,
+  rummy: rummyFamily,
 };
 
 export function moduleFor(config: GameConfig): GameModule {

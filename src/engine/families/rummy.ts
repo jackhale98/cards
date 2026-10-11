@@ -1,0 +1,349 @@
+import { cardName, parseCard, rankLabel, SUIT_SYMBOL } from '../cards';
+import { bestMelds, deadwoodValue, layOff, meldOrder } from '../lib/melds';
+import { createState, hand, ids, log, moveCards, moveTop, name, resetDeck, zone } from '../state';
+import { assertRule, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
+
+/**
+ * Rummy family, draw-and-discard style (Gin Rummy). Configured from `game.json`:
+ *
+ * ```jsonc
+ * "rules": {
+ *   "family": "rummy",
+ *   "style": "gin",
+ *   "handSize": 10,
+ *   "knockMax": 10,                 // most deadwood you may knock with (0 = gin only)
+ *   "bonuses": { "gin": 25, "bigGin": 31, "undercut": 25, "box": 25, "game": 100 },
+ *   "end": { "target": 100 }
+ * }
+ * ```
+ * Melds are found automatically (best arrangement, least deadwood), and the defender's
+ * layoffs are made for them, so players only ever choose what to draw and discard.
+ */
+export interface RummyRules {
+  family: 'rummy';
+  style: 'gin';
+  handSize: number;
+  knockMax: number;
+  bonuses: { gin: number; bigGin?: number; undercut: number; box?: number; game?: number };
+  end: { target: number };
+}
+
+export interface RummyData {
+  handNo: number;
+  scores: number[];
+  /** Hands won, for the end-of-game box bonus. */
+  boxes: number[];
+  /** First turn: 0 = non-dealer may take the upcard, 1 = dealer may, then normal play. */
+  firstPick: number;
+  /** After both pass on the upcard, the non-dealer must draw from the stock. */
+  mustDrawStock: boolean;
+  /** Card just taken from the discard pile (it can't be thrown straight back). */
+  justTook: string | null;
+  /** Card each seat just drew (highlighted in their hand; redacted to the owner). */
+  received: string[][];
+  result: { headline: string; lines: string[] } | null;
+}
+
+type S = GameState<RummyData>;
+
+const label = (id: string) => {
+  const c = parseCard(id);
+  return `${rankLabel(c.rank)}${SUIT_SYMBOL[c.suit]}`;
+};
+
+export function rummyFamily(config: GameConfig): GameModule<RummyData> {
+  const R = config.rules as unknown as RummyRules;
+  const target = (s: S) => Number(s.options.target ?? R.end.target);
+  const other = (seat: number) => 1 - seat;
+  const topDiscard = (s: S) => zone(s, 'discard').cards.at(-1)?.id ?? null;
+  const showZone = (seat: number) => `show:${seat}`;
+
+  function arrange(s: S, seat: number) {
+    const z = hand(s, seat);
+    const order = meldOrder(ids(z));
+    z.cards.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
+  }
+
+  /** Deadwood left after discarding each possible card (11-card hand). */
+  function discardOptions(s: S, seat: number) {
+    const cards = ids(hand(s, seat));
+    return cards
+      .filter((c) => c !== s.data.justTook)
+      .map((c) => ({ card: c, points: bestMelds(cards.filter((x) => x !== c)).points }));
+  }
+
+  /** Best deadwood achievable by taking `card` and then discarding something else. */
+  function bestAfterTaking(cards: string[], card: string) {
+    const all = [...cards, card];
+    return Math.min(...cards.map((d) => bestMelds(all.filter((x) => x !== d)).points));
+  }
+
+  function startHand(s: S) {
+    const d = s.data;
+    resetDeck(s, config);
+    for (const seat of [0, 1]) zone(s, showZone(seat)).cards = [];
+    const first = other(s.dealer);
+    for (let i = 0; i < R.handSize; i++) for (const seat of [first, s.dealer]) moveTop(s, 'deck', `hand:${seat}`, 1);
+    moveTop(s, 'deck', 'discard', 1, { up: true });
+    [0, 1].forEach((seat) => arrange(s, seat));
+    d.handNo++;
+    d.firstPick = 0;
+    d.mustDrawStock = false;
+    d.justTook = null;
+    d.received = [[], []];
+    d.result = null;
+    s.phase = 'firstPick';
+    s.turn = first;
+    log(s, `Hand ${d.handNo}: ${name(s, s.dealer)} deals, ${label(topDiscard(s)!)} turned up`);
+  }
+
+  function takeDiscard(s: S, seat: number) {
+    const card = topDiscard(s)!;
+    moveCards(s, 'discard', `hand:${seat}`, [card]);
+    s.data.justTook = card;
+    s.data.received[seat] = [card];
+    arrange(s, seat);
+    log(s, `${name(s, seat)} takes the ${cardName(card)} from the discard pile`, seat, `Took ${label(card)}`);
+    s.phase = 'discard';
+  }
+
+  function endHand(s: S, knocker: number, kind: 'knock' | 'gin' | 'bigGin') {
+    const d = s.data;
+    const defender = other(knocker);
+    const k = bestMelds(ids(hand(s, knocker)));
+    const def = bestMelds(ids(hand(s, defender)));
+    const knockerMelds = k.melds.map((m) => [...m]);
+    const laid = kind === 'knock' ? layOff(def.deadwood, knockerMelds) : [];
+    const defDead = def.deadwood.filter((c) => !laid.includes(c));
+    const dd = defDead.reduce((n, c) => n + deadwoodValue(c), 0);
+    const kd = k.points;
+
+    let winner: number;
+    let points: number;
+    const lines: string[] = [];
+    if (kind === 'bigGin') {
+      winner = knocker;
+      points = (R.bonuses.bigGin ?? R.bonuses.gin) + dd;
+      lines.push(`${name(s, knocker)} goes BIG GIN! +${R.bonuses.bigGin ?? R.bonuses.gin} bonus`);
+    } else if (kind === 'gin') {
+      winner = knocker;
+      points = R.bonuses.gin + dd;
+      lines.push(`${name(s, knocker)} goes gin! +${R.bonuses.gin} bonus`);
+    } else if (kd < dd) {
+      winner = knocker;
+      points = dd - kd;
+      lines.push(`${name(s, knocker)} knocks with ${kd}`);
+    } else {
+      winner = defender;
+      points = kd - dd + R.bonuses.undercut;
+      lines.push(`${name(s, defender)} undercuts ${name(s, knocker)}! +${R.bonuses.undercut} bonus`);
+    }
+    if (laid.length) lines.push(`${name(s, defender)} lays off ${laid.map(label).join(' ')}`);
+    lines.push(`${name(s, knocker)} ${kd} deadwood · ${name(s, defender)} ${dd} deadwood`);
+    lines.push(`${name(s, winner)} scores ${points}`);
+    d.scores[winner] += points;
+    d.boxes[winner]++;
+
+    // lay both hands face up: melds first, then layoffs, then deadwood
+    // each meld is its own group; laid-off cards and deadwood follow, deadwood dimmed
+    const reveal = (seat: number, groups: string[][], dead: string[], text: string) => {
+      groups.filter((g) => g.length).forEach((g, gi) => moveCards(s, `hand:${seat}`, showZone(seat), g, { up: true, group: gi }));
+      moveCards(s, `hand:${seat}`, showZone(seat), dead, { up: true, group: groups.length, dim: true });
+      zone(s, showZone(seat)).label = `${name(s, seat)} · ${text}`;
+    };
+    reveal(knocker, k.melds, k.deadwood, kind === 'knock' ? `knocked, ${kd} deadwood` : 'gin');
+    reveal(defender, [...def.melds, laid], defDead, `${dd} deadwood${laid.length ? `, laid off ${laid.map(label).join(' ')}` : ''}`);
+
+    const headline = `${lines[0]} · ${name(s, winner)} +${points}`;
+    log(s, headline, knocker, kind === 'knock' ? `Knock (${kd})` : kind === 'gin' ? 'Gin!' : 'Big gin!');
+    s.turn = null;
+    s.dealer = winner; // the winner deals the next hand
+    if (d.scores[winner] >= target(s)) {
+      const finals = [0, 1].map((i) => d.scores[i] + (i === winner ? (R.bonuses.game ?? 0) : 0) + d.boxes[i] * (R.bonuses.box ?? 0));
+      lines.push(...[0, 1].map((i) => `${name(s, i)}: ${d.scores[i]} + ${d.boxes[i]} hands won${i === winner && R.bonuses.game ? ` + ${R.bonuses.game} game` : ''} = ${finals[i]}`));
+      s.winner = [finals[0] >= finals[1] ? 0 : 1];
+      s.phase = 'gameOver';
+    } else s.phase = 'handOver';
+    d.result = { headline, lines };
+  }
+
+  return {
+    config,
+
+    setup(players, seed, options) {
+      const s = createState<RummyData>(config, players, seed, options, {
+        handNo: 0,
+        scores: [0, 0],
+        boxes: [0, 0],
+        firstPick: 0,
+        mustDrawStock: false,
+        justTook: null,
+        received: [[], []],
+        result: null,
+      });
+      s.dealer = 1;
+      startHand(s);
+      return s;
+    },
+
+    actions(s, seat) {
+      const d = s.data;
+      const top = topDiscard(s);
+      if (s.phase === 'handOver') return [{ type: 'next', label: 'Next hand', style: 'primary' }];
+      if (s.phase === 'gameOver') return [{ type: 'rematch', label: 'New game', style: 'primary' }];
+      if (s.turn !== seat) return [];
+      if (s.phase === 'firstPick')
+        return [
+          { type: 'take', label: `Take ${top ? label(top) : ''}`, style: 'primary', zone: 'discard' },
+          { type: 'pass', label: 'Pass' },
+        ];
+      if (s.phase === 'draw') {
+        const out: ActionSpec[] = [{ type: 'draw', label: 'Draw stock', style: 'primary', zone: 'deck' }];
+        if (!d.mustDrawStock && top) out.push({ type: 'take', label: `Take ${label(top)}`, zone: 'discard' });
+        return out;
+      }
+      if (s.phase === 'discard') {
+        const opts = discardOptions(s, seat);
+        const cards = opts.map((o) => o.card);
+        const out: ActionSpec[] = [{ type: 'discard', label: 'Discard', style: 'primary', quick: true, select: { min: 1, max: 1, cards } }];
+        const gin = opts.filter((o) => o.points === 0).map((o) => o.card);
+        const knock = opts.filter((o) => o.points > 0 && o.points <= R.knockMax).map((o) => o.card);
+        if (bestMelds(ids(hand(s, seat))).points === 0) out.unshift({ type: 'bigGin', label: 'Big Gin!', style: 'primary' });
+        if (gin.length) out.push({ type: 'gin', label: 'Gin!', select: { min: 1, max: 1, cards: gin } });
+        if (knock.length) out.push({ type: 'knock', label: 'Knock', select: { min: 1, max: 1, cards: knock } });
+        return out;
+      }
+      return [];
+    },
+
+    apply(s, seat, a) {
+      const d = s.data;
+      const who = name(s, seat);
+      switch (a.type) {
+        case 'next':
+          assertRule(s.phase === 'handOver', 'Hand in progress');
+          return startHand(s);
+        case 'rematch':
+          assertRule(s.phase === 'gameOver', 'Game not over');
+          d.scores = [0, 0];
+          d.boxes = [0, 0];
+          d.handNo = 0;
+          s.winner = undefined;
+          return startHand(s);
+      }
+      assertRule(s.turn === seat, 'Not your turn');
+      switch (a.type) {
+        case 'pass':
+          assertRule(s.phase === 'firstPick', 'You can only pass on the first upcard');
+          log(s, `${who} passes on the ${cardName(topDiscard(s)!)}`, seat, 'Pass');
+          if (d.firstPick === 0) {
+            d.firstPick = 1;
+            s.turn = other(seat);
+          } else {
+            d.mustDrawStock = true;
+            s.phase = 'draw';
+            s.turn = other(seat);
+          }
+          return;
+        case 'take':
+          assertRule((s.phase === 'firstPick' || s.phase === 'draw') && !d.mustDrawStock, 'You must draw from the stock');
+          assertRule(topDiscard(s), 'The discard pile is empty');
+          return takeDiscard(s, seat);
+        case 'draw':
+          assertRule(s.phase === 'draw', 'Not time to draw');
+          moveTop(s, 'deck', `hand:${seat}`, 1);
+          d.received[seat] = [hand(s, seat).cards.at(-1)!.id];
+          d.justTook = null;
+          d.mustDrawStock = false;
+          arrange(s, seat);
+          log(s, `${who} draws from the stock`, seat, 'Drew');
+          s.phase = 'discard';
+          return;
+        case 'discard':
+        case 'knock':
+        case 'gin': {
+          assertRule(s.phase === 'discard', 'Draw first');
+          const card = a.cards?.[0];
+          const opt = discardOptions(s, seat).find((o) => o.card === card);
+          assertRule(card && opt, d.justTook === card ? 'You can’t discard the card you just took' : 'Choose a card to discard');
+          if (a.type === 'knock') assertRule(opt.points <= R.knockMax, `You need ${R.knockMax} or less deadwood to knock`);
+          if (a.type === 'gin') assertRule(opt.points === 0, 'That leaves deadwood — not gin');
+          moveCards(s, `hand:${seat}`, 'discard', [card], { up: true });
+          d.justTook = null;
+          d.received[seat] = [];
+          if (a.type !== 'discard') return endHand(s, seat, opt.points === 0 ? 'gin' : 'knock');
+          log(s, `${who} discards the ${cardName(card)}`, seat, label(card));
+          if (zone(s, 'deck').cards.length <= 2) {
+            d.result = { headline: 'The stock ran out — no score this hand', lines: ['Nobody knocked before the stock ran low.'] };
+            log(s, d.result.headline);
+            s.phase = 'handOver';
+            s.turn = null;
+            for (const i of [0, 1]) for (const c of hand(s, i).cards) c.up = true;
+            return;
+          }
+          s.phase = 'draw';
+          s.turn = other(seat);
+          return;
+        }
+        case 'bigGin':
+          assertRule(s.phase === 'discard' && bestMelds(ids(hand(s, seat))).points === 0, 'Not big gin');
+          return endHand(s, seat, 'bigGin');
+      }
+      assertRule(false, `Unknown action ${a.type}`);
+    },
+
+    redactData(s, viewer) {
+      return { ...s.data, received: s.data.received.map((r, i) => (i === viewer ? r : [])) };
+    },
+
+    bot(s, seat) {
+      if (s.turn !== seat) return null;
+      const cards = ids(hand(s, seat));
+      const top = topDiscard(s);
+      const now = bestMelds(cards).points;
+      const wants = (c: string | null) => !!c && bestAfterTaking(cards, c) < now;
+      if (s.phase === 'firstPick') return wants(top) ? { type: 'take' } : { type: 'pass' };
+      if (s.phase === 'draw') return !s.data.mustDrawStock && wants(top) ? { type: 'take' } : { type: 'draw' };
+      if (s.phase === 'discard') {
+        if (now === 0) return { type: 'bigGin' };
+        const opts = discardOptions(s, seat).sort((a, b) => a.points - b.points || deadwoodValue(b.card) - deadwoodValue(a.card));
+        const best = opts[0];
+        if (best.points === 0) return { type: 'gin', cards: [best.card] };
+        if (best.points <= R.knockMax) return { type: 'knock', cards: [best.card] };
+        return { type: 'discard', cards: [best.card] };
+      }
+      return null;
+    },
+
+    status(s, viewer) {
+      const d = s.data;
+      const top = topDiscard(s);
+      const turnName = s.turn != null ? name(s, s.turn) : '';
+      let headline = '';
+      if (s.phase === 'firstPick') headline = s.turn === viewer ? `Take the ${top ? label(top) : 'upcard'} or pass` : `${turnName} is deciding on the upcard`;
+      else if (s.phase === 'draw') headline = s.turn === viewer ? (d.mustDrawStock ? 'Draw from the stock' : 'Draw from the stock or take the discard') : `${turnName} to draw`;
+      else if (s.phase === 'discard') headline = s.turn === viewer ? 'Discard a card — or knock' : `${turnName} to discard`;
+      else headline = d.result?.headline ?? '';
+
+      let hint: string | undefined;
+      if (viewer >= 0 && (s.phase === 'firstPick' || s.phase === 'draw' || s.phase === 'discard')) {
+        const cards = ids(hand(s, viewer));
+        if (cards.length > R.handSize) {
+          const best = Math.min(...discardOptions(s, viewer).map((o) => o.points));
+          hint = best === 0 ? 'Gin is on!' : best <= R.knockMax ? `Can knock with ${best}` : `Deadwood ${best} after discard`;
+        } else hint = `Deadwood ${bestMelds(cards).points}`;
+      }
+
+      return {
+        headline,
+        hint,
+        seats: s.players.map((_, i) => ({ badge: `${d.scores[i]} pts`, tag: i === s.dealer ? 'D' : undefined })),
+        scoreboard: {
+          columns: ['Hands won', 'Score'],
+          rows: s.players.map((p, i) => ({ name: p.name, values: [d.boxes[i], d.scores[i]], highlight: s.winner?.includes(i) })),
+        },
+        banner: s.phase === 'gameOver' ? { title: `${name(s, s.winner![0])} wins!`, lines: d.result?.lines ?? [] } : undefined,
+      };
+    },
+  };
+}

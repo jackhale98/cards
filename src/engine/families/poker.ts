@@ -32,6 +32,8 @@ export interface PokerData {
   sb: number;
   bb: number;
   handNo: number;
+  /** Each seat's latest action this street ("Check", "Call 20", "Raise to 60"…). */
+  acted: (string | null)[];
   /** End-of-hand summary. */
   result: { lines: string[]; winners: number[] } | null;
 }
@@ -90,7 +92,10 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
     d.b.currentBet = Math.max(d.b.currentBet, d.bb);
     d.b.minRaise = d.bb;
     writeChips(s, chips);
-    log(s, `Hand #${d.handNo}: blinds ${d.sb}/${d.bb}`);
+    d.acted = s.players.map(() => null);
+    d.acted[sbSeat] = `Small blind ${d.b.bets[sbSeat]}`;
+    d.acted[bbSeat] = `Big blind ${d.b.bets[bbSeat]}`;
+    log(s, `Hand #${d.handNo}: ${name(s, sbSeat)} and ${name(s, bbSeat)} post blinds ${d.sb}/${d.bb}`);
 
     s.phase = 'betting';
     s.turn = nextActor(s, bbSeat);
@@ -124,6 +129,7 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
     }
     dealStreet(s);
     bet.newStreet(d.b, d.bb);
+    d.acted = d.acted.map(() => null);
     s.turn = nextActor(s, d.button);
   }
 
@@ -207,6 +213,7 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
         sb: Math.max(1, Math.floor(bb / 2)),
         bb,
         handNo: 0,
+        acted: [],
         result: null,
       });
       const stack = Number(options.stack ?? config.chips!.start);
@@ -251,6 +258,7 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
       }
       assertRule(s.phase === 'betting' && s.turn === seat, 'Not your turn');
       const chips = chipsOf(s);
+      const betBefore = d.b.currentBet;
       try {
         if (a.type === 'raise') bet.act(d.b, chips, seat, { type: 'raise', to: Math.floor(a.amount ?? 0) });
         else if (a.type === 'fold' || a.type === 'check' || a.type === 'call' || a.type === 'allin') bet.act(d.b, chips, seat, { type: a.type });
@@ -259,8 +267,17 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
         assertRule(false, (e as Error).message);
       }
       writeChips(s, chips);
-      const verb = { fold: 'folds', check: 'checks', call: 'calls', raise: `raises to ${d.b.bets[seat]}`, allin: 'is all in' }[a.type];
-      log(s, `${name(s, seat)} ${verb}`);
+      const put = d.b.bets[seat];
+      const raised = put > betBefore;
+      const [verb, short] = {
+        fold: ['folds', 'Fold'],
+        check: ['checks', 'Check'],
+        call: [`calls ${put}`, `Call ${put}`],
+        raise: betBefore === 0 ? [`bets ${put}`, `Bet ${put}`] : [`raises to ${put}`, `Raise to ${put}`],
+        allin: raised ? [`goes all in for ${put}`, `All in ${put}`] : [`calls all in for ${put}`, `All in ${put}`],
+      }[a.type as 'fold' | 'check' | 'call' | 'raise' | 'allin'];
+      d.acted[seat] = short;
+      log(s, `${name(s, seat)} ${verb}`, seat, short);
       if (a.type === 'fold') moveCards(s, `hand:${seat}`, 'muck', ids(hand(s, seat)));
       advance(s);
     },
@@ -323,7 +340,7 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
         pot: bet.potTotal(d.b),
         seats: s.players.map((p, i) => ({
           out: d.b.out[i] || d.b.folded[i],
-          badge: d.b.out[i] ? 'Out' : d.b.folded[i] ? 'Folded' : d.b.allIn[i] ? `All in` : d.b.bets[i] ? `Bet ${d.b.bets[i]}` : undefined,
+          badge: d.b.out[i] ? 'Out' : d.b.folded[i] ? 'Folded' : (d.acted?.[i] ?? (d.b.allIn[i] ? 'All in' : d.b.bets[i] ? `Bet ${d.b.bets[i]}` : undefined)),
           tag: i === d.button ? 'D' : undefined,
         })),
         hint: viewer >= 0 ? handName(viewer) : undefined,

@@ -16,6 +16,8 @@ export interface ZoneConfig {
   visibility: Visibility;
   layout: Layout;
   area: Area;
+  /** Don't draw the zone while it's empty. */
+  hideEmpty?: boolean;
 }
 
 export interface DealStep {
@@ -72,6 +74,10 @@ export interface CardRef {
   up?: boolean;
   /** Seat that placed this card (used by trick layouts). */
   by?: number;
+  /** Visual grouping in spread layouts (e.g. separate melds); a gap is drawn between groups. */
+  group?: number;
+  /** Draw dimmed (e.g. deadwood). */
+  dim?: boolean;
 }
 
 export interface ZoneState {
@@ -82,6 +88,7 @@ export interface ZoneState {
   visibility: Visibility;
   layout: Layout;
   area: Area;
+  hideEmpty?: boolean;
   cards: CardRef[];
 }
 
@@ -95,6 +102,10 @@ export interface PlayerState {
 export interface LogEntry {
   t: number;
   text: string;
+  /** Who did it (shown as a speech bubble on their seat). */
+  seat?: number;
+  /** Bubble text, e.g. "Raise 60" or "7♥". */
+  short?: string;
 }
 
 export interface GameState<D = unknown> {
@@ -138,6 +149,8 @@ export interface ActionSpec {
   amount?: { min: number; max: number; step: number; default: number; label?: string };
   /** Show under the overflow menu instead of the main action bar. */
   menu?: boolean;
+  /** Tapping this zone (e.g. "deck", "discard") triggers the action. */
+  zone?: string;
   /** A single tap/swipe on a selectable card triggers this action directly. */
   quick?: boolean;
 }

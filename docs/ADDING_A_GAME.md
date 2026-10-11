@@ -15,6 +15,7 @@ src/games/my-game/
 | `free`         | anything (rules not enforced), e.g. Crazy Eights | `src/engine/families/free.ts` |
 | `trick-taking` | Hearts, Spades, Oh Hell, Whist, Black Lady… | `src/engine/families/trickTaking.ts` |
 | `poker`        | Texas Hold'em, Omaha, Pineapple-style variants | `src/engine/families/poker.ts` |
+| `rummy`        | Gin Rummy (style `gin`); Rummy 500 / Oklahoma next | `src/engine/families/rummy.ts` |
 
 `schemas/game.schema.json` describes every parameter, so editors like VS Code give you
 autocomplete and validation as you type (each file points at it with `$schema`). `pnpm test`
@@ -61,6 +62,24 @@ is a different combination of the same parameters.
 | `useHole` | `0` = best five of any cards; `2` = exactly two hole cards (Omaha) |
 | `board` | community cards per street, e.g. `[3, 1, 1]` |
 
+### Rummy parameters (style `gin`)
+
+| key | values |
+|-----|--------|
+| `handSize` | cards dealt to each player (10 for Gin) |
+| `knockMax` | most deadwood you may knock with (`0` = gin only) |
+| `bonuses` | `gin`, `bigGin`, `undercut`, plus end-of-game `box` (per hand won) and `game` |
+| `end` | `{ "target": 100 }` |
+
+Melds are found automatically (`src/engine/lib/melds.ts` searches for the least deadwood), and
+layoffs are made for the defender, so players only choose what to draw and discard.
+
+## Telling players what happened
+
+Call `log(s, text, seat, short)` in your engine for every player action. The table shows the
+latest entry under the headline (with the player's avatar) and pops `short` up as a bubble on
+that player's seat, e.g. `log(s, 'Riley raises to 60', seat, 'Raise to 60')`.
+
 ## Zones
 
 Zones are where cards live. Every game needs a `deck` zone.
@@ -71,6 +90,7 @@ Zones are where cards live. Every game needs a `deck` zone.
 | `visibility` | `all` (face up for everyone), `owner` (only that seat), `none` (nobody, e.g. the deck) |
 | `layout`     | `fan` (a hand), `stack` (a pile showing its top card), `spread` (a row), `trick` (cards placed toward whoever played them) |
 | `area`       | `hand` (bottom of your screen), `center` (the table), `none` (not drawn) |
+| `hideEmpty`  | don't draw the zone while it's empty (e.g. hands laid face up at the end of Gin) |
 
 The host enforces visibility: cards a player can't see are replaced with anonymous placeholders
 **before** anything is sent over the network.

@@ -58,7 +58,7 @@ export function freeFamily(config: GameConfig): GameModule<FreeData> {
         out.push({ type: 'flip', label: 'Flip', select: { min: 1, max: 99, cards: ids(zone(s, playZone)) } });
       }
       if (deckCount) {
-        out.push({ type: 'draw', label: 'Draw' });
+        out.push({ type: 'draw', label: 'Draw', zone: 'deck' });
         out.push({
           type: 'deal',
           label: 'Deal to all',
@@ -90,38 +90,38 @@ export function freeFamily(config: GameConfig): GameModule<FreeData> {
       switch (a.type) {
         case 'play':
           moveFromAnywhere(playZone, { up: true, by: seat });
-          return log(s, `${who} plays ${cards.length} card${cards.length > 1 ? 's' : ''}`);
+          return log(s, `${who} plays ${cards.length} card${cards.length > 1 ? 's' : ''}`, seat);
         case 'playDown':
           moveFromAnywhere(playZone, { up: false, by: seat });
-          return log(s, `${who} plays ${cards.length} face down`);
+          return log(s, `${who} plays ${cards.length} face down`, seat);
         case 'discard':
           moveFromAnywhere('discard', { up: true });
-          return log(s, `${who} discards ${cards.length}`);
+          return log(s, `${who} discards ${cards.length}`, seat);
         case 'take':
           moveFromAnywhere(`hand:${seat}`);
-          return log(s, `${who} takes ${cards.length}`);
+          return log(s, `${who} takes ${cards.length}`, seat);
         case 'flip':
           for (const c of zone(s, playZone).cards) if (cards.includes(c.id)) c.up = c.up === false;
           return;
         case 'draw':
           assertRule(zone(s, 'deck').cards.length, 'The deck is empty');
           moveTop(s, 'deck', `hand:${seat}`, 1);
-          return log(s, `${who} draws`);
+          return log(s, `${who} draws`, seat);
         case 'flipTop':
           moveTop(s, 'deck', playZone, 1, { up: true });
           return;
         case 'deal': {
           const n = Math.max(1, Math.floor(a.amount ?? 1));
           deal(s, [{ to: 'hand', count: n }], seatOrderFrom(s, seat + 1));
-          return log(s, `${who} deals ${n} to everyone`);
+          return log(s, `${who} deals ${n} to everyone`, seat);
         }
         case 'shuffle':
           shuffle(zone(s, 'deck').cards, s);
-          return log(s, `${who} shuffles`);
+          return log(s, `${who} shuffles`, seat);
         case 'collect':
           for (const z of Object.values(s.zones)) z.cards = [];
           zone(s, 'deck').cards = shuffle([...d.deck], s).map((id) => ({ id }));
-          return log(s, `${who} collects and shuffles`);
+          return log(s, `${who} collects and shuffles`, seat);
         case 'sort': {
           const z = hand(s, seat);
           const order = sortCards(ids(z), config.sort);
@@ -133,11 +133,11 @@ export function freeFamily(config: GameConfig): GameModule<FreeData> {
           assertRule(amt > 0 && amt <= s.players[seat].chips, 'Not enough chips');
           s.players[seat].chips -= amt;
           d.pot += amt;
-          return log(s, `${who} bets ${amt}`);
+          return log(s, `${who} bets ${amt}`, seat);
         }
         case 'takePot':
           s.players[seat].chips += d.pot;
-          log(s, `${who} takes the pot (${d.pot})`);
+          log(s, `${who} takes the pot (${d.pot})`, seat);
           d.pot = 0;
           return;
       }

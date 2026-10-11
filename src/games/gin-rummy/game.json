@@ -1,0 +1,34 @@
+{
+  "$schema": "../../../schemas/game.schema.json",
+  "id": "gin-rummy",
+  "name": "Gin Rummy",
+  "tagline": "Build sets and runs, cut your deadwood, and knock before your opponent does.",
+  "icon": "♦",
+  "players": { "min": 2, "max": 2, "recommended": 2 },
+  "bots": true,
+  "deck": {},
+  "zones": [
+    { "id": "deck", "label": "Stock", "visibility": "none", "layout": "stack", "area": "center" },
+    { "id": "discard", "label": "Discard", "visibility": "all", "layout": "stack", "area": "center" },
+    { "id": "hand", "perPlayer": true, "visibility": "owner", "layout": "fan", "area": "hand" },
+    { "id": "show", "perPlayer": true, "visibility": "all", "layout": "spread", "area": "center", "hideEmpty": true }
+  ],
+  "rules": {
+    "family": "rummy",
+    "style": "gin",
+    "handSize": 10,
+    "knockMax": 10,
+    "bonuses": { "gin": 25, "bigGin": 31, "undercut": 25, "box": 25, "game": 100 },
+    "end": { "target": 100 }
+  },
+  "options": [
+    { "id": "target", "label": "Play to", "type": "number", "default": 100, "min": 25, "max": 250, "step": 25 }
+  ],
+  "rulesSummary": [
+    "Each turn, draw from the stock or take the top discard, then discard one card.",
+    "Melds are sets (3–4 of a rank) or runs (3+ in a suit, ace low). Everything else is deadwood (faces 10, ace 1).",
+    "Knock when your deadwood is 10 or less. Your opponent lays off what they can on your melds.",
+    "Lower deadwood scores the difference. Undercut the knocker for +25; gin (no deadwood) is +25.",
+    "Your melds are arranged for you automatically — the hint shows your deadwood."
+  ]
+}

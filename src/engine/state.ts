@@ -21,6 +21,7 @@ export function createState<D>(
       visibility: z.visibility,
       layout: z.layout,
       area: z.area,
+      hideEmpty: z.hideEmpty,
       cards: [],
     });
     if (z.perPlayer) players.forEach((_, i) => (zones[`${z.id}:${i}`] = make(`${z.id}:${i}`, i)));
@@ -126,8 +127,9 @@ export function sortHand(s: GameState<any>, seat: number, opts: Parameters<typeo
   z.cards.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
 }
 
-export function log(s: GameState<any>, text: string) {
-  s.log.push({ t: Date.now(), text });
+/** Record what happened. Pass `seat` (and a `short` bubble label) for player actions. */
+export function log(s: GameState<any>, text: string, seat?: number, short?: string) {
+  s.log.push({ t: Date.now(), text, seat, short });
   if (s.log.length > 40) s.log.splice(0, s.log.length - 40);
 }
 

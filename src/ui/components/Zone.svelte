@@ -55,9 +55,16 @@
     </div>
   {:else}
     <div class="spread">
-      {#each zone.cards as c (c.id)}
-        <button class="scard" onclick={() => ontap(c.id)} disabled={!selectable?.has(c.id)} in:receive={{ key: c.id }} out:send={{ key: c.id }}>
-          <Card id={c.id} down={c.up === false} selected={selected.includes(c.id)} />
+      {#each zone.cards as c, i (c.id)}
+        <button
+          class="scard"
+          class:newgroup={i > 0 && c.group != null && c.group !== zone.cards[i - 1].group}
+          onclick={() => ontap(c.id)}
+          disabled={!selectable?.has(c.id)}
+          in:receive={{ key: c.id }}
+          out:send={{ key: c.id }}
+        >
+          <Card id={c.id} down={c.up === false} selected={selected.includes(c.id)} dim={c.dim} />
         </button>
       {:else}
         <div class="empty wide"></div>
@@ -125,6 +132,9 @@
   }
   .scard {
     padding: 0;
+  }
+  .spread .scard.newgroup {
+    margin-left: calc(var(--cw) * 0.22) !important;
   }
   .scard:disabled {
     cursor: default;
