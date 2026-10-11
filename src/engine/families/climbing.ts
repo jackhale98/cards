@@ -1,5 +1,5 @@
 import { parseCard, rankLabel } from '../cards';
-import { createState, deal, hand, ids, log, moveCards, name, nextSeat, placesFromScores, resetDeck, zone } from '../state';
+import { createState, deal, hand, ids, log, moveCards, name, placesFromScores, resetDeck, zone } from '../state';
 import { assertRule, type Action, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
 
 /**
@@ -30,6 +30,11 @@ export interface ClimbingData {
   titles: (string | null)[];
   /** Seats in the order they went out this hand. */
   finished: number[];
+  /**
+   * Turn order. Players reseat by rank after each hand (President, Vice-President, … Scum, then
+   * round to the President again); phones can't move, so the order of play does instead.
+   */
+  order?: number[];
   /** The play to beat: how many cards and their rank. */
   top: { count: number; rank: number } | null;
   /** Who made the play to beat. */
@@ -68,7 +73,17 @@ export function climbingFamily(config: GameConfig): GameModule<ClimbingData> {
   const R = config.rules as unknown as ClimbingRules;
   const target = (s: S) => Number(s.options.target ?? R.end.target);
   const inPlay = (s: S, seat: number) => hand(s, seat).cards.length > 0;
-  const nextIn = (s: S, seat: number) => nextSeat(s, seat, (x) => !inPlay(s, x));
+  /** The next seat in play order (by rank after the first hand), skipping any `skip` says. */
+  const nextInOrder = (s: S, seat: number, skip: (x: number) => boolean = () => false) => {
+    const order = s.data.order ?? s.players.map((p) => p.seat);
+    const k = order.indexOf(seat);
+    for (let i = 1; i <= order.length; i++) {
+      const x = order[(k + i) % order.length];
+      if (!skip(x)) return x;
+    }
+    return seat;
+  };
+  const nextIn = (s: S, seat: number) => nextInOrder(s, seat, (x) => !inPlay(s, x));
   const byRank = (cards: string[]) => {
     const m = new Map<number, string[]>();
     for (const c of cards) m.set(climbRank(c), [...(m.get(climbRank(c)) ?? []), c]);
@@ -92,10 +107,10 @@ export function climbingFamily(config: GameConfig): GameModule<ClimbingData> {
     const n = s.players.length;
     resetDeck(s, config);
     // deal everything, starting left of the dealer (some get one more)
-    let seat = nextSeat(s, s.dealer);
+    let seat = nextInOrder(s, s.dealer);
     while (zone(s, 'deck').cards.length) {
       deal(s, [{ to: 'hand', count: 1 }], [seat]);
-      seat = nextSeat(s, seat);
+      seat = nextInOrder(s, seat);
     }
     s.players.forEach((_, i) => sortHand(s, i));
     d.handNo++;
@@ -135,7 +150,7 @@ export function climbingFamily(config: GameConfig): GameModule<ClimbingData> {
   function startPlay(s: S) {
     s.phase = 'play';
     const pres = s.data.titles.indexOf('President');
-    s.turn = pres >= 0 ? pres : nextSeat(s, s.dealer);
+    s.turn = pres >= 0 ? pres : nextInOrder(s, s.dealer);
     log(s, `${name(s, s.turn)} leads`);
   }
 
@@ -169,7 +184,9 @@ export function climbingFamily(config: GameConfig): GameModule<ClimbingData> {
       s.winner = [d.points.indexOf(best)];
       s.phase = 'gameOver';
     } else s.phase = 'handOver';
-    // the Scum deals the next hand
+    // reseat by rank (the President on the Scum's left), and the Scum deals the next hand
+    d.order = [...d.finished];
+    lines.push(`Next hand plays in order of rank: ${d.order.map((i) => name(s, i)).join(' → ')}`);
     s.dealer = d.finished[n - 1];
   }
 
@@ -251,6 +268,7 @@ export function climbingFamily(config: GameConfig): GameModule<ClimbingData> {
           assertRule(s.phase === 'gameOver', 'Game not over');
           d.points = d.points.map(() => 0);
           d.titles = d.titles.map(() => null);
+          d.order = undefined;
           d.handNo = 0;
           s.winner = undefined;
           return startHand(s);

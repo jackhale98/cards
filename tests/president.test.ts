@@ -125,3 +125,27 @@ describe('president', () => {
     }
   });
 });
+
+describe('president reseating (pagat)', () => {
+  it('after a hand, play goes round in order of rank: President first, Scum last', () => {
+    const g = GAMES.president as GameModule<ClimbingData>;
+    const s = g.setup(Array.from({ length: 5 }, (_, i) => ({ name: `B${i}`, bot: true })), 3, {});
+    for (let i = 0; i < 5000 && s.phase !== 'handOver' && s.phase !== 'gameOver'; i++) {
+      const seat = s.players.findIndex((p) => g.bot!(s, p.seat));
+      g.apply(s, seat, g.bot!(s, seat)!);
+    }
+    const order = s.data.order!;
+    expect(order).toEqual(s.data.finished);
+    expect(s.dealer).toBe(order[4]); // the Scum deals
+    g.apply(s, 0, { type: 'next' });
+    // everyone gives back what they owe, then the President leads and play follows the ranking
+    for (let i = 0; i < 20 && s.phase === 'swap'; i++) {
+      const seat = s.players.findIndex((p) => g.bot!(s, p.seat));
+      g.apply(s, seat, g.bot!(s, seat)!);
+    }
+    expect(s.turn).toBe(order[0]);
+    const lead = g.bot!(s, order[0])!;
+    g.apply(s, order[0], lead);
+    expect(s.turn).toBe(order[1]);
+  });
+});
