@@ -2,7 +2,8 @@ import { buildDeck, cardName, parseCard, rankLabel, SUIT_SYMBOL } from '../cards
 import { nextRandom } from '../rng';
 import { describeShow, pegPoints, pipValue, scoreHand } from '../lib/cribbageScore';
 import { createState, cutForDeal, deal, hand, ids, log, moveCards, moveTop, name, nextSeat, placesFromScores, resetDeck, seatOrderFrom, sortHand, zone } from '../state';
-import { assertRule, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
+import { botBudget, dealUnseen, edge, fork, playOut, searchMove, shuffled, type SearchGame } from '../bots/search';
+import { assertRule, type Action, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
 
 /**
  * Cribbage family. Configured from `game.json`:
@@ -246,7 +247,12 @@ export function cribbageFamily(config: GameConfig): GameModule<CribData> {
 
   // ---- bots -------------------------------------------------------------------------------
 
-  function botDiscard(s: S, seat: number): string[] {
+  /**
+   * The best cards to throw to the crib: the kept hand's average over every possible starter, plus
+   * (or minus, for an opponent's crib) what the throw is worth to the crib. With `samples`, the crib
+   * is valued by imagining the other cards that go in and the starter; without, by rule of thumb.
+   */
+  function botDiscard(s: S, seat: number, samples = 0): string[] {
     const cards = ids(hand(s, seat));
     const k = layout(s).discard;
     const mine = s.dealer === seat || teamOf(s, s.dealer) === teamOf(s, seat);
@@ -262,7 +268,17 @@ export function cribbageFamily(config: GameConfig): GameModule<CribData> {
       const sum = drop.reduce((n, c) => n + pipValue(c), 0);
       const pair = drop.length === 2 && parseCard(drop[0]).rank === parseCard(drop[1]).rank;
       const fives = drop.filter((c) => pipValue(c) === 5).length;
-      const cribValue = (sum === 15 ? 2 : 0) + (pair ? 2 : 0) + fives * 1.5;
+      let cribValue = (sum === 15 ? 2 : 0) + (pair ? 2 : 0) + fives * 1.5;
+      if (samples) {
+        // the other crib cards and the starter, drawn from the cards we can't see
+        const more = 4 - k;
+        let t = 0;
+        for (let i = 0; i < samples; i++) {
+          const pick = shuffled([...unseen]).slice(0, more + 1);
+          t += scoreHand([...drop, ...pick.slice(0, more)], pick[more], true).total;
+        }
+        cribValue = t / samples;
+      }
       const value = avg + (mine ? 1 : -1) * cribValue;
       if (!best || value > best.value) best = { keep, value };
     }
@@ -285,8 +301,45 @@ export function cribbageFamily(config: GameConfig): GameModule<CribData> {
     return legal.sort((a, b) => rate(b) - rate(a))[0];
   }
 
-  return {
+  function quickBot(s: S, seat: number): Action | null {
+    if (s.phase === 'discard' && !s.data.discards[seat]) return { type: 'crib', cards: botDiscard(s, seat) };
+    const c = s.data.claim;
+    if (s.phase === 'count' && c) {
+      // bots count their own cards correctly, and check everyone else's
+      if (c.points == null) return c.seat === seat ? { type: 'count', amount: claimTruth(s).total } : null;
+      if (!checkers(s, c.seat).includes(seat) || c.accepted[seat]) return null;
+      const T = claimTruth(s).total;
+      return T === c.points ? { type: 'accept' } : { type: 'muggins', amount: T };
+    }
+    if (s.turn !== seat) return null;
+    if (s.phase === 'cut') return { type: 'cut' };
+    if (s.phase === 'peg') return canPlay(s, seat) ? { type: 'play', cards: [botPeg(s, seat)] } : { type: 'go' };
+    return null;
+  }
+
+  // the search bot (pegging): imagine the others' cards, play each card out to the end of the play
+  const search: SearchGame<CribData> = {
+    determinize(s, viewer) {
+      const c = fork(s);
+      dealUnseen(c, [
+        ...c.players.filter((p) => p.seat !== viewer).map((p) => ({ zone: `hand:${p.seat}` })),
+        { zone: 'crib', fixed: c.data.discards[viewer] ?? [] },
+        { zone: 'deck' },
+      ]);
+      return c;
+    },
+    candidates(s, seat) {
+      const legal = ids(hand(s, seat)).filter((c) => s.data.count + pipValue(c) <= 31);
+      return legal.length ? legal.map((c) => ({ type: 'play', cards: [c] })) : [{ type: 'go' }];
+    },
+    apply: (s, seat, a) => module.apply(s, seat, a),
+    rollout: (s) => playOut(module, quickBot, s, (x) => x.phase !== 'peg'),
+    score: (before, after, seat) => edge(before.data.scores, after.data.scores, teamOf(before, seat)),
+  };
+
+  const module: GameModule<CribData> = {
     config,
+    botLevels: true,
 
     setup(players, seed, options) {
       assertRule(LAYOUT[players.length], 'Cribbage is for 2, 3 or 4 players');
@@ -449,19 +502,10 @@ export function cribbageFamily(config: GameConfig): GameModule<CribData> {
     },
 
     bot(s, seat) {
-      if (s.phase === 'discard' && !s.data.discards[seat]) return { type: 'crib', cards: botDiscard(s, seat) };
-      const c = s.data.claim;
-      if (s.phase === 'count' && c) {
-        // bots count their own cards correctly, and check everyone else's
-        if (c.points == null) return c.seat === seat ? { type: 'count', amount: claimTruth(s).total } : null;
-        if (!checkers(s, c.seat).includes(seat) || c.accepted[seat]) return null;
-        const T = claimTruth(s).total;
-        return T === c.points ? { type: 'accept' } : { type: 'muggins', amount: T };
-      }
-      if (s.turn !== seat) return null;
-      if (s.phase === 'cut') return { type: 'cut' };
-      if (s.phase === 'peg') return canPlay(s, seat) ? { type: 'play', cards: [botPeg(s, seat)] } : { type: 'go' };
-      return null;
+      const budget = botBudget(s.options);
+      if (budget && s.phase === 'discard' && !s.data.discards[seat]) return { type: 'crib', cards: botDiscard(s, seat, budget.samples) };
+      if (budget && s.phase === 'peg' && s.turn === seat) return searchMove(search, s, seat, budget) ?? quickBot(s, seat);
+      return quickBot(s, seat);
     },
 
     redactData(s, viewer) {
@@ -526,6 +570,7 @@ export function cribbageFamily(config: GameConfig): GameModule<CribData> {
       };
     },
   };
+  return module;
 }
 
 function combos<T>(arr: T[], k: number): T[][] {

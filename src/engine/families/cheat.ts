@@ -1,5 +1,6 @@
 import { parseCard } from '../cards';
 import { createState, deal, hand, ids, log, moveCards, name, nextSeat, placesFromScores, resetDeck, sortHand, zone } from '../state';
+import { botLevel } from '../bots/search';
 import { assertRule, type Action, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
 
 /**
@@ -24,6 +25,8 @@ export interface CheatData {
   reveal: { caller: number; player: number; lied: boolean } | null;
   /** Who claimed each rank, and how many (public — bots use it). */
   claims: { seat: number; count: number; rank: number }[];
+  /** Where the claims still in the pile start (everything before went to someone's hand). */
+  pileFrom?: number;
   result: { lines: string[] } | null;
 }
 
@@ -52,6 +55,7 @@ export function cheatFamily(config: GameConfig): GameModule<CheatData> {
     d.last = null;
     d.reveal = null;
     d.claims = [];
+    d.pileFrom = 0;
     d.result = null;
     s.phase = 'play';
     s.turn = nextSeat(s, s.dealer);
@@ -90,6 +94,7 @@ export function cheatFamily(config: GameConfig): GameModule<CheatData> {
     const rest = ids(zone(s, 'pile'));
     moveCards(s, 'pile', `hand:${loser}`, rest);
     d.reveal = { caller, player: last.seat, lied };
+    d.pileFrom = d.claims.length;
     log(
       s,
       `${name(s, caller)} calls Cheat! on ${name(s, last.seat)} — ${lied ? 'caught lying' : 'it was true'}; ${name(s, loser)} picks up the pile`,
@@ -129,7 +134,7 @@ export function cheatFamily(config: GameConfig): GameModule<CheatData> {
     if (true_.length) {
       // the truth, sometimes padded with one more card when holding few
       const extra = own.filter((c) => parseCard(c).rank !== d.rank);
-      const pad = Math.random() < 0.25 && extra.length && true_.length < maxPlay(s) ? [extra[0]] : [];
+      const pad = Math.random() < [0.4, 0.25, 0.1][botLevel(s.options)] && extra.length && true_.length < maxPlay(s) ? [extra[0]] : [];
       return { type: 'play', cards: [...true_, ...pad] };
     }
     // nothing of the rank: get rid of a card we won't need for a while
@@ -138,23 +143,38 @@ export function cheatFamily(config: GameConfig): GameModule<CheatData> {
     return { type: 'play', cards: [pick] };
   }
 
+  /**
+   * Bot strength is card counting and patience. Easy doesn't count and calls on a whim. Normal
+   * counts its own cards. Hard also adds up every claim of that rank still in the pile, and
+   * otherwise rarely risks a call.
+   */
   function botCalls(s: S, seat: number): boolean {
     const d = s.data;
     const last = d.last;
+    const level = botLevel(s.options);
     if (!last || last.seat === seat) return false;
     const total = 4 * decks(s);
     // certain: more claimed than can exist besides ours
-    if (last.count + seen(s, seat, last.rank) > total) return true;
+    if (level > 0 && last.count + seen(s, seat, last.rank) > total) return true;
     // one decision per bot per play (the host asks bots again and again: don't re-roll)
     const roll = (((d.claims.length * 7919 + seat * 104729 + (s.rng % 997)) * 2654435761) >>> 0) / 2 ** 32;
     // their last cards: worth a look
     if (!hand(s, last.seat).cards.length) return roll < 0.6;
-    const odds = (last.count >= 3 ? 0.25 : last.count === 2 ? 0.08 : 0.03) + seen(s, seat, last.rank) * 0.1;
+    let odds = (last.count >= 3 ? 0.25 : last.count === 2 ? 0.08 : 0.03) + seen(s, seat, last.rank) * 0.1;
+    // a wrong call costs the whole pile: Easy calls on a whim, Hard saves its calls for when the counting says so
+    odds *= [1.5, 1, 0.5][level];
+    if (level === 2) {
+      // claims of this rank already in the pile, plus ours: if they add up past the deck, someone lied
+      const earlier = d.claims.slice(d.pileFrom ?? 0, -1).filter((c) => c.rank === last.rank && c.seat !== seat);
+      const claimed = earlier.reduce((n, c) => n + c.count, 0) + last.count + seen(s, seat, last.rank);
+      if (claimed > total) odds = Math.max(odds, 0.75);
+    }
     return roll < odds;
   }
 
   return {
     config,
+    botLevels: true,
 
     setup(players, seed, options) {
       const s = createState<CheatData>(config, players, seed, options, { rank: 14, last: null, reveal: null, claims: [], result: null });

@@ -1,5 +1,6 @@
 import { parseCard } from '../cards';
 import { createState, deal, hand, ids, log, moveCards, moveTop, name, nextSeat, placesFromScores, resetDeck, sortHand, zone } from '../state';
+import { botLevel } from '../bots/search';
 import { assertRule, type Action, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
 
 /**
@@ -20,6 +21,8 @@ export interface GoFishData {
   books: number[];
   /** Ranks each seat is known to hold (they asked for them and still had them). Public. */
   known: number[][];
+  /** Ranks each seat is known not to hold (they said "Go fish!", and haven't drawn since). Public. */
+  lacks?: number[][];
   /** The last ask, for the headline. */
   last: { asker: number; target: number; rank: number; got: number; fished?: 'lucky' | 'miss' | 'empty' } | null;
   result: { lines: string[] } | null;
@@ -44,6 +47,7 @@ export function goFishFamily(config: GameConfig): GameModule<GoFishData> {
     s.players.forEach((_, i) => sortHand(s, i));
     d.books = s.players.map(() => 0);
     d.known = s.players.map(() => []);
+    d.lacks = s.players.map(() => []);
     d.last = null;
     d.result = null;
     s.phase = 'play';
@@ -73,6 +77,7 @@ export function goFishFamily(config: GameConfig): GameModule<GoFishData> {
     const n = Math.min(5, zone(s, 'deck').cards.length);
     if (!n) return;
     moveTop(s, 'deck', `hand:${seat}`, n);
+    if (s.data.lacks) s.data.lacks[seat] = [];
     sortHand(s, seat);
     log(s, `${name(s, seat)} draws ${n} new cards`, seat, `+${n}`);
     layBooks(s, seat);
@@ -104,24 +109,36 @@ export function goFishFamily(config: GameConfig): GameModule<GoFishData> {
 
   // ---- bots ------------------------------------------------------------------------------
 
+  /**
+   * Bot strength is memory. Easy remembers nothing: a random rank of its own from a random player.
+   * Normal remembers who has asked for what. Hard also remembers who said "Go fish!" to what.
+   */
   function botAsk(s: S, seat: number): Action {
     const d = s.data;
+    const level = botLevel(s.options);
     const mine = ranksIn(s, seat);
     const others = s.players.map((p) => p.seat).filter((i) => i !== seat && hand(s, i).cards.length);
+    const ask = (r: number, target: number): Action => ({ type: 'ask', cards: [holding(s, seat).find((c) => rankOf(c) === r)!], seat: target });
+    const pick = <T,>(xs: T[]) => xs[Math.floor(Math.random() * xs.length)];
+    if (level === 0) return ask(pick(mine), pick(others));
     // someone known to hold a rank we have
     for (const i of others) {
       const r = d.known[i].find((x) => mine.includes(x));
-      if (r) return { type: 'ask', cards: [holding(s, seat).find((c) => rankOf(c) === r)!], seat: i };
+      if (r) return ask(r, i);
     }
-    // otherwise our biggest group, from whoever holds the most cards
+    // otherwise our biggest group, from whoever holds the most cards (Hard: and hasn't just denied it)
     const count = (r: number) => holding(s, seat).filter((c) => rankOf(c) === r).length;
-    const r = [...mine].sort((a, b) => count(b) - count(a))[0];
-    const target = [...others].sort((a, b) => hand(s, b).cards.length - hand(s, a).cards.length)[0];
-    return { type: 'ask', cards: [holding(s, seat).find((c) => rankOf(c) === r)!], seat: target };
+    const bySize = (xs: number[]) => [...xs].sort((a, b) => hand(s, b).cards.length - hand(s, a).cards.length);
+    for (const r of [...mine].sort((a, b) => count(b) - count(a))) {
+      const target = bySize(others.filter((i) => level < 2 || !d.lacks?.[i]?.includes(r)))[0];
+      if (target != null) return ask(r, target);
+    }
+    return ask(mine[0], bySize(others)[0]);
   }
 
   return {
     config,
+    botLevels: true,
 
     setup(players, seed, options) {
       const s = createState<GoFishData>(config, players, seed, options, { books: [], known: [], last: null, result: null });
@@ -157,6 +174,10 @@ export function goFishFamily(config: GameConfig): GameModule<GoFishData> {
       const rank = rankOf(card);
       const theirs = holding(s, target).filter((c) => rankOf(c) === rank);
       d.known[target] = d.known[target].filter((x) => x !== rank);
+      const lacks = (d.lacks ??= s.players.map(() => []));
+      // the asker holds the rank; the target, once they've handed theirs over or said "Go fish!", doesn't
+      lacks[seat] = lacks[seat].filter((x) => x !== rank);
+      if (!lacks[target].includes(rank)) lacks[target] = [...lacks[target], rank];
       if (theirs.length) {
         moveCards(s, `hand:${target}`, `hand:${seat}`, theirs);
         sortHand(s, seat);
@@ -181,6 +202,7 @@ export function goFishFamily(config: GameConfig): GameModule<GoFishData> {
       }
       moveTop(s, 'deck', `hand:${seat}`, 1);
       const drawn = hand(s, seat).cards.at(-1)!.id;
+      lacks[seat] = []; // a fresh card could be anything
       sortHand(s, seat);
       const lucky = rankOf(drawn) === rank;
       d.last = { asker: seat, target, rank, got: 0, fished: lucky ? 'lucky' : 'miss' };

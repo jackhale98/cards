@@ -1,6 +1,7 @@
 import { cardName, parseCard, rankLabel, SUIT_NAME, SUIT_SYMBOL, type Suit } from '../cards';
 import { shuffle } from '../rng';
 import { createState, hand, ids, log, moveCards, moveTop, name, placesFromScores, resetDeck, sortHand, zone } from '../state';
+import { botBudget, dealUnseen, edge, fork, playOut, searchMove, type SearchGame } from '../bots/search';
 import { assertRule, type Action, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
 
 /**
@@ -221,10 +222,39 @@ export function eightsFamily(config: GameConfig): GameModule<EightsData> {
     return canDraw(s) ? { type: 'draw' } : { type: 'pass' };
   }
 
+  function quickBot(s: S, seat: number): Action | null {
+    if (s.phase === 'nominate' && s.turn === seat) return { type: 'nominate', amount: SUITS.indexOf(bestSuit(s, seat)) };
+    if (s.phase !== 'play' || s.turn !== seat) return null;
+    return botMove(s, seat);
+  }
+
+  // the search bot: imagine the other hands and the stock, play each option out to the end of the hand
+  const search: SearchGame<EightsData> = {
+    determinize(s, viewer) {
+      const c = fork(s);
+      dealUnseen(c, [...c.players.filter((p) => p.seat !== viewer).map((p) => ({ zone: `hand:${p.seat}` })), { zone: 'deck' }]);
+      return c;
+    },
+    candidates(s, seat) {
+      const options = legal(s, seat);
+      const moves: Action[] = options.filter((c) => rankOf(c) !== 8).map((c) => ({ type: 'play', cards: [c] }));
+      // one eight is as good as another: try it with each suit
+      const eight = options.find((c) => rankOf(c) === 8);
+      if (eight) moves.push(...SUITS.map((_, i) => ({ type: 'eight', cards: [eight], amount: i })));
+      if (canDraw(s)) moves.push({ type: 'draw' });
+      else if (!moves.length) moves.push({ type: 'pass' });
+      return moves;
+    },
+    apply: (s, seat, a) => module.apply(s, seat, a),
+    rollout: (s) => playOut(module, quickBot, s, (x) => x.phase !== 'play' && x.phase !== 'nominate'),
+    score: (before, after, seat) => edge(before.data.scores, after.data.scores, seat, true),
+  };
+
   const suitChoices = () => SUITS.map((x, i) => ({ value: i, label: `${SUIT_SYMBOL[x]} ${SUIT_NAME[x]}` }));
 
-  return {
+  const module: GameModule<EightsData> = {
     config,
+    botLevels: true,
 
     setup(players, seed, options) {
       const s = createState<EightsData>(config, players, seed, options, {
@@ -335,9 +365,9 @@ export function eightsFamily(config: GameConfig): GameModule<EightsData> {
     },
 
     bot(s, seat) {
-      if (s.phase === 'nominate' && s.turn === seat) return { type: 'nominate', amount: SUITS.indexOf(bestSuit(s, seat)) };
-      if (s.phase !== 'play' || s.turn !== seat) return null;
-      return botMove(s, seat);
+      const budget = botBudget(s.options);
+      if (budget && s.phase === 'play' && s.turn === seat) return searchMove(search, s, seat, budget) ?? quickBot(s, seat);
+      return quickBot(s, seat);
     },
 
     standings(s) {
@@ -373,4 +403,5 @@ export function eightsFamily(config: GameConfig): GameModule<EightsData> {
       };
     },
   };
+  return module;
 }

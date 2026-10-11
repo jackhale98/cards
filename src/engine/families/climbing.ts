@@ -1,5 +1,6 @@
 import { parseCard, rankLabel } from '../cards';
 import { createState, deal, hand, ids, log, moveCards, name, placesFromScores, resetDeck, zone } from '../state';
+import { botBudget, dealUnseen, fork, playOut, searchMove, type SearchGame } from '../bots/search';
 import { assertRule, type Action, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
 
 /**
@@ -212,8 +213,46 @@ export function climbingFamily(config: GameConfig): GameModule<ClimbingData> {
     return { type: 'play', cards: pick[1].slice(0, top.count) };
   }
 
-  return {
+  function quickBot(s: S, seat: number): Action | null {
+    const d = s.data;
+    if (s.phase === 'swap') {
+      const owe = d.owed.find((o) => o.from === seat);
+      // give back the lowest cards
+      return owe ? { type: 'giveBack', cards: ids(hand(s, seat)).slice(0, owe.count) } : null;
+    }
+    if (s.phase === 'play' && s.turn === seat) return botPlay(s, seat);
+    return null;
+  }
+
+  // the search bot: imagine the other hands, play each option out, and keep the best finishing place
+  const search: SearchGame<ClimbingData> = {
+    determinize(s, viewer) {
+      const c = fork(s);
+      dealUnseen(c, c.players.filter((p) => p.seat !== viewer).map((p) => ({ zone: `hand:${p.seat}` })));
+      return c;
+    },
+    candidates(s, seat) {
+      const top = s.data.top;
+      const groups = [...byRank(ids(hand(s, seat)))];
+      // leading: any rank, as one card up to the whole set; following: each rank that beats the play
+      const moves: Action[] = top
+        ? groups.filter(([r, cs]) => r > top.rank && cs.length >= top.count).map(([, cs]) => ({ type: 'play', cards: cs.slice(0, top.count) }))
+        : groups.flatMap(([, cs]) => cs.map((_, k) => ({ type: 'play', cards: cs.slice(0, k + 1) })));
+      if (top) moves.push({ type: 'pass' });
+      return moves;
+    },
+    apply: (s, seat, a) => module.apply(s, seat, a),
+    rollout: (s) => playOut(module, quickBot, s, (x) => x.phase !== 'play'),
+    // finishing earlier is better: President 0 … Scum −(n−1)
+    score: (_, after, seat) => {
+      const place = after.data.finished.indexOf(seat);
+      return -(place < 0 ? after.players.length : place);
+    },
+  };
+
+  const module: GameModule<ClimbingData> = {
     config,
+    botLevels: true,
 
     setup(players, seed, options) {
       const s = createState<ClimbingData>(config, players, seed, options, {
@@ -341,14 +380,9 @@ export function climbingFamily(config: GameConfig): GameModule<ClimbingData> {
     },
 
     bot(s, seat) {
-      const d = s.data;
-      if (s.phase === 'swap') {
-        const owe = d.owed.find((o) => o.from === seat);
-        // give back the lowest cards
-        return owe ? { type: 'giveBack', cards: ids(hand(s, seat)).slice(0, owe.count) } : null;
-      }
-      if (s.phase === 'play' && s.turn === seat) return botPlay(s, seat);
-      return null;
+      const budget = botBudget(s.options);
+      if (budget && s.phase === 'play' && s.turn === seat) return searchMove(search, s, seat, budget) ?? quickBot(s, seat);
+      return quickBot(s, seat);
     },
 
     standings(s) {
@@ -393,4 +427,5 @@ export function climbingFamily(config: GameConfig): GameModule<ClimbingData> {
       };
     },
   };
+  return module;
 }

@@ -171,8 +171,17 @@ wrapping. Rummy 500 uses both for everyone's melds, so a busy table still fits o
 
 ## Smarter bots
 
-`src/engine/bots/search.ts` is a game-agnostic Monte Carlo bot. A family supplies a `SearchGame`:
-how to re-deal the cards a player can't see (`determinize`), the moves to compare, and how to play
-a copy on to the end of the hand with its quick heuristic bot (`rollout`) and score it. Set
-`botLevels: true` on the module and the lobby offers a **Bots: Easy / Normal / Hard** setting
-(`botLevel` 0–2); Easy uses the heuristics alone. See the trick-taking family for an example.
+Set `botLevels: true` on a module and the lobby offers **Bots: Easy / Normal / Hard** (the
+`botLevel` option, 0–2; read it with `botLevel(s.options)` from `src/engine/bots/search.ts`).
+Easy should be the quick rule-of-thumb bot. What Normal and Hard do is up to the game:
+
+- **Search** (`searchMove`): a family supplies a `SearchGame` — how to re-deal the cards a player
+  can't see (`determinize`, usually `fork` + `dealUnseen`), the moves to compare, and how to play a
+  copy on to the end of the hand with its quick bot (`rollout`, usually `playOut`) and score it
+  (`edge`). `botBudget(s.options)` gives the samples and time cap for the level. Good for games with
+  short hands and a handful of choices per turn: see trick-taking, eights, climbing and cribbage.
+- **Odds**: poker deals out the unseen cards to estimate how often a hand wins.
+- **Memory / lookahead**: Go Fish (who asked for what), Cheat (claims in the pile), Gin (one draw ahead).
+
+`tests/search.bench.test.ts` measures one level against another (see the comment at its top) —
+check a new level really is stronger before shipping it.

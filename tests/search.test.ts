@@ -15,7 +15,10 @@ describe('search bots', () => {
       expect(o.choices).toEqual(['Easy', 'Normal', 'Hard']);
       expect(o.default).toBe(1);
     }
-    expect(GAMES.holdem.config.options?.some((o) => o.id === 'botLevel')).toBe(false);
+    for (const id of ['crazy-eights', 'president', 'gin-rummy', 'cribbage', 'go-fish', 'cheat', 'holdem', 'omaha', 'five-card-draw'])
+      expect(GAMES[id].config.options!.some((o) => o.id === 'botLevel')).toBe(true);
+    // the dealer plays blackjack, and the long rummy games keep their quick bots for now
+    for (const id of ['blackjack', 'canasta', 'rummy-500']) expect(GAMES[id].config.options?.some((o) => o.id === 'botLevel') ?? false).toBe(false);
   });
 
   it('deals around known voids', () => {
@@ -65,5 +68,72 @@ describe('search bots', () => {
     const a = g.bot!(s, 2)!;
     expect(a).toEqual({ type: 'play', cards: ['4H'] });
     expect(parseCard(a.cards![0]).rank).toBe(4);
+  });
+
+  /** Play `hands` hands with every bot at `level`, checking each move is on offer. */
+  function playHands(id: string, n: number, level: number, hands = 2) {
+    const g = GAMES[id] as GameModule<any>;
+    for (let seed = 1; seed <= hands; seed++) {
+      const s = g.setup(bots(n), seed, { ...defaults(g), botLevel: level });
+      const first = JSON.stringify([s.data.handNo, s.data.round]);
+      for (let i = 0; i < 3000 && !['roundOver', 'handOver', 'gameOver'].includes(s.phase) && JSON.stringify([s.data.handNo, s.data.round]) === first; i++) {
+        const sys = g.system?.(s);
+        if (sys) {
+          sys.run(s);
+          continue;
+        }
+        const seat = s.players.findIndex((p) => g.bot!(s, p.seat));
+        if (seat < 0) break;
+        const a = g.bot!(s, seat)!;
+        expect(g.actions(s, seat).map((o) => o.type)).toContain(a.type);
+        g.apply(s, seat, a);
+      }
+    }
+  }
+
+  it.each([
+    ['crazy-eights', 4],
+    ['president', 4],
+    ['cribbage', 2],
+    ['cribbage', 4],
+    ['gin-rummy', 2],
+    ['holdem', 4],
+    ['omaha', 4],
+    ['five-card-draw', 4],
+    ['go-fish', 4],
+    ['cheat', 4],
+  ] as const)('%s (%i players): Normal and Hard bots make legal moves', (id, n) => {
+    playHands(id, n, 1);
+    playHands(id, n, 2);
+  }, 60000);
+
+  it('Go Fish: Hard remembers who said “Go fish!”, Easy doesn’t care', () => {
+    const g = GAMES['go-fish'] as GameModule<any>;
+    const s = g.setup(bots(3), 1, { ...defaults(g), botLevel: 2 });
+    s.zones['hand:0'].cards = [{ id: '7S' }];
+    s.zones['hand:1'].cards = [{ id: '2C' }, { id: '3C' }, { id: '4C' }, { id: '5C' }];
+    s.zones['hand:2'].cards = [{ id: '9D' }];
+    s.data.known = [[], [], []];
+    s.data.lacks = [[], [7], []]; // seat 1 has the bigger hand, but just said "Go fish!" to sevens
+    s.turn = 0;
+    expect(g.bot!(s, 0)).toMatchObject({ seat: 2 });
+    s.options.botLevel = 1;
+    expect(g.bot!(s, 0)).toMatchObject({ seat: 1 });
+  });
+
+  it('poker: Hard raises aces and folds rags to a big bet', () => {
+    const g = GAMES.holdem as GameModule<any>;
+    const s = g.setup(bots(2), 3, { ...defaults(g), botLevel: 2 });
+    const me = s.turn!;
+    s.zones[`hand:${me}`].cards = [{ id: 'AS' }, { id: 'AH' }];
+    // (it slow-plays now and then)
+    const moves = Array.from({ length: 8 }, () => g.bot!(s, me)!.type);
+    expect(moves.filter((t) => t === 'raise' || t === 'allin').length).toBeGreaterThan(4);
+    s.zones[`hand:${me}`].cards = [{ id: '7C' }, { id: '2D' }];
+    // the other player shoves: 7-2 offsuit can't pay that price
+    g.apply(s, me, { type: 'call' });
+    const them = s.turn!;
+    g.apply(s, them, { type: 'allin' });
+    expect(g.bot!(s, me)).toEqual({ type: 'fold' });
   });
 });

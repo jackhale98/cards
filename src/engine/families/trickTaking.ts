@@ -2,7 +2,7 @@ import { buildDeck, cardName, parseCard, rankLabel, SUIT_NAME, SUIT_SYMBOL, type
 import { passTarget, type PassDirection } from '../lib/passing';
 import { followSuit, trickWinner } from '../lib/trickTaking';
 import { createState, deal, hand, ids, log, moveCards, moveTop, name, nextSeat, placesFromScores, resetDeck, sortHand, zone } from '../state';
-import { botBudget, dealConstrained, searchMove, type SearchGame } from '../bots/search';
+import { botBudget, edge, dealUnseen, fork, playOut, searchMove, type SearchGame } from '../bots/search';
 import { assertRule, type Action, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
 
 /**
@@ -1018,27 +1018,26 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
   const search: SearchGame<TrickData> = {
     // deal the cards `viewer` can't see afresh, keeping each player's count and known voids
     determinize(s, viewer) {
-      const c = structuredClone({ ...s, log: [] });
+      const c = fork(s);
       const d = c.data;
-      const n = c.players.length;
       // who buried the kitty knows it (the euchre dealer, the 500 maker); a turned-down upcard is public
       const kittyKnown = euchreBids ? viewer === c.dealer : d.maker === viewer;
       // Hearts: the cards passed are still with whoever got them, unless played since
-      const passedTo = d.passDir && d.passDir !== 'hold' && d.passes[viewer]?.length ? passTarget(viewer, d.passDir, n) : -1;
-      const slots: { zone: string; fixed: string[]; count: number; forbid?: (card: string) => boolean }[] = [];
-      const add = (id: string, fixed: string[], forbid?: (card: string) => boolean) =>
-        slots.push({ zone: id, fixed, count: zone(c, id).cards.length - fixed.length, forbid });
-      for (let i = 0; i < n; i++) {
-        if (i === viewer || !hand(c, i).cards.length) continue;
-        const voids = d.voids?.[i] ?? [];
-        const fixed = i === passedTo ? d.passes[viewer]!.filter((x) => ids(hand(c, i)).includes(x)) : [];
-        add(`hand:${i}`, fixed, voids.length ? (x) => voids.includes(suitOf(c, x)) : undefined);
-      }
-      if (c.zones.deck?.cards.length) add('deck', []);
-      if (c.zones.kitty?.cards.length && !kittyKnown) add('kitty', d.upcard ? ids(zone(c, 'kitty')).filter((x) => x === d.upcard) : []);
-      const pool = slots.flatMap((sl) => ids(zone(c, sl.zone)).filter((x) => !sl.fixed.includes(x)));
-      const dealt = dealConstrained(pool, slots);
-      slots.forEach((sl, k) => (zone(c, sl.zone).cards = [...sl.fixed, ...dealt[k]].map((id) => ({ id }))));
+      const passedTo = d.passDir && d.passDir !== 'hold' && d.passes[viewer]?.length ? passTarget(viewer, d.passDir, c.players.length) : -1;
+      dealUnseen(c, [
+        ...c.players
+          .filter((p) => p.seat !== viewer)
+          .map((p) => {
+            const voids = d.voids?.[p.seat] ?? [];
+            return {
+              zone: `hand:${p.seat}`,
+              fixed: p.seat === passedTo ? d.passes[viewer]! : [],
+              forbid: voids.length ? (x: string) => voids.includes(suitOf(c, x)) : undefined,
+            };
+          }),
+        { zone: 'deck' },
+        ...(kittyKnown ? [] : [{ zone: 'kitty', fixed: d.upcard ? [d.upcard] : [] }]),
+      ]);
       return c;
     },
 
@@ -1049,29 +1048,9 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
     },
 
     apply: (s, seat, a) => module.apply(s, seat, a),
-
-    rollout(s) {
-      for (let guard = 0; guard < 500 && s.phase !== 'roundOver' && s.phase !== 'gameOver'; guard++) {
-        const sys = module.system!(s);
-        if (sys) {
-          sys.run(s);
-          continue;
-        }
-        const seat = controller(s);
-        const a = seat == null ? null : quickBot(s, seat);
-        if (!a) return;
-        module.apply(s, seat!, a);
-      }
-    },
-
-    // the hand's points for our side against the average of the others (Hearts: fewer is better)
-    score(before, after, seat) {
-      const team = teamOf(before, seat);
-      const delta = after.data.scores.map((x, ti) => x - before.data.scores[ti]);
-      const others = delta.filter((_, ti) => ti !== team);
-      const v = delta[team] - others.reduce((a, b) => a + b, 0) / Math.max(1, others.length);
-      return lowWins ? -v : v;
-    },
+    rollout: (s) => playOut(module, quickBot, s, (x) => x.phase === 'roundOver' || x.phase === 'gameOver'),
+    // the hand's points for our side against the others' (Hearts: fewer is better)
+    score: (before, after, seat) => edge(before.data.scores, after.data.scores, teamOf(before, seat), lowWins),
   };
 
   const module: GameModule<TrickData> = {

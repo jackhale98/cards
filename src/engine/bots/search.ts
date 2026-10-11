@@ -35,9 +35,10 @@ export interface SearchBudget {
 
 /** Bot skill levels (the `botLevel` option, which the lobby sets to Normal): 0 = the quick heuristics alone. */
 export const BOT_LEVELS: (SearchBudget | null)[] = [null, { samples: 24, ms: 40 }, { samples: 120, ms: 160 }];
-export const botBudget = (options: Record<string, number | boolean>) => BOT_LEVELS[Number(options.botLevel ?? 0)] ?? null;
+export const botLevel = (options: Record<string, number | boolean>) => Math.max(0, Math.min(2, Number(options.botLevel ?? 0) || 0));
+export const botBudget = (options: Record<string, number | boolean>) => BOT_LEVELS[botLevel(options)] ?? null;
 
-const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+export const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
 /** The best move by sampling, or null if there's nothing to decide. */
 export function searchMove<D>(game: SearchGame<D>, s: GameState<D>, seat: number, budget: SearchBudget): Action | null {
@@ -100,4 +101,60 @@ export function dealConstrained(pool: string[], slots: { count: number; forbid?:
   }
   const left = shuffled([...pool]);
   return slots.map((sl) => left.splice(0, sl.count));
+}
+
+// ---- helpers for writing a SearchGame -----------------------------------------------------
+
+/**
+ * A private copy of `s` to imagine with: no log (cheaper to copy), and every seat played by the
+ * quick bots (so an imagined person never waits for input, or misses a "last card!" call).
+ */
+export function fork<D>(s: GameState<D>): GameState<D> {
+  const c = structuredClone({ ...s, log: [] });
+  for (const p of c.players) p.bot = true;
+  return c;
+}
+
+/**
+ * Deal the cards in `slots`' zones afresh among them, in place: each zone keeps its size, its
+ * `fixed` cards (known to be there) stay put, and it takes no card its `forbid` rejects.
+ */
+export function dealUnseen(s: GameState<any>, slots: { zone: string; fixed?: string[]; forbid?: (card: string) => boolean }[]) {
+  const live = slots.filter((sl) => s.zones[sl.zone]?.cards.length);
+  const idsOf = (z: string) => s.zones[z].cards.map((c) => c.id);
+  const fixedIn = (sl: (typeof live)[number]) => (sl.fixed ?? []).filter((x) => idsOf(sl.zone).includes(x));
+  const pool = live.flatMap((sl) => idsOf(sl.zone).filter((x) => !fixedIn(sl).includes(x)));
+  const want = live.map((sl) => ({ count: s.zones[sl.zone].cards.length - fixedIn(sl).length, forbid: sl.forbid }));
+  const dealt = dealConstrained(pool, want);
+  live.forEach((sl, k) => (s.zones[sl.zone].cards = [...fixedIn(sl), ...dealt[k]].map((id) => ({ id }))));
+}
+
+/** Play `s` on with `quick` (and the game's own automatic steps) until `done`, in place. */
+export function playOut<D>(
+  m: { system?(s: GameState<D>): { run(s: GameState<D>): void } | null; apply(s: GameState<D>, seat: number, a: Action): void },
+  quick: (s: GameState<D>, seat: number) => Action | null,
+  s: GameState<D>,
+  done: (s: GameState<D>) => boolean,
+  max = 600,
+) {
+  for (let i = 0; i < max && !done(s); i++) {
+    const sys = m.system?.(s);
+    if (sys) {
+      sys.run(s);
+      continue;
+    }
+    // whoever's turn it is first, then anyone else with something to do
+    const first = s.turn != null ? quick(s, s.turn) : null;
+    const seat = first ? s.turn! : s.players.findIndex((p) => quick(s, p.seat));
+    if (seat < 0) return;
+    m.apply(s, seat, first ?? quick(s, seat)!);
+  }
+}
+
+/** Points for `seat` against the average of everyone else (`lowWins`: fewer is better). */
+export function edge(scoresBefore: number[], scoresAfter: number[], mine: number, lowWins = false) {
+  const delta = scoresAfter.map((x, i) => x - scoresBefore[i]);
+  const others = delta.filter((_, i) => i !== mine);
+  const v = delta[mine] - others.reduce((a, b) => a + b, 0) / Math.max(1, others.length);
+  return lowWins ? -v : v;
 }

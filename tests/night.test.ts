@@ -71,6 +71,7 @@ describe('game night', () => {
     host.setGame('holdem');
     for (let i = 0; i < 8; i++) host.addBot();
     expect(host.lobby.seats).toHaveLength(9);
+    host.setOption('botLevel', 0); // quick bots: this plays a whole game
     host.start();
     const order: number[] = [];
     for (let i = 0; i < 40000 && host.state!.phase !== 'gameOver'; i++) {

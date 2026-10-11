@@ -1,7 +1,8 @@
-import { cardName, parseCard, rankLabel, SUIT_SYMBOL } from '../cards';
+import { buildDeck, cardName, parseCard, rankLabel, SUIT_SYMBOL } from '../cards';
 import { bestMelds, deadwoodValue, meldOrder } from '../lib/melds';
 import { createState, cutForDeal, hand, ids, log, moveCards, moveTop, name, placesFromScores, resetDeck, zone } from '../state';
-import { assertRule, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
+import { botLevel } from '../bots/search';
+import { assertRule, type Action, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
 
 /**
  * Rummy family, draw-and-discard style (Gin Rummy). Configured from `game.json`:
@@ -41,6 +42,8 @@ export interface RummyData {
   justTook: string | null;
   /** Card each seat just drew (highlighted in their hand; redacted to the owner). */
   received: string[][];
+  /** Cards each seat has taken from the discard pile this hand (public: everyone saw them go). */
+  pickedUp?: string[][];
   result: { headline: string; lines: string[] } | null;
 }
 
@@ -72,6 +75,12 @@ export function rummyFamily(config: GameConfig): GameModule<RummyData> {
       .map((c) => ({ card: c, points: bestMelds(cards.filter((x) => x !== c)).points }));
   }
 
+  /** Cards `seat` hasn't seen: not in its hand or the discard pile, nor picked up by the opponent. */
+  function unseenBy(s: S, seat: number) {
+    const seen = new Set([...ids(hand(s, seat)), ...ids(zone(s, 'discard')), ...(s.data.pickedUp?.[other(seat)] ?? [])]);
+    return buildDeck(config.deck).filter((c) => !seen.has(c));
+  }
+
   /** Best deadwood achievable by taking `card` and then discarding something else. */
   function bestAfterTaking(cards: string[], card: string) {
     const all = [...cards, card];
@@ -91,6 +100,7 @@ export function rummyFamily(config: GameConfig): GameModule<RummyData> {
     d.mustDrawStock = false;
     d.justTook = null;
     d.received = [[], []];
+    d.pickedUp = [[], []];
     d.result = null;
     s.phase = 'firstPick';
     s.turn = first;
@@ -102,9 +112,60 @@ export function rummyFamily(config: GameConfig): GameModule<RummyData> {
     moveCards(s, 'discard', `hand:${seat}`, [card]);
     s.data.justTook = card;
     s.data.received[seat] = [card];
+    (s.data.pickedUp ??= [[], []])[seat].push(card);
     arrange(s, seat);
     log(s, `${name(s, seat)} takes the ${cardName(card)} from the discard pile`, seat, `Took ${label(card)}`, undefined, { from: 'discard' });
     s.phase = 'discard';
+  }
+
+  /**
+   * Bots. Easy sometimes settles for a worse discard and only takes the discard pile for an obvious
+   * gain. Normal keeps the least deadwood. Hard also keeps away from feeding the opponent (cards
+   * that fit what they've picked up).
+   */
+  function botMove(s: S, seat: number): Action | null {
+    if (s.turn !== seat) return null;
+    const level = botLevel(s.options);
+    const cards = ids(hand(s, seat));
+    const top = topDiscard(s);
+    const now = bestMelds(cards).points;
+    const wants = (c: string | null) => !!c && bestAfterTaking(cards, c) < now - (level === 0 ? 4 : 0);
+    if (s.phase === 'firstPick') return wants(top) ? { type: 'take' } : { type: 'pass' };
+    if (s.phase === 'draw') return !s.data.mustDrawStock && wants(top) ? { type: 'take' } : { type: 'draw' };
+    if (s.phase !== 'discard') return null;
+    if (now === 0 && s.options.bigGin) return { type: 'bigGin' };
+    let opts = discardOptions(s, seat);
+    const theirs = s.data.pickedUp?.[other(seat)] ?? [];
+    // how much a card would help the opponent: same rank, or a near neighbour in suit, as cards they took
+    const feeds = (c: string) => {
+      const x = parseCard(c);
+      return theirs.reduce((n, t) => {
+        const y = parseCard(t);
+        return n + (y.rank === x.rank ? 3 : y.suit === x.suit && Math.abs(y.rank - x.rank) <= 2 ? 2 : 0);
+      }, 0);
+    };
+    // Hard looks a draw ahead: the deadwood it can expect next turn, averaged over every card it might draw
+    const unseen = level === 2 ? unseenBy(s, seat) : [];
+    const nextTurn = (card: string) => {
+      const keep = cards.filter((c) => c !== card);
+      let t = 0;
+      for (const u of unseen) {
+        const m = bestMelds([...keep, u]);
+        t += m.points - Math.max(0, ...m.deadwood.map(deadwoodValue));
+      }
+      return t / Math.max(1, unseen.length);
+    };
+    const ahead = new Map(level === 2 ? opts.map((o) => [o.card, nextTurn(o.card)]) : []);
+    const cost = (o: { card: string; points: number }) =>
+      (ahead.get(o.card) ?? o.points + (level === 2 ? 99 : 0)) + (level === 2 ? feeds(o.card) * 0.5 : 0) - deadwoodValue(o.card) / 100;
+    opts = opts.sort((a, b) => cost(a) - cost(b));
+    let pick = opts[0];
+    if (level === 0 && opts.length > 1 && Math.random() < 0.35) pick = opts[1 + Math.floor(Math.random() * Math.min(2, opts.length - 1))];
+    // going out: the best discard for it (whatever its danger, the hand ends)
+    const out = [...opts].sort((a, b) => a.points - b.points)[0];
+    if (out.points === 0) return { type: 'gin', cards: [out.card] };
+    if (out.points <= R.knockMax) return { type: 'knock', cards: [out.card] };
+    return { type: 'discard', cards: [pick.card] };
   }
 
   /** Pagat's bonuses (gin 20, undercut 10, box 20), or the common 25-each variant. */
@@ -173,8 +234,9 @@ export function rummyFamily(config: GameConfig): GameModule<RummyData> {
     d.result = { headline, lines };
   }
 
-  return {
+  const module: GameModule<RummyData> = {
     config,
+    botLevels: true,
 
     setup(players, seed, options) {
       const s = createState<RummyData>(config, players, seed, options, {
@@ -303,22 +365,7 @@ export function rummyFamily(config: GameConfig): GameModule<RummyData> {
     },
 
     bot(s, seat) {
-      if (s.turn !== seat) return null;
-      const cards = ids(hand(s, seat));
-      const top = topDiscard(s);
-      const now = bestMelds(cards).points;
-      const wants = (c: string | null) => !!c && bestAfterTaking(cards, c) < now;
-      if (s.phase === 'firstPick') return wants(top) ? { type: 'take' } : { type: 'pass' };
-      if (s.phase === 'draw') return !s.data.mustDrawStock && wants(top) ? { type: 'take' } : { type: 'draw' };
-      if (s.phase === 'discard') {
-        if (now === 0 && s.options.bigGin) return { type: 'bigGin' };
-        const opts = discardOptions(s, seat).sort((a, b) => a.points - b.points || deadwoodValue(b.card) - deadwoodValue(a.card));
-        const best = opts[0];
-        if (best.points === 0) return { type: 'gin', cards: [best.card] };
-        if (best.points <= R.knockMax) return { type: 'knock', cards: [best.card] };
-        return { type: 'discard', cards: [best.card] };
-      }
-      return null;
+      return botMove(s, seat);
     },
 
     standings(s) {
@@ -356,4 +403,5 @@ export function rummyFamily(config: GameConfig): GameModule<RummyData> {
       };
     },
   };
+  return module;
 }

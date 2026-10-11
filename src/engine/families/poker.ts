@@ -1,4 +1,5 @@
-import { parseCard } from '../cards';
+import { buildDeck, parseCard } from '../cards';
+import { botBudget, botLevel, now, shuffled } from '../bots/search';
 import * as bet from '../lib/betting';
 import { bestHand, bestWithHole, eval5, type HandValue } from '../lib/pokerEval';
 import { shuffle } from '../rng';
@@ -300,6 +301,7 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
   }
 
   const module: GameModule<PokerData> = {
+    botLevels: true,
     config,
 
     setup(players, seed, options) {
@@ -446,11 +448,13 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
       const d = s.data;
       const o = bet.options(d.b, chipsOf(s), seat);
       if (opening(s) && !mayOpen(s, seat)) return o.canCheck ? { type: 'check' } : { type: 'fold' };
-      const strength = handStrength(s, seat);
       const r = Math.random();
       const pot = bet.potTotal(d.b);
       // with too few chips for a full raise, the only way up is all in (as the action bar offers)
       const raise = (to: number): Action => (o.maxRaiseTo > o.minRaiseTo ? { type: 'raise', amount: to } : { type: 'allin' });
+      const level = botLevel(s.options);
+      if (level > 0) return oddsBot(s, seat, o, level, raise);
+      const strength = handStrength(s, seat);
       if (strength > 0.85 && o.canRaise && r < 0.7) {
         return raise(Math.min(o.maxRaiseTo, Math.max(o.minRaiseTo, d.b.currentBet + Math.round(pot * 0.75))));
       }
@@ -510,6 +514,94 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
       };
     },
   };
+
+  /**
+   * How often `seat` wins from here, by dealing the cards it can't see many times over: the other
+   * players' hands, the rest of the board, and (before the draw) the cards it would draw.
+   */
+  function equity(s: S, seat: number, level: number): number {
+    const d = s.data;
+    const budget = botBudget({ botLevel: level })!;
+    const rivals = s.players.map((p) => p.seat).filter((i) => i !== seat && !d.b.folded[i] && !d.b.out[i]);
+    if (!rivals.length) return 1;
+    const mine = ids(hand(s, seat));
+    const board = ids(zone(s, 'board'));
+    const seen = new Set([...mine, ...board]); // (others' draw discards are face down: still unseen)
+    const unseen = buildDeck(config.deck).filter((c) => !seen.has(c));
+    const boardLeft = draw ? 0 : R.board.reduce((a, b) => a + b, 0) - board.length;
+    const tossed = draw && d.street === 0 && d.drawn?.[seat] == null ? botDiscards(s, seat) : [];
+    const kept = mine.filter((c) => !tossed.includes(c));
+    const score = (hole: string[], b: string[]) => (draw ? eval5(hole).score : evaluate(hole, b).score);
+    // whoever has bet or raised this street likely holds something: a pair, two big cards or an ace
+    // before the flop, at least a pair after it (draw poker: a pair)
+    const aggressive = rivals.map((i) => d.b.currentBet > 0 && d.b.bets[i] === d.b.currentBet && (d.street > 0 || draw || d.b.currentBet > d.bb));
+    const plausible = (hole: string[]) => {
+      if (draw) return eval5(hole).category >= 1;
+      if (!board.length) {
+        const r = hole.map((c) => parseCard(c).rank);
+        return new Set(r).size < r.length || r.filter((x) => x >= 10).length >= 2 || r.includes(14);
+      }
+      return evaluate(hole, board).category >= 1;
+    };
+    let won = 0;
+    let runs = 0;
+    const stop = now() + budget.ms;
+    // hand values are cheap next to the search's playouts: many more deals in the same time
+    while (runs < budget.samples * 8 && (runs < 20 || now() < stop)) {
+      const deck = shuffled([...unseen]);
+      let k = 0;
+      const take = (n: number) => deck.slice(k, (k += n));
+      const me = [...kept, ...take(tossed.length)];
+      const theirs = rivals.map((_, j) => {
+        let h = take(R.holeCards);
+        // re-deal a bettor's hand (a few tries) until it fits their betting
+        // (keeping enough cards back for everyone else and the board)
+        const spare = () => deck.length - k >= R.holeCards * (rivals.length + 1) + boardLeft;
+        for (let t = 0; t < 6 && aggressive[j] && !plausible(h) && spare(); t++) h = take(R.holeCards);
+        return h;
+      });
+      const full = [...board, ...take(boardLeft)];
+      const v = score(me, full);
+      const best = Math.max(...theirs.map((h) => score(h, full)));
+      if (v > best) won += 1;
+      else if (v === best) won += 1 / (1 + theirs.filter((h) => score(h, full) === best).length);
+      runs++;
+    }
+    return won / runs;
+  }
+
+  /**
+   * Normal and Hard bots bet on their real chances: they call when the pot pays for the risk, raise
+   * when well ahead, and (Hard) size bets to the hand, bluff now and then, and fold weak hands sooner.
+   */
+  function oddsBot(s: S, seat: number, o: bet.BetOptions, level: number, raise: (to: number) => Action): Action {
+    const d = s.data;
+    const eq = equity(s, seat, level);
+    const rivals = s.players.filter((p) => p.seat !== seat && !d.b.folded[p.seat] && !d.b.out[p.seat]).length;
+    const pot = bet.potTotal(d.b);
+    const r = Math.random();
+    // against several players a hand needs to be better than its fair share to be "strong"
+    const fair = 1 / (rivals + 1);
+    const strong = eq > Math.max(0.65, fair * 1.6);
+    const good = eq > Math.max(0.5, fair * 1.25);
+    const sized = (frac: number) => Math.min(o.maxRaiseTo, Math.max(o.minRaiseTo, d.b.currentBet + Math.round(pot * frac)));
+    const hard = level === 2;
+    if (o.canCheck) {
+      if (o.canRaise && strong) return raise(sized(hard ? 0.5 + eq * 0.5 : 0.66));
+      if (o.canRaise && good && r < 0.5) return raise(sized(0.5));
+      // Hard: a small bluff heads-up after the flop, now and then
+      if (hard && o.canRaise && rivals === 1 && d.street > 0 && r < 0.12) return raise(sized(0.5));
+      return { type: 'check' };
+    }
+    // the price of calling, counting some of what the others will put in on later streets
+    const later = d.street < lastStreet ? o.toCall * rivals * (hard ? 0.6 : 0.5) : 0;
+    const price = o.toCall / Math.max(1, pot + o.toCall + later);
+    if (o.canRaise && strong && r < (hard ? 0.8 : 0.6)) return raise(sized(hard ? 0.75 : 1));
+    // call when the pot pays for the chance of winning (Hard asks a little more of a big bet)
+    const margin = hard ? 0.03 + (o.toCall > pot ? 0.05 : 0) : 0.02;
+    if (eq > price + margin) return { type: 'call' };
+    return { type: 'fold' };
+  }
 
   /** Draw poker: what a bot throws away — keep made hands, pairs, four to a flush or an open straight. */
   function botDiscards(s: S, seat: number): string[] {
