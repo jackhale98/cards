@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { asMeld, canUse, findMelds, handValue, meldValue, type Rummy500Data } from '../src/engine/families/rummy500';
+import { asMeld, canUse, findMelds, handValue, layoffOptions, meldOptions, meldValue, planLabel, type Rummy500Data } from '../src/engine/families/rummy500';
 import type { GameModule, GameState } from '../src/engine/types';
 import { GAMES } from '../src/games';
 
@@ -44,8 +44,9 @@ describe('rummy 500', () => {
     expect(ids(g.setup(bots(2), 1, {}), 'hand:0')).toHaveLength(13);
     const s4 = g.setup(bots(4), 1, {});
     expect(ids(s4, 'hand:0')).toHaveLength(7);
-    expect(cardsIn(s4)).toBe(52);
-    expect(cardsIn(g.setup(bots(5), 1, {}))).toBe(104);
+    expect(cardsIn(s4)).toBe(54); // with two jokers
+    expect(cardsIn(g.setup(bots(5), 1, {}))).toBe(108);
+    expect(cardsIn(g.setup(bots(4), 1, { jokers: false }))).toBe(52);
   });
 
   /** A rigged 3-player hand: seat 1 to draw. */
@@ -105,14 +106,14 @@ describe('rummy 500', () => {
     expect(s.data.scores).toEqual([-11, 24, -8]);
   });
 
-  it('plays whole games with bots for 2 to 6 players', () => {
-    for (const n of [2, 3, 4, 6]) {
+  it('plays whole games with bots for 2 to 8 players', () => {
+    for (const n of [2, 3, 4, 6, 8]) {
       const s = g.setup(bots(n), 10 + n, { target: 200 });
       let hands = 0;
       for (let i = 0; i < 20000 && s.phase !== 'gameOver'; i++) {
         if (s.phase === 'handOver') {
           hands++;
-          expect(cardsIn(s)).toBe(n >= 5 ? 104 : 52);
+          expect(cardsIn(s)).toBe(n >= 5 ? 108 : 54);
           g.apply(s, 0, { type: 'next' });
           continue;
         }
@@ -124,5 +125,94 @@ describe('rummy 500', () => {
       expect(Math.max(...s.data.scores)).toBeGreaterThanOrEqual(200);
       expect(hands).toBeGreaterThan(0);
     }
+  });
+});
+
+describe('rummy 500 jokers (pagat)', () => {
+  it('a joker stands for any card, and a set never passes four', () => {
+    expect(meldOptions(['7S', '7H', 'X1']).map(planLabel)).toContain('Set of 7s');
+    expect(meldOptions(['KS', 'KH', 'KD', 'KC', 'X1'])).toEqual([]); // no "four kings and a joker"
+    expect(meldOptions(['5H', '7H', 'X1']).map(planLabel)).toEqual(['Run 5♥–7♥']);
+    // ♦9 with two jokers: a set or one of three runs, and the player must say which
+    expect(meldOptions(['9D', 'X1', 'X2']).map(planLabel).sort()).toEqual(['Run 7♦–9♦', 'Run 8♦–10♦', 'Run 9♦–J♦', 'Set of 9s'].sort());
+    expect(handValue('X1')).toBe(15);
+    expect(meldValue('X1', { kind: 'run', cards: ['AH', '2H', 'X1'], low: true })).toBe(15);
+  });
+
+  it('a joker in a run keeps its place: ♣6 ♣7 joker takes ♣5 or ♣9, not ♣4', () => {
+    const [run] = meldOptions(['6C', '7C', 'X1'], {}, 'run').filter((m) => m.as.X1 === 8);
+    expect(run).toBeTruthy();
+    const meld = { ...run, id: 1, owner: 0 };
+    expect(layoffOptions(meld, ['5C'])).toHaveLength(1);
+    expect(layoffOptions(meld, ['9C'])).toHaveLength(1);
+    expect(layoffOptions(meld, ['4C'])).toHaveLength(0);
+    expect(layoffOptions(meld, ['8C'])).toHaveLength(0); // the joker is the 8
+  });
+
+  it('asks which card an ambiguous joker is, then melds it', () => {
+    const s = g.setup(bots(3), 2, {});
+    for (const z of Object.values(s.zones)) z.cards = [];
+    s.zones['hand:1'].cards = ['9D', 'X1', 'X2', 'KS', '4D'].map((id) => ({ id }));
+    s.zones.discard.cards = [{ id: 'QC', up: true }];
+    s.zones.deck.cards = ['2D', '3D', '4C'].map((id) => ({ id }));
+    s.phase = 'draw';
+    s.turn = 1;
+    g.apply(s, 1, { type: 'draw' });
+    g.apply(s, 1, { type: 'meld', cards: ['9D', 'X1', 'X2'] });
+    expect(s.phase).toBe('declare');
+    const choose = g.actions(s, 1).find((a) => a.type === 'declare')!.choose!.options;
+    expect(choose).toHaveLength(4);
+    // other players can't see the pending meld
+    expect((g.redactData!(s, 0) as Rummy500Data).pending).toBeNull();
+    g.apply(s, 1, { type: 'declare', amount: choose.find((o) => o.label === 'Run 8♦–10♦')!.value });
+    expect(s.phase).toBe('play');
+    expect(s.data.melds[0]).toMatchObject({ kind: 'run', as: { X1: 8, X2: 10 } });
+    expect(s.data.melds[0].cards).toEqual(['X1', '9D', 'X2']);
+  });
+
+  it('Rummy!: another player takes a discard that fits a table meld, and play goes on from them', () => {
+    const s = g.setup(bots(4), 2, {});
+    s.players.forEach((p) => (p.bot = false));
+    for (const z of Object.values(s.zones)) z.cards = [];
+    s.zones['hand:0'].cards = ['5H', 'KS', '2C'].map((id) => ({ id }));
+    s.zones['hand:1'].cards = ['4D', '7C'].map((id) => ({ id }));
+    s.zones['hand:2'].cards = ['3S', '9C'].map((id) => ({ id }));
+    s.zones['hand:3'].cards = ['QD', 'JC'].map((id) => ({ id }));
+    s.zones['melds:3'].cards = ['6H', '7H', '8H'].map((id) => ({ id, up: true }));
+    s.data.melds = [{ id: 1, owner: 3, kind: 'run', cards: ['6H', '7H', '8H'] }];
+    s.zones.discard.cards = [{ id: 'QC', up: true }];
+    s.zones.deck.cards = ['2D', '3D', '4C'].map((id) => ({ id }));
+    s.phase = 'play';
+    s.turn = 0;
+    // seat 0 throws the 5♥, which fits the 6-7-8♥ on the table
+    g.apply(s, 0, { type: 'discard', cards: ['5H'] });
+    expect(s.data.rummyBy).toBe(0);
+    expect(g.actions(s, 0)).toEqual([]); // not the discarder
+    expect(g.actions(s, 1).map((a) => a.type)).toEqual(['draw', 'take']); // seat 1 just takes it
+    const call = g.actions(s, 2).find((a) => a.type === 'rummy')!;
+    expect(call.select!.cards).toEqual(['5H']);
+    g.apply(s, 2, { type: 'rummy', cards: ['5H'] });
+    expect(s.turn).toBe(2);
+    expect(s.phase).toBe('play');
+    expect(s.data.mustMeld).toBe('5H');
+    g.apply(s, 2, { type: 'layoff', cards: ['5H', '6H'] });
+    g.apply(s, 2, { type: 'discard', cards: ['9C'] });
+    // seat 1 was skipped: play passes to the caller's left
+    expect(s.turn).toBe(3);
+    // and once the next player draws, it's too late
+    expect(() => g.apply(s, 1, { type: 'rummy', cards: ['9C'] })).toThrow();
+  });
+
+  it('no Rummy! window when the discard can’t be used without a hand, or with the option off', () => {
+    const s = g.setup(bots(3), 2, { rummy: false });
+    s.players.forEach((p) => (p.bot = false));
+    for (const z of Object.values(s.zones)) z.cards = [];
+    s.zones['hand:0'].cards = ['5H', 'KS'].map((id) => ({ id }));
+    s.data.melds = [{ id: 1, owner: 2, kind: 'run', cards: ['6H', '7H', '8H'] }];
+    s.zones.deck.cards = ['2D'].map((id) => ({ id }));
+    s.phase = 'play';
+    s.turn = 0;
+    g.apply(s, 0, { type: 'discard', cards: ['5H'] });
+    expect(s.data.rummyBy).toBeNull();
   });
 });

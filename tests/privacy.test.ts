@@ -41,7 +41,9 @@ function checkLogs(g: GameModule, s: GameState, pick: (s: GameState) => { seat: 
     const after = publicCards(s);
     for (const entry of s.log.slice(logLen)) {
       for (const c of mentioned(`${entry.text} | ${entry.short ?? ''}`, deck)) {
-        expect(before.has(c) || after.has(c), `"${entry.text}" names hidden ${c}`).toBe(true);
+        // jokers are all alike: naming "a joker" only says that some joker is in view
+        const joker = c.startsWith('X') && [...before, ...after].some((x) => x.startsWith('X'));
+        expect(joker || before.has(c) || after.has(c), `"${entry.text}" names hidden ${c}`).toBe(true);
       }
     }
   }
