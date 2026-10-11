@@ -872,6 +872,10 @@
           }
         }
       ]
+    },
+    "category": {
+      "type": "string",
+      "description": "Picker section (Poker, Trick-taking, Rummy, Shedding, More). Defaults to one based on the rules family."
     }
   }
 }

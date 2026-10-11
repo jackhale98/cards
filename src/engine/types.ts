@@ -36,6 +36,8 @@ export interface GameConfig {
   tagline: string;
   /** Short glyph shown on the game tile when the game has no drawing in GameIcon.svelte. */
   icon: string;
+  /** Picker section ("Poker", "Trick-taking", …); by default it follows the rules family. */
+  category?: string;
   /** `counts`: only these numbers of players (e.g. canasta: 2 or 4), when not every count from min to max works. */
   players: { min: number; max: number; recommended?: number; counts?: number[] };
   /** Seats that may be filled by bots, if the game supports them. */

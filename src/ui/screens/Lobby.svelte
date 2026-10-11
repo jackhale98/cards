@@ -1,6 +1,7 @@
 <script lang="ts">
   import { app } from '../../app.svelte';
-  import { GAME_LIST, getGame } from '../../games';
+  import { CATEGORIES, categoryOf, GAME_LIST, getGame, GAMES, misfit, playersText } from '../../games';
+  import type { GameModule } from '../../engine/types';
   import type { View } from '../../net/protocol';
   import AvatarBadge from '../components/AvatarBadge.svelte';
   import AvatarPicker from '../components/AvatarPicker.svelte';
@@ -43,8 +44,30 @@
   }
 
   const mySeat = $derived(lobby.seats.findIndex((s) => s.id === app.cid));
+
+  // the picker: recent games first, then a section per kind of game
+  const people = $derived(lobby.seats.filter((s) => !s.bot).length);
+  const recent = app.recentGames.filter((id) => GAMES[id]).slice(0, 3).map((id) => GAMES[id]);
+  const sections = CATEGORIES.map((c) => ({ name: c, games: GAME_LIST.filter((g) => categoryOf(g) === c) })).filter((x) => x.games.length);
+  const sectionEls: Record<string, HTMLElement> = {};
+  const jump = (name: string) => sectionEls[name]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  function deal() {
+    app.noteGame(lobby.gameId);
+    host?.start();
+  }
   let picking = $state(false);
 </script>
+
+{#snippet tile(g: GameModule)}
+  {@const why = misfit(g, people)}
+  <button class="game" class:active={g.config.id === lobby.gameId} class:misfit={!!why} onclick={() => host?.setGame(g.config.id)}>
+    <span class="gicon"><GameIcon id={g.config.id} icon={g.config.icon} size={40} /></span>
+    <span class="gname">{g.config.name}</span>
+    <span class="gmeta">
+      {#if why}<span class="warn">{why} players</span>{:else}{playersText(g)} players{g.config.chips ? ' · chips' : ''}{g.bot ? ' · bots' : ''}{/if}
+    </span>
+  </button>
+{/snippet}
 
 {#if picking}
   <Sheet title="Pick your look" onclose={() => (picking = false)}>
@@ -115,15 +138,17 @@
     <div class="block">
       <div class="eyebrow">Game</div>
       {#if host}
-        <div class="games">
-          {#each GAME_LIST as g (g.config.id)}
-            <button class="game" class:active={g.config.id === lobby.gameId} onclick={() => host.setGame(g.config.id)}>
-              <span class="gicon"><GameIcon id={g.config.id} icon={g.config.icon} size={40} /></span>
-              <span class="gname">{g.config.name}</span>
-              <span class="gmeta">{g.config.players.counts?.join(' or ') ?? (g.config.players.min === g.config.players.max ? g.config.players.min : `${g.config.players.min}–${g.config.players.max}`)} players{g.config.chips ? ' · chips' : ''}{g.bot ? ' · bots' : ''}</span>
-            </button>
-          {/each}
-        </div>
+        <nav class="cats" aria-label="Kinds of game">
+          {#each sections as sec (sec.name)}<button class="cat" onclick={() => jump(sec.name)}>{sec.name}</button>{/each}
+        </nav>
+        {#if recent.length}
+          <div class="sec">Recent</div>
+          <div class="games">{#each recent as g (g.config.id)}{@render tile(g)}{/each}</div>
+        {/if}
+        {#each sections as sec (sec.name)}
+          <div class="sec" bind:this={sectionEls[sec.name]}>{sec.name}</div>
+          <div class="games">{#each sec.games as g (g.config.id)}{@render tile(g)}{/each}</div>
+        {/each}
       {/if}
       <div class="chosen">
         <span class="gicon big"><GameIcon id={game.config.id} icon={game.config.icon} size={52} /></span>
@@ -154,7 +179,7 @@
 
     <div class="start">
       {#if host}
-        <button class="btn primary big" disabled={!!startError} onclick={() => host.start()}>Deal {game.config.name}</button>
+        <button class="btn primary big" disabled={!!startError} onclick={deal}>Deal {game.config.name}</button>
         {#if startError}<span class="small">{startError}{game.bot ? ' — add bots to fill seats' : ''}</span>{/if}
       {:else}
         <span class="waiting"><span class="spinner"></span> Waiting for the host to deal…</span>
@@ -327,11 +352,48 @@
   .ctl button:disabled {
     opacity: 0.25;
   }
+  .cats {
+    display: flex;
+    gap: 0.4rem;
+    overflow-x: auto;
+    margin: 0.55rem -0.2rem 0.1rem;
+    padding: 0 0.2rem 0.2rem;
+    scrollbar-width: none;
+  }
+  .cat {
+    flex: none;
+    padding: 0.35rem 0.8rem;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: rgba(0, 0, 0, 0.18);
+    color: var(--ink-dim);
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+  .cat:active {
+    background: rgba(233, 196, 106, 0.12);
+    color: var(--ink);
+  }
+  .sec {
+    margin-top: 0.75rem;
+    font-size: 0.68rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--gold);
+    font-weight: 600;
+    scroll-margin-top: 0.8rem;
+  }
+  .game.misfit:not(.active) {
+    opacity: 0.45;
+  }
+  .warn {
+    color: #e8a87c;
+  }
   .games {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
     gap: 0.5rem;
-    margin: 0.5rem 0 0.7rem;
+    margin: 0.4rem 0 0.3rem;
   }
   .game {
     display: flex;

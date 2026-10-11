@@ -145,6 +145,19 @@ class App {
     this.client?.updateProfile(this.name || 'Player', avatar);
   }
 
+  /** Games this device hosted most recently (newest first), for the picker. */
+  get recentGames(): string[] {
+    try {
+      const list = JSON.parse(store.get('cards.recent') ?? '[]');
+      return Array.isArray(list) ? list.filter((x) => typeof x === 'string') : [];
+    } catch {
+      return [];
+    }
+  }
+  noteGame(id: string) {
+    store.set('cards.recent', JSON.stringify([id, ...this.recentGames.filter((x) => x !== id)].slice(0, 4)));
+  }
+
   get savedHost(): SavedHost | null {
     const raw = store.get('cards.host');
     if (!raw) return null;

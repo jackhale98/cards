@@ -23,6 +23,40 @@ export const GAME_LIST: GameModule[] = Object.values(GAMES).sort(
     a.config.name.localeCompare(b.config.name, 'en', { numeric: true }),
 );
 
+/** Picker sections, in order. Games pick one with `category`, or get one from their rules family. */
+export const CATEGORIES = ['Poker', 'Trick-taking', 'Rummy', 'Shedding', 'More'] as const;
+const BY_FAMILY: Record<string, string> = {
+  poker: 'Poker',
+  'trick-taking': 'Trick-taking',
+  rummy: 'Rummy',
+  canasta: 'Rummy',
+  climbing: 'Shedding',
+  eights: 'Shedding',
+};
+export function categoryOf(g: GameModule): string {
+  const c = g.config.category ?? BY_FAMILY[g.config.rules?.family ?? 'free'] ?? 'More';
+  return (CATEGORIES as readonly string[]).includes(c) ? c : 'More';
+}
+
+/** Player counts a game takes, as text: "4", "2–8", "2 or 4". */
+export function playersText(g: GameModule): string {
+  const p = g.config.players;
+  return p.counts?.join(' or ') ?? (p.min === p.max ? `${p.min}` : `${p.min}–${p.max}`);
+}
+
+/**
+ * Can the people at the table play this? Bots fill missing seats in games that have them, so only
+ * too many people (or too few, without bots) rules a game out. Returns why not, or null.
+ */
+export function misfit(g: GameModule, people: number): string | null {
+  const p = g.config.players;
+  const max = p.counts ? Math.max(...p.counts) : p.max;
+  if (people > max) return `up to ${max}`;
+  if (!g.bot && people < p.min) return `needs ${p.min}+`;
+  if (p.counts && !g.bot && !p.counts.includes(people)) return `${p.counts.join(' or ')} players`;
+  return null;
+}
+
 export function getGame(id: string): GameModule {
   const g = GAMES[id];
   if (!g) throw new Error(`Unknown game: ${id}`);
