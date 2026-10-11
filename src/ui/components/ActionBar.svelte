@@ -130,7 +130,8 @@
           onclick={() => {
             onact(spec, o.value);
             chooseFor = null;
-          }}>{o.label}</button
+          }}
+          >{#if o.label.includes(' · ')}{o.label.split(' · ')[0]}<small>{o.label.split(' · ')[1]}</small>{:else}{o.label}{/if}</button
         >
       {/each}
     </div>
@@ -261,7 +262,19 @@
     gap: 0.35rem;
   }
   .choices.many {
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    max-height: 62vh;
+    overflow-y: auto;
+  }
+  .choices.many .choice {
+    padding: 0.2rem;
+    line-height: 1.1;
+  }
+  .choice small {
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 600;
+    opacity: 0.7;
   }
   .choice {
     min-height: 40px;

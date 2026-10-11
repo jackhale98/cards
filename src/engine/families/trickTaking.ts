@@ -71,7 +71,8 @@ export const avondale = (tricks: number, suit: Suit | 'NT') => 40 + (tricks - 6)
 const ALL_BIDS: Contract[] = [6, 7, 8, 9, 10]
   .flatMap((t) => AVONDALE_SUITS.map((suit) => ({ tricks: t, suit, value: avondale(t, suit) })))
   .sort((a, b) => a.value - b.value);
-const contractLabel = (c: Contract) => `${c.tricks}${c.suit === 'NT' ? ' NT' : SUIT_SYMBOL[c.suit]}`;
+// a thin space keeps a bid ("6 ♦") from reading as a card ("6♦")
+const contractLabel = (c: Contract) => `${c.tricks}\u2009${c.suit === 'NT' ? 'NT' : SUIT_SYMBOL[c.suit]}`;
 const SAME_COLOUR: Record<Suit, Suit> = { S: 'C', C: 'S', H: 'D', D: 'H' };
 /** Suits by index, for "name trumps" choices. */
 const NAMEABLE: Suit[] = ['S', 'H', 'D', 'C'];

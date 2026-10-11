@@ -6,8 +6,8 @@ the middle of the table. It needs no accounts or app store, and there's no serve
 
 - **Games are plain JSON config files** run by family engines (trick-taking, poker, rummy,
   cribbage, free table). Included: Texas Hold'em, Omaha, Hearts, Spades, Oh Hell, Gin Rummy,
-  Cribbage (with a pegboard), Crazy Eights, and a rules-free **Free Table** for any game. Euchre,
-  500 and Contract Bridge are next.
+  Cribbage (with a pegboard), Euchre (bowers, going alone), 500 (Avondale bids, kitty, joker),
+  Crazy Eights, and a rules-free **Free Table** for any game. Contract Bridge is next.
 - **Always know what just happened:** the last move appears under the headline, pops up as a
   bubble on that player's seat, and poker seats show each player's action this street.
 - **Bots** fill empty seats in every rules-enforced game.
@@ -78,7 +78,7 @@ Adding a game is usually a single JSON file. See **[docs/ADDING_A_GAME.md](docs/
 ## Roadmap
 
 1. ✅ Engine, Free Table, multiplayer, lobby, poker & trick-taking families, avatars
-2. ✅ Rummy family (Gin), ✅ Cribbage · next: Euchre, 500, Contract Bridge, Rummy 500
+2. ✅ Rummy family (Gin), ✅ Cribbage, ✅ Euchre, ✅ 500 (no misère bids yet) · next: Contract Bridge, Rummy 500
 3. Polish: sounds, PWA offline install, offline QR pairing, custom card backs
 4. Remote play (TURN fallback), leaderboards, tournaments, host migration
 
