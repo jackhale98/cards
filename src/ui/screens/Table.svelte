@@ -16,6 +16,7 @@
   import { flight, haptic, play, snapshot } from '../motion';
   import { seatColor } from '../seatColors';
   import { keepAwake } from '../wakeLock';
+  import TvSheet from '../components/TvSheet.svelte';
 
   let { view, display = false }: { view: View; display?: boolean } = $props();
 
@@ -137,7 +138,7 @@
   );
 
   // ---- chrome -----------------------------------------------------------------------------
-  let sheet = $state<'menu' | 'scores' | null>(null);
+  let sheet = $state<'menu' | 'scores' | 'tv' | null>(null);
   let bannerHidden = $state<number | null>(null);
   const showBanner = $derived(!!status.banner && bannerHidden !== s.v);
   let portraitOk = $state(false);
@@ -377,6 +378,10 @@
   </div>
 {/if}
 
+{#if sheet === 'tv'}
+  <TvSheet table={view.lobby.code} onclose={() => (sheet = null)} />
+{/if}
+
 {#if sheet === 'menu'}
   <Sheet title="Table {view.lobby.code}" onclose={() => (sheet = null)}>
     <div class="menu-list">
@@ -386,6 +391,7 @@
           {app.handMode ? 'Show whole table' : 'Just my hand'}
         </button>
       {/if}
+      {#if !display}<button class="btn" onclick={() => (sheet = 'tv')}>Show on a TV</button>{/if}
       <button class="btn" onclick={() => { navigator.clipboard?.writeText(`${location.origin}${location.pathname}#/join/${view.lobby.code}`); app.say('Invite link copied'); }}>Copy invite link</button>
       {#if app.isHost}
         <button class="btn" onclick={() => { app.host?.endGame(); sheet = null; }}>Back to lobby</button>

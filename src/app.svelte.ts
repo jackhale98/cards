@@ -11,7 +11,9 @@ const REJOIN_AFTER_MS = 8000;
 export type Route =
   | { name: 'home'; code?: string }
   | { name: 'room'; code: string }
-  | { name: 'display'; code: string };
+  | { name: 'display'; code: string }
+  /** A TV waiting to be paired with a table (`/tv`, or a Chromecast at `/?cast=1`). */
+  | { name: 'tv' };
 
 const store = {
   get(k: string) {
@@ -64,6 +66,7 @@ export function parseHash(hash = location.hash): Route {
   if (kind === 'room' && code) return { name: 'room', code: code.toUpperCase() };
   if (kind === 'display' && code) return { name: 'display', code: code.toUpperCase() };
   if (kind === 'join' && code) return { name: 'home', code: code.toUpperCase() };
+  if (kind === 'tv' || /\/tv\/?$/.test(location.pathname) || new URLSearchParams(location.search).has('cast')) return { name: 'tv' };
   return { name: 'home' };
 }
 
@@ -177,7 +180,7 @@ class App {
   /** Bring connections in line with the current route. */
   async sync() {
     const r = this.route;
-    if (r.name === 'home') return this.leave(false);
+    if (r.name === 'home' || r.name === 'tv') return this.leave(false);
     if (this.currentCode === r.code) return;
     this.leave(false);
     this.currentCode = r.code;

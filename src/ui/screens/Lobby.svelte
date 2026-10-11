@@ -11,6 +11,7 @@
   import NightBoard from '../components/NightBoard.svelte';
   import PingDot from '../components/PingDot.svelte';
   import Sheet from '../components/Sheet.svelte';
+  import TvSheet from '../components/TvSheet.svelte';
 
   let { view }: { view: View } = $props();
 
@@ -56,6 +57,7 @@
     host?.start();
   }
   let picking = $state(false);
+  let tv = $state(false);
 </script>
 
 {#snippet tile(g: GameModule)}
@@ -68,6 +70,10 @@
     </span>
   </button>
 {/snippet}
+
+{#if tv}
+  <TvSheet table={lobby.code} onclose={() => (tv = false)} />
+{/if}
 
 {#if picking}
   <Sheet title="Pick your look" onclose={() => (picking = false)}>
@@ -84,6 +90,7 @@
     <p class="small">Scan, or open the site and enter the code. Friends somewhere else can join with the invite link — pair it with a video call. Same WiFi is fastest.</p>
     <div class="row">
       <button class="btn" onclick={share}>Share invite</button>
+      <button class="btn" onclick={() => (tv = true)}>📺 TV</button>
       <button class="btn quiet" onclick={() => { app.leave(); app.go('/'); }}>Leave</button>
     </div>
     {#if app.isHost}<NetStatus />{:else if !app.connected}<p class="status warn">Reconnecting to the host…</p>{/if}

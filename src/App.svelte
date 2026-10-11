@@ -4,6 +4,7 @@
   import Home from './ui/screens/Home.svelte';
   import Lobby from './ui/screens/Lobby.svelte';
   import Table from './ui/screens/Table.svelte';
+  import TvScreen from './ui/screens/TvScreen.svelte';
 
   $effect(() => {
     void app.sync();
@@ -27,6 +28,8 @@
 
 {#if route.name === 'home'}
   <Home code={route.code} />
+{:else if route.name === 'tv'}
+  <TvScreen />
 {:else if !view}
   <div class="connecting">
     <div class="spinner"></div>

@@ -22,6 +22,25 @@ the middle of the table. It needs no accounts or app store, and there's no serve
 - **Game night:** every finished game adds to a running scoreboard for the evening (3 / 2 / 1 points for the podium, partners share), shown in the lobby, on the game-over screen and in the scores sheet. The host can start a new night.
 - **Resilient:** a refreshed phone keeps its seat, and a refreshed host resumes the game.
 
+## Showing the table on a TV
+
+From the lobby (**📺 TV**) or the table menu (**Show on a TV**):
+
+- **Any TV with a web browser** (Samsung, LG, Fire TV, a games console…): open `lamplight.cards/tv` on
+  the TV. It shows a five-letter code; type it into the phone and the TV becomes the table display.
+  Nobody has to type on the remote. (The pairing goes through the relay in a tiny room of its own.)
+- **Chromecast / Google TV:** from Chrome on Android or a computer, tap *Cast*. The TV runs the app at
+  `/?cast=1` as a Cast receiver and is told the table code over a custom channel. This needs a
+  receiver App ID:
+  1. Register at the [Google Cast SDK Developer Console](https://cast.google.com/publish) (one-time $5).
+  2. *Add new application* → *Custom Receiver*, receiver URL `https://lamplight.cards/?cast=1`.
+  3. Set the App ID as `VITE_CAST_APP_ID` in Cloudflare Pages (Settings → Variables) and redeploy.
+     Until the app is published in the console it only works on Chromecasts registered as test
+     devices there. Without an App ID the Cast button stays hidden.
+- **Apple TV:** websites can't send their own picture to an Apple TV, so use Screen Mirroring from a
+  spare iPad or phone that has the table open as the table display (not your own phone — it would
+  show your hand).
+
 ## How the connection works
 
 The site is static files (Cloudflare Pages, [lamplight.cards](https://lamplight.cards)); the
