@@ -57,11 +57,6 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
 
   function startHand(s: S) {
     const d = s.data;
-    // note who was knocked out in the hand just played: later knockouts finish higher
-    d.bustedAt ??= s.players.map(() => null);
-    s.players.forEach((p, i) => {
-      if (p.chips === 0 && d.bustedAt![i] == null) d.bustedAt![i] = d.handNo;
-    });
     const alive = s.players.filter((p) => p.chips > 0);
     if (alive.length < 2) {
       s.phase = 'gameOver';
@@ -198,6 +193,10 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
 
   function endHand(s: S) {
     s.turn = null;
+    // note who was knocked out this hand: later knockouts finish higher on game night
+    const d = s.data;
+    d.bustedAt ??= s.players.map(() => null);
+    s.players.forEach((p, i) => p.chips === 0 && d.bustedAt![i] == null && (d.bustedAt![i] = d.handNo));
     const alive = s.players.filter((p) => p.chips > 0);
     if (alive.length < 2) {
       s.phase = 'gameOver';

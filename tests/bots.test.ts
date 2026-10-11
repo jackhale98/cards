@@ -15,6 +15,7 @@ function playDeal(g: GameModule, seed: number, n: number): string | null {
   );
   const start = s.phase;
   for (let i = 0; i < 2000; i++) {
+    if (i > 0 && s.phase === 'handOver') return null; // an all-bot poker table deals on by itself
     const sys = g.system?.(s);
     if (sys) {
       sys.run(s);

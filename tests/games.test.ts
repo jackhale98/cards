@@ -115,16 +115,16 @@ describe("texas hold'em", () => {
     const s = holdem.setup(players, 9, { stack: 300, bigBlind: 20 }) as GameState<HoldemData>;
     let handsChecked = 0;
     for (let step = 0; step < 200000 && s.phase !== 'gameOver'; step++) {
-      const sys = holdem.system!(s);
-      if (sys) {
-        sys.run(s);
-        continue;
-      }
       if (s.phase === 'handOver') {
         expect(s.players.reduce((n, p) => n + p.chips, 0)).toBe(1500);
         expect(totalCards(s)).toBe(52);
         handsChecked++;
         holdem.apply(s, s.players.find((p) => p.chips > 0)!.seat, { type: 'next' });
+        continue;
+      }
+      const sys = holdem.system!(s);
+      if (sys) {
+        sys.run(s);
         continue;
       }
       const a = holdem.bot!(s, s.turn!) as Action;
