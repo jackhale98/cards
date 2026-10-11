@@ -32,7 +32,7 @@ From the lobby (**📺 TV**) or the table menu (**Show on a TV**):
   Nobody has to type on the remote. (The pairing goes through the relay in a tiny room of its own.)
 - **Chromecast / Google TV:** from Chrome on Android or a computer, tap *Cast*. The TV runs the app at
   `/?cast=1` as a Cast receiver and is told the table code over a custom channel. This needs a
-  receiver App ID:
+  receiver App ID (step-by-step guide: [docs/CHROMECAST.md](docs/CHROMECAST.md)):
   1. Register at the [Google Cast SDK Developer Console](https://cast.google.com/publish) (one-time $5).
   2. *Add new application* → *Custom Receiver*, receiver URL `https://lamplight.cards/?cast=1`.
   3. Set the App ID as `VITE_CAST_APP_ID` in Cloudflare Pages (Settings → Variables) and redeploy.
