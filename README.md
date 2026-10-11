@@ -6,7 +6,7 @@ the middle of the table. It needs no accounts or app store, and there's no serve
 
 - **Games are plain JSON config files** run by family engines (trick-taking, poker, rummy,
   cribbage, free table). Included: Texas Hold'em, Omaha, Hearts, Spades, Oh Hell, Gin Rummy,
-  Cribbage (with a pegboard), Euchre (bowers, going alone), 500 (Avondale bids, kitty, joker),
+  Cribbage (with a pegboard; auto scoring or count-your-own with muggins), Euchre (bowers, going alone), 500 (Avondale bids, kitty, joker),
   Contract Bridge (full auction, dummy, duplicate scoring with Chicago vulnerability), Crazy Eights,
   and a rules-free **Free Table** for any game.
 - **Always know what just happened:** the last move appears under the headline, pops up as a

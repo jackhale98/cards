@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { buildDeck } from '../src/engine/cards';
 import { describeShow, pegPoints, scoreHand } from '../src/engine/lib/cribbageScore';
 
 const h = (s: string) => s.split(' ');
@@ -146,5 +147,127 @@ describe('cribbage game', () => {
     crib.apply(s, 0, { type: 'cut' });
     expect(s.zones.starter.cards[0].id[0]).toBe('J');
     expect(s.data.scores).toEqual([0, 2]);
+  });
+});
+
+describe('cribbage: counting your own hands (muggins)', () => {
+  const PONE = ['5H', '5C', 'TD', 'JS'];
+  const DEALER = ['2C', '3C', '4H', '9S'];
+  const CRIB = ['AD', 'KH', '7C', '8D'];
+  const STARTER = '5D';
+  /** A two-player hand at the start of the show, pone (seat 0) about to count. */
+  function atShow(scores = [0, 0]) {
+    const s = crib.setup(bots(2), 3, { muggins: true });
+    s.players.forEach((p) => (p.bot = false));
+    for (const z of Object.values(s.zones)) z.cards = [];
+    s.zones['played:0'].cards = PONE.map((id) => ({ id, up: true }));
+    s.zones['played:1'].cards = DEALER.map((id) => ({ id, up: true }));
+    s.zones.crib.cards = CRIB.map((id) => ({ id }));
+    s.zones.starter.cards = [{ id: STARTER, up: true }];
+    s.zones.deck.cards = buildDeck({}).filter((c) => ![...PONE, ...DEALER, ...CRIB, STARTER].includes(c)).map((id) => ({ id }));
+    Object.assign(s.data, { kept: [PONE, DEALER], scores: [...scores], prev: [...scores] });
+    s.phase = 'show';
+    s.data.showStep = 0;
+    crib.system!(s)!.run(s);
+    return s;
+  }
+  const worth = scoreHand(PONE, STARTER).total;
+
+  it('asks the player to count, then the opponent to check', () => {
+    const s = atShow();
+    expect(s.phase).toBe('count');
+    expect(crib.actions(s, 0).map((a) => a.type)).toEqual(['count']);
+    expect(crib.actions(s, 1)).toEqual([]);
+    crib.apply(s, 0, { type: 'count', amount: worth });
+    expect(crib.actions(s, 1).map((a) => a.type)).toEqual(['accept', 'muggins']);
+    // the true value is never shown before it's settled
+    expect(JSON.stringify(crib.status(s, 1))).not.toContain(describeShow(scoreHand(PONE, STARTER)));
+    crib.apply(s, 1, { type: 'accept' });
+    expect(s.data.scores).toEqual([worth, 0]);
+    expect(s.phase).toBe('show');
+  });
+
+  it('gives missed points to the opponent who spots them (no more than were missed)', () => {
+    let s = atShow();
+    crib.apply(s, 0, { type: 'count', amount: worth - 4 });
+    crib.apply(s, 1, { type: 'muggins', amount: worth });
+    expect(s.data.scores).toEqual([worth - 4, 4]);
+    s = atShow();
+    crib.apply(s, 0, { type: 'count', amount: worth - 4 });
+    crib.apply(s, 1, { type: 'muggins', amount: worth + 2 });
+    expect(s.data.scores).toEqual([worth - 4, 4]);
+  });
+
+  it('cuts an overcount back and gives the excess to the opponent', () => {
+    const s = atShow();
+    crib.apply(s, 0, { type: 'count', amount: worth + 3 });
+    crib.apply(s, 1, { type: 'muggins', amount: worth });
+    expect(s.data.scores).toEqual([worth, 3]);
+  });
+
+  it('a wrong muggins call gives the counter the difference', () => {
+    const s = atShow();
+    crib.apply(s, 0, { type: 'count', amount: worth });
+    crib.apply(s, 1, { type: 'muggins', amount: worth + 2 });
+    expect(s.data.scores).toEqual([worth + 2, 0]);
+  });
+
+  it('an unchallenged miscount stands', () => {
+    const s = atShow();
+    crib.apply(s, 0, { type: 'count', amount: worth + 5 });
+    crib.apply(s, 1, { type: 'accept' });
+    expect(s.data.scores).toEqual([worth + 5, 0]);
+  });
+
+  it('counts the dealer hand and the crib the same way, then ends the hand', () => {
+    const s = atShow();
+    crib.apply(s, 0, { type: 'count', amount: worth });
+    crib.apply(s, 1, { type: 'accept' });
+    crib.system!(s)!.run(s);
+    expect(s.data.claim).toMatchObject({ seat: 1, crib: false });
+    crib.apply(s, 1, { type: 'count', amount: 0 });
+    crib.apply(s, 0, { type: 'accept' });
+    crib.system!(s)!.run(s);
+    expect(s.data.claim).toMatchObject({ seat: 1, crib: true });
+    const cribWorth = scoreHand(CRIB, STARTER, true).total;
+    crib.apply(s, 1, { type: 'count', amount: cribWorth });
+    crib.apply(s, 0, { type: 'accept' });
+    expect(s.phase).toBe('roundOver');
+    expect(s.data.scores).toEqual([worth, cribWorth]); // the dealer's hand was counted 0 and accepted
+  });
+
+  it('bots count correctly and catch mistakes', () => {
+    const s = atShow();
+    s.players[1].bot = true;
+    crib.apply(s, 0, { type: 'count', amount: worth - 2 });
+    expect(crib.bot!(s, 1)).toEqual({ type: 'muggins', amount: worth });
+  });
+
+  it('in partnerships only the other side checks the count', () => {
+    const s = crib.setup(bots(4), 9, { muggins: true });
+    while (s.phase !== 'count') {
+      const sys = crib.system!(s);
+      if (sys) sys.run(s);
+      else {
+        const seat = s.players.findIndex((p) => crib.bot!(s, p.seat));
+        crib.apply(s, seat, crib.bot!(s, seat)!);
+      }
+    }
+    const who = s.data.claim!.seat;
+    crib.apply(s, who, { type: 'count', amount: 1 });
+    expect(crib.actions(s, (who + 2) % 4)).toEqual([]);
+    expect(crib.actions(s, (who + 1) % 4).map((a) => a.type)).toEqual(['accept', 'muggins']);
+    expect(crib.actions(s, (who + 3) % 4).map((a) => a.type)).toEqual(['accept', 'muggins']);
+  });
+
+  it.each([2, 3, 4])('%i players play a whole game with bots counting', (n) => {
+    const s = crib.setup(bots(n), 50 + n, { muggins: true });
+    let hands = 0;
+    play(s, (r) => {
+      hands++;
+      expect(cardsIn(r)).toBe(52);
+    });
+    expect(s.phase).toBe('gameOver');
+    expect(hands).toBeGreaterThan(2);
   });
 });

@@ -12,6 +12,14 @@ import { assertRule, type ActionSpec, type GameConfig, type GameModule, type Gam
  * ```
  * 2 players: 6 cards each, 2 to the crib. 3 players: 5 each, 1 to the crib plus 1 from the deck.
  * 4 players: partners across, 5 each, 1 to the crib.
+ *
+ * Option `muggins` (on/off): players count their own hand and crib instead of the game scoring
+ * them. Opponents then accept the count or call "muggins" with what they say it's really worth
+ * (American Cribbage Congress rules 8.4 and 10):
+ * - points a player misses go to the opponent who spots them (up to what was really missed);
+ * - an overcount is cut back to the true value and the opponent scores the excess;
+ * - a wrong muggins call gives the player the difference the caller claimed, as a penalty.
+ * Pegging during the play and his heels are still scored automatically.
  */
 export interface CribbageRules {
   family: 'cribbage';
@@ -34,6 +42,11 @@ export interface CribData {
   goes: boolean[];
   /** Show step: 0… players in order (dealer last), then the crib. */
   showStep: number;
+  /**
+   * Counting your own hands (muggins option): the hand being counted, the points claimed
+   * (null until announced), and which opponents have accepted the count.
+   */
+  claim?: { seat: number; crib: boolean; points: number | null; accepted: boolean[] } | null;
   result: { lines: string[] } | null;
 }
 
@@ -56,6 +69,16 @@ export function cribbageFamily(config: GameConfig): GameModule<CribData> {
   const pone = (s: S) => nextSeat(s, s.dealer);
   const canPlay = (s: S, seat: number) => ids(hand(s, seat)).some((c) => s.data.count + pipValue(c) <= 31);
   const showOrder = (s: S) => seatOrderFrom(s, s.dealer + 1); // pone first, dealer last
+  const selfCount = (s: S) => !!s.options.muggins;
+  /** Seats that check a count: everyone not on the counting player's side. */
+  const checkers = (s: S, seat: number) => s.players.map((_, i) => i).filter((i) => teamOf(s, i) !== teamOf(s, seat));
+  const starterOf = (s: S) => zone(s, 'starter').cards[0].id;
+  /** The cards being counted right now and what they're truly worth. */
+  function claimTruth(s: S) {
+    const c = s.data.claim!;
+    const cards = c.crib ? ids(zone(s, 'cribShow')) : s.data.kept[c.seat];
+    return scoreHand(cards, starterOf(s), c.crib);
+  }
 
   /** Peg points for a seat's side. Returns true if that won the game. */
   function peg(s: S, seat: number, points: number, why: string, short?: string): boolean {
@@ -146,10 +169,11 @@ export function cribbageFamily(config: GameConfig): GameModule<CribData> {
       const cards = d.kept[seat];
       moveCards(s, `played:${seat}`, `show:${seat}`, cards, { up: true });
       zone(s, `show:${seat}`).label = `${name(s, seat)}'s hand`;
+      d.showStep++;
+      if (selfCount(s)) return askCount(s, seat, false);
       const sc = scoreHand(cards, starter, false);
       lines.push(`${name(s, seat)}: ${describeShow(sc)}`);
       d.result = { lines };
-      d.showStep++;
       if (!sc.total) log(s, `${name(s, seat)}: ${describeShow(sc)}`, seat, '19 (nothing)');
       else peg(s, seat, sc.total, `hand counts ${describeShow(sc)}`, `${sc.total} in hand`);
       return;
@@ -158,12 +182,64 @@ export function cribbageFamily(config: GameConfig): GameModule<CribData> {
     const crib = ids(zone(s, 'crib'));
     moveCards(s, 'crib', 'cribShow', crib, { up: true });
     zone(s, 'cribShow').label = `${name(s, s.dealer)}'s crib`;
+    d.showStep++;
+    if (selfCount(s)) return askCount(s, s.dealer, true);
     const sc = scoreHand(crib, starter, true);
     lines.push(`${name(s, s.dealer)}'s crib: ${describeShow(sc)}`);
     d.result = { lines };
     if (sc.total && peg(s, s.dealer, sc.total, `crib counts ${describeShow(sc)}`, `Crib ${sc.total}`)) return;
     if (!sc.total) log(s, `${name(s, s.dealer)}'s crib: ${describeShow(sc)}`, s.dealer, 'Crib 19');
     s.phase = 'roundOver';
+  }
+
+  // ---- counting your own hands (muggins) ---------------------------------------------------
+
+  function askCount(s: S, seat: number, crib: boolean) {
+    s.data.claim = { seat, crib, points: null, accepted: s.players.map(() => false) };
+    s.phase = 'count';
+    s.turn = seat;
+  }
+
+  /**
+   * Settle a count: `call` is what an opponent said it's really worth (undefined = everyone
+   * accepted). Pegs the counting player first, then the caller.
+   */
+  function settle(s: S, caller?: number, call?: number) {
+    const d = s.data;
+    const c = d.claim!;
+    const claimed = c.points!;
+    const truth = claimTruth(s);
+    const T = truth.total;
+    const what = c.crib ? `${name(s, c.seat)}'s crib` : `${name(s, c.seat)}'s hand`;
+    const lines = d.result?.lines ?? [];
+    let own = claimed;
+    let theirs = 0;
+    let note = '';
+    if (caller != null && call != null) {
+      const under = call > claimed;
+      const right = under ? T > claimed : T < claimed;
+      // any call means the cards get checked, so an overcount is always cut back
+      own = Math.min(claimed, T);
+      if (right) {
+        theirs = under ? Math.min(call, T) - claimed : claimed - Math.max(call, T);
+        note = `${name(s, caller)}: muggins! ${what} is worth ${T}, not ${claimed} — ${name(s, caller)} takes ${theirs}`;
+      } else {
+        own += Math.abs(call - claimed);
+        note = `${name(s, caller)} called muggins for ${call}, but ${what} ${T === claimed ? `is worth ${claimed}` : `is worth ${T}`} — ${name(s, c.seat)} gets ${Math.abs(call - claimed)} penalty`;
+      }
+    } else if (claimed !== T) {
+      note = `${what} was really worth ${T} (${claimed > T ? 'overcounted' : 'missed points'}, nobody called it)`;
+    }
+    lines.push(`${what}: ${describeShow(truth)}${claimed !== T ? ` — counted ${claimed}` : ''}`);
+    if (note) lines.push(note);
+    d.result = { lines };
+    d.claim = null;
+    s.phase = 'show';
+    s.turn = null;
+    if (note) log(s, note, caller ?? c.seat, caller != null ? `Muggins ${theirs ? '+' + theirs : '✗'}` : undefined);
+    if (own > 0 && peg(s, c.seat, own, `${c.crib ? 'crib' : 'hand'} ${own}`, c.crib ? `Crib ${own}` : `${own} in hand`)) return;
+    if (theirs > 0 && peg(s, caller!, theirs, `muggins ${theirs}`, `Muggins +${theirs}`)) return;
+    if (c.crib) s.phase = 'roundOver';
   }
 
   // ---- bots -------------------------------------------------------------------------------
@@ -243,6 +319,18 @@ export function cribbageFamily(config: GameConfig): GameModule<CribData> {
         if (!legal.length) return [{ type: 'go', label: 'Go', style: 'primary' }];
         return [{ type: 'play', label: 'Play', style: 'primary', quick: true, select: { min: 1, max: 1, cards: legal } }];
       }
+      if (s.phase === 'count' && d.claim) {
+        const c = d.claim;
+        const what = c.crib ? 'crib' : 'hand';
+        if (c.points == null && seat === c.seat)
+          return [{ type: 'count', label: `Count ${c.crib ? 'your crib' : 'your hand'}`, style: 'primary', amount: { min: 0, max: 29, step: 1, default: 0, label: `points in your ${what}` } }];
+        if (c.points != null && checkers(s, c.seat).includes(seat) && !c.accepted[seat])
+          return [
+            { type: 'accept', label: `Accept ${c.points}`, style: 'primary' },
+            { type: 'muggins', label: 'Muggins!', amount: { min: 0, max: 29, step: 1, default: c.points, label: `what the ${what} is really worth` } },
+          ];
+        return [];
+      }
       if (s.phase === 'roundOver') return [{ type: 'next', label: 'Next hand', style: 'primary' }];
       if (s.phase === 'gameOver') return [{ type: 'rematch', label: 'New game', style: 'primary' }];
       return [];
@@ -308,6 +396,30 @@ export function cribbageFamily(config: GameConfig): GameModule<CribData> {
           d.goes[seat] = true;
           log(s, `${who} says go`, seat, 'Go');
           return advance(s, seat);
+        case 'count': {
+          const c = d.claim;
+          assertRule(s.phase === 'count' && c && c.points == null && c.seat === seat, 'Not your count');
+          const pts = Math.floor(a.amount ?? -1);
+          assertRule(pts >= 0 && pts <= 29, 'Count between 0 and 29');
+          c.points = pts;
+          s.turn = null;
+          log(s, `${name(s, seat)} counts ${pts === 0 ? '19 (nothing)' : pts} in ${c.crib ? 'the crib' : 'hand'}`, seat, pts ? `${pts}?` : '19?');
+          return;
+        }
+        case 'accept': {
+          const c = d.claim;
+          assertRule(s.phase === 'count' && c && c.points != null && checkers(s, c.seat).includes(seat), 'Nothing to accept');
+          c.accepted[seat] = true;
+          if (checkers(s, c.seat).every((i) => c.accepted[i])) settle(s);
+          return;
+        }
+        case 'muggins': {
+          const c = d.claim;
+          assertRule(s.phase === 'count' && c && c.points != null && checkers(s, c.seat).includes(seat) && !c.accepted[seat], 'You can’t call muggins now');
+          const call = Math.floor(a.amount ?? -1);
+          assertRule(call >= 0 && call <= 29 && call !== c.points, `Say what it’s really worth (not ${c.points})`);
+          return settle(s, seat, call);
+        }
         case 'next':
           assertRule(s.phase === 'roundOver', 'Hand in progress');
           for (const z of Object.values(s.zones)) if (z.id !== 'deck') z.cards = [];
@@ -331,6 +443,14 @@ export function cribbageFamily(config: GameConfig): GameModule<CribData> {
 
     bot(s, seat) {
       if (s.phase === 'discard' && !s.data.discards[seat]) return { type: 'crib', cards: botDiscard(s, seat) };
+      const c = s.data.claim;
+      if (s.phase === 'count' && c) {
+        // bots count their own cards correctly, and check everyone else's
+        if (c.points == null) return c.seat === seat ? { type: 'count', amount: claimTruth(s).total } : null;
+        if (!checkers(s, c.seat).includes(seat) || c.accepted[seat]) return null;
+        const T = claimTruth(s).total;
+        return T === c.points ? { type: 'accept' } : { type: 'muggins', amount: T };
+      }
       if (s.turn !== seat) return null;
       if (s.phase === 'cut') return { type: 'cut' };
       if (s.phase === 'peg') return canPlay(s, seat) ? { type: 'play', cards: [botPeg(s, seat)] } : { type: 'go' };
@@ -358,12 +478,19 @@ export function cribbageFamily(config: GameConfig): GameModule<CribData> {
         if (s.turn === viewer) headline = canPlay(s, viewer) ? `Count ${d.count} — your play` : `Count ${d.count} — you can't play: say Go`;
         else headline = `Count ${d.count} · ${name(s, s.turn!)} to play`;
       } else if (s.phase === 'show') headline = d.result?.lines.at(-1) ?? 'Counting hands…';
+      else if (s.phase === 'count' && d.claim) {
+        const c = d.claim;
+        const what = c.crib ? `${c.seat === viewer ? 'your' : name(s, c.seat) + "'s"} crib` : `${c.seat === viewer ? 'your' : name(s, c.seat) + "'s"} hand`;
+        if (c.points == null) headline = c.seat === viewer ? `Count ${what} — miss any and the others can take them` : `${name(s, c.seat)} is counting ${what}`;
+        else if (checkers(s, c.seat).includes(viewer) && !c.accepted[viewer]) headline = `${name(s, c.seat)} says ${c.points} — accept, or call muggins?`;
+        else headline = `${c.seat === viewer ? 'You say' : name(s, c.seat) + ' says'} ${c.points} · waiting for ${checkers(s, c.seat).filter((i) => !c.accepted[i]).map((i) => name(s, i)).join(', ')}`;
+      }
       else if (s.phase === 'roundOver') headline = 'Hand counted';
       else if (s.phase === 'gameOver') headline = 'Game over';
 
       const teams = teamsFor(s.players.length);
       let hint: string | undefined;
-      if (viewer >= 0 && s.phase === 'peg') {
+      if (viewer >= 0 && s.phase === 'peg' && !selfCount(s)) {
         const starter = zone(s, 'starter').cards[0]?.id;
         if (starter && d.kept[viewer]?.length) hint = `Hand worth ${scoreHand(d.kept[viewer], starter).total}`;
       }

@@ -84,6 +84,10 @@ layoffs are made for the defender, so players only choose what to draw and disca
 |-----|--------|
 | `target` | points to win (121, or 61 for a short game) |
 
+Game option `muggins` (boolean): players count their own hand and crib; opponents accept or call
+muggins (missed points go to the caller, overcounts are cut back with the excess to the caller, a
+wrong call gives the counter the difference). Follows the ACC tournament rules 8.4 and 10.
+
 Hand sizes and crib rules follow the player count (2: 6 cards, 2 to the crib; 3: 5 cards, 1 to the
 crib plus 1 from the deck; 4: partners, 5 cards, 1 to the crib). Scoring lives in
 `src/engine/lib/cribbageScore.ts`. A family can show a race-to-N board by returning
