@@ -73,7 +73,8 @@ export function moveCards(
     const i = src.cards.findIndex((c) => c.id === id);
     assertRule(i >= 0, `Card not in ${from}`);
     const [c] = src.cards.splice(i, 1);
-    dst.cards.push({ id: c.id, ...extra });
+    s.seq = (s.seq ?? 0) + 1;
+    dst.cards.push({ id: c.id, ...extra, k: s.seq });
   }
 }
 

@@ -2,15 +2,35 @@ import { cubicOut } from 'svelte/easing';
 import { crossfade } from 'svelte/transition';
 
 /**
- * Cards keyed by id glide between zones (hand → trick, deck → hand …). Cards that appear
- * from nowhere (e.g. an opponent's hidden card becoming visible) fade/scale in instead.
+ * Where the current move came from: the seat (or your hand) of the player who just acted.
+ * Set by the table right before each update, so a card that leaves for a hidden hand flies
+ * toward that player, and a card played from a hidden hand flies in from them.
+ */
+export const flight: { actor: DOMRect | null } = { actor: null };
+
+/**
+ * Cards keyed by id glide between zones (hand → trick, deck → hand …). Cards with no visible
+ * counterpart (an opponent's hidden card) fly to/from the acting player's seat instead.
  */
 export const [send, receive] = crossfade({
-  duration: (d) => Math.min(520, 180 + Math.sqrt(d) * 12),
+  duration: (d) => Math.min(520, 220 + Math.sqrt(d) * 12),
   easing: cubicOut,
-  fallback(node) {
+  fallback(node, _params, intro) {
     const t0 = getComputedStyle(node).transform;
     const base = t0 === 'none' ? '' : t0;
+    const actor = flight.actor;
+    if (actor) {
+      const r = node.getBoundingClientRect();
+      const dx = actor.left + actor.width / 2 - (r.left + r.width / 2);
+      const dy = actor.top + actor.height / 2 - (r.top + r.height / 2);
+      return {
+        duration: 420,
+        easing: cubicOut,
+        // t runs 0→1 when arriving and 1→0 when leaving, so (1 - t) is "how far toward the seat"
+        css: (t) =>
+          `transform:translate(${(1 - t) * dx}px,${(1 - t) * dy}px) ${base} scale(${0.45 + 0.55 * t});opacity:${Math.min(1, t * (intro ? 3 : 2))}`,
+      };
+    }
     return {
       duration: 260,
       easing: cubicOut,

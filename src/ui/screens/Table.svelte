@@ -10,7 +10,9 @@
   import Sheet from '../components/Sheet.svelte';
   import AvatarBadge from '../components/AvatarBadge.svelte';
   import { seatRelation } from '../../engine/state';
-  import { haptic } from '../motion';
+  import { flip } from 'svelte/animate';
+  import { cubicOut } from 'svelte/easing';
+  import { flight, haptic } from '../motion';
   import { seatColor } from '../seatColors';
 
   let { view, display = false }: { view: View; display?: boolean } = $props();
@@ -132,13 +134,27 @@
   const saidBy = (seat: number) =>
     lastEntry?.seat === seat && lastEntry.short ? { text: lastEntry.short, key: lastEntry.t } : null;
 
+  // Before the DOM updates, note where the acting player sits so cards fly to/from them.
+  let tableEl: HTMLElement;
+  $effect.pre(() => {
+    const seat = s.log.at(-1)?.seat;
+    if (!tableEl) return;
+    const el =
+      seat == null
+        ? null
+        : seat === you
+          ? tableEl.querySelector('.hand-wrap')
+          : tableEl.querySelector(`[data-seat="${seat}"]`);
+    flight.actor = el?.getBoundingClientRect() ?? null;
+  });
+
   const me = $derived(you >= 0 ? s.players[you] : null);
   const myInfo = $derived(you >= 0 ? status.seats[you] : undefined);
 </script>
 
 <svelte:window bind:innerWidth={vw} bind:innerHeight={vh} onfullscreenchange={() => (fullscreen = !!document.fullscreenElement)} />
 
-<div class="table" class:display>
+<div class="table" class:display bind:this={tableEl}>
   <!-- top: menu + opponents + scores -->
   <header>
     <button class="icon" onclick={() => (sheet = 'menu')} aria-label="Menu">
@@ -182,7 +198,8 @@
     {/if}
     <div class="zones">
       {#each centerZones as z (z.id)}
-        <Zone
+        <div class="zone-slot" animate:flip={{ duration: 360, easing: cubicOut }}>
+          <Zone
           zone={z}
           cw={centerCw}
           {you}
@@ -193,6 +210,7 @@
           zoneActive={!!zoneAction(z.id)}
           onzone={zoneAction(z.id) ? () => run(zoneAction(z.id)!) : undefined}
         />
+        </div>
       {/each}
       {#if status.pot}
         <div class="pot">

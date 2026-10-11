@@ -28,7 +28,7 @@
   const backs = $derived(Math.min(cards.length - shown.length, 4));
 </script>
 
-<div class="seat" class:turn class:out={info?.out} class:offline={!connected} class:compact style:--c={avatar?.color ?? seatColor(player.seat)}>
+<div class="seat" data-seat={player.seat} class:turn class:out={info?.out} class:offline={!connected} class:compact style:--c={avatar?.color ?? seatColor(player.seat)}>
   {#if relation}<span class="rel rel-{relation}">{RELATION_LABEL[relation]}</span>{/if}
   {#if said}
     {#key said.key}

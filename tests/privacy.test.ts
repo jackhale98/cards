@@ -145,3 +145,26 @@ describe('privacy: what each device receives', () => {
     expect(s.log.at(-1)!.text).toContain(label(card));
   });
 });
+
+describe('privacy: placeholder ids', () => {
+  it('hands and the deck use positional placeholders; face-down table cards use a fresh key per move', async () => {
+    const { redact } = await import('../src/engine/redact');
+    const g = GAMES.freetable;
+    const s = g.setup([{ name: 'A' }, { name: 'B' }], 4, {});
+    g.apply(s, 0, { type: 'deal', amount: 4 });
+    const [x, y] = s.zones['hand:0'].cards.map((c) => c.id);
+    g.apply(s, 0, { type: 'playDown', cards: [x, y] });
+    const v = redact(g, s, 1);
+    expect(v.zones['hand:0'].cards.map((c) => c.id)).toEqual(['?hand:0.0', '?hand:0.1']);
+    expect(v.zones.deck.cards[0].id).toBe('?deck.0');
+    const keyed = v.zones.table.cards.map((c) => c.id);
+    expect(keyed.every((id) => id.startsWith('?table~'))).toBe(true);
+    // taking the first face-down card leaves the other's placeholder unchanged (smooth animation)
+    g.apply(s, 1, { type: 'take', cards: [x] });
+    expect(redact(g, s, 0).zones.table.cards.map((c) => c.id)).toEqual([keyed[1]].map((id) => id));
+    // …but a card's key changes whenever it moves, so it can't be followed into a hand
+    g.apply(s, 0, { type: 'take', cards: [y] });
+    g.apply(s, 0, { type: 'playDown', cards: [y] });
+    expect(redact(g, s, 1).zones.table.cards[0].id).not.toBe(keyed[1]);
+  });
+});

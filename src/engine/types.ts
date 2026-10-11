@@ -78,6 +78,11 @@ export interface CardRef {
   group?: number;
   /** Draw dimmed (e.g. deadwood). */
   dim?: boolean;
+  /**
+   * Opaque key, renewed every time the card moves. Lets a face-down card on the table keep a
+   * stable placeholder (so it animates smoothly) without linking it to where it came from.
+   */
+  k?: number;
 }
 
 export interface ZoneState {
@@ -122,6 +127,8 @@ export interface GameState<D = unknown> {
   data: D;
   log: LogEntry[];
   options: Record<string, number | boolean>;
+  /** Counter for card keys (`CardRef.k`). */
+  seq?: number;
   /** Set when the game is finished. */
   winner?: number[];
 }

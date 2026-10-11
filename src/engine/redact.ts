@@ -4,6 +4,17 @@ import type { Action, ActionSpec, CardRef, GameModule, GameState, ZoneState } fr
 export const HIDDEN = '?';
 export const isHidden = (id: string) => id.startsWith(HIDDEN);
 
+/**
+ * Placeholder id for a card the viewer can't see.
+ * - Face-down cards in public zones (the table, a face-down discard) get a stable key, which is
+ *   renewed whenever the card moves, so they animate smoothly but can't be traced.
+ * - Cards in hands and the deck are purely positional, so nothing leaks about how a hand is
+ *   arranged (e.g. where a freshly drawn card was sorted to).
+ */
+function aliasOf(z: ZoneState, c: CardRef, index: number): string {
+  return z.visibility === 'all' && c.k != null ? `${HIDDEN}${z.id}~${c.k}` : `${HIDDEN}${z.id}.${index}`;
+}
+
 export function canSee(z: ZoneState, c: CardRef, viewer: number): boolean {
   switch (z.visibility) {
     case 'none':
@@ -25,7 +36,7 @@ export function redact<D>(module: GameModule<D>, s: GameState<D>, viewer: number
     zones[id] = {
       ...z,
       cards: z.cards.map((c, i) =>
-        canSee(z, c, viewer) ? c : { id: `${HIDDEN}${id}.${i}`, up: false, by: c.by },
+        canSee(z, c, viewer) ? c : { id: aliasOf(z, c, i), up: false, by: c.by },
       ),
     };
   }
@@ -37,7 +48,6 @@ export function redact<D>(module: GameModule<D>, s: GameState<D>, viewer: number
   };
 }
 
-const aliasOf = (zoneId: string, index: number) => `${HIDDEN}${zoneId}.${index}`;
 
 /**
  * Card ids inside action specs must be the ones the viewer sees: a face-down card on the table
@@ -47,7 +57,7 @@ export function redactActions(s: GameState<any>, viewer: number, specs: ActionSp
   const alias = new Map<string, string>();
   for (const [id, z] of Object.entries(s.zones))
     z.cards.forEach((c, i) => {
-      if (!canSee(z, c, viewer)) alias.set(c.id, aliasOf(id, i));
+      if (!canSee(z, c, viewer)) alias.set(c.id, aliasOf(z, c, i));
     });
   if (!alias.size) return specs;
   return specs.map((spec) =>
@@ -67,9 +77,11 @@ export function resolveAction(s: GameState<any>, viewer: number, a: Action): Act
       cards.push(id);
       continue;
     }
-    const dot = id.lastIndexOf('.');
+    const keyed = id.lastIndexOf('~');
+    const dot = keyed >= 0 ? keyed : id.lastIndexOf('.');
     const z = s.zones[id.slice(1, dot)];
-    const c = z?.cards[Number(id.slice(dot + 1))];
+    const ref = Number(id.slice(dot + 1));
+    const c = keyed >= 0 ? z?.cards.find((x) => x.k === ref) : z?.cards[ref];
     if (!z || !c || canSee(z, c, viewer)) return null;
     cards.push(c.id);
   }

@@ -1,5 +1,7 @@
 <script lang="ts">
   import type { ZoneState } from '../../engine/types';
+  import { flip } from 'svelte/animate';
+  import { cubicOut } from 'svelte/easing';
   import { receive, send } from '../motion';
   import Card from './Card.svelte';
 
@@ -63,6 +65,7 @@
           disabled={!selectable?.has(c.id)}
           in:receive={{ key: c.id }}
           out:send={{ key: c.id }}
+          animate:flip={{ duration: 360, easing: cubicOut }}
         >
           <Card id={c.id} down={c.up === false} selected={selected.includes(c.id)} dim={c.dim} />
         </button>
