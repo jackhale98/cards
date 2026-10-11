@@ -16,6 +16,7 @@ src/games/my-game/
 | `trick-taking` | Hearts, Spades, Oh Hell, Whist, Black Lady… | `src/engine/families/trickTaking.ts` |
 | `poker`        | Texas Hold'em, Omaha, Pineapple-style variants | `src/engine/families/poker.ts` |
 | `rummy`        | Gin Rummy (style `gin`); Rummy 500 / Oklahoma next | `src/engine/families/rummy.ts` |
+| `cribbage`     | Cribbage for 2–4 (4 = partners), to 121 or 61 | `src/engine/families/cribbage.ts` |
 
 `schemas/game.schema.json` describes every parameter, so editors like VS Code give you
 autocomplete and validation as you type (each file points at it with `$schema`). `pnpm test`
@@ -73,6 +74,17 @@ is a different combination of the same parameters.
 
 Melds are found automatically (`src/engine/lib/melds.ts` searches for the least deadwood), and
 layoffs are made for the defender, so players only choose what to draw and discard.
+
+### Cribbage parameters
+
+| key | values |
+|-----|--------|
+| `target` | points to win (121, or 61 for a short game) |
+
+Hand sizes and crib rules follow the player count (2: 6 cards, 2 to the crib; 3: 5 cards, 1 to the
+crib plus 1 from the deck; 4: partners, 5 cards, 1 to the crib). Scoring lives in
+`src/engine/lib/cribbageScore.ts`. A family can show a race-to-N board by returning
+`status.track` (the cribbage pegboard uses it).
 
 ## Telling players what happened
 

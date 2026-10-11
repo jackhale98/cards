@@ -9,6 +9,7 @@
   import Zone from '../components/Zone.svelte';
   import Sheet from '../components/Sheet.svelte';
   import AvatarBadge from '../components/AvatarBadge.svelte';
+  import Track from '../components/Track.svelte';
   import { seatRelation } from '../../engine/state';
   import { flight, haptic, play, snapshot } from '../motion';
   import { seatColor } from '../seatColors';
@@ -25,7 +26,10 @@
   let vw = $state(innerWidth);
   let vh = $state(innerHeight);
   const handCw = $derived(Math.round(Math.max(52, Math.min(112, vh * 0.2, vw * 0.11))));
-  const centerCw = $derived(Math.round(Math.max(44, Math.min(display ? 130 : 92, vh * (display ? 0.2 : 0.15), vw * 0.09))));
+  // a score track takes some height, so table cards get a little smaller with one
+  const centerCw = $derived(
+    Math.round(Math.max(40, Math.min(display ? 130 : 92, vh * (display ? 0.2 : status.track ? 0.13 : 0.15), vw * 0.09))),
+  );
 
   /** Opponents in turn order starting to your left. */
   const others = $derived.by(() => {
@@ -203,6 +207,7 @@
   <!-- tapping empty felt clears the selection (a touch shortcut; the Clear button is the accessible path) -->
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
   <main onclick={(e) => !(e.target as Element).closest('button, .card') && (selected = [])}>
+    {#if status.track}<Track track={status.track} avatars={view.lobby.seats.map((x) => x.avatar)} />{/if}
     <div class="headline" class:mine={s.turn === you && you >= 0}>{status.headline}</div>
     {#if lastMove}
       {#key lastMove.t}

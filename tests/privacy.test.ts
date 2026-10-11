@@ -60,7 +60,7 @@ const botPick = (g: GameModule) => (s: GameState) => {
 };
 
 describe('privacy: log lines never name hidden cards', () => {
-  for (const id of ['gin-rummy', 'hearts', 'spades', 'oh-hell', 'holdem', 'omaha']) {
+  for (const id of ['gin-rummy', 'hearts', 'spades', 'oh-hell', 'holdem', 'omaha', 'cribbage']) {
     it(id, () => {
       const g = GAMES[id];
       const n = g.config.players.max >= 4 ? 4 : 2;

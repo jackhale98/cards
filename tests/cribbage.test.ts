@@ -1,0 +1,150 @@
+import { describe, expect, it } from 'vitest';
+import { describeShow, pegPoints, scoreHand } from '../src/engine/lib/cribbageScore';
+
+const h = (s: string) => s.split(' ');
+
+describe('cribbage hand counting', () => {
+  it.each([
+    // the perfect 29: three 5s + jack of the starter's suit, starter a 5
+    ['5C 5D 5H JS', '5S', false, 29],
+    ['5C 5D 5H 5S', 'JD', false, 28],
+    // double double run 3-4-4-5-5: runs 12 + two pairs 4 (no fifteens)
+    ['3C 4D 4H 5S', '5C', false, 16],
+    // run of 4 + fifteens 2-4-9 and A-2-3-9
+    ['AC 2D 3H 4S', '9C', false, 8],
+    ['2H 4H 6H 8H', 'KC', false, 4], // four-card flush; all even, so no fifteens
+    ['2H 4H 6H 8H', 'KC', true, 0], // the crib needs all five for a flush
+    ['2H 4H 6H 8H', 'TH', true, 5], // five-card flush counts in the crib
+    ['4C 5D 5H 6S', '6C', false, 24], // the classic double-double: 4 fifteens (8) + runs 12 + pairs 4
+    ['9C TD QH KS', 'AC', false, 0], // nineteen
+  ])('%s + %s (crib %s) = %i', (hand, starter, crib, total) => {
+    expect(scoreHand(h(hand), starter, crib).total).toBe(total);
+  });
+
+  it('breaks a hand into its parts', () => {
+    const s = scoreHand(h('5C 5D JH QS'), 'KH');
+    // fifteens: each 5 with each of J, Q, K = 6 combos = 12; pair of 5s = 2; nobs (JH, starter ♥) = 1
+    expect(s).toMatchObject({ fifteens: 12, pairs: 2, runs: 3, flush: 0, nobs: 1 });
+    expect(s.total).toBe(18);
+    expect(describeShow(s)).toBe('fifteen 12 · pair 2 · run 3 · nobs 1 = 18');
+    expect(describeShow(scoreHand(h('9C TD QH KS'), 'AC'))).toMatch(/nineteen/);
+  });
+});
+
+describe('cribbage pegging', () => {
+  it.each([
+    ['5H TC', 2, 'fifteen'],
+    ['KH 5C 6D QS', 2, 'thirty-one'],
+    ['7H 7C', 2, 'pair'],
+    ['7H 7C 7D', 6, 'three of a kind'],
+    ['3H 4C 5D', 3, 'run of 3'],
+    ['4H 6C 5D', 5, 'fifteen'], // 4+6+5 = 15 and a run of 3
+    ['2H 4C 3D 5S', 4, 'run of 4'],
+    ['8H 3C 4D 3S', 0, ''], // 3s not adjacent: no pair; 3,4,3 not a run
+  ])('%s → %i', (seq, pts, reason) => {
+    const r = pegPoints(h(seq));
+    expect(r.points).toBe(pts);
+    if (reason) expect(r.reasons.join(' ')).toContain(reason);
+  });
+});
+
+import type { CribData } from '../src/engine/families/cribbage';
+import type { GameModule, GameState } from '../src/engine/types';
+import { GAMES } from '../src/games';
+
+const crib = GAMES.cribbage as GameModule<CribData>;
+const bots = (n: number) => Array.from({ length: n }, (_, i) => ({ name: `P${i}`, bot: true }));
+const cardsIn = (s: GameState) => Object.values(s.zones).reduce((n, z) => n + z.cards.length, 0);
+
+function play(s: GameState<CribData>, onShow?: (s: GameState<CribData>) => void) {
+  for (let i = 0; i < 20000 && s.phase !== 'gameOver'; i++) {
+    const sys = crib.system!(s);
+    if (sys) {
+      sys.run(s);
+      continue;
+    }
+    if (s.phase === 'roundOver') {
+      onShow?.(s);
+      crib.apply(s, 0, { type: 'next' });
+      continue;
+    }
+    const seat = s.players.findIndex((p) => crib.bot!(s, p.seat));
+    if (seat < 0) throw new Error(`stuck in ${s.phase}`);
+    crib.apply(s, seat, crib.bot!(s, seat)!);
+  }
+}
+
+describe('cribbage game', () => {
+  it.each([2, 3, 4])('%i players play to 121 with every card accounted for', (n) => {
+    const s = crib.setup(bots(n), 30 + n, {});
+    expect(s.zones['hand:0'].cards).toHaveLength(n === 2 ? 6 : 5);
+    let hands = 0;
+    play(s, (r) => {
+      hands++;
+      expect(cardsIn(r)).toBe(52);
+      // everyone kept 4, the crib has 4
+      expect(r.data.kept.every((k) => k.length === 4)).toBe(true);
+    });
+    expect(s.phase).toBe('gameOver');
+    expect(Math.max(...s.data.scores)).toBe(121);
+    expect(hands).toBeGreaterThan(2);
+    if (n === 4) expect(s.winner).toHaveLength(2);
+  });
+
+  it('pegs 15s, pairs, go and last card', () => {
+    const s = crib.setup(bots(2), 1, {});
+    // rig: after the cut, pone (seat 0) and dealer (seat 1) each hold 4 cards
+    for (const z of Object.values(s.zones)) z.cards = [];
+    s.zones['hand:0'].cards = ['5H', 'KC', '9D', '2S'].map((id) => ({ id }));
+    s.zones['hand:1'].cards = ['TS', '5C', 'QD', '3H'].map((id) => ({ id }));
+    s.zones.starter.cards = [{ id: '4D', up: true }];
+    s.data.kept = [['5H', 'KC', '9D', '2S'], ['TS', '5C', 'QD', '3H']];
+    Object.assign(s.data, { count: 0, goes: [false, false], lastPlayer: null });
+    s.phase = 'peg';
+    s.turn = 0;
+    const p = (seat: number, card: string) => crib.apply(s, seat, { type: 'play', cards: [card] });
+    p(0, '5H');
+    p(1, 'TS'); // 15 for 2 to the dealer
+    expect(s.data.scores).toEqual([0, 2]);
+    p(0, 'KC'); // 25
+    p(1, '3H'); // 28
+    // pone holds 9 and 2: 2 makes 30
+    p(0, '2S'); // 30
+    // dealer has 5 and Q: can't play → must say go
+    expect(crib.actions(s, 1).map((a) => a.type)).toEqual(['go']);
+    crib.apply(s, 1, { type: 'go' });
+    // pone can't play the 9 either → go; pone was last to play: 1 for go
+    expect(s.turn).toBe(0);
+    crib.apply(s, 0, { type: 'go' });
+    expect(s.data.scores).toEqual([1, 2]);
+    expect(s.data.count).toBe(0);
+    // dealer leads the new count
+    expect(s.turn).toBe(1);
+    p(1, '5C');
+    p(0, '9D'); // 14
+    p(1, 'QD'); // 24, last card → 1
+    expect(s.data.scores).toEqual([1, 3]);
+    expect(s.phase).toBe('show');
+  });
+
+  it('counts the show, pone first, and gives the dealer his heels', () => {
+    const s = crib.setup(bots(2), 2, {});
+    // force a jack starter
+    const deck = s.zones.deck.cards;
+    s.players.forEach((_, i) => crib.apply(s, i, { type: 'crib', cards: s.zones[`hand:${i}`].cards.slice(0, 2).map((c) => c.id) }));
+    expect(s.phase).toBe('cut');
+    expect(s.turn).toBe(0); // pone cuts
+    for (const c of deck) if (c.id.startsWith('J')) {
+      deck.splice(deck.indexOf(c), 1);
+      deck.splice(Math.floor(deck.length / 2), 0, c);
+      break;
+    }
+    // make every remaining deck card the jack position-independent: replace the deck with jacks first
+    s.zones.deck.cards = s.zones.deck.cards.filter((c) => c.id.startsWith('J')).concat(s.zones.deck.cards.filter((c) => !c.id.startsWith('J')));
+    const jacks = s.zones.deck.cards.filter((c) => c.id.startsWith('J')).length;
+    s.zones.deck.cards = s.zones.deck.cards.slice(0, jacks); // only jacks left to cut
+    crib.apply(s, 0, { type: 'cut' });
+    expect(s.zones.starter.cards[0].id[0]).toBe('J');
+    expect(s.data.scores).toEqual([0, 2]);
+  });
+});

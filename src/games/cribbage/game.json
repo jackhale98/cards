@@ -1,0 +1,32 @@
+{
+  "$schema": "../../../schemas/game.schema.json",
+  "id": "cribbage",
+  "name": "Cribbage",
+  "tagline": "Fifteen two, fifteen four… peg your way around the board to 121.",
+  "icon": "✚",
+  "players": { "min": 2, "max": 4, "recommended": 2 },
+  "bots": true,
+  "deck": {},
+  "zones": [
+    { "id": "deck", "label": "Deck", "visibility": "none", "layout": "stack", "area": "center" },
+    { "id": "starter", "label": "Starter", "visibility": "all", "layout": "stack", "area": "center", "hideEmpty": true },
+    { "id": "crib", "label": "Crib", "visibility": "none", "layout": "stack", "area": "center", "hideEmpty": true },
+    { "id": "pegging", "label": "Count 0", "visibility": "all", "layout": "spread", "area": "center", "hideEmpty": true },
+    { "id": "hand", "perPlayer": true, "visibility": "owner", "layout": "fan", "area": "hand" },
+    { "id": "played", "perPlayer": true, "visibility": "all", "layout": "spread", "area": "none" },
+    { "id": "show", "perPlayer": true, "visibility": "all", "layout": "spread", "area": "center", "hideEmpty": true },
+    { "id": "cribShow", "visibility": "all", "layout": "spread", "area": "center", "hideEmpty": true },
+    { "id": "done", "visibility": "none", "layout": "stack", "area": "none" }
+  ],
+  "rules": { "family": "cribbage", "target": 121 },
+  "options": [
+    { "id": "target", "label": "Play to", "type": "number", "default": 121, "min": 61, "max": 121, "step": 60 }
+  ],
+  "rulesSummary": [
+    "Everyone puts cards in the dealer's crib, then the deck is cut for a starter (a jack gives the dealer 2).",
+    "Pegging: take turns playing, keeping a running count up to 31. Score 15s and 31s (2), pairs (2/6/12) and runs.",
+    "Can't play without passing 31? Say Go. The last player to play scores 1 (2 for exactly 31), then the count restarts.",
+    "The show: each hand counts with the starter — fifteens 2 each, pairs, runs, flushes, and nobs (the jack of the starter's suit).",
+    "The dealer then counts the crib. First to 121 wins, even mid-hand."
+  ]
+}

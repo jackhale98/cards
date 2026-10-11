@@ -198,6 +198,8 @@ export interface GameStatus {
   /** Private hint for the viewer, e.g. "Two pair". */
   hint?: string;
   scoreboard?: Scoreboard;
+  /** A race-to-N score track (e.g. a cribbage board): one lane per player or team. */
+  track?: { target: number; lanes: { label: string; seat: number; score: number; prev: number }[] };
   /** Banner shown at end of a round / game. */
   banner?: { title: string; lines: string[] };
 }

@@ -578,6 +578,24 @@
               }
             }
           }
+        },
+        {
+          "description": "Cribbage for 2–4 players (4 = partnerships).",
+          "required": [
+            "family",
+            "target"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "family": {
+              "const": "cribbage"
+            },
+            "target": {
+              "type": "integer",
+              "minimum": 31,
+              "description": "Points to win (121 standard, 61 for a short game)."
+            }
+          }
         }
       ]
     }
