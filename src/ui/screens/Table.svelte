@@ -210,6 +210,34 @@
     return () => cancelAnimationFrame(frame);
   });
 
+  // ---- the players row (phones): scrolls sideways, and slides to whoever's turn it is ----------
+  let seatsEl = $state<HTMLElement>();
+  let moreLeft = $state(false);
+  let moreRight = $state(false);
+  function edges() {
+    const el = seatsEl;
+    if (!el) return;
+    moreLeft = el.scrollLeft > 4;
+    moreRight = el.scrollLeft + el.clientWidth < el.scrollWidth - 4;
+  }
+  $effect(() => {
+    const el = seatsEl;
+    const turn = actor;
+    void others.length, vw;
+    if (!el || display) return;
+    const frame = requestAnimationFrame(() => {
+      edges();
+      const slot = turn == null ? null : (el.querySelector(`[data-seat="${turn}"]`)?.parentElement as HTMLElement | null);
+      if (!slot || el.scrollWidth <= el.clientWidth) return;
+      // centre the player whose turn it is
+      const box = el.getBoundingClientRect();
+      const r = slot.getBoundingClientRect();
+      const left = el.scrollLeft + r.left - box.left - (box.width - r.width) / 2;
+      el.scrollTo({ left, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+    });
+    return () => cancelAnimationFrame(frame);
+  });
+
   const me = $derived(you >= 0 ? s.players[you] : null);
   /** Game night standings, shown when a game ends. */
   const tonight = $derived(nightTotals(view.lobby.night));
@@ -224,7 +252,7 @@
     <button class="icon" onclick={() => (sheet = 'menu')} aria-label="Menu">
       <svg viewBox="0 0 24 24" width="20" height="20"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
     </button>
-    <div class="seats">
+    <div class="seats" class:more-left={moreLeft} class:more-right={moreRight} bind:this={seatsEl} onscroll={edges}>
       {#each others as seat (seat)}
         {@const pos = display ? tvSeatPos(seat) : null}
         <div class="seat-slot" style:left={pos?.left} style:top={pos?.top} bind:clientWidth={slotW[seat]} bind:clientHeight={slotH[seat]}>
@@ -517,11 +545,25 @@
     margin: 0;
     overflow: visible;
   }
-  /* seats share the row: each shrinks (its text trimmed) before the row has to scroll */
+  /* seats keep their size; a row too long for the screen scrolls (and follows the turn) */
   .seat-slot {
-    flex: 0 1 auto;
-    min-width: 0;
+    flex: none;
     display: flex;
+  }
+  /* fade the edge where more players are scrolled out of view */
+  .seats.more-left {
+    --fade: linear-gradient(90deg, transparent, #000 28px);
+  }
+  .seats.more-right {
+    --fade: linear-gradient(90deg, #000 calc(100% - 28px), transparent);
+  }
+  .seats.more-left.more-right {
+    --fade: linear-gradient(90deg, transparent, #000 28px, #000 calc(100% - 28px), transparent);
+  }
+  .seats.more-left,
+  .seats.more-right {
+    -webkit-mask-image: var(--fade);
+    mask-image: var(--fade);
   }
   .table.display .seat-slot {
     position: absolute;
