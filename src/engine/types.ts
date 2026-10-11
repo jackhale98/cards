@@ -151,8 +151,12 @@ export interface ActionSpec {
   menu?: boolean;
   /** Tapping this zone (e.g. "deck", "discard") triggers the action. */
   zone?: string;
-  /** A single tap/swipe on a selectable card triggers this action directly. */
-  quick?: boolean;
+  /**
+   * Shortcut for card actions: `true` = swipe a card up, or tap a selected card again, to do it;
+   * `'swipe'` = swipe only (tapping a selected card deselects it). Use `'swipe'` where an
+   * accidental play would be costly, e.g. the free table.
+   */
+  quick?: boolean | 'swipe';
 }
 
 // ---------------------------------------------------------------------------

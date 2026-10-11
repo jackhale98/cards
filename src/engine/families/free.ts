@@ -70,7 +70,7 @@ export function freeFamily(config: GameConfig): GameModule<FreeData> {
       const deckCount = s.zones.deck?.cards.length ?? 0;
       const any = (cards: string[]) => ({ min: 1, max: 99, cards });
       const out: ActionSpec[] = [];
-      if (mine.length) out.push({ type: 'play', label: 'Play', style: 'primary', quick: true, select: any(mine) });
+      if (mine.length) out.push({ type: 'play', label: 'Play', style: 'primary', quick: 'swipe', select: any(mine) });
       if (hasDiscard && movable.length) out.push({ type: 'discard', label: 'Discard', select: any(movable) });
       if (hasMelds && mine.length) out.push({ type: 'meld', label: 'Lay down meld', select: any(mine) });
       if (hasMelds && mine.length && meldCards(s).length)

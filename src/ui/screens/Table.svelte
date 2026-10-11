@@ -61,8 +61,8 @@
   function tap(id: string) {
     if (!selectable?.has(id)) return;
     if (selected.includes(id)) {
-      // tapping a lone selected card plays it when there's a quick action
-      if (quick && selected.length === 1 && quick.select!.cards.includes(id)) return run(quick);
+      // tapping a lone selected card plays it, unless the action is swipe-only
+      if (quick?.quick === true && selected.length === 1 && quick.select!.cards.includes(id)) return run(quick);
       selected = selected.filter((x) => x !== id);
     } else if (maxSelect === 1) {
       selected = [id];
@@ -166,7 +166,9 @@
   </header>
 
   <!-- centre: shared zones, pot, headline -->
-  <main>
+  <!-- tapping empty felt clears the selection (a touch shortcut; the Clear button is the accessible path) -->
+  <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
+  <main onclick={(e) => !(e.target as Element).closest('button, .card') && (selected = [])}>
     <div class="headline" class:mine={s.turn === you && you >= 0}>{status.headline}</div>
     {#if lastMove}
       {#key lastMove.t}
@@ -244,7 +246,7 @@
       </div>
     </footer>
     <aside>
-      <ActionBar actions={view.actions} {selected} pot={status.pot} onact={run} />
+      <ActionBar actions={view.actions} {selected} pot={status.pot} onact={run} onclear={() => (selected = [])} />
     </aside>
   {/if}
 </div>

@@ -6,8 +6,9 @@
     selected: string[];
     pot?: number;
     onact: (spec: ActionSpec, amount?: number) => void;
+    onclear?: () => void;
   }
-  let { actions, selected, pot = 0, onact }: Props = $props();
+  let { actions, selected, pot = 0, onact, onclear }: Props = $props();
 
   let amountFor = $state<ActionSpec | null>(null);
   let amount = $state(0);
@@ -60,6 +61,9 @@
 </script>
 
 <div class="bar">
+  {#if selected.length && onclear}
+    <button class="btn quiet clear" onclick={onclear}>✕ Clear{selected.length > 1 ? ` (${selected.length})` : ''}</button>
+  {/if}
   {#each main as a (a.type)}
     <button class="btn {a.style ?? ''}" disabled={!ready(a)} onclick={() => press(a)}>
       {a.label}
@@ -134,6 +138,11 @@
     font-size: 0.66rem;
     font-weight: 500;
     opacity: 0.8;
+  }
+  .clear {
+    min-height: 34px;
+    font-size: 0.8rem !important;
+    color: var(--ink-dim);
   }
   .more {
     letter-spacing: 0.15em;
