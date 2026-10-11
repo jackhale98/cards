@@ -24,6 +24,7 @@
     app.say('Add your name first, so everyone knows who you are');
   }
   let picking = $state(false);
+  let about = $state(false);
 
   function commitName() {
     app.setName(name.trim());
@@ -47,7 +48,46 @@
   </Sheet>
 {/if}
 
+{#if about}
+  <Sheet title="How Lamplight works" onclose={() => (about = false)}>
+    <div class="about">
+      <h4>Playing together</h4>
+      <ol>
+        <li><b>One person starts a table</b> and picks the game. Their phone runs the game, so it's best plugged in.</li>
+        <li><b>Everyone else joins</b> by scanning the QR code, typing the five-letter table code, or tapping the invite link.</li>
+        <li><b>Your phone is your hand.</b> Turn it sideways: your cards are at the bottom, the table in the middle. Empty seats can be filled with bots.</li>
+        <li>Got a tablet, laptop or TV? Make it the <b>table display</b> for everyone to watch, and phones show a bigger hand.</li>
+      </ol>
+      <h4>Local first</h4>
+      <p>
+        Lamplight is made for friends around the same table. The game runs on the host's phone, and phones
+        talk to each other directly, so on the same WiFi your game stays in the room. Each phone only ever
+        gets its own cards.
+      </p>
+      <p>
+        Our small relay just introduces the devices (and passes messages along only when a network won't
+        let them connect directly). It stores nothing. There are no accounts, no ads and nothing to install.
+      </p>
+      <h4>Far apart?</h4>
+      <p>Send the invite link and pair the game with a video call — it works over the internet too.</p>
+      <h4>Good to know</h4>
+      <ul>
+        <li>Refresh or lose signal and you keep your seat; the host can resume the table later.</li>
+        <li>Rules follow <a href="https://www.pagat.com" target="_blank" rel="noreferrer">pagat.com</a>; each game's rules are in its menu.</li>
+        <li>Finished games add up to a <b>game night</b> scoreboard for the evening.</li>
+      </ul>
+    </div>
+  </Sheet>
+{/if}
+
 <div class="home">
+  <button class="info" onclick={() => (about = true)} aria-label="How Lamplight works">
+    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+      <circle cx="12" cy="12" r="9.2" fill="none" stroke="currentColor" stroke-width="1.6" />
+      <circle cx="12" cy="7.6" r="1.25" fill="currentColor" />
+      <path d="M12 11v6" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+    </svg>
+  </button>
   <section class="hero">
     <div class="fan" aria-hidden="true">
       <div class="f f1"><Card id="AS" /></div>
@@ -115,6 +155,46 @@
 </div>
 
 <style>
+  .info {
+    position: absolute;
+    z-index: 2;
+    top: calc(10px + var(--safe-t));
+    right: calc(12px + var(--safe-r));
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background: var(--glass);
+    border: 1px solid var(--line);
+    color: var(--ink-dim);
+  }
+  .about h4 {
+    margin: 1rem 0 0.35rem;
+    font-family: var(--font-card);
+    font-size: 1.02rem;
+    color: var(--gold);
+  }
+  .about h4:first-child {
+    margin-top: 0.2rem;
+  }
+  .about p,
+  .about li {
+    margin: 0 0 0.45rem;
+    line-height: 1.45;
+    color: var(--ink-dim);
+  }
+  .about b {
+    color: var(--ink);
+  }
+  .about ol,
+  .about ul {
+    margin: 0;
+    padding-left: 1.2rem;
+  }
+  .about a {
+    color: inherit;
+  }
   .home {
     position: absolute;
     inset: 0;
