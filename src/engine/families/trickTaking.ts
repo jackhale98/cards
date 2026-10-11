@@ -2,6 +2,7 @@ import { buildDeck, cardName, parseCard, rankLabel, SUIT_NAME, SUIT_SYMBOL, type
 import { passTarget, type PassDirection } from '../lib/passing';
 import { followSuit, trickWinner } from '../lib/trickTaking';
 import { createState, deal, hand, ids, log, moveCards, moveTop, name, nextSeat, placesFromScores, resetDeck, sortHand, zone } from '../state';
+import { botBudget, dealConstrained, searchMove, type SearchGame } from '../bots/search';
 import { assertRule, type Action, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
 
 /**
@@ -185,6 +186,8 @@ export interface TrickData {
   blind?: boolean[];
   blindToAsk?: number[];
   defToAsk?: number[];
+  /** Suits each player has shown out of this hand (public: the search bot deals around them). */
+  voids?: string[][];
 }
 
 type S = GameState<TrickData>;
@@ -248,6 +251,7 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
     d.jokerAsked = false;
     d.jokerLed = null;
     d.ledSuits = [];
+    d.voids = s.players.map(() => []);
     d.blind = s.players.map(() => false);
     d.blindToAsk = [];
     if (bridgeBids) {
@@ -963,8 +967,116 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
     return `${s.data.passDir} → ${name(s, to)}`;
   }
 
-  return {
+  /** The quick rule-of-thumb bot: every decision, and the search's playouts. */
+  function quickBot(s: S, seat: number): Action | null {
+    const d = s.data;
+    if (s.phase === 'pass' && !d.passes[seat]) {
+      const danger = (c: string) => {
+        const { rank, suit } = parseCard(c);
+        return pointsOf(c) * 8 + rank + (suit === 'S' && rank > 11 && R.scoring.type === 'penalty' ? 40 : 0);
+      };
+      return { type: 'pass', cards: [...ids(hand(s, seat))].sort((a, b) => danger(b) - danger(a)).slice(0, R.passing!.count) };
+    }
+    if (s.phase === 'bid' && s.turn === seat) return { type: 'bid', amount: botBid(s, seat) };
+    if ((s.phase === 'order' || s.phase === 'name') && s.turn === seat) return botMakeTrumps(s, seat);
+    if (s.phase === 'auction' && s.turn === seat) return botAuction(s, seat);
+    if (s.phase === 'discard' && s.turn === seat) return botBury(s, seat);
+    if (s.phase === 'call' && s.turn === seat) return botCall(s, seat);
+    if (s.phase === 'play' && controller(s) === seat) {
+      if (!legalCards(s, s.turn!).length) return { type: 'leadJoker', amount: NAMEABLE.indexOf(jokerLeadSuits(s)[0]) };
+      return { type: 'play', cards: [botCard(s, s.turn!)] };
+    }
+    if (s.phase === 'blind' && s.turn === seat) {
+      // a long way behind: gamble on blind nil
+      const best = Math.max(...d.scores);
+      return { type: best - d.scores[teamOf(s, seat)] >= 200 ? 'blindNil' : 'look' };
+    }
+    if ((s.phase === 'blindPass' || s.phase === 'blindReturn') && s.turn === seat) {
+      // partner passes low cards to the nil bidder, who passes high ones back
+      const v = (c: string) => rankOf(s, c) + (suitOf(s, c) === d.trump ? 20 : 0);
+      const sorted = [...ids(hand(s, seat))].sort((a, b) => v(a) - v(b));
+      return { type: 'blindGive', cards: s.phase === 'blindPass' ? sorted.slice(0, 2) : sorted.slice(-2) };
+    }
+    if (s.phase === 'defend' && s.turn === seat) return { type: strength(ids(hand(s, seat)), d.trump) >= 4.8 ? 'defendAlone' : 'stayIn' };
+    if (s.phase === 'joker' && s.turn === seat) {
+      // make the joker the top card of the longest suit
+      const cards = ids(hand(s, seat));
+      const longest = [...NAMEABLE].sort((x, y) => cards.filter((c) => parseCard(c).suit === y).length - cards.filter((c) => parseCard(c).suit === x).length)[0];
+      return { type: 'nominate', amount: NAMEABLE.indexOf(longest) };
+    }
+    if (s.phase === 'moon' && s.turn === seat) {
+      // adding to everyone else only if that ends the game with the shooter on top
+      const after = d.scores.map((x, ti) => (ti === teamOf(s, seat) ? x : x + totalPoints));
+      const wins = Math.max(...after) >= target(s) && after[teamOf(s, seat)] < Math.min(...after.filter((_, ti) => ti !== teamOf(s, seat)));
+      return { type: wins ? 'moonAdd' : 'moonSub' };
+    }
+    return null;
+  }
+
+  // ---- the search bot's view of a hand ---------------------------------------------------
+
+  const search: SearchGame<TrickData> = {
+    // deal the cards `viewer` can't see afresh, keeping each player's count and known voids
+    determinize(s, viewer) {
+      const c = structuredClone({ ...s, log: [] });
+      const d = c.data;
+      const n = c.players.length;
+      // who buried the kitty knows it (the euchre dealer, the 500 maker); a turned-down upcard is public
+      const kittyKnown = euchreBids ? viewer === c.dealer : d.maker === viewer;
+      // Hearts: the cards passed are still with whoever got them, unless played since
+      const passedTo = d.passDir && d.passDir !== 'hold' && d.passes[viewer]?.length ? passTarget(viewer, d.passDir, n) : -1;
+      const slots: { zone: string; fixed: string[]; count: number; forbid?: (card: string) => boolean }[] = [];
+      const add = (id: string, fixed: string[], forbid?: (card: string) => boolean) =>
+        slots.push({ zone: id, fixed, count: zone(c, id).cards.length - fixed.length, forbid });
+      for (let i = 0; i < n; i++) {
+        if (i === viewer || !hand(c, i).cards.length) continue;
+        const voids = d.voids?.[i] ?? [];
+        const fixed = i === passedTo ? d.passes[viewer]!.filter((x) => ids(hand(c, i)).includes(x)) : [];
+        add(`hand:${i}`, fixed, voids.length ? (x) => voids.includes(suitOf(c, x)) : undefined);
+      }
+      if (c.zones.deck?.cards.length) add('deck', []);
+      if (c.zones.kitty?.cards.length && !kittyKnown) add('kitty', d.upcard ? ids(zone(c, 'kitty')).filter((x) => x === d.upcard) : []);
+      const pool = slots.flatMap((sl) => ids(zone(c, sl.zone)).filter((x) => !sl.fixed.includes(x)));
+      const dealt = dealConstrained(pool, slots);
+      slots.forEach((sl, k) => (zone(c, sl.zone).cards = [...sl.fixed, ...dealt[k]].map((id) => ({ id }))));
+      return c;
+    },
+
+    candidates(s) {
+      const plays: Action[] = legalCards(s, s.turn!).map((c) => ({ type: 'play', cards: [c] }));
+      if (!plays.length) return jokerLeadSuits(s).map((x) => ({ type: 'leadJoker', amount: NAMEABLE.indexOf(x) }));
+      return plays;
+    },
+
+    apply: (s, seat, a) => module.apply(s, seat, a),
+
+    rollout(s) {
+      for (let guard = 0; guard < 500 && s.phase !== 'roundOver' && s.phase !== 'gameOver'; guard++) {
+        const sys = module.system!(s);
+        if (sys) {
+          sys.run(s);
+          continue;
+        }
+        const seat = controller(s);
+        const a = seat == null ? null : quickBot(s, seat);
+        if (!a) return;
+        module.apply(s, seat!, a);
+      }
+    },
+
+    // the hand's points for our side against the average of the others (Hearts: fewer is better)
+    score(before, after, seat) {
+      const team = teamOf(before, seat);
+      const delta = after.data.scores.map((x, ti) => x - before.data.scores[ti]);
+      const others = delta.filter((_, ti) => ti !== team);
+      const v = delta[team] - others.reduce((a, b) => a + b, 0) / Math.max(1, others.length);
+      return lowWins ? -v : v;
+    },
+  };
+
+  const module: GameModule<TrickData> = {
     config,
+    botLevels: true,
 
     setup(players, seed, options) {
       const s = createState<TrickData>(config, players, seed, options, {
@@ -1211,6 +1323,12 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
           const card = a.cards?.[0];
           assertRule(card && legalCards(s, turn).includes(card), 'You can’t play that card');
           if (!zone(s, 'trick').cards.length) d.ledSuits = [...(d.ledSuits ?? []), suitOf(s, card)];
+          else {
+            // not following suit shows the player is out of it
+            const led = ledSuit(s);
+            const voids = (d.voids ??= s.players.map(() => []));
+            if (led && led !== 'X' && suitOf(s, card) !== led && !voids[turn].includes(led)) voids[turn] = [...voids[turn], led];
+          }
           moveCards(s, sourceZone(s, turn), 'trick', [card], { by: turn, up: true });
           d.received[turn] = [];
           log(s, `${name(s, seat)} plays the ${cardName(card)}${turn !== seat ? ' from dummy' : ''}`, seat, `${rankLabel(parseCard(card).rank)}${SUIT_SYMBOL[parseCard(card).suit]}`);
@@ -1333,48 +1451,10 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
     },
 
     bot(s, seat) {
-      const d = s.data;
-      if (s.phase === 'pass' && !d.passes[seat]) {
-        const danger = (c: string) => {
-          const { rank, suit } = parseCard(c);
-          return pointsOf(c) * 8 + rank + (suit === 'S' && rank > 11 && R.scoring.type === 'penalty' ? 40 : 0);
-        };
-        return { type: 'pass', cards: [...ids(hand(s, seat))].sort((a, b) => danger(b) - danger(a)).slice(0, R.passing!.count) };
-      }
-      if (s.phase === 'bid' && s.turn === seat) return { type: 'bid', amount: botBid(s, seat) };
-      if ((s.phase === 'order' || s.phase === 'name') && s.turn === seat) return botMakeTrumps(s, seat);
-      if (s.phase === 'auction' && s.turn === seat) return botAuction(s, seat);
-      if (s.phase === 'discard' && s.turn === seat) return botBury(s, seat);
-      if (s.phase === 'call' && s.turn === seat) return botCall(s, seat);
-      if (s.phase === 'play' && controller(s) === seat) {
-        if (!legalCards(s, s.turn!).length) return { type: 'leadJoker', amount: NAMEABLE.indexOf(jokerLeadSuits(s)[0]) };
-        return { type: 'play', cards: [botCard(s, s.turn!)] };
-      }
-      if (s.phase === 'blind' && s.turn === seat) {
-        // a long way behind: gamble on blind nil
-        const best = Math.max(...d.scores);
-        return { type: best - d.scores[teamOf(s, seat)] >= 200 ? 'blindNil' : 'look' };
-      }
-      if ((s.phase === 'blindPass' || s.phase === 'blindReturn') && s.turn === seat) {
-        // partner passes low cards to the nil bidder, who passes high ones back
-        const v = (c: string) => rankOf(s, c) + (suitOf(s, c) === d.trump ? 20 : 0);
-        const sorted = [...ids(hand(s, seat))].sort((a, b) => v(a) - v(b));
-        return { type: 'blindGive', cards: s.phase === 'blindPass' ? sorted.slice(0, 2) : sorted.slice(-2) };
-      }
-      if (s.phase === 'defend' && s.turn === seat) return { type: strength(ids(hand(s, seat)), d.trump) >= 4.8 ? 'defendAlone' : 'stayIn' };
-      if (s.phase === 'joker' && s.turn === seat) {
-        // make the joker the top card of the longest suit
-        const cards = ids(hand(s, seat));
-        const longest = [...NAMEABLE].sort((x, y) => cards.filter((c) => parseCard(c).suit === y).length - cards.filter((c) => parseCard(c).suit === x).length)[0];
-        return { type: 'nominate', amount: NAMEABLE.indexOf(longest) };
-      }
-      if (s.phase === 'moon' && s.turn === seat) {
-        // adding to everyone else only if that ends the game with the shooter on top
-        const after = d.scores.map((x, ti) => (ti === teamOf(s, seat) ? x : x + totalPoints));
-        const wins = Math.max(...after) >= target(s) && after[teamOf(s, seat)] < Math.min(...after.filter((_, ti) => ti !== teamOf(s, seat)));
-        return { type: wins ? 'moonAdd' : 'moonSub' };
-      }
-      return null;
+      // card play is searched unless the bots are set to Easy; the other decisions use the quick rules
+      const budget = botBudget(s.options);
+      if (budget && s.phase === 'play' && controller(s) === seat) return searchMove(search, s, seat, budget) ?? quickBot(s, seat);
+      return quickBot(s, seat);
     },
 
     redactData(s, viewer) {
@@ -1501,5 +1581,5 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
       };
     },
   };
+  return module;
 }
-

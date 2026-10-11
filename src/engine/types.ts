@@ -69,6 +69,8 @@ export interface GameOption {
   min?: number;
   max?: number;
   step?: number;
+  /** A number option shown as named choices: the value is the index ("Easy", "Normal", "Hard"). */
+  choices?: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -237,6 +239,8 @@ export interface GameModule<D = any> {
   system?(s: GameState<D>): { delay: number; run: (s: GameState<D>) => void } | null;
   /** Pick an action for a bot seat, or null if it has nothing to do. */
   bot?(s: GameState<D>, seat: number): Action | null;
+  /** The bot searches when the `botLevel` option is above Easy (the lobby offers the setting). */
+  botLevels?: boolean;
   /** Remove private information from `data` for `viewer` (-1 = spectator). */
   redactData?(s: GameState<D>, viewer: number): D;
   status(s: GameState<D>, viewer: number): GameStatus;

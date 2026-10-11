@@ -76,7 +76,7 @@ describe('oh hell (config only)', () => {
   const g = GAMES['oh-hell'] as GameModule<TrickData>;
 
   it('deals 10 down to 1 and back up by default (pagat)', () => {
-    const s = g.setup(bots(4), 7, Object.fromEntries((g.config.options ?? []).map((o) => [o.id, o.default])));
+    const s = g.setup(bots(4), 7, { ...Object.fromEntries((g.config.options ?? []).map((o) => [o.id, o.default])), botLevel: 0 });
     expect(s.data.handSize).toBe(10);
     const s6 = g.setup(bots(6), 7, { maxHand: 10 });
     expect(s6.data.handSize).toBe(8);

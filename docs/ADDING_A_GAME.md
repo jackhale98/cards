@@ -168,3 +168,11 @@ A zone can set `"scale"` (e.g. `0.6`) to draw its cards smaller than other table
 `"area": "strip"` to sit in one row beside the centre piles that scrolls sideways instead of
 wrapping. Rummy 500 uses both for everyone's melds, so a busy table still fits on a phone.
 
+
+## Smarter bots
+
+`src/engine/bots/search.ts` is a game-agnostic Monte Carlo bot. A family supplies a `SearchGame`:
+how to re-deal the cards a player can't see (`determinize`), the moves to compare, and how to play
+a copy on to the end of the hand with its quick heuristic bot (`rollout`) and score it. Set
+`botLevels: true` on the module and the lobby offers a **Bots: Easy / Normal / Hard** setting
+(`botLevel` 0–2); Easy uses the heuristics alone. See the trick-taking family for an example.

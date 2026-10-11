@@ -169,7 +169,13 @@
           {#each game.config.options as o (o.id)}
             <label class="opt">
               <span>{o.label}</span>
-              {#if o.type === 'number'}
+              {#if o.choices}
+                <span class="seg">
+                  {#each o.choices as c, i (c)}
+                    <button class:on={Number(lobby.options[o.id]) === i} disabled={!host} onclick={() => host?.setOption(o.id, i)}>{c}</button>
+                  {/each}
+                </span>
+              {:else if o.type === 'number'}
                 <span class="stepper">
                   <button disabled={!host} onclick={() => host?.setOption(o.id, Math.max(o.min ?? 0, Number(lobby.options[o.id]) - (o.step ?? 1)))}>−</button>
                   <b>{lobby.options[o.id]}</b>
@@ -471,6 +477,26 @@
   }
   .stepper button:disabled {
     opacity: 0.3;
+  }
+  .seg {
+    display: inline-flex;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .seg button {
+    padding: 0 0.8rem;
+    height: 34px;
+    font-size: 0.82rem;
+    color: var(--ink-dim);
+  }
+  .seg button.on {
+    background: var(--gold);
+    color: #1a1408;
+    font-weight: 600;
+  }
+  .seg button:disabled:not(.on) {
+    opacity: 0.45;
   }
   .stepper b {
     min-width: 3.2rem;

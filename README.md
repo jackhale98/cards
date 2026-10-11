@@ -13,7 +13,8 @@ the middle of the table. It needs no accounts or app store, and there's no serve
 - **Rules follow [pagat.com](https://www.pagat.com)**, with common variants as lobby options (25-point gin bonuses, defending alone in euchre, Oh Hell's short ladder…).
 - **Always know what just happened:** the last move appears under the headline, pops up as a
   bubble on that player's seat, and poker seats show each player's action this street.
-- **Bots** fill empty seats in every rules-enforced game.
+- **Bots** fill empty seats in every rules-enforced game. In trick-taking games they think ahead (Easy / Normal / Hard in the lobby): they imagine
+  the hidden cards many times over and play each choice out, with a hard time cap so phones stay cool.
 - **Pick your look:** each player chooses an emoji avatar and colour, and every seat is labelled
   *your left*, *across* or *your right*.
 - **Built for landscape phones:** fanned hand, tap or swipe up to play, haptics, and keeps the screen awake.

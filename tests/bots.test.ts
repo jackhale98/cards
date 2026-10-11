@@ -11,7 +11,7 @@ function playDeal(g: GameModule, seed: number, n: number): string | null {
   const s: GameState = g.setup(
     Array.from({ length: n }, (_, i) => ({ name: `B${i}`, bot: true })),
     seed,
-    Object.fromEntries((g.config.options ?? []).map((o) => [o.id, o.default])),
+    { ...Object.fromEntries((g.config.options ?? []).map((o) => [o.id, o.default])), botLevel: 0 },
   );
   const start = s.phase;
   for (let i = 0; i < 2000; i++) {

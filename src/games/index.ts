@@ -12,7 +12,10 @@ const custom = import.meta.glob<GameModule>('./*/rules.ts', { eager: true, impor
 export const GAMES: Record<string, GameModule> = {};
 for (const [path, config] of Object.entries(configs)) {
   const dir = path.slice(0, path.lastIndexOf('/'));
-  GAMES[config.id] = custom[`${dir}/rules.ts`] ?? moduleFor(config);
+  const g = (GAMES[config.id] = custom[`${dir}/rules.ts`] ?? moduleFor(config));
+  // games whose bots can think harder get the strength setting
+  if (g.botLevels && !g.config.options?.some((o) => o.id === 'botLevel'))
+    g.config.options = [...(g.config.options ?? []), { id: 'botLevel', label: 'Bots', type: 'number', choices: ['Easy', 'Normal', 'Hard'], default: 1 }];
 }
 
 /** Game picker order: alphabetical by name, with the rules-free Free Table last. */
