@@ -54,9 +54,9 @@ is a different combination of the same parameters.
 | `breaks` | a suit that can't be led until it has been played |
 | `noPointsFirstTrick` | no point cards on the first trick unless you have no choice |
 | `teams` | partnerships, e.g. `[[0, 2], [1, 3]]` |
-| `bidding` | `{ "nil": true, "hook": true }` (bid a number of tricks; hook: the dealer can't make bids total the tricks), `{ "type": "euchre", "stickTheDealer": true, "alone": true }` (order up / name trumps; needs an `upcard` zone), `{ "type": "auction", "schedule": "avondale" }` (500 bids), or `{ "type": "bridge" }` (contract bridge auction with doubles; the declarer plays a face-up `dummy` zone) |
+| `bidding` | `{ "nil": true, "hook": true }` (bid a number of tricks; hook: the dealer can't make bids total the tricks), `{ "type": "euchre", "stickTheDealer": true, "alone": true }` (order up / name trumps; needs an `upcard` zone), `{ "type": "auction", "schedule": "avondale", "misere": true }` (500 bids, optionally with misère and open misère), or `{ "type": "bridge" }` (contract bridge auction with doubles; the declarer plays a face-up `dummy` zone) |
 | `scoring` | `penalty` (`cardPoints`, `moon`), `contract` (`bags`, `nil`), `exact` (`bonus`), `tricks`, `euchre`, `auction` (`perTrick`, `slam`), or `bridge` (duplicate scores, Chicago vulnerability) |
-| `end` | `{ "target": 100, "lowWins": true }`, `{ "rounds": true }` (play through `handSizes` once), or `{ "deals": 4 }` (a fixed number of deals; option `deals` overrides) |
+| `end` | `{ "target": 100, "lowWins": true }`, `{ "rounds": true }` (play through `handSizes` once), `{ "deals": 4 }` (a fixed number of deals; option `deals` overrides); add `"loseAt": -500` to lose at a score. Auction games are won only by making a bid unless option `bidToWin` is off |
 
 ### Poker parameters
 

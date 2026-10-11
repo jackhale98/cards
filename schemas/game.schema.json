@@ -422,6 +422,10 @@
                     },
                     "schedule": {
                       "const": "avondale"
+                    },
+                    "misere": {
+                      "type": "boolean",
+                      "description": "Allow misère (250, over a seven) and open misère (500, any time below 10♥). Needs a `dummy` zone for the open hand."
                     }
                   }
                 },
@@ -585,6 +589,10 @@
                 "deals": {
                   "type": "number",
                   "description": "Play this many deals (option `deals` overrides)."
+                },
+                "loseAt": {
+                  "type": "number",
+                  "description": "A side at or below this score loses (500: -500)."
                 }
               }
             },

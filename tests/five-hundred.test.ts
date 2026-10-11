@@ -36,7 +36,7 @@ describe('500', () => {
     const first = s.turn!;
     g.apply(s, first, { type: 'bid500', amount: bidValue(s, first, '7\u2009♠') });
     const second = s.turn!;
-    expect(g.actions(s, second).find((a) => a.type === 'bid500')!.choose!.options.every((o) => Number(o.label.split('· ')[1]) > 140)).toBe(true);
+    expect(g.actions(s, second).find((a) => a.type === 'bid500')!.choose!.options.filter((o) => !o.disabled).every((o) => Number(o.label.split('· ')[1]) > 140)).toBe(true);
     g.apply(s, second, { type: 'decline' });
     g.apply(s, s.turn!, { type: 'decline' });
     g.apply(s, s.turn!, { type: 'decline' });
@@ -97,8 +97,91 @@ describe('500', () => {
     expect(finish({ tricks: 7, suit: 'S', value: 140 }, 8)).toEqual([140, 20]);
     expect(finish({ tricks: 8, suit: 'S', value: 240 }, 7)).toEqual([-240, 30]);
     expect(finish({ tricks: 7, suit: 'S', value: 140 }, 10)).toEqual([250, 0]); // slam is worth at least 250
-    // defenders can't reach 500 on tricks alone
-    expect(finish({ tricks: 7, suit: 'S', value: 140 }, 7, [0, 480])).toEqual([140, 490]);
+    // defence points count, but reaching 500 on defence doesn't win
+    expect(finish({ tricks: 7, suit: 'S', value: 140 }, 7, [0, 480])).toEqual([140, 510]);
+  });
+
+  /** Rig the last trick of a hand: seat 0 (with `contract`) leads `AS`. */
+  function lastTrick(contract: object, scores: number[], makerTricks: number, options = {}) {
+    const s = g.setup(bots, 5, options);
+    for (const z of Object.values(s.zones)) z.cards = [];
+    Object.assign(s.data, { trump: 'S', maker: 0, contract, trickNo: 9, handSize: 10, tricks: [makerTricks - 1, 9 - makerTricks + 1, 0, 0], scores });
+    s.zones['hand:0'].cards = [{ id: 'AS' }];
+    ['5C', '6C', '7C'].forEach((id, k) => (s.zones[`hand:${k + 1}`].cards = [{ id }]));
+    s.phase = 'play';
+    s.turn = 0;
+    for (const i of [0, 1, 2, 3]) g.apply(s, i, { type: 'play', cards: [s.zones[`hand:${i}`].cards[0].id] });
+    g.system!(s)!.run(s);
+    return s;
+  }
+
+  it('wins only by making a bid (unless that option is off), and loses at −500', () => {
+    const c = { tricks: 7, suit: 'S', value: 140 };
+    expect(lastTrick(c, [0, 480], 7).phase).toBe('roundOver'); // defenders on 510: not a win
+    const won = lastTrick(c, [400, 0], 8);
+    expect(won.phase).toBe('gameOver');
+    expect(won.winner).toEqual([0, 2]);
+    const anyway = lastTrick(c, [0, 480], 7, { bidToWin: false });
+    expect(anyway.phase).toBe('gameOver');
+    expect(anyway.winner).toEqual([1, 3]);
+    const back = lastTrick({ tricks: 8, suit: 'S', value: 240 }, [-300, 0], 7);
+    expect(back.data.scores[0]).toBe(-540);
+    expect(back.phase).toBe('gameOver');
+    expect(back.winner).toEqual([1, 3]);
+  });
+
+  it('misère ranks over the sevens; open misère can be bid any time', () => {
+    const s = g.setup(bots, 2, {});
+    const first = s.turn!;
+    const types = (seat: number) => g.actions(s, seat).map((a) => a.type);
+    expect(types(first)).toContain('openMisere');
+    expect(types(first)).not.toContain('misere');
+    g.apply(s, first, { type: 'bid500', amount: bidValue(s, first, '7\u2009♠') });
+    expect(types(s.turn!)).toContain('misere');
+    g.apply(s, s.turn!, { type: 'misere' });
+    expect(s.data.contract!.misere).toBe('closed');
+    // only eights and up (and open misère) beat it
+    const grid = g.actions(s, s.turn!).find((a) => a.type === 'bid500')!.choose!.options.filter((o) => !o.disabled);
+    expect(grid.every((o) => o.label.startsWith('8') || o.label.startsWith('9') || o.label.startsWith('10'))).toBe(true);
+  });
+
+  it('plays misère alone: partner sits out, the first trick taken ends it', () => {
+    const s = g.setup(bots, 3, {});
+    const first = s.turn!;
+    g.apply(s, first, { type: 'openMisere' });
+    for (let i = 0; i < 3; i++) g.apply(s, s.turn!, { type: 'decline' });
+    expect(s.data.sittingOut).toBe((first + 2) % 4);
+    g.apply(s, first, { type: 'bury', cards: ids(s, `hand:${first}`).slice(-3) });
+    expect(s.turn).toBe(first);
+    // play tricks with bots until the hand ends
+    let exposedSeen = false;
+    for (let i = 0; i < 200 && s.phase !== 'roundOver' && s.phase !== 'gameOver'; i++) {
+      const sys = g.system?.(s);
+      if (sys) sys.run(s);
+      else {
+        const seat = s.players.findIndex((p) => g.bot!(s, p.seat));
+        g.apply(s, seat, g.bot!(s, seat)!);
+      }
+      if (s.data.exposed === first) exposedSeen = true;
+    }
+    const tricks = s.data.tricks[first];
+    expect(tricks).toBeLessThanOrEqual(1);
+    const team = first % 2;
+    expect(s.data.scores[team]).toBe(tricks ? -500 : 500);
+    expect(s.data.scores[1 - team]).toBe(0);
+    if (s.data.trickNo > 1 || !tricks) expect(exposedSeen).toBe(true);
+  });
+
+  it('misère: a player who cannot follow must play the joker', () => {
+    const s = g.setup(bots, 4, {});
+    for (const z of Object.values(s.zones)) z.cards = [];
+    Object.assign(s.data, { trump: null, maker: 0, contract: { tricks: 0, suit: 'NT', value: 250, misere: 'closed' }, sittingOut: 2, trickNo: 0, handSize: 10, tricks: [0, 0, 0, 0] });
+    s.zones['hand:0'].cards = [{ id: '5H' }];
+    s.zones['hand:1'].cards = [{ id: 'X1' }, { id: 'KC' }];
+    s.phase = 'play';
+    s.turn = 0;
+    g.apply(s, 0, { type: 'play', cards: ['5H'] });
+    expect(g.actions(s, 1).find((a) => a.type === 'play')!.select!.cards).toEqual(['X1']);
   });
 
   it('plays full games with bots', () => {

@@ -11,6 +11,7 @@
     { "id": "deck", "visibility": "none", "layout": "stack", "area": "none" },
     { "id": "kitty", "visibility": "none", "layout": "stack", "area": "none" },
     { "id": "hand", "perPlayer": true, "visibility": "owner", "layout": "fan", "area": "hand" },
+    { "id": "dummy", "label": "Open hand", "visibility": "all", "layout": "spread", "area": "center", "hideEmpty": true },
     { "id": "trick", "label": "Trick", "visibility": "all", "layout": "trick", "area": "center" },
     { "id": "taken", "perPlayer": true, "visibility": "none", "layout": "stack", "area": "none" }
   ],
@@ -23,17 +24,20 @@
     "bowers": true,
     "joker": true,
     "teams": [[0, 2], [1, 3]],
-    "bidding": { "type": "auction", "schedule": "avondale" },
+    "bidding": { "type": "auction", "schedule": "avondale", "misere": true },
     "scoring": { "type": "auction", "perTrick": 10, "slam": 250 },
-    "end": { "target": 500 }
+    "end": { "target": 500, "loseAt": -500 }
   },
   "options": [
-    { "id": "target", "label": "Play to", "type": "number", "default": 500, "min": 250, "max": 1000, "step": 50 }
+    { "id": "target", "label": "Play to", "type": "number", "default": 500, "min": 250, "max": 1000, "step": 50 },
+    { "id": "bidToWin", "label": "Only win by making a bid", "type": "boolean", "default": true }
   ],
   "rulesSummary": [
     "Partners sit across. 43 cards (4s to aces without the black 4s, plus a joker): 10 each and a kitty of 3.",
     "Bid how many tricks (6–10) your team will take and in which suit or no trumps. Values follow the Avondale table: 6♠ is 40, each suit up is +20, each trick +100 (10 NT is 520).",
     "The winner takes the kitty, discards 3 and leads. Trumps: joker, right bower (jack of trumps), left bower (other jack of that colour), then A K Q…",
-    "Make it and score the bid (all 10 tricks is at least 250); fail and lose it. Opponents score 10 per trick. First to 500."
+    "Misère (250, only over a seven): take no tricks at all, playing alone with no trumps. Open misère (500, any time): the same, with your hand face up after the first trick. If you can't follow suit you must play the joker.",
+    "Make it and score the bid (all 10 tricks is at least 250); fail and lose it. Opponents score 10 per trick (nothing against misère).",
+    "Win by reaching 500 with a bid you make — points on defence alone don't win. Fall to −500 and you lose."
   ]
 }

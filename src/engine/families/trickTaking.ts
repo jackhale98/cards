@@ -47,7 +47,7 @@ export interface TrickRules {
   bidding?:
     | { type?: 'tricks'; nil?: boolean; hook?: boolean }
     | { type: 'euchre'; stickTheDealer?: boolean; alone?: boolean }
-    | { type: 'auction'; schedule: 'avondale' }
+    | { type: 'auction'; schedule: 'avondale'; misere?: boolean }
     | { type: 'bridge' };
   scoring:
     | { type: 'penalty'; cardPoints: Record<string, number>; moon?: boolean }
@@ -57,7 +57,8 @@ export interface TrickRules {
     | { type: 'euchre' }
     | { type: 'auction'; perTrick: number; slam?: number }
     | { type: 'bridge' };
-  end: { target?: number; lowWins?: boolean; rounds?: boolean; deals?: number };
+  /** `loseAt`: a side at or below this score loses (500: −500). */
+  end: { target?: number; lowWins?: boolean; rounds?: boolean; deals?: number; loseAt?: number };
 }
 
 /** A 500 bid: tricks (6–10) in a suit or no trumps. */
@@ -65,16 +66,28 @@ export interface Contract {
   tricks: number;
   suit: Suit | 'NT';
   value: number;
+  /** Misère: take no tricks, partner sits out (open: hand face up after the first trick). */
+  misere?: 'closed' | 'open';
 }
 
 /** 500's Avondale schedule: 6♠ 40 … 10NT 520 (spades, clubs, diamonds, hearts, no trumps). */
 const AVONDALE_SUITS: (Suit | 'NT')[] = ['S', 'C', 'D', 'H', 'NT'];
 export const avondale = (tricks: number, suit: Suit | 'NT') => 40 + (tricks - 6) * 100 + AVONDALE_SUITS.indexOf(suit) * 20;
-const ALL_BIDS: Contract[] = [6, 7, 8, 9, 10]
+const SUIT_BIDS: Contract[] = [6, 7, 8, 9, 10]
   .flatMap((t) => AVONDALE_SUITS.map((suit) => ({ tricks: t, suit, value: avondale(t, suit) })))
   .sort((a, b) => a.value - b.value);
+export const MISERE: Contract = { tricks: 0, suit: 'NT', value: 250, misere: 'closed' };
+export const OPEN_MISERE: Contract = { tricks: 0, suit: 'NT', value: 500, misere: 'open' };
+/** Every 500 bid from lowest to highest: misère ranks above the sevens, open misère between 10♦ and 10♥. */
+const ALL_BIDS: Contract[] = (() => {
+  const out = [...SUIT_BIDS];
+  out.splice(out.findIndex((b) => b.tricks === 8), 0, MISERE);
+  out.splice(out.findIndex((b) => b.tricks === 10 && b.suit === 'H'), 0, OPEN_MISERE);
+  return out;
+})();
 // a thin space keeps a bid ("6 ♦") from reading as a card ("6♦")
-const contractLabel = (c: Contract) => `${c.tricks}\u2009${c.suit === 'NT' ? 'NT' : SUIT_SYMBOL[c.suit]}`;
+const contractLabel = (c: Contract) =>
+  c.misere ? (c.misere === 'open' ? 'Open misère' : 'Misère') : `${c.tricks}\u2009${c.suit === 'NT' ? 'NT' : SUIT_SYMBOL[c.suit]}`;
 const SAME_COLOUR: Record<Suit, Suit> = { S: 'C', C: 'S', H: 'D', D: 'H' };
 /** Suits by index, for "name trumps" choices. */
 const NAMEABLE: Suit[] = ['S', 'H', 'D', 'C'];
@@ -144,6 +157,8 @@ export interface TrickData {
   maker?: number | null;
   /** Partner of a player going alone (doesn't play this hand). */
   sittingOut?: number | null;
+  /** 500: an open misère hand on the table (after the first trick). */
+  exposed?: number | null;
   /** 500: the winning bid so far / the contract, and who has passed. */
   contract?: Contract | null;
   passedOut?: boolean[];
@@ -204,6 +219,7 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
     d.maker = null;
     d.sittingOut = null;
     d.contract = null;
+    d.exposed = null;
     d.passedOut = s.players.map(() => false);
     d.declines = 0;
     d.bidRound = 1;
@@ -290,6 +306,8 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
     const d = s.data;
     d.maker = seat;
     d.trump = d.contract!.suit === 'NT' ? null : d.contract!.suit;
+    // misère is played alone: partner's cards stay face down
+    if (d.contract!.misere) d.sittingOut = (seat + 2) % s.players.length;
     log(s, `${name(s, seat)} wins the bid: ${contractLabel(d.contract!)} (${d.contract!.value})`, seat, contractLabel(d.contract!));
     moveCards(s, 'deck', `hand:${seat}`, ids(zone(s, 'deck')));
     sortHand(s, seat, { trump: d.trump });
@@ -350,10 +368,17 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
 
   /** Who acts on the current turn: the declarer plays for the dummy once it's on the table. */
   const controller = (s: S) => (s.turn != null && s.data.dummyUp && s.turn === s.data.dummy ? s.data.maker! : s.turn);
-  const sourceZone = (s: S, seat: number) => (s.data.dummyUp && seat === s.data.dummy ? 'dummy' : `hand:${seat}`);
+  /** Where a seat plays from: its hand, or the table (a bridge dummy / an open misère hand). */
+  const sourceZone = (s: S, seat: number) => ((s.data.dummyUp && seat === s.data.dummy) || s.data.exposed === seat ? 'dummy' : `hand:${seat}`);
 
   /** Bids still open to `seat` in a 500 auction. */
-  const higherBids = (s: S) => ALL_BIDS.filter((b) => b.value > (s.data.contract?.value ?? 0));
+  /** Bids that may be made now: higher-ranked, with misère only once someone has bid seven. */
+  const higherBids = (s: S) => {
+    const cur = s.data.contract;
+    const at = cur ? ALL_BIDS.indexOf(cur) : -1;
+    return ALL_BIDS.filter((b, i) => i > at && (!b.misere || (auction?.misere && (b.misere === 'open' || cur?.tricks === 7))));
+  };
+  const isMisere = (s: S) => !!s.data.contract?.misere && s.data.maker != null;
 
   /** The suit a card belongs to this hand: the left bower is a trump, a joker is trump (or its own suit in no trumps). */
   function suitFor(id: string, trump: Suit | null): string {
@@ -394,6 +419,9 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
       return cards;
     }
     const legal = followSuit(cards, suitOf(s, trick[0].id) as Suit, (c) => suitOf(s, c) as Suit);
+    // misère: a player who can't follow suit must play the joker
+    const joker = cards.find((c) => parseCard(c).suit === 'X');
+    if (isMisere(s) && joker && legal.length === cards.length && !cards.some((c) => suitOf(s, c) === suitOf(s, trick[0].id))) return [joker];
     if (d.trickNo === 0 && R.noPointsFirstTrick) {
       const clean = legal.filter((c) => !pointsOf(c));
       if (clean.length) return clean;
@@ -422,6 +450,18 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
     log(s, `${name(s, winner)} wins the trick${pts ? ` (+${pts})` : ''}`, winner, pts ? `Won trick +${pts}` : 'Won trick');
     d.trickNo++;
     if (d.trickNo === d.handSize) return endRound(s);
+    if (isMisere(s) && winner === d.maker) {
+      log(s, `${name(s, winner)} has taken a trick — the misère fails`);
+      return endRound(s);
+    }
+    if (d.contract?.misere === 'open' && d.trickNo === 1 && d.exposed == null) {
+      // open misère: after the first trick the contractor's hand goes face up
+      const seat = d.maker!;
+      moveCards(s, `hand:${seat}`, 'dummy', ids(hand(s, seat)), { up: true });
+      for (const c of zone(s, 'dummy').cards) c.group = 'SHDCX'.indexOf(parseCard(c.id).suit);
+      d.exposed = seat;
+      log(s, `${name(s, seat)} lays their hand face up`, seat, 'Open hand');
+    }
     s.phase = 'play';
     s.turn = winner;
   }
@@ -470,6 +510,13 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
     } else if (sc.type === 'auction') {
       const c = d.contract!;
       const makers = teamOf(s, d.maker!);
+      if (c.misere) {
+        // the contractor alone must take nothing; the opponents score nothing either way
+        const made = d.tricks[d.maker!] === 0;
+        deltas[makers] = made ? c.value : -c.value;
+        lines.push(`${name(s, d.maker!)} ${made ? 'makes' : 'fails'} ${contractLabel(c)}: ${made ? '+' : '−'}${c.value}`);
+        return { deltas, lines };
+      }
       teams.forEach((t, ti) => {
         const won = t.reduce((n, i) => n + d.tricks[i], 0);
         if (ti === makers) {
@@ -478,8 +525,7 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
           deltas[ti] = made ? value : -c.value;
           lines.push(`${teamName(s, ti)} ${made ? 'make' : 'go down on'} ${contractLabel(c)} with ${won} tricks: ${made ? '+' : '−'}${Math.abs(deltas[ti])}`);
         } else {
-          // defenders score per trick, but can't win the game on tricks alone
-          deltas[ti] = Math.max(0, Math.min(won * sc.perTrick, target(s) - 10 - d.scores[ti]));
+          deltas[ti] = won * sc.perTrick;
           lines.push(`${teamName(s, ti)}: ${won} tricks, +${deltas[ti]}`);
         }
       });
@@ -526,6 +572,7 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
     );
     d.result = { lines };
     s.turn = null;
+    if (auction) return endAuctionRound(s, deltas, lines);
     const best = lowWins ? Math.min(...d.scores) : Math.max(...d.scores);
     const reached = R.end.deals
       ? d.round + 1 >= Number(s.options.deals ?? R.end.deals)
@@ -537,6 +584,33 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
     if (reached) {
       const teams = teamsFor(s.players.length);
       s.winner = teams.flatMap((t, ti) => (d.scores[ti] === best ? t : []));
+      s.phase = 'gameOver';
+    } else s.phase = 'roundOver';
+  }
+
+  /**
+   * 500: a side wins by reaching the target with a successful bid (unless the `bidToWin` option is
+   * off, when any side reaching it wins); a side at the `loseAt` score loses.
+   */
+  function endAuctionRound(s: S, deltas: number[], lines: string[]) {
+    const d = s.data;
+    const teams = teamsFor(s.players.length);
+    const makers = teamOf(s, d.maker!);
+    const bidToWin = s.options.bidToWin ?? true;
+    let winners: number[] = [];
+    if (deltas[makers] > 0 && d.scores[makers] >= target(s)) winners = [makers];
+    else if (!bidToWin) {
+      const best = Math.max(...d.scores);
+      if (best >= target(s)) winners = teams.map((_, ti) => ti).filter((ti) => d.scores[ti] === best);
+    }
+    const loseAt = R.end.loseAt;
+    if (!winners.length && loseAt != null && d.scores.some((x) => x <= loseAt)) {
+      winners = teams.map((_, ti) => ti).filter((ti) => d.scores[ti] > loseAt);
+      for (const ti of teams.keys()) if (d.scores[ti] <= loseAt) lines.push(`${teamName(s, ti)} go out the back door at ${d.scores[ti]}`);
+    }
+    if (bidToWin && !winners.length && d.scores.some((x, ti) => x >= target(s) && ti !== makers)) lines.push(`(A side has to make a bid to win — reaching ${target(s)} on defence isn't enough)`);
+    if (winners.length) {
+      s.winner = winners.flatMap((ti) => teams[ti]);
       s.phase = 'gameOver';
     } else s.phase = 'roundOver';
   }
@@ -566,6 +640,7 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
   function wantsTricks(s: S, seat: number): boolean {
     const d = s.data;
     if (R.scoring.type === 'penalty') return false;
+    if (isMisere(s)) return false; // the contractor ducks; defenders keep low to make them win one
     if (R.scoring.type === 'tricks' || R.scoring.type === 'euchre' || R.scoring.type === 'auction' || R.scoring.type === 'bridge') return true;
     if (d.bids[seat] === 0 && nilAllowed) return false;
     if (R.scoring.type === 'exact') return d.tricks[seat] < (d.bids[seat] ?? 0);
@@ -618,8 +693,15 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
     const capacity = new Map<Suit | 'NT', number>(
       ([...NAMEABLE, 'NT'] as (Suit | 'NT')[]).map((x) => [x, Math.floor(strength(cards, x === 'NT' ? null : x) + help)]),
     );
-    const options = higherBids(s).filter((b) => b.tricks <= (capacity.get(b.suit) ?? 0));
-    return options.length ? { type: 'bid500', amount: ALL_BIDS.indexOf(options[0]) } : { type: 'decline' };
+    const open = higherBids(s);
+    const options = open.filter((b) => !b.misere && b.tricks <= (capacity.get(b.suit) ?? 0));
+    if (options.length) return { type: 'bid500', amount: ALL_BIDS.indexOf(options[0]) };
+    // a hand of nothing but low cards (and no joker) can go misère
+    const parsed = cards.map(parseCard);
+    const low = parsed.every((c) => c.suit !== 'X' && c.rank <= 10) && parsed.filter((c) => c.rank >= 9).length <= 1;
+    if (low && parsed.every((c) => c.rank <= 8) && open.includes(OPEN_MISERE)) return { type: 'bid500', amount: ALL_BIDS.indexOf(OPEN_MISERE) };
+    if (low && open.includes(MISERE)) return { type: 'bid500', amount: ALL_BIDS.indexOf(MISERE) };
+    return { type: 'decline' };
   }
 
   /**
@@ -711,7 +793,8 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
     const d = s.data;
     const k = auction ? (R.kitty ?? 3) : 1;
     const cards = ids(hand(s, seat));
-    const weight = (c: string) => (suitOf(s, c) === d.trump ? 100 : 0) + rankOf(s, c) + cards.filter((x) => suitOf(s, x) === suitOf(s, c)).length * 0.5;
+    const weight = (c: string) =>
+      d.contract?.misere ? -rankOf(s, c) : (suitOf(s, c) === d.trump ? 100 : 0) + rankOf(s, c) + cards.filter((x) => suitOf(s, x) === suitOf(s, c)).length * 0.5;
     return { type: 'bury', cards: [...cards].sort((a, b) => weight(a) - weight(b)).slice(0, k) };
   }
 
@@ -813,8 +896,15 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
         if (euchreBids?.alone) out.push({ type: 'nameAlone', label: 'Name & go alone', choose: { label: 'Trumps — going alone', options } });
         if (!(euchreBids?.stickTheDealer && seat === s.dealer)) out.push({ type: 'decline', label: 'Pass', style: 'quiet' });
       } else if (s.phase === 'auction' && s.turn === seat) {
-        const options = higherBids(s).map((b) => ({ value: ALL_BIDS.indexOf(b), label: `${contractLabel(b)} · ${b.value}` }));
-        if (options.length) out.push({ type: 'bid500', label: 'Bid', style: 'primary', choose: { label: d.contract ? `Bid over ${contractLabel(d.contract)}` : 'Your bid', options } });
+        const open = higherBids(s);
+        // suit bids in whole rows of five (bids already passed greyed out); misère gets its own buttons
+        const first = open.find((b) => !b.misere);
+        const options = first
+          ? SUIT_BIDS.filter((b) => b.tricks >= first.tricks).map((b) => ({ value: ALL_BIDS.indexOf(b), label: `${contractLabel(b)} · ${b.value}`, disabled: !open.includes(b) }))
+          : [];
+        if (first) out.push({ type: 'bid500', label: 'Bid', style: 'primary', choose: { label: d.contract ? `Bid over ${contractLabel(d.contract)}` : 'Your bid', options } });
+        if (open.includes(MISERE)) out.push({ type: 'misere', label: 'Misère · 250' });
+        if (open.includes(OPEN_MISERE)) out.push({ type: 'openMisere', label: 'Open misère · 500' });
         out.push({ type: 'decline', label: 'Pass', style: 'quiet' });
       } else if (s.phase === 'call' && s.turn === seat) {
         const a = auctionState(s);
@@ -894,10 +984,12 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
           assertRule(suit && suit !== parseCard(d.upcard!).suit, 'Choose a different suit from the turned-down card');
           return makeTrumps(s, seat, suit, a.type === 'nameAlone', false);
         }
+        case 'misere':
+        case 'openMisere':
         case 'bid500': {
           assertRule(s.phase === 'auction' && s.turn === seat, 'Not your turn to bid');
-          const bid = ALL_BIDS[a.amount ?? -1];
-          assertRule(bid && bid.value > (d.contract?.value ?? 0), 'Bid higher than the current bid');
+          const bid = a.type === 'misere' ? MISERE : a.type === 'openMisere' ? OPEN_MISERE : ALL_BIDS[a.amount ?? -1];
+          assertRule(bid && higherBids(s).includes(bid), bid?.misere === 'closed' ? 'Misère can only be bid over a seven' : 'Bid higher than the current bid');
           d.contract = bid;
           d.maker = seat;
           log(s, `${who} bids ${contractLabel(bid)} (${bid.value})`, seat, contractLabel(bid));
@@ -1082,7 +1174,7 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
       } else if (s.phase === 'roundOver') headline = 'Hand complete';
       else if (s.phase === 'gameOver') headline = 'Game over';
       if (d.trump && s.phase !== 'gameOver') headline += ` · trumps ${SUIT_SYMBOL[d.trump]}`;
-      else if (auction && d.contract && d.maker != null && s.phase === 'play') headline += ' · no trumps';
+      else if (auction && d.contract && d.maker != null && s.phase === 'play') headline += d.contract.misere ? ` · ${contractLabel(d.contract)}` : ' · no trumps';
 
       const seatBadge = (i: number) => {
         if (s.phase === 'pass' && d.passes[i]) return 'Passed ✓';
@@ -1097,7 +1189,7 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
         }
         if (euchreBids || auction) {
           const role =
-            d.sittingOut === i ? 'Sitting out' : d.maker === i && (s.phase === 'play' || s.phase === 'trickEnd' || s.phase === 'discard') ? (d.sittingOut != null ? 'Alone' : auction ? contractLabel(d.contract!) : 'Maker') : auction && d.passedOut?.[i] && s.phase === 'auction' ? 'Passed' : '';
+            d.sittingOut === i ? 'Sitting out' : d.maker === i && (s.phase === 'play' || s.phase === 'trickEnd' || s.phase === 'discard') ? (auction ? contractLabel(d.contract!) : d.sittingOut != null ? 'Alone' : 'Maker') : auction && d.passedOut?.[i] && s.phase === 'auction' ? 'Passed' : '';
           return [role, s.phase === 'play' || s.phase === 'trickEnd' ? `${d.tricks[i]} tricks` : '', `${d.scores[teamOf(s, i)]} pts`].filter(Boolean).join(' · ');
         }
         const parts: string[] = [];
