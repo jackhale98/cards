@@ -2,6 +2,7 @@
   import type { Relation } from '../../engine/state';
   import type { ActionSpec } from '../../engine/types';
   import type { Avatar } from '../../net/protocol';
+  import AmountSheet from './AmountSheet.svelte';
   import AvatarBadge from './AvatarBadge.svelte';
 
   interface Props {
@@ -18,7 +19,6 @@
   const RELATION: Record<Relation, string> = { left: '◂ Your left', right: 'Your right ▸', across: 'Across' };
 
   let amountFor = $state<ActionSpec | null>(null);
-  let amount = $state(0);
   let menuOpen = $state(false);
 
   // With many options, card actions only appear once a matching selection is made.
@@ -50,28 +50,11 @@
     }
     if (a.amount) {
       amountFor = a;
-      amount = a.amount.default;
       return;
     }
     onact(a);
   }
 
-  function confirmAmount() {
-    if (amountFor) onact(amountFor, amount);
-    amountFor = null;
-  }
-
-  const presets = $derived.by(() => {
-    const a = amountFor?.amount;
-    if (!a) return [];
-    const opts: { label: string; v: number }[] = [{ label: 'Min', v: a.min }];
-    if (pot > 0 && a.label === 'chips') {
-      opts.push({ label: '½ pot', v: Math.round(pot / 2) });
-      opts.push({ label: 'Pot', v: pot });
-    }
-    opts.push({ label: 'Max', v: a.max });
-    return opts.filter((o) => o.v >= a.min && o.v <= a.max);
-  });
 </script>
 
 <div class="bar">
@@ -127,32 +110,15 @@
 {/if}
 
 {#if amountFor?.amount}
-  {@const spec = amountFor.amount}
-  <button class="scrim" onclick={() => (amountFor = null)} aria-label="Cancel"></button>
-  <div class="sheet panel">
-    <div class="eyebrow">{amountFor.label}</div>
-    <div class="amount">{amount.toLocaleString()} <small>{spec.label ?? ''}</small></div>
-    {#if (spec.max - spec.min) / spec.step <= 15}
-      <!-- small ranges (bids, deal counts): one tap per number -->
-      <div class="numbers">
-        {#each { length: (spec.max - spec.min) / spec.step + 1 } as _, i}
-          {@const v = spec.min + i * spec.step}
-          <button class="num" class:on={v === amount} onclick={() => (amount = v)}>{v}</button>
-        {/each}
-      </div>
-    {:else}
-      <input type="range" min={spec.min} max={spec.max} step={spec.step} bind:value={amount} />
-      <div class="presets">
-        {#each presets as p}
-          <button class="btn" onclick={() => (amount = p.v)}>{p.label}</button>
-        {/each}
-      </div>
-    {/if}
-    <div class="row">
-      <button class="btn quiet" onclick={() => (amountFor = null)}>Cancel</button>
-      <button class="btn primary" onclick={confirmAmount}>{amountFor.label} {amount.toLocaleString()}</button>
-    </div>
-  </div>
+  <AmountSheet
+    spec={amountFor}
+    {pot}
+    oncancel={() => (amountFor = null)}
+    onconfirm={(v) => {
+      onact(amountFor!, v);
+      amountFor = null;
+    }}
+  />
 {/if}
 
 <style>
@@ -246,6 +212,10 @@
     max-height: calc(100dvh - 24px);
     overflow: auto;
   }
+  .row {
+    display: flex;
+    justify-content: flex-end;
+  }
   .targets {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
@@ -278,55 +248,6 @@
     color: var(--gold);
     font-weight: 600;
     white-space: nowrap;
-  }
-  .numbers {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(38px, 1fr));
-    gap: 0.3rem;
-  }
-  .num {
-    height: 36px;
-    border-radius: 12px;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid var(--line);
-    font-weight: 700;
-    font-size: 1.05rem;
-    font-variant-numeric: tabular-nums;
-  }
-  .num.on {
-    background: var(--gold);
-    color: #2a1d05;
-    border-color: transparent;
-  }
-  .amount {
-    font-size: 1.6rem;
-    line-height: 1.1;
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
-  }
-  .amount small {
-    font-size: 0.9rem;
-    color: var(--ink-dim);
-    font-weight: 500;
-  }
-  input[type='range'] {
-    width: 100%;
-    accent-color: var(--gold);
-    height: 28px;
-  }
-  .presets,
-  .row {
-    display: flex;
-    gap: 0.5rem;
-    flex-wrap: wrap;
-  }
-  .presets .btn {
-    flex: 1;
-    min-height: 36px;
-    padding: 0.3em 0.6em;
-  }
-  .row {
-    justify-content: flex-end;
   }
   @keyframes pop {
     from {
