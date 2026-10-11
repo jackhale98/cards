@@ -1,4 +1,5 @@
 import type { GameConfig, GameModule } from '../types';
+import { canastaFamily } from './canasta';
 import { climbingFamily } from './climbing';
 import { cribbageFamily } from './cribbage';
 import { freeFamily } from './free';
@@ -14,6 +15,7 @@ import { trickTakingFamily } from './trickTaking';
  */
 export const FAMILIES: Record<string, (config: GameConfig) => GameModule> = {
   free: freeFamily,
+  canasta: canastaFamily,
   climbing: climbingFamily,
   cribbage: cribbageFamily,
   'trick-taking': trickTakingFamily,

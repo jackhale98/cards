@@ -1,0 +1,27 @@
+{
+  "$schema": "../../../schemas/game.schema.json",
+  "id": "canasta",
+  "name": "Canasta",
+  "tagline": "Meld with your partner, freeze the pile, and build canastas of seven.",
+  "icon": "♥",
+  "players": { "min": 2, "max": 4, "recommended": 4 },
+  "bots": true,
+  "deck": { "decks": 2, "jokers": 2 },
+  "zones": [
+    { "id": "deck", "label": "Stock", "visibility": "none", "layout": "stack", "area": "center", "scale": 0.85 },
+    { "id": "discard", "label": "Discard", "visibility": "all", "layout": "stack", "area": "center", "scale": 0.85 },
+    { "id": "hand", "perPlayer": true, "visibility": "owner", "layout": "fan", "area": "hand" },
+    { "id": "melds", "perPlayer": true, "visibility": "all", "layout": "spread", "area": "strip", "hideEmpty": true, "scale": 0.55 }
+  ],
+  "rules": { "family": "canasta", "end": { "target": 5000 } },
+  "options": [
+    { "id": "target", "label": "Play to", "type": "number", "default": 5000, "min": 1500, "max": 10000, "step": 500 }
+  ],
+  "rulesSummary": [
+    "Two decks and four jokers. Partners sit across (or play two head to head). Jokers and 2s are wild; red 3s are laid out at once as bonuses.",
+    "Each turn draw from the stock (two cards head to head), or take the whole discard pile by melding its top card. Then meld and discard.",
+    "Melds are 3+ cards of one rank with at least 2 natural cards and no more than 3 wild. Seven cards make a canasta: 500 if natural, 300 if mixed.",
+    "A wild card in the pile freezes it: then you need a natural pair of the top card to take it (also until your side has melded). A black 3 on top blocks the pile.",
+    "Your side's first meld must be worth 50 (90 from 1500, 120 from 3000). You need a canasta (two head to head) to go out. First to 5000 wins."
+  ]
+}

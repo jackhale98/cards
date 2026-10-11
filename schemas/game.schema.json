@@ -794,6 +794,31 @@
               }
             }
           }
+        },
+        {
+          "description": "Classic Canasta: partnerships (or two players) meld sets with wild 2s and jokers; seven make a canasta.",
+          "required": [
+            "family",
+            "end"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "family": {
+              "const": "canasta"
+            },
+            "end": {
+              "type": "object",
+              "required": [
+                "target"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "target": {
+                  "type": "number"
+                }
+              }
+            }
+          }
         }
       ]
     }

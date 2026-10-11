@@ -16,7 +16,7 @@
 
   const DRAWN = new Set([
     'holdem', 'omaha', 'hearts', 'spades', 'euchre', 'five-hundred', 'cribbage',
-    'bridge', 'gin-rummy', 'oh-hell', 'freetable', 'crazy-eights', 'rummy-500', 'president',
+    'bridge', 'gin-rummy', 'oh-hell', 'freetable', 'crazy-eights', 'rummy-500', 'president', 'canasta',
   ]);
 
   // Suit shapes in a 100-unit box centred on the origin.
@@ -198,6 +198,17 @@
         <rect x="-12.5" y="5" width="25" height="3.4" rx="1" fill="#c99a2e" />
         {#each [-14, 0, 14] as x (x)}<circle cx={x} cy={x === 0 ? -9.5 : -6.5} r="1.6" fill="#fbf8f1" />{/each}
         <circle cy="2" r="1.5" fill={RED} />
+      </g>
+    {:else if id === 'canasta'}
+      <!-- a canasta squared up with a red card on top, and a wild joker leaning on it -->
+      {#each [6, 5, 4, 3, 2, 1] as k (k)}
+        <g transform="translate({26 + k * 0.9} {33 + k * 1.1})">{@render face(-11, -15.5, 23.5)}</g>
+      {/each}
+      <g transform="translate(26 33)">{@render card()}{@render corner('K', 'H', RED)}{@render suit('H', -4, -2, 11, RED)}</g>
+      <g transform="translate(44 30) rotate(14)">
+        {@render card()}
+        <polygon transform="translate(0.5 1.5) scale(1.05)" points={STAR} fill="#6b3fa0" />
+        <text x="-7" y="-6" font-size="6" font-weight="700" text-anchor="middle" fill="#6b3fa0" font-family={SERIF}>JK</text>
       </g>
     {:else if id === 'crazy-eights'}
       <g transform="translate(32 32) rotate(-6)">
