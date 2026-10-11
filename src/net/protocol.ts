@@ -42,6 +42,8 @@ export interface Lobby {
 /** Everything a device needs to render: personalised and redacted by the host. */
 export interface View {
   v: number;
+  /** Host instance id: a restarted host starts a new one (its versions may start again). */
+  hid?: string;
   lobby: Lobby;
   /** Seat index in the game, or -1 for spectators / table display. */
   you: number;

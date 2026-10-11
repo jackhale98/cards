@@ -44,8 +44,13 @@ export class Client {
         return;
       }
       if (msg.t === 'view') {
-        // ignore out-of-order deliveries
-        if (from === this.hostPeer && this.view && msg.view.v < this.view.v) return;
+        // the same host can reach us on several networks: take each version once, newest only
+        // (a restarted host has a new id and starts counting again)
+        const same = this.view && msg.view.hid === this.view.hid;
+        if (same && msg.view.v <= this.view!.v) {
+          if (from === this.hostPeer) this.heard();
+          return;
+        }
         this.hostPeer = from;
         this.heard();
         this.view = msg.view;

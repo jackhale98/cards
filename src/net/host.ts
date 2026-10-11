@@ -29,6 +29,8 @@ export class Host {
   /** transport peer id → client id */
   private peers = new Map<string, string>();
   private displays = new Set<string>();
+  /** Identifies this host instance in views (see View.hid). */
+  private readonly hid = Math.random().toString(36).slice(2, 10);
   private timer: ReturnType<typeof setTimeout> | null = null;
   private heartbeat: ReturnType<typeof setInterval> | null = null;
   /** peer → last round-trip time and when we last heard from it */
@@ -354,6 +356,7 @@ export class Host {
     const m = this.module;
     const view: View = {
       v: this.v,
+      hid: this.hid,
       lobby: this.lobby,
       you: s ? seat : -1,
       state: s && m ? redact(m, s, seat) : null,

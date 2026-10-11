@@ -1,7 +1,7 @@
 <script lang="ts">
   import { app } from '../../app.svelte';
 
-  const LABEL: Record<string, string> = { nostr: 'Nostr', mqtt: 'MQTT', torrent: 'WebTorrent', local: 'This browser' };
+  const LABEL: Record<string, string> = { relay: 'Lamplight relay', nostr: 'Nostr', mqtt: 'MQTT', torrent: 'WebTorrent', local: 'This browser' };
   const status = $derived(app.netStatus);
   const up = $derived(status?.networks.reduce((n, x) => n + x.up, 0) ?? 0);
   const local = $derived(status?.networks.some((n) => n.kind === 'local'));
@@ -19,7 +19,12 @@
       <span class="dot good"></span> Local test mode (tabs in this browser only)
     {:else if up}
       <span class="dot good"></span> Open for players
-      <small>{status.networks.filter((n) => n.total).map((n) => `${LABEL[n.kind] ?? n.kind} ${n.up}/${n.total}`).join(' · ')}</small>
+      <small
+        >{status.networks
+          .filter((n) => n.total)
+          .map((n) => (n.kind === 'relay' ? `${LABEL.relay} ${n.up ? '✓' : '…'}${n.direct ? ` · ${n.direct} direct` : ''}` : `${LABEL[n.kind] ?? n.kind} ${n.up}/${n.total}`))
+          .join(' · ')}</small
+      >
     {:else if grace}
       <span class="dot wait"></span> Connecting to relay networks…
     {:else}

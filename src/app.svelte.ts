@@ -89,7 +89,7 @@ class App {
   /** When this device started trying to join the current table (for the "Finding table" screen). */
   joinStarted = $state(0);
   readonly cid = clientId();
-  readonly net: TransportKind = new URLSearchParams(location.search).get('net') === 'local' ? 'local' : 'p2p';
+  readonly net: TransportKind = (['local', 'relay', 'public'] as const).find((k) => k === new URLSearchParams(location.search).get('net')) ?? 'p2p';
 
   host: Host | null = null;
   private client: Client | null = null;

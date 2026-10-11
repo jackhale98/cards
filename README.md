@@ -20,12 +20,22 @@ the middle of the table. It needs no accounts or app store, and there's no serve
 
 ## How the connection works
 
-The site is static files only (hosted on Cloudflare Pages at [lamplight.cards](https://lamplight.cards)), so there is no game server. Devices connect **directly to
-each other with WebRTC**, using [Trystero](https://github.com/dmotz/trystero). The first
-"introduction" (signalling) goes through public relays. The host listens on three independent
-relay networks at once (Nostr, MQTT and WebTorrent trackers); a guest starts with Nostr and adds
-the others if nobody answers, so one flaky network can't stop a table forming. After that, all
-game traffic flows peer-to-peer, and on the same WiFi it stays on your local network.
+The site is static files (Cloudflare Pages, [lamplight.cards](https://lamplight.cards)); the
+game itself runs on the host's phone. Devices find each other through the **Lamplight relay**
+(`relay/`, a Cloudflare Worker with one Durable Object per table):
+
+1. Every device opens a WebSocket to `relay.lamplight.cards` for its table code.
+2. Through it, each pair of devices sets up a **direct WebRTC link** (Cloudflare's STUN server
+   helps them find each other). Game messages go over the direct link whenever it's open, so on
+   the same WiFi your game stays in the room.
+3. If a network won't allow direct links (some hotel and guest WiFi), the relay passes the
+   messages along instead. It stores nothing, and an idle table costs nothing (WebSocket
+   hibernation).
+
+As a backup, the host also listens on three public signalling networks via
+[Trystero](https://github.com/dmotz/trystero) (Nostr, MQTT and WebTorrent trackers), and a
+guest adds them if nobody answers through the relay. A device can be reached on several
+networks at once; each view carries the host's id and version, so duplicates are ignored.
 
 The host pings every player every 3 seconds: everyone sees each player's latency, a phone that
 goes to sleep is noticed within seconds (it keeps its seat), and a guest that loses the host
@@ -61,6 +71,11 @@ Cloudflare Pages builds `main` (`pnpm build` → `dist`) and serves it at
 headers live in `public/_headers`. GitHub Actions (`.github/workflows/ci.yml`) type-checks, tests
 and builds every push and pull request.
 The site uses relative paths and hash routing, so it works under any repository name.
+
+The relay deploys separately from `relay/` (`npx wrangler deploy`, or connect the repo in
+Cloudflare with root directory `relay`). Test it locally with `npx wrangler dev` in `relay/`,
+`node smoke.mjs`, and the app at `?relay=ws://127.0.0.1:8787` (`&net=relay` to skip the public
+networks).
 
 ## Project layout
 

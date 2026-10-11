@@ -3,11 +3,11 @@ import type { Transport } from './transport';
 
 export interface NetworkStatus {
   /** Networks joined so far, with how many of their relays are reachable. */
-  networks: { kind: string; up: number; total: number }[];
+  networks: { kind: string; up: number; total: number; direct?: number }[];
   peers: number;
 }
 
-type Sub = Transport & { relays?: () => { up: number; total: number } };
+type Sub = Transport & { relays?: () => { up: number; total: number; direct?: number } };
 
 /**
  * Several transports used as one. Peer ids are namespaced by network (`nostr:abc`), messages to a

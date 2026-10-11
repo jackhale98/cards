@@ -89,7 +89,7 @@
   </section>
 
   <footer>
-    Peer-to-peer: devices connect directly, and on the same WiFi your game never leaves the room. No accounts, no app store.
+    Devices link directly whenever they can, so on the same WiFi your game stays in the room. No accounts, no app store.
     · <a href="https://github.com/jackhale98/cards" target="_blank" rel="noreferrer">Open source</a>
   </footer>
 </div>
