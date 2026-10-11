@@ -10,6 +10,8 @@
   import Sheet from '../components/Sheet.svelte';
   import AvatarBadge from '../components/AvatarBadge.svelte';
   import Track from '../components/Track.svelte';
+  import NightBoard from '../components/NightBoard.svelte';
+  import { nightTotals } from '../../net/night';
   import { seatRelation } from '../../engine/state';
   import { flight, haptic, play, snapshot } from '../motion';
   import { seatColor } from '../seatColors';
@@ -215,6 +217,8 @@
   });
 
   const me = $derived(you >= 0 ? s.players[you] : null);
+  /** Game night standings, shown when a game ends. */
+  const tonight = $derived(nightTotals(view.lobby.night));
   const myInfo = $derived(you >= 0 ? status.seats[you] : undefined);
 </script>
 
@@ -302,6 +306,9 @@
         <button class="close" onclick={() => (bannerHidden = s.v)} aria-label="Hide">×</button>
         <h2>{status.banner.title}</h2>
         {#each status.banner.lines as line}<p>{line}</p>{/each}
+        {#if s.phase === 'gameOver' && tonight.length}
+          <p class="tonight">Tonight: {tonight.map((r) => `${r.name} ${r.points}`).join(' · ')}</p>
+        {/if}
       </div>
     {/if}
   </main>
@@ -401,6 +408,11 @@
           {/each}
         </tbody>
       </table>
+    {/if}
+    {#if view.lobby.night?.games.length}
+      <div class="eyebrow">Game night</div>
+      <NightBoard night={view.lobby.night} seats={view.lobby.seats} />
+      <div style:height="1rem"></div>
     {/if}
     <div class="eyebrow">Recent</div>
     <ol class="log">
@@ -632,6 +644,13 @@
       inset 0 -2px 0 rgba(0, 0, 0, 0.3),
       0 1px 2px rgba(0, 0, 0, 0.4);
     border: 1.5px dashed rgba(255, 255, 255, 0.6);
+  }
+  .tonight {
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--line);
+    color: var(--gold);
+    font-weight: 600;
   }
   .banner {
     position: absolute;

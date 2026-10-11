@@ -6,6 +6,7 @@
   import AvatarPicker from '../components/AvatarPicker.svelte';
   import GameIcon from '../components/GameIcon.svelte';
   import NetStatus from '../components/NetStatus.svelte';
+  import NightBoard from '../components/NightBoard.svelte';
   import PingDot from '../components/PingDot.svelte';
   import Sheet from '../components/Sheet.svelte';
 
@@ -99,6 +100,13 @@
       {#if lobby.spectators}<p class="small">+ {lobby.spectators} watching</p>{/if}
       {#if lobby.displays}<p class="small">📺 Table screen connected — phones will show just your hand</p>{/if}
     </div>
+
+    {#if lobby.night?.games.length}
+      <div class="block">
+        <div class="head"><div class="eyebrow">Game night · {lobby.night.games.length} game{lobby.night.games.length > 1 ? 's' : ''}</div></div>
+        <NightBoard night={lobby.night} seats={lobby.seats} onreset={host ? () => host.newNight() : undefined} />
+      </div>
+    {/if}
 
     <div class="block">
       <div class="eyebrow">Game</div>

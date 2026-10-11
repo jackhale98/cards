@@ -136,6 +136,8 @@ export interface GameState<D = unknown> {
   seq?: number;
   /** Set when the game is finished. */
   winner?: number[];
+  /** Host bookkeeping: this finished game has been added to the game night tally. */
+  tallied?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -228,6 +230,11 @@ export interface GameModule<D = any> {
   /** Remove private information from `data` for `viewer` (-1 = spectator). */
   redactData?(s: GameState<D>, viewer: number): D;
   status(s: GameState<D>, viewer: number): GameStatus;
+  /**
+   * Finishing place of each seat once the game is over (0 = first; ties share a place), for the
+   * game night tally. Without it, the winners are first and everyone else shares second.
+   */
+  standings?(s: GameState<D>): number[];
 }
 
 export class RuleError extends Error {}

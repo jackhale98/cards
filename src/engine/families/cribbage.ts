@@ -1,7 +1,7 @@
 import { buildDeck, cardName, parseCard, rankLabel, SUIT_SYMBOL } from '../cards';
 import { nextRandom } from '../rng';
 import { describeShow, pegPoints, pipValue, scoreHand } from '../lib/cribbageScore';
-import { createState, deal, hand, ids, log, moveCards, moveTop, name, nextSeat, resetDeck, seatOrderFrom, sortHand, zone } from '../state';
+import { createState, deal, hand, ids, log, moveCards, moveTop, name, nextSeat, placesFromScores, resetDeck, seatOrderFrom, sortHand, zone } from '../state';
 import { assertRule, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
 
 /**
@@ -465,6 +465,10 @@ export function cribbageFamily(config: GameConfig): GameModule<CribData> {
         discards: d.discards.map((x, i) => (x && i !== viewer ? [] : x)),
         kept: d.kept.map((k, i) => (i === viewer || shown ? k : [])),
       };
+    },
+
+    standings(s) {
+      return placesFromScores(s.players.map((_, i) => s.data.scores[teamOf(s, i)]));
     },
 
     status(s, viewer) {

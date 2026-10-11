@@ -28,6 +28,20 @@ export interface LobbySeat {
   connected: boolean;
 }
 
+/** One finished game in tonight's tally. */
+export interface NightGame {
+  game: string;
+  name: string;
+  at: number;
+  /** Everyone who played, by lobby seat id (so moving seats doesn't matter). */
+  results: { id: string; name: string; place: number; points: number }[];
+}
+
+/** Game night: finished games at this table, for a running scoreboard. */
+export interface Night {
+  games: NightGame[];
+}
+
 export interface Lobby {
   code: string;
   gameId: string;
@@ -37,6 +51,7 @@ export interface Lobby {
   /** Table screens (big-screen displays) watching; phones then show mostly their own hand. */
   displays?: number;
   started: boolean;
+  night?: Night;
 }
 
 /** Everything a device needs to render: personalised and redacted by the host. */

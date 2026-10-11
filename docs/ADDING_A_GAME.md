@@ -146,3 +146,11 @@ Shared building blocks live in `src/engine/lib/`: `betting` (blinds, raises, sid
 
 `tests/families.test.ts` plays whole games with bots for each config-only game. Copy one of
 those tests for your game, then run `pnpm test`.
+
+## Game night standings
+
+When a game ends (`phase: 'gameOver'` with `winner` set), the host adds it to the game night
+tally. The winners come first; everyone else is ranked by the family's optional
+`standings(s)` (a place per seat, 0 = first, ties share; `placesFromScores` in
+`src/engine/state.ts` builds it from scores). A family without it ranks everyone else equal.
+

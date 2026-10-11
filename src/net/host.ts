@@ -1,5 +1,6 @@
 import { redact, redactActions, resolveAction } from '../engine/redact';
 import { randomSeed } from '../engine/rng';
+import { nightPoints, standingsOf } from '../engine/state';
 import { RuleError, type Action, type GameModule, type GameState } from '../engine/types';
 import { getGame, GAMES } from '../games';
 import { AVATAR_COLORS, AVATAR_EMOJI, cleanAvatar, type Avatar, type ClientMsg, type Lobby, type LobbySeat, type Msg, type View } from './protocol';
@@ -214,8 +215,36 @@ export class Host {
 
   /** Bump version, persist, send views, then schedule any automatic steps. */
   private commit() {
+    this.tally();
     this.broadcast();
     this.pump();
+  }
+
+  /** Add a game that has just finished to tonight's tally (once; a rematch starts a new one). */
+  private tally() {
+    const s = this.state;
+    const m = this.module;
+    if (!s || !m) return;
+    if (s.phase !== 'gameOver') {
+      s.tallied = false;
+      return;
+    }
+    if (s.tallied || !s.winner?.length) return;
+    s.tallied = true;
+    const places = standingsOf(m, s);
+    this.lobby.night ??= { games: [] };
+    this.lobby.night.games.push({
+      game: m.config.id,
+      name: m.config.name,
+      at: Date.now(),
+      results: this.lobby.seats.map((seat, i) => ({ id: seat.id, name: seat.name, place: places[i], points: nightPoints(places[i], places) })),
+    });
+  }
+
+  /** Clear tonight's tally (host only). */
+  newNight() {
+    this.lobby.night = { games: [] };
+    this.broadcast();
   }
 
   /** Run system steps (e.g. collecting a trick) and bot moves after a natural pause. */

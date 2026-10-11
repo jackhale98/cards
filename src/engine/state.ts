@@ -158,3 +158,29 @@ export function seatRelation(you: number, other: number, n: number): Relation | 
   if (n % 2 === 0 && rel === n / 2) return 'across';
   return null;
 }
+
+/**
+ * Places from a score per seat (0 = first; equal scores share a place, like 1st, 1st, 3rd).
+ * `lowWins` for games where the lowest score is best (Hearts).
+ */
+export function placesFromScores(scores: number[], lowWins = false): number[] {
+  return scores.map((x) => scores.filter((y) => (lowWins ? y < x : y > x)).length);
+}
+
+/**
+ * Each seat's finishing place: the declared winners first (they won, even if, as in 500, a side
+ * has more points without having won), then everyone else by the game's own standings.
+ */
+export function standingsOf(module: { standings?: (s: GameState<any>) => number[] }, s: GameState<any>): number[] {
+  const raw = module.standings?.(s) ?? s.players.map(() => 0);
+  const won = new Set(s.winner ?? []);
+  if (!won.size) return raw;
+  const rest = s.players.map((p) => p.seat).filter((i) => !won.has(i));
+  return s.players.map((p) => (won.has(p.seat) ? 0 : 1 + rest.filter((j) => raw[j] < raw[p.seat]).length));
+}
+
+/** Game night points for a place: 3 / 2 / 1 for the podium, and nothing for last. */
+export function nightPoints(place: number, places: number[]): number {
+  if (place === Math.max(...places)) return 0;
+  return Math.max(1, 3 - place);
+}

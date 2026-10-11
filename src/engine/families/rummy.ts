@@ -1,6 +1,6 @@
 import { cardName, parseCard, rankLabel, SUIT_SYMBOL } from '../cards';
 import { bestMelds, deadwoodValue, layOff, meldOrder } from '../lib/melds';
-import { createState, hand, ids, log, moveCards, moveTop, name, resetDeck, zone } from '../state';
+import { createState, hand, ids, log, moveCards, moveTop, name, placesFromScores, resetDeck, zone } from '../state';
 import { assertRule, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
 
 /**
@@ -313,6 +313,10 @@ export function rummyFamily(config: GameConfig): GameModule<RummyData> {
         return { type: 'discard', cards: [best.card] };
       }
       return null;
+    },
+
+    standings(s) {
+      return placesFromScores(s.data.scores);
     },
 
     status(s, viewer) {

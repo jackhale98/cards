@@ -1,7 +1,7 @@
 import { buildDeck, cardName, parseCard, rankLabel, SUIT_NAME, SUIT_SYMBOL, type Suit } from '../cards';
 import { passTarget, type PassDirection } from '../lib/passing';
 import { followSuit, trickWinner } from '../lib/trickTaking';
-import { createState, deal, hand, ids, log, moveCards, moveTop, name, nextSeat, resetDeck, sortHand, zone } from '../state';
+import { createState, deal, hand, ids, log, moveCards, moveTop, name, nextSeat, placesFromScores, resetDeck, sortHand, zone } from '../state';
 import { assertRule, type Action, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
 
 /**
@@ -1134,6 +1134,13 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
         passes: d.passes.map((p, i) => (p && i !== viewer ? [] : p)),
         received: d.received.map((r, i) => (i === viewer ? r : [])),
       };
+    },
+
+    standings(s) {
+      return placesFromScores(
+        s.players.map((_, i) => s.data.scores[teamOf(s, i)]),
+        lowWins,
+      );
     },
 
     status(s, viewer) {

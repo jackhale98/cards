@@ -1,7 +1,7 @@
 import { parseCard } from '../cards';
 import * as bet from '../lib/betting';
 import { bestHand, bestWithHole, type HandValue } from '../lib/pokerEval';
-import { createState, hand, ids, log, moveCards, moveTop, name, nextSeat, resetDeck, zone } from '../state';
+import { createState, hand, ids, log, moveCards, moveTop, name, nextSeat, placesFromScores, resetDeck, zone } from '../state';
 import { assertRule, type Action, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
 
 /**
@@ -314,6 +314,10 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
       const priceRatio = o.toCall / Math.max(1, pot + o.toCall);
       if (strength > priceRatio + 0.15 || (strength > 0.3 && o.toCall <= d.bb)) return { type: 'call' };
       return { type: 'fold' };
+    },
+
+    standings(s) {
+      return placesFromScores(s.players.map((p) => p.chips));
     },
 
     status(s, viewer) {
