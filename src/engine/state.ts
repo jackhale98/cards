@@ -98,6 +98,7 @@ export function moveCards(
 
 /** Move the top `n` cards (end of array) of a zone. */
 export function moveTop(s: GameState<any>, from: string, to: string, n: number, extra: Partial<CardRef> = {}) {
+  if (n <= 0) return; // (slice(-0) would be the whole zone)
   const src = zone(s, from);
   const top = src.cards.slice(-n).reverse();
   moveCards(s, from, to, top.map((c) => c.id), extra);

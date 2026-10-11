@@ -1,18 +1,21 @@
 import { parseCard } from '../cards';
 import * as bet from '../lib/betting';
-import { bestHand, bestWithHole, type HandValue } from '../lib/pokerEval';
+import { bestHand, bestWithHole, eval5, type HandValue } from '../lib/pokerEval';
+import { shuffle } from '../rng';
 import { createState, hand, ids, log, moveCards, moveTop, name, nextSeat, placesFromScores, resetDeck, zone } from '../state';
 import { assertRule, type Action, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
 
 /**
- * Poker family: community-card games with no-limit betting, side pots and showdown.
+ * Poker family: no-limit betting, side pots and showdown, for community-card games (blinds, a
+ * board dealt street by street) and draw poker (antes, one draw).
  *
  * ```jsonc
  * "rules": {
  *   "family": "poker",
- *   "holeCards": 2,          // cards dealt to each player (Omaha: 4)
+ *   "holeCards": 2,          // cards dealt to each player (Omaha: 4; five card draw: 5)
  *   "useHole": 0,            // 0 = best five of any cards; 2 = exactly two hole cards (Omaha)
- *   "board": [3, 1, 1]       // community cards per street (flop, turn, river)
+ *   "board": [3, 1, 1],      // community cards per street (flop, turn, river); [] for draw
+ *   "draw": { "max": 3 }     // draw poker: everyone antes, bets, swaps up to `max` cards, bets again
  * }
  * ```
  */
@@ -21,6 +24,7 @@ export interface PokerRules {
   holeCards: number;
   useHole?: number;
   board: number[];
+  draw?: { max: number };
 }
 
 export interface PokerData {
@@ -38,6 +42,13 @@ export interface PokerData {
   result: { lines: string[]; winners: number[] } | null;
   /** The hand each seat was knocked out in (null while still playing), for final placings. */
   bustedAt?: (number | null)[];
+  /** Draw poker: the ante, chips left in the pot from a deal everyone checked, who opened the betting, who has drawn. */
+  ante?: number;
+  carry?: number;
+  opener?: number | null;
+  drawn?: (number | null)[];
+  /** Cards discarded in the draw (shuffled into a new stock if it runs short). */
+  discards?: string[];
 }
 
 type S = GameState<PokerData>;
@@ -47,10 +58,13 @@ const writeChips = (s: S, chips: number[]) => chips.forEach((c, i) => (s.players
 
 export function pokerFamily(config: GameConfig): GameModule<PokerData> {
   const R = config.rules as unknown as PokerRules;
-  const lastStreet = R.board.length;
+  const draw = R.draw;
+  /** Streets: one per board deal; draw poker has the betting before the draw and after it. */
+  const lastStreet = draw ? 1 : R.board.length;
   const evaluate = (hole: string[], board: string[]) => bestWithHole(hole, board, R.useHole ?? 0);
   const streetName = (st: number, showdown: boolean) => {
     if (showdown) return 'Showdown';
+    if (draw) return st === 0 ? 'Before the draw' : 'After the draw';
     if (R.board.join() === '3,1,1') return ['Pre-flop', 'Flop', 'Turn', 'River'][st];
     return st === 0 ? 'Opening' : `Street ${st}`;
   };
@@ -85,6 +99,7 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
       }
     }
 
+    if (draw) return startDrawHand(s);
     const headsUp = alive.length === 2;
     const sbSeat = headsUp ? d.button : nextSeat(s, d.button, skip);
     const bbSeat = nextSeat(s, sbSeat, skip);
@@ -102,6 +117,60 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
     s.phase = 'betting';
     s.turn = nextActor(s, bbSeat);
     if (s.turn == null || bet.streetComplete(d.b)) advance(s);
+  }
+
+  /** Draw poker: everyone antes, then the player left of the dealer opens the betting. */
+  function startDrawHand(s: S) {
+    const d = s.data;
+    const chips = chipsOf(s);
+    for (const p of s.players) if (!d.b.out[p.seat]) bet.post(d.b, chips, p.seat, d.ante!);
+    // antes go in the pot without being a bet in the first round
+    d.b.bets.fill(0);
+    d.b.currentBet = 0;
+    d.b.minRaise = d.ante!;
+    writeChips(s, chips);
+    d.acted = s.players.map(() => null);
+    d.opener = null;
+    d.drawn = s.players.map(() => null);
+    d.discards = [];
+    const carried = d.carry ? ` (the pot carries ${d.carry})` : '';
+    log(s, `Hand #${d.handNo}: everyone antes ${d.ante}${carried}`);
+    s.phase = 'betting';
+    s.turn = nextActor(s, d.button);
+    if (s.turn == null || bet.streetComplete(d.b)) advance(s);
+  }
+
+  /** Draw poker: may this seat bet first? (With "jacks or better", only a pair of jacks or better opens.) */
+  const mayOpen = (s: S, seat: number) => !s.options.jacks || eval5(ids(hand(s, seat))).score >= eval5(['JS', 'JH', '4C', '3D', '2C']).score;
+  const opening = (s: S) => !!draw && s.data.street === 0 && s.data.b.currentBet === 0;
+
+  /** Draw poker: cards a seat may swap (up to three; four if keeping an ace, with that option). */
+  const drawLimit = (s: S, seat: number) => {
+    const max = draw?.max ?? 3;
+    return s.options.aceFour && ids(hand(s, seat)).some((c) => parseCard(c).rank === 14) ? max + 1 : max;
+  };
+  const toDraw = (s: S) => bet.live(s.data.b).filter((i) => s.data.drawn![i] == null);
+
+  /** The first player still to draw, from the dealer's left. */
+  function nextDrawer(s: S, from: number): number | null {
+    const left = toDraw(s);
+    for (let i = 1; i <= s.players.length; i++) {
+      const seat = (from + i) % s.players.length;
+      if (left.includes(seat)) return seat;
+    }
+    return null;
+  }
+
+  function afterDraw(s: S) {
+    const d = s.data;
+    d.street = 1;
+    s.phase = 'betting';
+    if (bet.bettingClosed(d.b)) return showdown(s);
+    bet.newStreet(d.b, d.ante!);
+    d.acted = d.acted.map(() => null);
+    // the player who opened bets first (or the next one still in)
+    const start = d.opener ?? d.button;
+    s.turn = bet.canAct(d.b, start) ? start : nextActor(s, start);
   }
 
   function nextActor(s: S, from: number): number | null {
@@ -123,6 +192,13 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
       return;
     }
     if (d.street === lastStreet) return showdown(s);
+    if (draw) {
+      // nobody bet: the deal is thrown in and the pot stays for the next one
+      if (d.b.currentBet === 0 && !bet.bettingClosed(d.b)) return throwIn(s);
+      s.phase = 'draw';
+      s.turn = nextDrawer(s, d.button);
+      return;
+    }
     if (bet.bettingClosed(d.b)) {
       // everyone is all in: run the board out with a little drama
       s.phase = 'runout';
@@ -142,13 +218,26 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
     d.street++;
   }
 
+  function throwIn(s: S) {
+    const d = s.data;
+    d.carry = (d.carry ?? 0) + bet.potTotal(d.b);
+    d.b.committed.fill(0);
+    d.b.bets.fill(0);
+    for (const seat of s.players.map((p) => p.seat)) moveCards(s, `hand:${seat}`, 'muck', ids(hand(s, seat)));
+    d.result = { lines: [`Nobody opened — the pot (${d.carry}) stays for the next deal`], winners: [] };
+    log(s, d.result.lines[0]);
+    s.turn = null;
+    s.phase = 'handOver';
+  }
+
   function collect(s: S, winner: number, amount: number) {
     s.players[winner].chips += amount;
   }
 
   function awardUncontested(s: S, winner: number) {
     const d = s.data;
-    const total = bet.potTotal(d.b);
+    const total = bet.potTotal(d.b) + (d.carry ?? 0);
+    d.carry = 0;
     collect(s, winner, total);
     d.b.committed.fill(0);
     d.b.bets.fill(0);
@@ -170,6 +259,9 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
     const lines: string[] = [];
     const winners = new Set<number>();
     const pots = bet.pots(d.b);
+    // chips carried from a thrown-in deal belong to the main pot
+    if (d.carry && pots.length) pots[0].amount += d.carry;
+    d.carry = 0;
     pots.forEach((pot, pi) => {
       const top = Math.max(...pot.eligible.map((i) => values.get(i)!.score));
       const potWinners = pot.eligible.filter((i) => values.get(i)!.score === top);
@@ -211,7 +303,7 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
     config,
 
     setup(players, seed, options) {
-      const bb = Number(options.bigBlind ?? config.chips!.bigBlind);
+      const bb = Number(draw ? (options.ante ?? config.chips!.ante ?? 10) : (options.bigBlind ?? config.chips!.bigBlind));
       const s = createState<PokerData>(config, players, seed, options, {
         b: bet.newBetting(players.length, players.map(() => false)),
         street: 0,
@@ -222,6 +314,7 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
         handNo: 0,
         acted: [],
         result: null,
+        ...(draw ? { ante: bb, carry: 0, opener: null, drawn: [], discards: [] } : {}),
       });
       const stack = Number(options.stack ?? config.chips!.start);
       s.players.forEach((p) => (p.chips = stack));
@@ -233,8 +326,17 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
       const d = s.data;
       if (s.phase === 'handOver' && s.players[seat].chips > 0) return [{ type: 'next', label: 'Deal next hand', style: 'primary' }];
       if (s.phase === 'gameOver') return [{ type: 'rematch', label: 'New game', style: 'primary' }];
+      if (s.phase === 'draw' && s.turn === seat) {
+        const max = drawLimit(s, seat);
+        return [
+          { type: 'draw', label: 'Draw', style: 'primary', select: { min: 1, max, cards: ids(hand(s, seat)) } },
+          { type: 'standPat', label: 'Stand pat' },
+        ];
+      }
       if (s.phase !== 'betting' || s.turn !== seat) return [];
       const o = bet.options(d.b, chipsOf(s), seat);
+      // jacks or better: without them you can only check (or fold) until someone opens
+      if (opening(s) && !mayOpen(s, seat)) o.canRaise = false;
       const chips = s.players[seat].chips;
       const out: ActionSpec[] = [{ type: 'fold', label: 'Fold', style: o.canCheck ? 'quiet' : 'danger' }];
       out.push(o.canCheck ? { type: 'check', label: 'Check' } : { type: 'call', label: `Call ${o.toCall}`, style: 'primary' });
@@ -262,9 +364,38 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
         s.winner = undefined;
         d.handNo = 0;
         d.bustedAt = s.players.map(() => null);
+        d.carry = 0;
         return startHand(s);
       }
+      if (a.type === 'draw' || a.type === 'standPat') {
+        assertRule(s.phase === 'draw' && s.turn === seat, 'Not your turn to draw');
+        const cards = a.type === 'standPat' ? [] : (a.cards ?? []);
+        const own = ids(hand(s, seat));
+        const max = drawLimit(s, seat);
+        assertRule(cards.length <= max && new Set(cards).size === cards.length && cards.every((c) => own.includes(c)), `Discard up to ${max} cards`);
+        if (max > (draw?.max ?? 3) && cards.length === max) assertRule(own.some((c) => parseCard(c).rank === 14 && !cards.includes(c)), 'Drawing four means keeping an ace');
+        moveCards(s, `hand:${seat}`, 'muck', cards);
+        d.discards!.push(...cards);
+        // short of cards: the discards so far become a new stock
+        if (zone(s, 'deck').cards.length < cards.length) {
+          const back = d.discards!.filter((c) => !cards.includes(c));
+          moveCards(s, 'muck', 'deck', back);
+          zone(s, 'deck').cards = shuffle(zone(s, 'deck').cards, s);
+          d.discards = [...cards];
+          log(s, 'The stock is short — earlier discards are shuffled in');
+        }
+        moveTop(s, 'deck', `hand:${seat}`, cards.length);
+        d.drawn![seat] = cards.length;
+        const said = cards.length ? `Drew ${cards.length}` : 'Stands pat';
+        d.acted[seat] = said;
+        log(s, `${name(s, seat)} ${cards.length ? `draws ${cards.length}` : 'stands pat'}`, seat, said);
+        const next = nextDrawer(s, seat);
+        if (next == null) afterDraw(s);
+        else s.turn = next;
+        return;
+      }
       assertRule(s.phase === 'betting' && s.turn === seat, 'Not your turn');
+      if (opening(s) && !mayOpen(s, seat)) assertRule(a.type !== 'raise' && a.type !== 'allin', 'You need jacks or better to open');
       const chips = chipsOf(s);
       const betBefore = d.b.currentBet;
       try {
@@ -285,6 +416,7 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
         allin: raised ? [`goes all in for ${put}`, `All in ${put}`] : [`calls all in for ${put}`, `All in ${put}`],
       }[a.type as 'fold' | 'check' | 'call' | 'raise' | 'allin'];
       d.acted[seat] = short;
+      if (draw && d.street === 0 && raised && d.opener == null) d.opener = seat;
       log(s, `${name(s, seat)} ${verb}`, seat, short);
       if (a.type === 'fold') moveCards(s, `hand:${seat}`, 'muck', ids(hand(s, seat)));
       advance(s);
@@ -306,9 +438,14 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
     },
 
     bot(s, seat) {
+      if (s.phase === 'draw' && s.turn === seat) {
+        const cards = botDiscards(s, seat);
+        return cards.length ? { type: 'draw', cards } : { type: 'standPat' };
+      }
       if (s.phase !== 'betting' || s.turn !== seat) return null;
       const d = s.data;
       const o = bet.options(d.b, chipsOf(s), seat);
+      if (opening(s) && !mayOpen(s, seat)) return o.canCheck ? { type: 'check' } : { type: 'fold' };
       const strength = handStrength(s, seat);
       const r = Math.random();
       const pot = bet.potTotal(d.b);
@@ -323,6 +460,8 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
       }
       const priceRatio = o.toCall / Math.max(1, pot + o.toCall);
       if (strength > priceRatio + 0.15 || (strength > 0.3 && o.toCall <= d.bb)) return { type: 'call' };
+      // a short stack facing an all-in can only call with what it has
+      if (o.toCall >= s.players[seat].chips && strength > 0.5) return { type: 'call' };
       return { type: 'fold' };
     },
 
@@ -336,10 +475,13 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
       const d = s.data;
       const stageName = streetName(d.street, d.showdown);
       let headline = stageName;
-      if (s.phase === 'betting' && s.turn != null) {
+      if (s.phase === 'draw' && s.turn != null) {
+        headline = s.turn === viewer ? `The draw · discard up to ${drawLimit(s, viewer)} (none to stand pat)` : `The draw · ${name(s, s.turn)} to draw`;
+      } else if (s.phase === 'betting' && s.turn != null) {
         if (s.turn === viewer) {
           const o = bet.options(d.b, chipsOf(s), viewer);
           headline = o.canCheck ? `${stageName} · your move` : `${stageName} · ${o.toCall} to call`;
+          if (opening(s) && !mayOpen(s, viewer)) headline = `${stageName} · you need jacks or better to open`;
         } else headline = `${stageName} · ${name(s, s.turn)} to act`;
       } else if (s.phase === 'handOver') headline = d.result?.lines.join(' · ') ?? 'Hand over';
       else if (s.phase === 'gameOver') headline = 'Game over';
@@ -354,7 +496,7 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
 
       return {
         headline,
-        pot: bet.potTotal(d.b),
+        pot: bet.potTotal(d.b) + (d.carry ?? 0),
         seats: s.players.map((p, i) => ({
           out: d.b.out[i] || d.b.folded[i],
           badge: d.b.out[i] ? 'Out' : d.b.folded[i] ? 'Folded' : (d.acted?.[i] ?? (d.b.allIn[i] ? 'All in' : d.b.bets[i] ? `Bet ${d.b.bets[i]}` : undefined)),
@@ -369,10 +511,42 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
     },
   };
 
+  /** Draw poker: what a bot throws away — keep made hands, pairs, four to a flush or an open straight. */
+  function botDiscards(s: S, seat: number): string[] {
+    const cards = ids(hand(s, seat));
+    const v = eval5(cards);
+    if (v.category >= 4) return []; // straight or better: stand pat
+    const max = drawLimit(s, seat);
+    const rank = (c: string) => parseCard(c).rank;
+    const count = (r: number) => cards.filter((c) => rank(c) === r).length;
+    if (v.category >= 1) {
+      // keep the pairs, trips or quads; draw to the rest
+      const junk = cards.filter((c) => count(rank(c)) === 1);
+      return v.category === 2 ? junk : junk.slice(0, max);
+    }
+    for (const suit of ['S', 'H', 'D', 'C']) {
+      const inSuit = cards.filter((c) => parseCard(c).suit === suit);
+      if (inSuit.length === 4) return cards.filter((c) => !inSuit.includes(c));
+    }
+    const sorted = [...cards].sort((a, b) => rank(a) - rank(b));
+    for (const four of [sorted.slice(0, 4), sorted.slice(1)]) {
+      const r = four.map(rank);
+      if (new Set(r).size === 4 && r[3] - r[0] === 3) return cards.filter((c) => !four.includes(c));
+    }
+    // nothing: keep the highest card (or two) and draw the rest
+    const high = [...cards].sort((a, b) => rank(b) - rank(a));
+    return high.slice(cards.length - max);
+  }
+
   /** Crude 0–1 hand strength used by bots. */
   function handStrength(s: S, seat: number): number {
     const cards = ids(hand(s, seat));
     const board = ids(zone(s, 'board'));
+    if (draw) {
+      const v = eval5(cards);
+      const hi = Math.max(...cards.map((c) => parseCard(c).rank));
+      return Math.min(1, v.category === 0 ? hi / 40 : v.category === 1 ? 0.35 + v.score / eval5(['AS', 'AH', 'KC', 'QD', 'JC']).score * 0.2 : 0.55 + v.category * 0.07);
+    }
     if (board.length === 0) {
       const [a, b] = cards.map(parseCard).sort((x, y) => y.rank - x.rank);
       const hi = Math.max(a.rank, b.rank);

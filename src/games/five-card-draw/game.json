@@ -1,0 +1,31 @@
+{
+  "$schema": "../../../schemas/game.schema.json",
+  "id": "five-card-draw",
+  "name": "Five Card Draw",
+  "tagline": "The classic: five cards, one draw, and plenty of room to bluff.",
+  "icon": "5",
+  "players": { "min": 2, "max": 7, "recommended": 5 },
+  "bots": true,
+  "deck": {},
+  "zones": [
+    { "id": "deck", "visibility": "none", "layout": "stack", "area": "none" },
+    { "id": "muck", "visibility": "none", "layout": "stack", "area": "none" },
+    { "id": "hand", "perPlayer": true, "visibility": "owner", "layout": "fan", "area": "hand" },
+    { "id": "board", "visibility": "all", "layout": "spread", "area": "center", "hideEmpty": true }
+  ],
+  "chips": { "start": 1000, "ante": 10 },
+  "rules": { "family": "poker", "holeCards": 5, "useHole": 0, "board": [], "draw": { "max": 3 } },
+  "options": [
+    { "id": "stack", "label": "Starting chips", "type": "number", "default": 1000, "min": 100, "max": 100000, "step": 100 },
+    { "id": "ante", "label": "Ante", "type": "number", "default": 10, "min": 1, "max": 1000, "step": 1 },
+    { "id": "jacks", "label": "Jacks or better to open", "type": "boolean", "default": false },
+    { "id": "aceFour", "label": "Draw four when keeping an ace", "type": "boolean", "default": false }
+  ],
+  "rulesSummary": [
+    "Everyone antes, then gets five cards. Betting starts left of the dealer (no limit; the smallest bet is the ante).",
+    "If everyone checks, the cards are thrown in and the pot stays for the next deal — everyone antes again.",
+    "The draw: starting left of the dealer, each player still in discards up to three cards and gets replacements — or stands pat.",
+    "A second round of betting, begun by the player who opened, then the best five-card hand wins. Ties split the pot.",
+    "Options: jacks or better to open (no bet until someone holds a pair of jacks or better); draw four if you keep an ace."
+  ]
+}

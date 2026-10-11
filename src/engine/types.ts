@@ -43,7 +43,8 @@ export interface GameConfig {
   deck: DeckSpec;
   zones: ZoneConfig[];
   deal?: DealStep[];
-  chips?: { start: number; smallBlind?: number; bigBlind?: number };
+  /** Starting stack, blinds, and (draw poker) the ante. */
+  chips?: { start: number; smallBlind?: number; bigBlind?: number; ante?: number };
   /** Hand sorting preference. */
   sort?: { aceLow?: boolean };
   /** Enables generic undo in the host. */

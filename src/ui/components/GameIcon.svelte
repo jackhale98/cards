@@ -17,6 +17,7 @@
   const DRAWN = new Set([
     'holdem', 'omaha', 'hearts', 'spades', 'euchre', 'five-hundred', 'cribbage',
     'bridge', 'gin-rummy', 'oh-hell', 'freetable', 'crazy-eights', 'rummy-500', 'president', 'canasta',
+    'five-card-draw',
   ]);
 
   // Suit shapes in a 100-unit box centred on the origin.
@@ -188,6 +189,17 @@
       <rect x="20.5" y="44.5" width="30" height="15" rx="4" fill="#000" opacity="0.3" />
       <rect x="19" y="42.5" width="30" height="15" rx="4" fill="#e9c46a" />
       <text x="34" y="53.6" font-size="10.5" font-weight="700" text-anchor="middle" fill="#2a1d05" font-family={SERIF}>500</text>
+    {:else if id === 'five-card-draw'}
+      <!-- three kings kept, two fresh cards coming in from the draw -->
+      <g transform="translate(46 20) rotate(22)">{@render back(-9.4, -13.2, 20)}</g>
+      <g transform="translate(39 15) rotate(10)">{@render back(-9.4, -13.2, 20)}</g>
+      {#each [[-16, 'S', INK], [0, 'H', RED], [16, 'D', RED]] as [a, k, fill] (a)}
+        <g transform="translate(26 66) rotate({a}) translate(0 -26)">
+          {@render card()}
+          {@render corner('K', k as Suit, fill as string)}
+          {@render suit(k as Suit, -3, -1, 10, fill as string)}
+        </g>
+      {/each}
     {:else if id === 'president'}
       <!-- the top cards (a pair of 2s) wearing the crown -->
       <g transform="translate(25 38) rotate(-9)">{@render card()}{@render corner('2', 'S', INK)}{@render suit('S', -4, -2, 11, INK)}</g>

@@ -209,6 +209,9 @@
         },
         "bigBlind": {
           "type": "integer"
+        },
+        "ante": {
+          "type": "integer"
         }
       }
     },
@@ -627,7 +630,7 @@
           }
         },
         {
-          "description": "Community-card poker: Hold'em, Omaha…",
+          "description": "Poker: Hold'em, Omaha (blinds and a board) or five card draw (antes and a draw).",
           "required": [
             "family",
             "holeCards",
@@ -654,7 +657,22 @@
                 "type": "integer",
                 "minimum": 1
               },
-              "description": "Community cards dealt on each street."
+              "description": "Community cards dealt on each street ([] for draw poker)."
+            },
+            "draw": {
+              "type": "object",
+              "required": [
+                "max"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "max": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 5
+                }
+              },
+              "description": "Draw poker: everyone antes, bets, swaps up to `max` cards, then bets again."
             }
           }
         },

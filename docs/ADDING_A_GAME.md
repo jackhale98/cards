@@ -14,7 +14,7 @@ src/games/my-game/
 |----------------|----------------------------|--------|
 | `free`         | anything (rules not enforced). Optional zones add moves: `discard` (discard face up/down, take the top discard) and a per-player `melds` zone (lay down melds, add to anyone's) | `src/engine/families/free.ts` |
 | `trick-taking` | Hearts, Spades, Oh Hell, Euchre, 500, Contract Bridge, Whist… | `src/engine/families/trickTaking.ts` |
-| `poker`        | Texas Hold'em, Omaha, Pineapple-style variants | `src/engine/families/poker.ts` |
+| `poker`        | Texas Hold'em, Omaha, Pineapple-style variants (blinds and a board), Five Card Draw (`draw`: antes and one draw) | `src/engine/families/poker.ts` |
 | `rummy`        | Gin Rummy (style `gin`), Rummy 500 (style `500`) | `src/engine/families/rummy.ts`, `rummy500.ts` |
 | `canasta`      | Classic Canasta, partnerships or head to head | `src/engine/families/canasta.ts` |
 | `climbing`     | President (style `president`): beat the last play or pass, first out wins | `src/engine/families/climbing.ts` |
