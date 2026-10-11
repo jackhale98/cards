@@ -3,7 +3,7 @@ import { Client } from './net/client';
 import { Host, type HostSnapshot } from './net/host';
 import { AVATAR_COLORS, AVATAR_EMOJI, cleanAvatar, makeRoomCode, type Avatar, type View } from './net/protocol';
 import type { MultiTransport, NetworkStatus } from './net/multiTransport';
-import { createTransport, FALLBACK_AFTER_MS, type TransportKind } from './net/transport';
+import { createTransport, FALLBACK_AFTER_MS, RELAY_GRACE_MS, type TransportKind } from './net/transport';
 
 /** A guest that has lost the host for this long rebuilds its connection from scratch. */
 const REJOIN_AFTER_MS = 8000;
@@ -96,6 +96,7 @@ class App {
   private currentCode: string | null = null;
   private transport: MultiTransport | null = null;
   private addNext: (() => Promise<boolean>) | null = null;
+  private addAll: (() => Promise<void>) | null = null;
   private watch: ReturnType<typeof setInterval> | null = null;
   private lostSince = 0;
 
@@ -184,6 +185,7 @@ class App {
       return null;
     });
     this.transport = joined?.transport ?? null;
+    this.addAll = joined?.addAll ?? null;
     const host = new Host(this.transport, code, { cid: this.cid, name: this.name || 'Host', avatar: this.avatar }, restore);
     host.onPings = (p) => (this.pings = p);
     // clone so the UI gets fresh objects, exactly like a remote client would
@@ -220,14 +222,27 @@ class App {
   }
 
   /**
-   * Every couple of seconds: refresh the network status; while a guest can't reach the host, try
-   * the backup relay networks; and if a host we had is gone for a while, rebuild the connection.
+   * Every couple of seconds: refresh the network status; if the host can't reach our relay, open
+   * the backup networks; while a guest can't reach the host, try the backups one by one; and if a
+   * host we had is gone for a while, rebuild the connection.
    */
   private startWatching() {
     if (this.watch) clearInterval(this.watch);
     let lastFallback = Date.now();
+    let relayDownSince = 0;
     this.watch = setInterval(() => {
       this.netStatus = this.transport?.status() ?? null;
+      if (this.host) {
+        const relay = this.netStatus?.networks.find((n) => n.kind === 'relay');
+        if (!relay || !this.addAll) return;
+        if (relay.up) relayDownSince = 0;
+        else if (!relayDownSince) relayDownSince = Date.now();
+        else if (Date.now() - relayDownSince > RELAY_GRACE_MS) {
+          void this.addAll();
+          this.addAll = null; // once opened, the backups stay up for the rest of the session
+        }
+        return;
+      }
       const client = this.client;
       if (!client || client.connected) return;
       if (Date.now() - lastFallback > FALLBACK_AFTER_MS && this.addNext) {
@@ -267,6 +282,7 @@ class App {
     this.client?.close();
     this.transport = null;
     this.addNext = null;
+    this.addAll = null;
     this.netStatus = null;
     this.pings = [];
     if (clearSaved && this.host) store.set('cards.host', null);

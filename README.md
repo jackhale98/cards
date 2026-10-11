@@ -32,9 +32,10 @@ game itself runs on the host's phone. Devices find each other through the **Lamp
    messages along instead. It stores nothing, and an idle table costs nothing (WebSocket
    hibernation).
 
-As a backup, the host also listens on three public signalling networks via
-[Trystero](https://github.com/dmotz/trystero) (Nostr, MQTT and WebTorrent trackers), and a
-guest adds them if nobody answers through the relay. A device can be reached on several
+As a backup, three public signalling networks via [Trystero](https://github.com/dmotz/trystero)
+(Nostr, MQTT and WebTorrent trackers) stay closed while the relay works, which keeps each phone
+to one connection. If the host can't reach the relay for 5 seconds it opens all of them, and a
+guest adds them one by one if nobody answers through the relay. A device can be reached on several
 networks at once; each view carries the host's id and version, so duplicates are ignored.
 
 The host pings every player every 3 seconds: everyone sees each player's latency, a phone that
