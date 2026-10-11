@@ -153,10 +153,16 @@
     flight.toZone = pile(entry?.toZone);
     snapshot(tableEl);
   });
-  // …and after it, slide whatever merely shifted into its new place
+  // …and after it, slide whatever merely shifted into its new place. This waits for the next
+  // animation frame (still before the screen is drawn) so every other change, including
+  // leaving cards being lifted out of their row, has happened first, whatever order the
+  // browser runs them in (Safari does some of it a beat later than Chrome).
   $effect(() => {
     void s.v;
-    if (tableEl) play(tableEl);
+    const el = tableEl;
+    if (!el) return;
+    const frame = requestAnimationFrame(() => play(el));
+    return () => cancelAnimationFrame(frame);
   });
 
   const me = $derived(you >= 0 ? s.players[you] : null);
