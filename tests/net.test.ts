@@ -134,6 +134,24 @@ describe('host ↔ clients', () => {
     expect(c2.view!.state!.zones['hand:1'].cards.every((c) => !c.id.startsWith('?'))).toBe(true);
   });
 
+  it('falls back to a safe move when a bot proposes an illegal one', () => {
+    const { host } = setup();
+    host.addBot();
+    host.addBot();
+    host.start();
+    // a broken bot: always asks for something the rules won't allow
+    const m = (host as any).module;
+    (host as any).module = { ...m, bot: (st: any, seat: number) => (st.phase === 'betting' && st.turn === seat ? { type: 'shuffleTheTable' } : null) };
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    // get past the human seat so a bot is to act
+    if (host.state!.turn === 0) host.act('h', { type: 'call' });
+    const turnBefore = host.state!.turn;
+    expect(turnBefore).not.toBe(0);
+    for (let i = 0; i < 5 && host.state!.turn === turnBefore; i++) vi.advanceTimersByTime(1500);
+    expect(host.state!.turn).not.toBe(turnBefore);
+    warn.mockRestore();
+  });
+
   it('lets bots finish a hold’em hand', () => {
     const { host, hostView } = setup();
     host.addBot();

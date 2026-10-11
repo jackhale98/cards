@@ -242,7 +242,12 @@ export class Host {
       if (!a) continue;
       this.timer = setTimeout(() => {
         const err = this.applyAs(p.seat, a);
-        if (err) console.warn(`Bot ${p.name}: ${err}`, a);
+        if (!err) return;
+        console.warn(`Bot ${p.name}: ${err}`, a);
+        // never let a bot's mistake freeze the table: fall back to the most passive move on offer
+        const offered = module.actions(this.state!, p.seat);
+        const safe = ['check', 'call', 'pass', 'decline', 'go', 'fold'].map((t) => offered.find((o) => o.type === t)).find(Boolean);
+        if (safe && !safe.select && !safe.amount && !safe.choose) this.applyAs(p.seat, { type: safe.type });
       }, 650 + Math.random() * 600);
       return;
     }

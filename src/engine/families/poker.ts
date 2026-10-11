@@ -2,7 +2,7 @@ import { parseCard } from '../cards';
 import * as bet from '../lib/betting';
 import { bestHand, bestWithHole, type HandValue } from '../lib/pokerEval';
 import { createState, hand, ids, log, moveCards, moveTop, name, nextSeat, resetDeck, zone } from '../state';
-import { assertRule, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
+import { assertRule, type Action, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
 
 /**
  * Poker family: community-card games with no-limit betting, side pots and showdown.
@@ -302,12 +302,13 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
       const strength = handStrength(s, seat);
       const r = Math.random();
       const pot = bet.potTotal(d.b);
+      // with too few chips for a full raise, the only way up is all in (as the action bar offers)
+      const raise = (to: number): Action => (o.maxRaiseTo > o.minRaiseTo ? { type: 'raise', amount: to } : { type: 'allin' });
       if (strength > 0.85 && o.canRaise && r < 0.7) {
-        const to = Math.min(o.maxRaiseTo, Math.max(o.minRaiseTo, d.b.currentBet + Math.round(pot * 0.75)));
-        return { type: 'raise', amount: to };
+        return raise(Math.min(o.maxRaiseTo, Math.max(o.minRaiseTo, d.b.currentBet + Math.round(pot * 0.75))));
       }
       if (o.canCheck) {
-        if (strength > 0.6 && o.canRaise && r < 0.35) return { type: 'raise', amount: o.minRaiseTo };
+        if (strength > 0.6 && o.canRaise && r < 0.35) return raise(o.minRaiseTo);
         return { type: 'check' };
       }
       const priceRatio = o.toCall / Math.max(1, pot + o.toCall);
