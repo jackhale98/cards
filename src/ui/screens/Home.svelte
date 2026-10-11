@@ -11,20 +11,29 @@
   let code = $state(normaliseCode(untrack(() => initialCode)));
   let name = $state(app.name);
   const saved = app.savedHost;
-  const canJoin = $derived(isValidCode(code) && name.trim().length > 0);
+  // the button lights up as soon as the code is complete; a missing name is asked for on tap
+  const canJoin = $derived(isValidCode(code));
+  let nameInput: HTMLInputElement;
+  let needName = $state(false);
+  /** No name yet: point at the name box instead of silently doing nothing. */
+  function askForName() {
+    needName = true;
+    nameInput?.focus();
+    app.say('Add your name first, so everyone knows who you are');
+  }
   let picking = $state(false);
 
   function commitName() {
     app.setName(name.trim());
   }
   function host() {
-    if (!name.trim()) return app.say('Pick a name first');
+    if (!name.trim()) return askForName();
     commitName();
     app.createRoom();
   }
   function join(display = false) {
     if (!isValidCode(code)) return app.say('Table codes are 4 letters');
-    if (!display && !name.trim()) return app.say('Pick a name first');
+    if (!display && !name.trim()) return askForName();
     commitName();
     app.go(`/${display ? 'display' : 'room'}/${code}`);
   }
@@ -56,7 +65,12 @@
           <AvatarBadge avatar={app.avatar} {name} size={46} />
           <span class="edit">✎</span>
         </button>
-        <input bind:value={name} onblur={commitName} maxlength="20" placeholder="e.g. Sam" autocomplete="nickname" enterkeyhint="done" aria-label="Your name" />
+        <input
+          bind:this={nameInput}
+          class:need={needName && !name.trim()}
+          bind:value={name}
+          oninput={() => (needName = false)}
+          onblur={commitName} maxlength="20" placeholder="e.g. Sam" autocomplete="nickname" enterkeyhint="done" aria-label="Your name" />
       </div>
     </div>
 
@@ -294,5 +308,9 @@
   }
   footer a {
     color: var(--ink-dim);
+  }
+  input.need {
+    border-color: var(--gold);
+    box-shadow: 0 0 0 3px rgba(233, 196, 106, 0.35);
   }
 </style>
