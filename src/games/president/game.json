@@ -19,8 +19,8 @@
   ],
   "rulesSummary": [
     "All cards are dealt. 2 is the highest card, then A, K, Q… down to 3. The holder of the 3♣ leads the first hand.",
-    "Play one card, or a set of the same rank. The next play must be the same number of cards and higher. Or pass — you can still play later in the trick.",
-    "When everyone else passes, whoever played last starts a new trick. Get rid of all your cards to go out.",
+    "Play one card, or a set of the same rank. The next play must be the same number of cards and higher. Or pass — you can still play later in the same round. Nobody wins tricks: the aim is to run out of cards.",
+    "When everyone else passes, the pile is cleared and whoever played last leads again. Get rid of all your cards to go out.",
     "First out is President (2 points), next Vice-President (1). Last is the Scum, and next-to-last the Vice-Scum.",
     "Players then reseat in order of rank, so play goes President, Vice-President, … Scum. The Scum deals.",
     "Next hand the Scum gives the President their 2 best cards and gets 2 of the President's choosing back (1 card between Vice-Scum and Vice-President). The President leads. First to 11 points wins."

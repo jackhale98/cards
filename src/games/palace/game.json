@@ -1,0 +1,28 @@
+{
+  "$schema": "../../../schemas/game.schema.json",
+  "id": "palace",
+  "name": "Palace",
+  "tagline": "Also known as Shithead. Get rid of every card — don't be the last one holding them.",
+  "icon": "🏰",
+  "players": { "min": 2, "max": 5, "recommended": 4 },
+  "bots": true,
+  "deck": {},
+  "zones": [
+    { "id": "deck", "label": "Draw pile", "visibility": "none", "layout": "stack", "area": "center" },
+    { "id": "pile", "label": "Pile", "visibility": "all", "layout": "stack", "area": "center" },
+    { "id": "burned", "visibility": "none", "layout": "stack", "area": "none" },
+    { "id": "hand", "perPlayer": true, "visibility": "owner", "layout": "fan", "area": "hand" },
+    { "id": "up", "perPlayer": true, "label": "Face up", "visibility": "all", "layout": "spread", "area": "strip", "hideEmpty": true, "scale": 0.6 },
+    { "id": "down", "perPlayer": true, "label": "Face down", "visibility": "all", "layout": "spread", "area": "none", "hideEmpty": true, "scale": 0.6 }
+  ],
+  "rules": { "family": "palace" },
+  "rulesSummary": [
+    "Everyone gets three cards face down on the table, three face up on top of them, and three in hand. The rest is the draw pile.",
+    "Before play, swap any hand cards with your face-up cards (strong cards are good to keep face up). Whoever shows the lowest card starts.",
+    "Play a card, or several of one rank, equal to or higher than the top of the pile, then draw back up to three. Aces are high.",
+    "Can't or won't play? Pick up the whole pile.",
+    "A 2 goes on anything, and anything goes on a 2. A 10 goes on anything and burns the pile, as does four of a kind on top — then play again.",
+    "With your hand gone and the draw pile empty, play your face-up cards, then turn the face-down ones over one at a time. If it doesn't go, pick it up with the pile.",
+    "Go out by playing your last card. The last player left holding cards is the Shithead — and deals next."
+  ]
+}

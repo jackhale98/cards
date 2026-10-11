@@ -571,8 +571,9 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
   }
 
   /**
-   * Normal and Hard bots bet on their real chances: they call when the pot pays for the risk, raise
-   * when well ahead, and (Hard) size bets to the hand, bluff now and then, and fold weak hands sooner.
+   * Normal and Hard bots bet on their real chances: they call when the pot (counting some of what's
+   * still to come) pays for the risk, and bet or raise when well ahead. Hard plays the same way
+   * with a more exact estimate of its chances (more imagined deals).
    */
   function oddsBot(s: S, seat: number, o: bet.BetOptions, level: number, raise: (to: number) => Action): Action {
     const d = s.data;
@@ -581,25 +582,21 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
     const pot = bet.potTotal(d.b);
     const r = Math.random();
     // against several players a hand needs to be better than its fair share to be "strong"
+    // (aces win about 85% heads-up but only about 64% against three others)
     const fair = 1 / (rivals + 1);
-    const strong = eq > Math.max(0.65, fair * 1.6);
-    const good = eq > Math.max(0.5, fair * 1.25);
+    const strong = eq > Math.min(0.75, fair * 1.8);
+    const good = eq > Math.min(0.6, fair * 1.3);
     const sized = (frac: number) => Math.min(o.maxRaiseTo, Math.max(o.minRaiseTo, d.b.currentBet + Math.round(pot * frac)));
-    const hard = level === 2;
     if (o.canCheck) {
-      if (o.canRaise && strong) return raise(sized(hard ? 0.5 + eq * 0.5 : 0.66));
+      if (o.canRaise && strong) return raise(sized(0.66));
       if (o.canRaise && good && r < 0.5) return raise(sized(0.5));
-      // Hard: a small bluff heads-up after the flop, now and then
-      if (hard && o.canRaise && rivals === 1 && d.street > 0 && r < 0.12) return raise(sized(0.5));
       return { type: 'check' };
     }
+    if (o.canRaise && strong && r < 0.6) return raise(sized(1));
     // the price of calling, counting some of what the others will put in on later streets
-    const later = d.street < lastStreet ? o.toCall * rivals * (hard ? 0.6 : 0.5) : 0;
+    const later = d.street < lastStreet ? o.toCall * rivals * 0.5 : 0;
     const price = o.toCall / Math.max(1, pot + o.toCall + later);
-    if (o.canRaise && strong && r < (hard ? 0.8 : 0.6)) return raise(sized(hard ? 0.75 : 1));
-    // call when the pot pays for the chance of winning (Hard asks a little more of a big bet)
-    const margin = hard ? 0.03 + (o.toCall > pot ? 0.05 : 0) : 0.02;
-    if (eq > price + margin) return { type: 'call' };
+    if (eq > price + 0.02) return { type: 'call' };
     return { type: 'fold' };
   }
 

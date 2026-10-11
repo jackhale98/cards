@@ -12,7 +12,7 @@ import { assertRule, type Action, type ActionSpec, type GameConfig, type GameMod
  * ```
  * All cards are dealt. 2 is high, 3 low. A play is one card or a set of one rank; the next play must
  * be the same number of cards of a higher rank. Passing doesn't stop you playing later in the same
- * trick; once everyone else passes, whoever played last leads again. Finishing order gives titles:
+ * round; once everyone else passes, the pile is cleared and whoever played last leads again. Finishing order gives titles:
  * President (2 points), Vice-President (1), Citizens, Vice-Scum, Scum. From the second hand the Scum
  * hands over their 2 best cards and the President gives back any 2 (1 card between Vice-Scum and
  * Vice-President with four or more players). The holder of the 3♣ leads the first hand, the
@@ -353,7 +353,7 @@ export function climbingFamily(config: GameConfig): GameModule<ClimbingData> {
             log(s, `${who} is out — ${titleFor(d.finished.length - 1, s.players.length)}!`, seat, 'Out!');
             if (s.players.filter((_, i) => inPlay(s, i)).length <= 1) return endHand(s);
           }
-          // nobody left to answer: the trick is won
+          // nobody left to answer: the pile is cleared
           const others = s.players.map((_, i) => i).filter((i) => i !== seat && inPlay(s, i));
           if (!others.length) return clearTrick(s);
           s.turn = nextIn(s, seat);
@@ -365,7 +365,7 @@ export function climbingFamily(config: GameConfig): GameModule<ClimbingData> {
           log(s, `${who} passes`, seat, 'Pass');
           const waiting = s.players.map((_, i) => i).filter((i) => i !== d.last && inPlay(s, i) && !d.passed[i]);
           if (!waiting.length) {
-            log(s, `${name(s, d.last!)} wins the trick`, d.last!);
+            log(s, `Everyone passed — ${name(s, d.last!)} leads again`, d.last!, 'Leads');
             return clearTrick(s);
           }
           s.turn = nextIn(s, seat);

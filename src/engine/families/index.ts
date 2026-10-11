@@ -7,6 +7,7 @@ import { cribbageFamily } from './cribbage';
 import { eightsFamily } from './eights';
 import { freeFamily } from './free';
 import { goFishFamily } from './gofish';
+import { palaceFamily } from './palace';
 import { pokerFamily } from './poker';
 import { rummyFamily } from './rummy';
 import { rummy500Family } from './rummy500';
@@ -22,6 +23,7 @@ export const FAMILIES: Record<string, (config: GameConfig) => GameModule> = {
   blackjack: blackjackFamily,
   cheat: cheatFamily,
   gofish: goFishFamily,
+  palace: palaceFamily,
   canasta: canastaFamily,
   climbing: climbingFamily,
   cribbage: cribbageFamily,

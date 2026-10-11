@@ -18,7 +18,7 @@ describe('search bots', () => {
     for (const id of ['crazy-eights', 'president', 'gin-rummy', 'cribbage', 'go-fish', 'cheat', 'holdem', 'omaha', 'five-card-draw'])
       expect(GAMES[id].config.options!.some((o) => o.id === 'botLevel')).toBe(true);
     // the dealer plays blackjack, and the long rummy games keep their quick bots for now
-    for (const id of ['blackjack', 'canasta', 'rummy-500']) expect(GAMES[id].config.options?.some((o) => o.id === 'botLevel') ?? false).toBe(false);
+    for (const id of ['blackjack', 'canasta', 'rummy-500', 'palace']) expect(GAMES[id].config.options?.some((o) => o.id === 'botLevel') ?? false).toBe(false);
   });
 
   it('deals around known voids', () => {
@@ -127,8 +127,9 @@ describe('search bots', () => {
     const me = s.turn!;
     s.zones[`hand:${me}`].cards = [{ id: 'AS' }, { id: 'AH' }];
     // (it slow-plays now and then)
-    const moves = Array.from({ length: 8 }, () => g.bot!(s, me)!.type);
-    expect(moves.filter((t) => t === 'raise' || t === 'allin').length).toBeGreaterThan(4);
+    const moves = Array.from({ length: 20 }, () => g.bot!(s, me)!.type);
+    expect(moves.filter((t) => t === 'raise' || t === 'allin').length).toBeGreaterThanOrEqual(6);
+    expect(moves).not.toContain('fold');
     s.zones[`hand:${me}`].cards = [{ id: '7C' }, { id: '2D' }];
     // the other player shoves: 7-2 offsuit can't pay that price
     g.apply(s, me, { type: 'call' });

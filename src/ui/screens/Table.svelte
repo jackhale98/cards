@@ -473,7 +473,8 @@
     position: absolute;
     inset: 0;
     display: grid;
-    grid-template-columns: 1fr auto;
+    /* (minmax: a long row of cards scrolls inside the middle instead of widening the screen) */
+    grid-template-columns: minmax(0, 1fr) auto;
     grid-template-rows: auto 1fr auto;
     grid-template-areas:
       'top top'
@@ -481,7 +482,8 @@
       'hand actions';
     padding: calc(6px + var(--safe-t)) calc(10px + var(--safe-r)) calc(4px + var(--safe-b)) calc(10px + var(--safe-l));
     gap: 4px 10px;
-    overflow: hidden;
+    /* clip, not hidden: nothing (a focused button, a card scrolled into view) can shift the table sideways */
+    overflow: clip;
   }
   /* hand mode: the middle shrinks to the headline (and any pile you can tap); the hand grows */
   .table.handmode {
@@ -632,6 +634,7 @@
     justify-content: center;
     gap: 6px;
     min-height: 0;
+    min-width: 0;
   }
   .headline {
     font-size: 0.82rem;

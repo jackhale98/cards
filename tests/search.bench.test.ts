@@ -18,7 +18,7 @@ it.skipIf(!process.env.BENCH)('search strength', () => {
     // a seat's result for the hand, higher is better
     const result = (before: GameState, after: GameState, seat: number): number => {
       const d = after.data as any;
-      if (family === 'climbing') return -(d.finished.indexOf(seat) < 0 ? n : d.finished.indexOf(seat));
+      if (family === 'climbing' || family === 'palace') return -(d.finished.indexOf(seat) < 0 ? n : d.finished.indexOf(seat));
       const scores = d.scores as number[];
       const was = (before.data as any).scores as number[];
       const k = scores.length === n ? seat : seat % scores.length;

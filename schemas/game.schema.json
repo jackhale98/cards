@@ -912,6 +912,18 @@
               "const": "gofish"
             }
           }
+        },
+        {
+          "required": [
+            "family"
+          ],
+          "additionalProperties": false,
+          "description": "Palace (Shithead): hand, face-up and face-down cards; beat the pile or pick it up.",
+          "properties": {
+            "family": {
+              "const": "palace"
+            }
+          }
         }
       ]
     },
