@@ -4,6 +4,7 @@
   import type { View } from '../../net/protocol';
   import AvatarBadge from '../components/AvatarBadge.svelte';
   import AvatarPicker from '../components/AvatarPicker.svelte';
+  import GameIcon from '../components/GameIcon.svelte';
   import NetStatus from '../components/NetStatus.svelte';
   import PingDot from '../components/PingDot.svelte';
   import Sheet from '../components/Sheet.svelte';
@@ -104,7 +105,7 @@
         <div class="games">
           {#each GAME_LIST as g (g.config.id)}
             <button class="game" class:active={g.config.id === lobby.gameId} onclick={() => host.setGame(g.config.id)}>
-              <span class="gicon">{g.config.icon}</span>
+              <span class="gicon"><GameIcon id={g.config.id} icon={g.config.icon} size={40} /></span>
               <span class="gname">{g.config.name}</span>
               <span class="gmeta">{g.config.players.min === g.config.players.max ? g.config.players.min : `${g.config.players.min}–${g.config.players.max}`} players{g.config.chips ? ' · chips' : ''}{g.bot ? ' · bots' : ''}</span>
             </button>
@@ -112,7 +113,7 @@
         </div>
       {/if}
       <div class="chosen">
-        <span class="gicon big">{game.config.icon}</span>
+        <span class="gicon big"><GameIcon id={game.config.id} icon={game.config.icon} size={52} /></span>
         <div>
           <b>{game.config.name}</b>
           <p class="small">{game.config.tagline}</p>
@@ -338,14 +339,12 @@
     background: rgba(233, 196, 106, 0.12);
   }
   .gicon {
-    font-family: var(--font-card);
-    font-size: 1.3rem;
-    color: var(--gold);
+    display: block;
+    margin-bottom: 0.15rem;
   }
   .gicon.big {
-    font-size: 2rem;
-    width: 2.6rem;
-    text-align: center;
+    flex: none;
+    margin-bottom: 0;
   }
   .gname {
     font-weight: 700;

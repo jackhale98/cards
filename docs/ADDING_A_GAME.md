@@ -22,6 +22,12 @@ src/games/my-game/
 autocomplete and validation as you type (each file points at it with `$schema`). `pnpm test`
 also validates every game file.
 
+**Picker icon.** Each built-in game has a small drawing in `src/ui/components/GameIcon.svelte`
+that shows what the game is about (Hold'em's hole cards and a chip, Cribbage's pegboard…).
+A new game shows its `icon` glyph from `game.json` until you add a drawing there: one
+`{:else if id === 'my-game'}` branch, plus its id in `DRAWN`. The snippets at the top draw
+card faces, backs, corners, suits and chips in the same style as the real cards.
+
 ## Example: Spades is ~40 lines of JSON
 
 ```jsonc
