@@ -17,44 +17,49 @@
   });
 </script>
 
-{#if status}
-  <div class="net" class:warn={!local && !up && !grace}>
-    {#if local}
+<!-- always drawn, at a fixed height, so the lobby doesn't jump as the connection comes up -->
+<div class="net" class:warn={!!status && !local && !up && !grace}>
+  <div class="line">
+    {#if !status}
+      <span class="dot wait"></span> Connecting…
+    {:else if local}
       <span class="dot good"></span> Local test mode (tabs in this browser only)
     {:else if up}
       <span class="dot good"></span> Open for players
       {#if relay?.direct}<span class="sum">· {relay.direct} linked directly</span>{/if}
       <button class="info" onclick={() => (details = !details)} aria-expanded={details}>{details ? 'Hide' : 'Details'}</button>
-      {#if details}
-        <ul>
-          {#if relay}
-            <li>Lamplight relay: {relay.up ? 'connected' : 'connecting…'}</li>
-            <li>Direct links: {relay.direct ?? 0}{relay.direct ? '' : ' (moves go through the relay)'}</li>
-          {/if}
-          {#if backups.length}
-            <li>Backup networks: {backups.map((n) => `${LABEL[n.kind] ?? n.kind} ${n.up}/${n.total}`).join(' · ')}</li>
-          {/if}
-        </ul>
-      {/if}
     {:else if grace}
-      <span class="dot wait"></span> Connecting to relay networks…
+      <span class="dot wait"></span> Connecting…
     {:else}
-      <span class="dot bad"></span> Can't reach any relay network — players can't join yet. Check this device's internet
-      connection.
+      <span class="dot bad"></span> Offline — check this device's internet
     {/if}
   </div>
-{/if}
+  {#if status && up && details}
+    <ul>
+      {#if relay}
+        <li>Lamplight relay: {relay.up ? 'connected' : 'connecting…'}</li>
+        <li>Direct links: {relay.direct ?? 0}{relay.direct ? '' : ' (moves go through the relay)'}</li>
+      {/if}
+      {#if backups.length}
+        <li>Backup networks: {backups.map((n) => `${LABEL[n.kind] ?? n.kind} ${n.up}/${n.total}`).join(' · ')}</li>
+      {/if}
+    </ul>
+  {/if}
+</div>
 
 <style>
   .net {
     font-size: 0.75rem;
     color: var(--ink-dim);
+    line-height: 1.35;
+  }
+  .line {
     display: flex;
     align-items: center;
-    gap: 0.35rem;
-    flex-wrap: wrap;
     justify-content: center;
-    line-height: 1.35;
+    gap: 0.35rem;
+    min-height: 1.6rem;
+    white-space: nowrap;
   }
   .net.warn {
     color: #ffb4a2;

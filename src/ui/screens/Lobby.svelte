@@ -51,7 +51,8 @@
   <section class="invite panel">
     <div class="eyebrow">Table code</div>
     <div class="code">{#each lobby.code.split('') as ch}<span>{ch}</span>{/each}</div>
-    {#if qr}<img class="qr" src={qr} alt="QR code to join this table" />{/if}
+    <!-- the QR is generated a moment later: hold its place so the page doesn't jump -->
+    {#if qr}<img class="qr" src={qr} alt="QR code to join this table" />{:else}<div class="qr" aria-hidden="true"></div>{/if}
     <p class="small">Scan, or open the site and enter the code. Everyone should be on the same WiFi for the fastest play.</p>
     <div class="row">
       <button class="btn" onclick={share}>Share invite</button>
@@ -194,8 +195,12 @@
   }
   .qr {
     width: min(150px, 34vh);
+    aspect-ratio: 1;
     border-radius: 12px;
     image-rendering: pixelated;
+  }
+  div.qr {
+    background: rgba(251, 248, 241, 0.06);
   }
   .small {
     font-size: 0.78rem;
