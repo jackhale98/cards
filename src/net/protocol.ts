@@ -50,11 +50,16 @@ export interface View {
 
 export type ClientMsg =
   | { t: 'hello'; cid: string; name: string; avatar?: Avatar; display?: boolean }
-  | { t: 'act'; a: Action; seq: number };
+  | { t: 'act'; a: Action; seq: number }
+  | { t: 'pong'; ts: number };
 
 export type HostMsg =
   | { t: 'view'; view: View }
-  | { t: 'err'; msg: string; seq?: number };
+  | { t: 'err'; msg: string; seq?: number }
+  /** Heartbeat; clients answer with a pong carrying the same timestamp. */
+  | { t: 'ping'; ts: number }
+  /** Round-trip time (ms) from the host to each seated player, by seat index. */
+  | { t: 'pings'; pings: (number | null)[] };
 
 export type Msg = ClientMsg | HostMsg;
 

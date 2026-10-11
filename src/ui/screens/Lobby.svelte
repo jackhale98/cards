@@ -4,6 +4,8 @@
   import type { View } from '../../net/protocol';
   import AvatarBadge from '../components/AvatarBadge.svelte';
   import AvatarPicker from '../components/AvatarPicker.svelte';
+  import NetStatus from '../components/NetStatus.svelte';
+  import PingDot from '../components/PingDot.svelte';
   import Sheet from '../components/Sheet.svelte';
 
   let { view }: { view: View } = $props();
@@ -54,7 +56,7 @@
       <button class="btn" onclick={share}>Share invite</button>
       <button class="btn quiet" onclick={() => { app.leave(); app.go('/'); }}>Leave</button>
     </div>
-    {#if !app.isHost && !app.connected}<p class="status warn">Connecting to host…</p>{/if}
+    {#if app.isHost}<NetStatus />{:else if !app.connected}<p class="status warn">Reconnecting to the host…</p>{/if}
   </section>
 
   <section class="setup">
@@ -81,6 +83,7 @@
               {#if seat.bot}<em>bot</em>{/if}
               {#if i === mySeat}<em class="you">you</em>{/if}
             </span>
+            {#if !seat.bot && !seat.host}<PingDot ms={app.pings[i]} label />{/if}
             {#if host}
               <span class="ctl">
                 <button onclick={() => host.moveSeat(seat.id, -1)} disabled={i === 0} aria-label="Move up">↑</button>

@@ -5,6 +5,7 @@
   import type { Avatar } from '../../net/protocol';
   import { seatColor } from '../seatColors';
   import AvatarBadge from './AvatarBadge.svelte';
+  import PingDot from './PingDot.svelte';
   import Card from './Card.svelte';
   import { receive, send } from '../motion';
 
@@ -21,8 +22,9 @@
     relation?: Relation | null;
     /** What this player just did; shown as a speech bubble that fades out. */
     said?: { text: string; key: number } | null;
+    ping?: number | null;
   }
-  let { player, info, cards, turn, connected, showChips, compact = false, avatar, relation = null, said = null }: Props = $props();
+  let { player, info, cards, turn, connected, showChips, compact = false, avatar, relation = null, said = null, ping = null }: Props = $props();
   const RELATION_LABEL: Record<Relation, string> = { left: '◂ your left', right: 'your right ▸', across: 'across' };
   const shown = $derived(cards.filter((c) => !isHidden(c.id)));
   const backs = $derived(Math.min(cards.length - shown.length, 4));
@@ -40,7 +42,7 @@
     {#if info?.tag}<span class="tag">{info.tag}</span>{/if}
   </div>
   <div class="meta">
-    <div class="name">{player.name}{#if player.bot}<span class="bot" title="Bot">◆</span>{/if}</div>
+    <div class="name">{player.name}{#if player.bot}<span class="bot" title="Bot">◆</span>{/if} <PingDot ms={ping} /></div>
     <div class="sub">
       {#if showChips}<span class="chips"><span class="chip-dot"></span>{player.chips.toLocaleString()}</span>{/if}
       {#if info?.badge}<span class="badge">{info.badge}</span>{/if}

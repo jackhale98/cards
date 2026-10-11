@@ -20,8 +20,14 @@ the middle of the table. It needs no accounts or app store, and there's no serve
 
 GitHub Pages only serves static files, so there is no game server. Devices connect **directly to
 each other with WebRTC**, using [Trystero](https://github.com/dmotz/trystero). The first
-"introduction" (signalling) goes through public Nostr relays. After that, all game traffic flows
-peer-to-peer, and on the same WiFi it stays on your local network.
+"introduction" (signalling) goes through public relays. The host listens on three independent
+relay networks at once (Nostr, MQTT and WebTorrent trackers); a guest starts with Nostr and adds
+the others if nobody answers, so one flaky network can't stop a table forming. After that, all
+game traffic flows peer-to-peer, and on the same WiFi it stays on your local network.
+
+The host pings every player every 3 seconds: everyone sees each player's latency, a phone that
+goes to sleep is noticed within seconds (it keeps its seat), and a guest that loses the host
+rebuilds its connection automatically.
 
 The host's device runs the rules and is the single source of truth. Every other device sends
 *intents* ("play the 7♣") and gets back a **personalised view**. Your device never receives

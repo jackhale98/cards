@@ -2,6 +2,9 @@ import type { Action } from '../engine/types';
 import type { Avatar, HostMsg, View } from './protocol';
 import type { Transport } from './transport';
 
+/** No word from the host (which pings every 3s) for this long means we've lost it. */
+export const SILENT_AFTER_MS = 9000;
+
 /** A player's (or table display's) connection to the host. Holds the latest view. */
 export class Client {
   view: View | null = null;
@@ -10,6 +13,10 @@ export class Client {
   onView: (v: View) => void = () => {};
   onError: (msg: string) => void = () => {};
   onConnection: (connected: boolean) => void = () => {};
+  /** Round-trip times from the host to each seat (ms), refreshed every few seconds. */
+  onPings: (pings: (number | null)[]) => void = () => {};
+  /** When we last heard anything from the host. */
+  lastHeard = 0;
   private seq = 0;
   private helloTimer: ReturnType<typeof setInterval>;
 
@@ -26,21 +33,43 @@ export class Client {
     };
     transport.onMessage = (raw, from) => {
       const msg = raw as HostMsg;
+      if (msg.t === 'ping') {
+        this.transport.send({ t: 'pong', ts: msg.ts }, from);
+        this.heard();
+        return;
+      }
+      if (msg.t === 'pings') {
+        this.heard();
+        this.onPings(msg.pings);
+        return;
+      }
       if (msg.t === 'view') {
         // ignore out-of-order deliveries
         if (from === this.hostPeer && this.view && msg.view.v < this.view.v) return;
         this.hostPeer = from;
-        this.setConnected(true);
+        this.heard();
         this.view = msg.view;
         this.onView(msg.view);
       } else if (msg.t === 'err') {
         this.onError(msg.msg);
       }
     };
-    // keep saying hello until a host answers (covers missed join events)
+    // keep saying hello until a host answers (covers missed join events), and notice a host
+    // that has gone quiet (it pings every few seconds) faster than WebRTC would
     this.helloTimer = setInterval(() => {
+      if (this.connected && Date.now() - this.lastHeard > SILENT_AFTER_MS) this.setConnected(false);
       if (!this.connected) this.hello();
     }, 2000);
+  }
+
+  private heard() {
+    this.lastHeard = Date.now();
+    this.setConnected(true);
+  }
+
+  /** Say hello to everyone again (e.g. when the phone wakes up). */
+  nudge() {
+    this.hello();
   }
 
   private setConnected(c: boolean) {

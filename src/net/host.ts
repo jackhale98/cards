@@ -6,6 +6,9 @@ import { AVATAR_COLORS, AVATAR_EMOJI, cleanAvatar, type Avatar, type ClientMsg, 
 import type { Transport } from './transport';
 
 export const LOCAL = 'local';
+export const HEARTBEAT_MS = 3000;
+/** A peer silent for this long is treated as gone (it keeps its seat and can come back). */
+export const DEAD_AFTER_MS = 12000;
 const UNDO = '__undo';
 const BOT_NAMES = ['Ada', 'Bix', 'Cleo', 'Dash', 'Echo', 'Fizz', 'Gus', 'Hux', 'Ivy'];
 
@@ -27,6 +30,11 @@ export class Host {
   private peers = new Map<string, string>();
   private displays = new Set<string>();
   private timer: ReturnType<typeof setTimeout> | null = null;
+  private heartbeat: ReturnType<typeof setInterval> | null = null;
+  /** peer → last round-trip time and when we last heard from it */
+  private health = new Map<string, { rtt: number | null; seen: number }>();
+  /** Round-trip times by seat, for the local UI. */
+  onPings: (pings: (number | null)[]) => void = () => {};
   private v = 0;
   onLocalView: (v: View) => void = () => {};
   onLocalError: (msg: string) => void = () => {};
@@ -63,8 +71,8 @@ export class Host {
     if (transport) {
       transport.onMessage = (msg, from) => this.receive(from, msg);
       transport.onPeerLeave = (peer) => this.peerLeft(peer);
-      // a newly connected peer hears from us right away, even before saying hello
       transport.onPeerJoin = () => {};
+      this.heartbeat = setInterval(() => this.beat(), HEARTBEAT_MS);
     }
     this.v = this.state?.v ?? 0;
   }
@@ -77,6 +85,12 @@ export class Host {
 
   private receive(peer: string, raw: Msg) {
     const msg = raw as ClientMsg;
+    const h = this.health.get(peer);
+    if (h) h.seen = Date.now();
+    if (msg.t === 'pong') {
+      if (h && typeof msg.ts === 'number') h.rtt = Math.max(0, Math.round(performance.now() - msg.ts));
+      return;
+    }
     if (msg.t === 'hello') return this.hello(peer, String(msg.cid), String(msg.name ?? 'Player'), cleanAvatar(msg.avatar), msg.display);
     if (msg.t === 'act') {
       const cid = this.peers.get(peer);
@@ -90,11 +104,12 @@ export class Host {
     if (display) {
       this.displays.add(peer);
       this.peers.set(peer, cid);
+      this.health.set(peer, { rtt: null, seen: Date.now() });
       return this.broadcast();
     }
-    // drop stale peer ids for this client (reconnects)
-    for (const [p, c] of this.peers) if (c === cid && p !== peer) this.peers.delete(p);
+    // a client may reach us on more than one network; keep them all, they're the same seat
     this.peers.set(peer, cid);
+    this.health.set(peer, { rtt: this.health.get(peer)?.rtt ?? null, seen: Date.now() });
     const seat = this.lobby.seats.find((s) => s.id === cid);
     if (seat) {
       seat.connected = true;
@@ -112,9 +127,39 @@ export class Host {
     this.broadcast();
   }
 
+  /** Ping everyone; drop peers we haven't heard from in a while (faster than WebRTC notices). */
+  private beat() {
+    const now = Date.now();
+    for (const [peer, h] of this.health) {
+      if (now - h.seen > DEAD_AFTER_MS) {
+        this.peerLeft(peer);
+        continue;
+      }
+      this.transport?.send({ t: 'ping', ts: performance.now() }, peer);
+    }
+    const pings = this.pings();
+    this.onPings(pings);
+    this.transport?.send({ t: 'pings', pings });
+  }
+
+  /** Best round-trip time for each seat over any of its connections (host itself = 0). */
+  pings(): (number | null)[] {
+    return this.lobby.seats.map((seat) => {
+      if (seat.host) return 0;
+      if (seat.bot) return null;
+      let best: number | null = null;
+      for (const [peer, cid] of this.peers) {
+        const rtt = cid === seat.id ? this.health.get(peer)?.rtt : null;
+        if (rtt != null && (best == null || rtt < best)) best = rtt;
+      }
+      return best;
+    });
+  }
+
   private peerLeft(peer: string) {
     const cid = this.peers.get(peer);
     this.peers.delete(peer);
+    this.health.delete(peer);
     this.displays.delete(peer);
     const seat = this.lobby.seats.find((s) => s.id === cid);
     if (seat && ![...this.peers.values()].includes(seat.id)) {
@@ -297,6 +342,7 @@ export class Host {
 
   close() {
     if (this.timer) clearTimeout(this.timer);
+    if (this.heartbeat) clearInterval(this.heartbeat);
     this.transport?.leave();
   }
 

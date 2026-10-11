@@ -190,6 +190,7 @@
           avatar={view.lobby.seats[seat]?.avatar}
           relation={display ? null : seatRelation(you, seat, n)}
           said={saidBy(seat)}
+          ping={view.lobby.seats[seat]?.host ? null : app.pings[seat]}
         />
       {/each}
     </div>

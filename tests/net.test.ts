@@ -147,3 +147,93 @@ describe('host ↔ clients', () => {
     expect(host.state!.phase).toBe('handOver');
   });
 });
+
+describe('connection health', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it('reaches the host over several networks without duplicating the seat', async () => {
+    const { MultiTransport } = await import('../src/net/multiTransport');
+    const nostr = new Bus();
+    const mqtt = new Bus();
+    const mk = (bus: Bus, id: string, kind: string) => Object.assign(new MemTransport(bus, id), { kind });
+    // host on both networks, guest on both
+    const hostT = new MultiTransport();
+    const hn = mk(nostr, 'h-n', 'nostr');
+    const hm = mk(mqtt, 'h-m', 'mqtt');
+    hostT.add(hn);
+    hostT.add(hm);
+    const host = new Host(hostT, 'ABCD', { cid: 'h', name: 'H' });
+    nostr.join(hn);
+    mqtt.join(hm);
+    const guestT = new MultiTransport();
+    const gn = mk(nostr, 'g-n', 'nostr');
+    guestT.add(gn);
+    const guest = new Client(guestT, 'g', 'G', undefined);
+    nostr.join(gn);
+    expect(guest.connected).toBe(true);
+    // the guest adds a backup network later: same seat, not a new player
+    const gm = mk(mqtt, 'g-m', 'mqtt');
+    guestT.add(gm);
+    mqtt.join(gm);
+    expect(host.lobby.seats.map((s) => s.id)).toEqual(['h', 'g']);
+    // losing one network keeps the seat connected via the other
+    gn.leave();
+    expect(host.lobby.seats[1].connected).toBe(true);
+    expect(guest.view!.lobby.seats).toHaveLength(2);
+    expect(hostT.status().networks.map((n) => n.kind)).toEqual(['nostr', 'mqtt']);
+  });
+
+  it('measures ping and drops a silent peer, then welcomes it back', () => {
+    const bus = new Bus();
+    const ht = new MemTransport(bus, 'host');
+    const host = new Host(ht, 'ABCD', { cid: 'h', name: 'H' });
+    let pings: (number | null)[] = [];
+    host.onPings = (p) => (pings = p);
+    bus.join(ht);
+    const gt = new MemTransport(bus, 'guest');
+    const guest = new Client(gt, 'g', 'G', undefined);
+    let guestPings: (number | null)[] = [];
+    guest.onPings = (p) => (guestPings = p);
+    bus.join(gt);
+    vi.advanceTimersByTime(3100);
+    expect(pings).toHaveLength(2);
+    expect(pings[0]).toBe(0);
+    expect(typeof pings[1]).toBe('number');
+    expect(guestPings).toEqual(pings);
+
+    // the guest's phone goes to sleep: silent both ways, but WebRTC hasn't noticed yet
+    const receive = gt.onMessage;
+    const send = gt.send.bind(gt);
+    gt.onMessage = () => {};
+    gt.send = () => {};
+    vi.advanceTimersByTime(16000);
+    // before the game starts, a vanished player's seat is freed
+    expect(host.lobby.seats.map((s) => s.id)).toEqual(['h']);
+    // the guest also notices the host has gone quiet
+    expect(guest.connected).toBe(false);
+
+    // the phone wakes up and says hello: back at the table
+    gt.onMessage = receive;
+    gt.send = send;
+    guest.nudge();
+    expect(guest.connected).toBe(true);
+    expect(host.lobby.seats.map((s) => s.id)).toEqual(['h', 'g']);
+  });
+
+  it('keeps a sleeping player’s seat during a game', () => {
+    const bus = new Bus();
+    const ht = new MemTransport(bus, 'host');
+    const host = new Host(ht, 'ABCD', { cid: 'h', name: 'H' });
+    bus.join(ht);
+    const gt = new MemTransport(bus, 'guest');
+    const guest = new Client(gt, 'g', 'G', undefined);
+    bus.join(gt);
+    host.start();
+    gt.onMessage = () => {};
+    gt.send = () => {};
+    vi.advanceTimersByTime(16000);
+    expect(host.lobby.seats[1]).toMatchObject({ id: 'g', connected: false });
+    void guest;
+  });
+});

@@ -11,6 +11,18 @@
 
   const route = $derived(app.route);
   const view = $derived(app.view);
+
+  // seconds spent looking for the table, for progress and troubleshooting hints
+  let now = $state(Date.now());
+  $effect(() => {
+    const t = setInterval(() => (now = Date.now()), 1000);
+    return () => clearInterval(t);
+  });
+  const waited = $derived(app.joinStarted ? Math.max(0, Math.round((now - app.joinStarted) / 1000)) : 0);
+  const LABEL: Record<string, string> = { nostr: 'Nostr relays', mqtt: 'MQTT brokers', torrent: 'WebTorrent trackers', local: 'this browser' };
+  const trying = $derived(app.netStatus?.networks.map((n) => LABEL[n.kind] ?? n.kind).join(', ') ?? '');
+  // local test mode has no relays to wait for
+  const relaysUp = $derived(app.net === 'local' ? 1 : (app.netStatus?.networks.reduce((n, x) => n + x.up, 0) ?? 0));
 </script>
 
 {#if route.name === 'home'}
@@ -18,9 +30,23 @@
 {:else if !view}
   <div class="connecting">
     <div class="spinner"></div>
-    <p>Finding table <b>{route.code}</b>…</p>
-    <p class="small">Make sure the host has the table open. Joining usually takes a few seconds.</p>
-    <button class="btn quiet" onclick={() => app.go('/')}>Cancel</button>
+    <p>Finding table <b>{route.code}</b>… <span class="secs">{waited}s</span></p>
+    {#if trying}<p class="small">Looking via {trying}{relaysUp ? '' : ' (connecting…)'}</p>{/if}
+    {#if waited < 12}
+      <p class="small">Joining usually takes a few seconds.</p>
+    {:else}
+      <ul class="tips">
+        <li>Is the host's screen on, with the table open? Phones pause background tabs.</li>
+        <li>Double-check the code: <b>{route.code}</b>.</li>
+        {#if app.net === 'local'}<li>Local test mode only links tabs in the same browser — not private tabs or other devices.</li>{/if}
+        {#if app.netStatus && !relaysUp}<li>This device can't reach the relay networks — check its internet connection.</li>{/if}
+        <li>Some networks (hotel or guest WiFi) block devices from seeing each other. A phone hotspot works well.</li>
+      </ul>
+    {/if}
+    <div class="row">
+      {#if waited >= 12}<button class="btn" onclick={() => app.rejoin()}>Try again</button>{/if}
+      <button class="btn quiet" onclick={() => app.go('/')}>Cancel</button>
+    </div>
   </div>
 {:else if view.state && view.lobby.started}
   {#key view.lobby.code}
@@ -55,6 +81,24 @@
     color: var(--ink-dim);
     font-size: 0.85rem;
     max-width: 24rem;
+  }
+  .secs {
+    color: var(--ink-faint);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.85rem;
+  }
+  .tips {
+    text-align: left;
+    max-width: 30rem;
+    margin: 0.2rem 0;
+    padding-left: 1.1rem;
+    color: var(--ink-dim);
+    font-size: 0.82rem;
+    line-height: 1.45;
+  }
+  .row {
+    display: flex;
+    gap: 0.5rem;
   }
   .spinner {
     width: 34px;

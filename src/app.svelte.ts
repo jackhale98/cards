@@ -2,7 +2,11 @@ import type { Action } from './engine/types';
 import { Client } from './net/client';
 import { Host, type HostSnapshot } from './net/host';
 import { AVATAR_COLORS, AVATAR_EMOJI, cleanAvatar, makeRoomCode, type Avatar, type View } from './net/protocol';
-import { createTransport, type TransportKind } from './net/transport';
+import type { MultiTransport, NetworkStatus } from './net/multiTransport';
+import { createTransport, FALLBACK_AFTER_MS, type TransportKind } from './net/transport';
+
+/** A guest that has lost the host for this long rebuilds its connection from scratch. */
+const REJOIN_AFTER_MS = 8000;
 
 export type Route =
   | { name: 'home'; code?: string }
@@ -76,17 +80,31 @@ class App {
   isHost = $state(false);
   connected = $state(false);
   toast = $state<{ text: string; id: number } | null>(null);
+  /** Host → player round-trip times by seat (ms; host 0, bots/unknown null). */
+  pings = $state.raw<(number | null)[]>([]);
+  /** Relay networks in use and how many of their relays are reachable. */
+  netStatus = $state.raw<NetworkStatus | null>(null);
+  /** When this device started trying to join the current table (for the "Finding table" screen). */
+  joinStarted = $state(0);
   readonly cid = clientId();
   readonly net: TransportKind = new URLSearchParams(location.search).get('net') === 'local' ? 'local' : 'p2p';
 
   host: Host | null = null;
   private client: Client | null = null;
   private currentCode: string | null = null;
+  private transport: MultiTransport | null = null;
+  private addNext: (() => Promise<boolean>) | null = null;
+  private watch: ReturnType<typeof setInterval> | null = null;
+  private lostSince = 0;
 
   constructor() {
     addEventListener('hashchange', () => {
       this.route = parseHash();
       void this.sync();
+    });
+    // a phone waking up says hello straight away instead of waiting for the next retry
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') this.client?.nudge();
     });
   }
 
@@ -154,11 +172,13 @@ class App {
   }
 
   private async startHost(code: string, restore?: HostSnapshot) {
-    const transport = await createTransport(this.net, code).catch((e) => {
+    const joined = await createTransport(this.net, code, 'host').catch((e) => {
       console.warn('Network unavailable, hosting offline', e);
       return null;
     });
-    const host = new Host(transport, code, { cid: this.cid, name: this.name || 'Host', avatar: this.avatar }, restore);
+    this.transport = joined?.transport ?? null;
+    const host = new Host(this.transport, code, { cid: this.cid, name: this.name || 'Host', avatar: this.avatar }, restore);
+    host.onPings = (p) => (this.pings = p);
     // clone so the UI gets fresh objects, exactly like a remote client would
     host.onLocalView = (v) => (this.view = structuredClone(v));
     host.onPersist = (snap) => store.set('cards.host', JSON.stringify({ code, cid: this.cid, snap, at: Date.now() } satisfies SavedHost));
@@ -167,17 +187,59 @@ class App {
     this.connected = true;
     if (restore) host.resume();
     else host.broadcast();
+    this.startWatching();
   }
 
   private async startClient(code: string, display: boolean) {
     this.isHost = false;
     this.connected = false;
-    const transport = await createTransport(this.net, code);
-    const client = new Client(transport, this.cid, this.name || 'Player', this.avatar, display);
+    this.joinStarted = Date.now();
+    this.lostSince = 0;
+    const joined = await createTransport(this.net, code, 'guest');
+    // the route may have changed while we were connecting
+    if (this.currentCode !== code) return joined.transport.leave();
+    this.transport = joined.transport;
+    this.addNext = joined.addNext;
+    const client = new Client(joined.transport, this.cid, this.name || 'Player', this.avatar, display);
     client.onView = (v) => (this.view = v);
     client.onError = (m) => this.say(m);
-    client.onConnection = (c) => (this.connected = c);
+    client.onPings = (p) => (this.pings = p);
+    client.onConnection = (c) => {
+      this.connected = c;
+      this.lostSince = c ? 0 : Date.now();
+    };
     this.client = client;
+    this.startWatching();
+  }
+
+  /**
+   * Every couple of seconds: refresh the network status; while a guest can't reach the host, try
+   * the backup relay networks; and if a host we had is gone for a while, rebuild the connection.
+   */
+  private startWatching() {
+    if (this.watch) clearInterval(this.watch);
+    let lastFallback = Date.now();
+    this.watch = setInterval(() => {
+      this.netStatus = this.transport?.status() ?? null;
+      const client = this.client;
+      if (!client || client.connected) return;
+      if (Date.now() - lastFallback > FALLBACK_AFTER_MS && this.addNext) {
+        lastFallback = Date.now();
+        void this.addNext();
+      }
+      if (this.view && this.lostSince && Date.now() - this.lostSince > REJOIN_AFTER_MS) void this.rejoin();
+    }, 2000);
+  }
+
+  /** Tear down and rebuild the connection to the current table, keeping what's on screen. */
+  async rejoin() {
+    const code = this.currentCode;
+    if (!code || this.isHost) return;
+    const display = this.route.name === 'display';
+    this.client?.close();
+    this.client = null;
+    this.transport = null;
+    await this.startClient(code, display);
   }
 
   act(a: Action) {
@@ -192,8 +254,14 @@ class App {
   }
 
   leave(clearSaved = true) {
+    if (this.watch) clearInterval(this.watch);
+    this.watch = null;
     this.host?.close();
     this.client?.close();
+    this.transport = null;
+    this.addNext = null;
+    this.netStatus = null;
+    this.pings = [];
     if (clearSaved && this.host) store.set('cards.host', null);
     this.host = null;
     this.client = null;
