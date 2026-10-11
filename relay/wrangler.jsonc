@@ -6,7 +6,8 @@
   "main": "src/index.ts",
   "compatibility_date": "2025-09-01",
   "workers_dev": true,
-  "routes": [{ "pattern": "relay.lamplight.cards", "custom_domain": true }],
+  // relay.lamplight.cards is attached in the dashboard (Settings → Domains & Routes → Custom
+  // domain) rather than here, so deploying doesn't need permission to change DNS
   "durable_objects": {
     "bindings": [{ "name": "ROOMS", "class_name": "Room" }]
   },
