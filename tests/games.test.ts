@@ -183,3 +183,53 @@ describe('free table', () => {
     expect(s.zones.deck.cards).toHaveLength(52);
   });
 });
+
+describe('free table: rummy moves and deck placement', () => {
+  const setup = () => {
+    const s = freetable.setup([{ name: 'A' }, { name: 'B' }], 1, {});
+    const a = ['7H', '8H', '9H', '6H', 'KS'];
+    const b = ['TH', '2C'];
+    s.zones.deck.cards = s.zones.deck.cards.filter((c) => ![...a, ...b].includes(c.id));
+    s.zones['hand:0'].cards = a.map((id) => ({ id }));
+    s.zones['hand:1'].cards = b.map((id) => ({ id }));
+    return s;
+  };
+
+  it('lays down melds and lets anyone add to them', () => {
+    const s = setup();
+    freetable.apply(s, 0, { type: 'meld', cards: ['8H', '7H', '9H'] });
+    expect(s.zones['melds:0'].cards.map((c) => c.id)).toEqual(['7H', '8H', '9H']);
+    expect(s.zones['melds:0'].label).toBe("A's melds");
+    // B adds 10♥ to A's meld by selecting one card of it
+    freetable.apply(s, 1, { type: 'layoff', cards: ['TH', '8H'] });
+    expect(s.zones['melds:0'].cards.map((c) => c.id)).toEqual(['7H', '8H', '9H', 'TH']);
+    expect(s.zones['melds:0'].cards.every((c) => c.group === 0)).toBe(true);
+    // a second meld is its own group
+    freetable.apply(s, 0, { type: 'meld', cards: ['6H'] });
+    expect(s.zones['melds:0'].cards.find((c) => c.id === '6H')!.group).toBe(1);
+    // ambiguous layoff (no meld card selected) is rejected
+    expect(() => freetable.apply(s, 1, { type: 'layoff', cards: ['2C', 'KS'] })).toThrow();
+    expect(s.log.at(-1)?.seat).toBe(0);
+  });
+
+  it('discards face down and takes the top discard back', () => {
+    const s = setup();
+    freetable.apply(s, 0, { type: 'discardDown', cards: ['KS'] });
+    expect(s.zones.discard.cards.at(-1)).toMatchObject({ id: 'KS', up: false });
+    freetable.apply(s, 1, { type: 'takeDiscard' });
+    expect(s.zones['hand:1'].cards.some((c) => c.id === 'KS')).toBe(true);
+  });
+
+  it('puts cards on the bottom or top of the deck', () => {
+    const s = setup();
+    const before = s.zones.deck.cards.length;
+    freetable.apply(s, 0, { type: 'toBottom', cards: ['KS', '6H'] });
+    expect(s.zones.deck.cards.length).toBe(before + 2);
+    expect(s.zones.deck.cards.slice(0, 2).map((c) => c.id).sort()).toEqual(['6H', 'KS']);
+    freetable.apply(s, 0, { type: 'toTop', cards: ['7H'] });
+    expect(s.zones.deck.cards.at(-1)!.id).toBe('7H');
+    // the next draw takes the card just put on top
+    freetable.apply(s, 1, { type: 'draw' });
+    expect(s.zones['hand:1'].cards.at(-1)!.id).toBe('7H');
+  });
+});

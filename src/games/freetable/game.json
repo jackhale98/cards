@@ -10,7 +10,8 @@
     { "id": "deck", "label": "Deck", "visibility": "none", "layout": "stack", "area": "center" },
     { "id": "table", "label": "Table", "visibility": "all", "layout": "spread", "area": "center" },
     { "id": "discard", "label": "Discard", "visibility": "all", "layout": "stack", "area": "center" },
-    { "id": "hand", "perPlayer": true, "visibility": "owner", "layout": "fan", "area": "hand" }
+    { "id": "hand", "perPlayer": true, "visibility": "owner", "layout": "fan", "area": "hand" },
+    { "id": "melds", "label": "Melds", "perPlayer": true, "visibility": "all", "layout": "spread", "area": "center", "hideEmpty": true }
   ],
   "chips": { "start": 1000 },
   "undo": true,
@@ -22,6 +23,8 @@
   "rules": { "family": "free" },
   "rulesSummary": [
     "No rules enforced: deal, draw, play, discard and bet however your game works.",
+    "Rummy-style: lay down melds in front of you and add to anyone's melds. Tap the discard pile to take its top card.",
+    "The ••• menu has more: discard face down, put cards on the bottom or top of the deck, flip, deal, shuffle, bet.",
     "Tap cards to select them, then pick an action. Swipe a card up to play it face up.",
     "Undo is available for everyone, so mistakes are cheap."
   ]

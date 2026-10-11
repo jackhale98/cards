@@ -12,7 +12,7 @@ src/games/my-game/
 
 | family         | games it can express today | engine |
 |----------------|----------------------------|--------|
-| `free`         | anything (rules not enforced), e.g. Crazy Eights | `src/engine/families/free.ts` |
+| `free`         | anything (rules not enforced), e.g. Crazy Eights. Optional zones add moves: `discard` (discard face up/down, take the top discard) and a per-player `melds` zone (lay down melds, add to anyone's) | `src/engine/families/free.ts` |
 | `trick-taking` | Hearts, Spades, Oh Hell, Whist, Black Lady… | `src/engine/families/trickTaking.ts` |
 | `poker`        | Texas Hold'em, Omaha, Pineapple-style variants | `src/engine/families/poker.ts` |
 | `rummy`        | Gin Rummy (style `gin`); Rummy 500 / Oklahoma next | `src/engine/families/rummy.ts` |
