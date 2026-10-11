@@ -55,6 +55,7 @@
 <style>
   .tvsheet {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: 0.6rem;
   }
   ol {
@@ -65,14 +66,20 @@
   }
   ol b {
     color: var(--ink);
+    overflow-wrap: anywhere;
   }
   form {
     display: flex;
     gap: 0.5rem;
+    min-width: 0;
+  }
+  form .btn {
+    flex: none;
   }
   input {
     flex: 1;
     min-width: 0;
+    width: 100%;
     text-align: center;
     letter-spacing: 0.3em;
     text-transform: uppercase;
