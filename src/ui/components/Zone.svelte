@@ -1,7 +1,5 @@
 <script lang="ts">
   import type { ZoneState } from '../../engine/types';
-  import { flip } from 'svelte/animate';
-  import { cubicOut } from 'svelte/easing';
   import { receive, send } from '../motion';
   import Card from './Card.svelte';
 
@@ -30,10 +28,10 @@
 </script>
 
 <div class="zone" data-layout={zone.layout} style:--cw="{cw}px">
-  {#if zone.label && zone.layout !== 'trick'}<div class="label eyebrow">{zone.label}{#if zone.layout === 'stack'} · {zone.cards.length}{/if}</div>{/if}
+  {#if zone.label && zone.layout !== 'trick'}<div class="label eyebrow" data-flip>{zone.label}{#if zone.layout === 'stack'} · {zone.cards.length}{/if}</div>{/if}
 
   {#if zone.layout === 'stack'}
-    <button class="stack" class:active={zoneActive} onclick={() => (top && selectable?.has(top.id) ? ontap(top.id) : onzone?.())} disabled={!zoneActive && !(top && selectable?.has(top.id))}>
+    <button class="stack" data-flip class:active={zoneActive} onclick={() => (top && selectable?.has(top.id) ? ontap(top.id) : onzone?.())} disabled={!zoneActive && !(top && selectable?.has(top.id))}>
       {#if zone.cards.length > 1}<div class="under"><Card id="?u" /></div>{/if}
       {#if zone.cards.length > 8}<div class="under two"><Card id="?u2" /></div>{/if}
       {#if top}
@@ -47,7 +45,7 @@
       {/if}
     </button>
   {:else if zone.layout === 'trick'}
-    <div class="trick">
+    <div class="trick" data-flip>
       {#each zone.cards as c (c.id)}
         {@const p = trickPos(c.by)}
         <div class="tcard" style:transform="translate(-50%, -50%) translate({p.x}px, {p.y}px) rotate({p.rot}deg)" in:receive={{ key: c.id }} out:send={{ key: c.id }}>
@@ -60,17 +58,17 @@
       {#each zone.cards as c, i (c.id)}
         <button
           class="scard"
+          data-flip
           class:newgroup={i > 0 && c.group != null && c.group !== zone.cards[i - 1].group}
           onclick={() => ontap(c.id)}
           disabled={!selectable?.has(c.id)}
           in:receive={{ key: c.id }}
           out:send={{ key: c.id }}
-          animate:flip={{ duration: 360, easing: cubicOut }}
         >
           <Card id={c.id} down={c.up === false} selected={selected.includes(c.id)} dim={c.dim} />
         </button>
       {:else}
-        <div class="empty wide"></div>
+        <div class="empty wide" data-flip></div>
       {/each}
     </div>
   {/if}
@@ -78,6 +76,7 @@
 
 <style>
   .zone {
+    position: relative;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -124,6 +123,7 @@
     width: calc(var(--cw) * 2);
   }
   .spread {
+    position: relative;
     display: flex;
     gap: calc(var(--cw) * 0.1);
     flex-wrap: wrap;
@@ -134,6 +134,7 @@
     margin-left: calc(var(--cw) * -0.45);
   }
   .scard {
+    position: relative;
     padding: 0;
   }
   .spread .scard.newgroup {

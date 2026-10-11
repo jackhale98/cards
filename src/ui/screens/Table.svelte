@@ -10,9 +10,7 @@
   import Sheet from '../components/Sheet.svelte';
   import AvatarBadge from '../components/AvatarBadge.svelte';
   import { seatRelation } from '../../engine/state';
-  import { flip } from 'svelte/animate';
-  import { cubicOut } from 'svelte/easing';
-  import { flight, haptic } from '../motion';
+  import { flight, haptic, play, snapshot } from '../motion';
   import { seatColor } from '../seatColors';
 
   let { view, display = false }: { view: View; display?: boolean } = $props();
@@ -146,6 +144,12 @@
     };
     flight.actor = rect(entry?.seat);
     flight.to = rect(entry?.to);
+    snapshot(tableEl);
+  });
+  // …and after it, slide whatever merely shifted into its new place
+  $effect(() => {
+    void s.v;
+    if (tableEl) play(tableEl);
   });
 
   const me = $derived(you >= 0 ? s.players[you] : null);
@@ -198,7 +202,7 @@
     {/if}
     <div class="zones">
       {#each centerZones as z (z.id)}
-        <div class="zone-slot" animate:flip={{ duration: 360, easing: cubicOut }}>
+        <div class="zone-slot">
           <Zone
           zone={z}
           cw={centerCw}
@@ -213,7 +217,7 @@
         </div>
       {/each}
       {#if status.pot}
-        <div class="pot">
+        <div class="pot" data-flip>
           <div class="chipstack" aria-hidden="true">
             {#each { length: Math.min(6, Math.ceil(Math.log2(status.pot + 1))) } as _, i}
               <span style:bottom="{i * 4}px" style:--c={seatColor(i * 3)}></span>
