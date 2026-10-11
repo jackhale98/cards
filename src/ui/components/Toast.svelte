@@ -1,4 +1,5 @@
 <script lang="ts">
+  import SuitText from './SuitText.svelte';
   import { app } from '../../app.svelte';
 
   $effect(() => {
@@ -13,7 +14,7 @@
 
 {#if app.toast}
   {#key app.toast.id}
-    <div class="toast" role="status">{app.toast.text}</div>
+    <div class="toast" role="status"><SuitText text={app.toast.text} /></div>
   {/key}
 {/if}
 

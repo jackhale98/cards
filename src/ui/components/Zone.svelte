@@ -1,4 +1,5 @@
 <script lang="ts">
+  import SuitText from './SuitText.svelte';
   import type { ZoneState } from '../../engine/types';
   import { receive, send } from '../motion';
   import { isHidden } from '../../engine/redact';
@@ -29,7 +30,7 @@
 </script>
 
 <div class="zone" data-zone={zone.id} data-layout={zone.layout} style:--cw="{cw}px">
-  {#if zone.label && zone.layout !== 'trick'}<div class="label eyebrow" data-flip>{zone.label}{#if zone.layout === 'stack'} · {zone.cards.length}{/if}</div>{/if}
+  {#if zone.label && zone.layout !== 'trick'}<div class="label eyebrow" data-flip><SuitText text={zone.label} />{#if zone.layout === 'stack'} · {zone.cards.length}{/if}</div>{/if}
 
   {#if zone.layout === 'stack'}
     <button class="stack" data-flip class:active={zoneActive} onclick={() => (top && selectable?.has(top.id) ? ontap(top.id) : onzone?.())} disabled={!zoneActive && !(top && selectable?.has(top.id))}>

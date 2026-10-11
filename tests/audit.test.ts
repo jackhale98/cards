@@ -358,3 +358,36 @@ describe('gin rummy (pagat)', () => {
     expect(s.data.result.lines.join(' ')).toMatch(/200 shutout/);
   });
 });
+
+describe('bots play with their partner', () => {
+  const g = GAMES['five-hundred'] as GameModule<TrickData>;
+  /** Seat 2 (partner of seat 0) to play to a trick seat 0 is winning. */
+  function rig(hand2: string[], trump: string | null) {
+    const s = g.setup(bots(4), 5, defaults(g));
+    for (const z of Object.values(s.zones)) z.cards = [];
+    s.zones.trick.cards = [{ id: 'AH', by: 0, up: true }, { id: '5H', by: 1, up: true }];
+    s.zones['hand:2'].cards = hand2.map((id) => ({ id }));
+    s.zones['hand:3'].cards = ['6H', '7C'].map((id) => ({ id }));
+    Object.assign(s.data, { trump, maker: 0, contract: { tricks: 7, suit: trump ?? 'NT', value: 140 }, trickNo: 3, handSize: 10, sittingOut: null, ledSuits: ['H'] });
+    s.phase = 'play';
+    s.turn = 2;
+    return s;
+  }
+
+  it('plays low under partner’s winning card instead of wasting a high one', () => {
+    const s = rig(['KH', '4H'], 'S');
+    expect(g.bot!(s, 2)).toEqual({ type: 'play', cards: ['4H'] });
+  });
+
+  it('void: throws a cheap card rather than trumping partner’s trick', () => {
+    const s = rig(['9S', 'QC', 'AC'], 'S');
+    expect(g.bot!(s, 2)).toEqual({ type: 'play', cards: ['QC'] });
+  });
+
+  it('still beats an opponent who is winning', () => {
+    const s = rig(['KH', '4H'], 'S');
+    s.zones.trick.cards = [{ id: 'QH', by: 1, up: true }];
+    s.turn = 2;
+    expect(g.bot!(s, 2)).toEqual({ type: 'play', cards: ['KH'] });
+  });
+});

@@ -158,3 +158,11 @@ input {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* red suit symbols in text (see SuitText): bright on the felt, deeper on gold and white */
+.suit-red {
+  color: var(--suit-red, #ff8080);
+}
+.btn.primary {
+  --suit-red: #a8121e;
+}

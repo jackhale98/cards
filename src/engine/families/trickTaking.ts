@@ -953,6 +953,8 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
       if (last && !pts) return asc.filter((c) => !pointsOf(c)).pop() ?? highest;
       return lowest;
     }
+    // partner has it: keep out of the way with the cheapest card that doesn't take it over
+    if (partnerWinning) return losers[0] ?? lowest;
     return losers.length ? losers[losers.length - 1] : lowest;
   }
 

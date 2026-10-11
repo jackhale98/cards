@@ -1,4 +1,5 @@
 <script lang="ts">
+  import SuitText from './SuitText.svelte';
   import type { CardRef, PlayerState, SeatInfo } from '../../engine/types';
   import { isHidden } from '../../engine/redact';
   import type { Relation } from '../../engine/state';
@@ -39,7 +40,7 @@
   {#if turnLabel && turn}<span class="rel now">to play</span>{/if}
   {#if said}
     {#key said.key}
-      <span class="said">{said.text}</span>
+      <span class="said"><SuitText text={said.text} /></span>
     {/key}
   {/if}
   <div class="avatar">
@@ -50,7 +51,7 @@
     <div class="name">{player.name}{#if player.bot}<span class="bot" title="Bot">◆</span>{/if} <PingDot ms={ping} /></div>
     <div class="sub">
       {#if showChips}<span class="chips"><span class="chip-dot"></span>{player.chips.toLocaleString()}</span>{/if}
-      {#if info?.badge}<span class="badge">{info.badge}</span>{/if}
+      {#if info?.badge}<span class="badge"><SuitText text={info.badge} /></span>{/if}
       {#if !connected}<span class="badge warn">offline</span>{/if}
     </div>
   </div>
@@ -113,6 +114,7 @@
     border-radius: 10px;
     background: var(--card-face);
     color: #10231c;
+    --suit-red: var(--card-red);
     font-weight: 700;
     font-size: 0.78rem;
     white-space: nowrap;

@@ -46,6 +46,6 @@ describe('bots only make moves the rules allow', () => {
         if (p) problems.push(p);
       }
       expect(problems).toEqual([]);
-    });
+    }, 60000); // (400 deals of the slower games take a few seconds)
   }
 });

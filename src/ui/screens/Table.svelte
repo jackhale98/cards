@@ -1,4 +1,5 @@
 <script lang="ts">
+  import SuitText from '../components/SuitText.svelte';
   import { app } from '../../app.svelte';
   import type { ActionSpec } from '../../engine/types';
   import { getGame } from '../../games';
@@ -251,14 +252,14 @@
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
   <main onclick={(e) => !(e.target as Element).closest('button, .card') && (selected = [])}>
     {#if status.track && !handMode}<Track track={status.track} avatars={view.lobby.seats.map((x) => x.avatar)} />{/if}
-    {#if status.headline}<div class="headline" class:mine={actor === you && you >= 0}>{status.headline}</div>{/if}
+    {#if status.headline}<div class="headline" class:mine={actor === you && you >= 0}><SuitText text={status.headline} /></div>{/if}
     {#if lastMove}
       {#key lastMove.t}
         <div class="last" aria-live="polite">
           {#if lastMove.seat != null}
             <AvatarBadge avatar={view.lobby.seats[lastMove.seat]?.avatar} name={s.players[lastMove.seat]?.name ?? ''} seat={lastMove.seat} size={16} />
           {/if}
-          <span>{lastMove.text}</span>
+          <span><SuitText text={lastMove.text} /></span>
         </div>
       {/key}
     {/if}
@@ -311,7 +312,7 @@
       <div class="banner panel">
         <button class="close" onclick={() => (bannerHidden = s.v)} aria-label="Hide">×</button>
         <h2>{status.banner.title}</h2>
-        {#each status.banner.lines as line}<p>{line}</p>{/each}
+        {#each status.banner.lines as line}<p><SuitText text={line} /></p>{/each}
         {#if s.phase === 'gameOver' && tonight.length}
           <!-- top four, so a nine-player night still fits -->
           <p class="tonight">
@@ -333,9 +334,9 @@
           </div>
           <div class="me-sub">
             {#if showChips}<b>{me.chips.toLocaleString()}</b> chips{/if}
-            {#if myInfo?.badge}<span class="gold">{myInfo.badge}</span>{/if}
+            {#if myInfo?.badge}<span class="gold"><SuitText text={myInfo.badge} /></span>{/if}
           </div>
-          {#if status.hint}<div class="hint">{status.hint}</div>{/if}
+          {#if status.hint}<div class="hint"><SuitText text={status.hint} /></div>{/if}
         {:else}
           <div class="me-sub">Watching</div>
         {/if}
@@ -410,7 +411,7 @@
         <thead><tr><th></th>{#each status.scoreboard.columns as c}<th>{c}</th>{/each}</tr></thead>
         <tbody>
           {#each status.scoreboard.rows as r}
-            <tr class:hl={r.highlight}><td>{r.name}</td>{#each r.values as v}<td>{v}</td>{/each}</tr>
+            <tr class:hl={r.highlight}><td>{r.name}</td>{#each r.values as v}<td><SuitText text={v} /></td>{/each}</tr>
           {/each}
         </tbody>
       </table>
@@ -430,7 +431,7 @@
     {/if}
     <div class="eyebrow">Recent</div>
     <ol class="log">
-      {#each [...s.log].reverse().slice(0, 14) as l}<li>{l.text}</li>{/each}
+      {#each [...s.log].reverse().slice(0, 14) as l}<li><SuitText text={l.text} /></li>{/each}
     </ol>
   </Sheet>
 {/if}
@@ -613,6 +614,7 @@
     }
   }
   .headline.mine {
+    --suit-red: #a8121e;
     background: var(--gold);
     color: #2a1d05;
     box-shadow: 0 0 24px rgba(233, 196, 106, 0.45);

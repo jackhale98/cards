@@ -1,4 +1,5 @@
 <script lang="ts">
+  import SuitText from './SuitText.svelte';
   import type { Relation } from '../../engine/state';
   import type { ActionSpec } from '../../engine/types';
   import type { Avatar } from '../../net/protocol';
@@ -68,7 +69,7 @@
   {/if}
   {#each main as a (a.type)}
     <button class="btn {a.style ?? ''}" disabled={!ready(a)} onclick={() => press(a)}>
-      {a.label}
+      <SuitText text={a.label} />
       {#if hint(a)}<small>{hint(a)}</small>{/if}
     </button>
   {/each}
@@ -82,7 +83,7 @@
   <div class="menu panel">
     {#each more as a (a.type)}
       <button class="item" class:danger={a.style === 'danger'} disabled={!ready(a)} onclick={() => press(a)}>
-        {a.label}
+        <SuitText text={a.label} />
         {#if hint(a)}<small>{hint(a)}</small>{/if}
       </button>
     {/each}
@@ -126,13 +127,12 @@
       {#each spec.choose!.options as o (o.value)}
         <button
           class="choice"
-          class:red={/[♥♦]/.test(o.label)}
           disabled={o.disabled}
           onclick={() => {
             onact(spec, o.value);
             chooseFor = null;
           }}
-          >{#if o.label.includes(' · ')}{o.label.split(' · ')[0]}<small>{o.label.split(' · ')[1]}</small>{:else}{o.label}{/if}</button
+          >{#if o.label.includes(' · ')}<SuitText text={o.label.split(' · ')[0]} /><small>{o.label.split(' · ')[1]}</small>{:else}<SuitText text={o.label} />{/if}</button
         >
       {/each}
     </div>
@@ -287,9 +287,6 @@
     font-size: 0.95rem;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
-  }
-  .choice.red {
-    color: #ff8e8e;
   }
   .choice:disabled {
     opacity: 0.25;
