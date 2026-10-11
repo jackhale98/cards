@@ -120,7 +120,7 @@
             <button class="game" class:active={g.config.id === lobby.gameId} onclick={() => host.setGame(g.config.id)}>
               <span class="gicon"><GameIcon id={g.config.id} icon={g.config.icon} size={40} /></span>
               <span class="gname">{g.config.name}</span>
-              <span class="gmeta">{g.config.players.min === g.config.players.max ? g.config.players.min : `${g.config.players.min}–${g.config.players.max}`} players{g.config.chips ? ' · chips' : ''}{g.bot ? ' · bots' : ''}</span>
+              <span class="gmeta">{g.config.players.counts?.join(' or ') ?? (g.config.players.min === g.config.players.max ? g.config.players.min : `${g.config.players.min}–${g.config.players.max}`)} players{g.config.chips ? ' · chips' : ''}{g.bot ? ' · bots' : ''}</span>
             </button>
           {/each}
         </div>

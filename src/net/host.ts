@@ -343,6 +343,8 @@ export class Host {
     const n = this.lobby.seats.length;
     if (n < g.config.players.min) return `${g.config.name} needs at least ${g.config.players.min} players`;
     if (n > g.config.players.max) return `${g.config.name} allows at most ${g.config.players.max} players`;
+    const counts = g.config.players.counts;
+    if (counts && !counts.includes(n)) return `${g.config.name} is for ${counts.join(' or ')} players`;
     return null;
   }
 

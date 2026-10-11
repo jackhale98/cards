@@ -138,3 +138,105 @@ describe('canasta play', () => {
     }
   });
 });
+
+describe('canasta (pagat audit)', () => {
+  const meld = (team: number, rank: number, cards: string[]) => ({ team, rank, cards });
+  function rig(h0: string[], pile: string[], opts: Partial<CanastaData> = {}, stock = ['5S', '6S', '7S', '8S', '9S', 'TS'], n = 4) {
+    const s = g.setup(bots(n), 2, {});
+    s.players.forEach((p) => (p.bot = false));
+    for (const z of Object.values(s.zones)) z.cards = [];
+    s.zones['hand:0'].cards = h0.map((id) => ({ id }));
+    for (let i = 1; i < n; i++) s.zones[`hand:${i}`].cards = ['4S', '9D', 'JC'].map((id) => ({ id: `${id}#2` }));
+    s.zones.discard.cards = pile.map((id) => ({ id, up: true }));
+    s.zones.deck.cards = stock.map((id) => ({ id }));
+    Object.assign(s.data, { melds: [], red3: [[], []], frozen: false, scores: [0, 0], melded: s.players.map(() => false), turnMelded: false, ask: null, turnStartRanks: (opts.melds ?? []).filter((m) => m.team === 0).map((m) => m.rank), ...opts });
+    s.phase = 'draw';
+    s.turn = 0;
+    return s;
+  }
+
+  it('wild cards alone can be added to a meld the side already has', () => {
+    const s = rig(['2H', 'X1#1', '9C', '9D'], ['8C'], { melds: [meld(0, 13, ['KS', 'KH', 'KD']), meld(0, 9, ['9S', '9H', '2C'])], melded: [true, false, true, false] });
+    g.apply(s, 0, { type: 'draw' });
+    const add = g.actions(s, 0).find((a) => a.type === 'addWild')!;
+    expect(add.choose!.options.map((o) => o.value).sort((a, b) => a - b)).toEqual([9, 13]);
+    g.apply(s, 0, { type: 'addWild', cards: ['2H', 'X1#1'], amount: 13 });
+    expect(s.data.melds.find((m) => m.rank === 13)!.cards).toHaveLength(5);
+    // the nines already have a wild: two more would make four
+    expect(() => g.apply(s, 0, { type: 'addWild', cards: ['2H#2', 'X2#1'], amount: 9 })).toThrow();
+  });
+
+  it('“may I go out?” — a no forbids going out, a yes makes you', () => {
+    const canasta = meld(0, 13, ['KS', 'KH', 'KD', 'KC', 'KS#2', 'KH#2', 'KD#2']);
+    const no = rig(['QS', 'QH', 'QD', '4C', '4H'], ['8C'], { melds: [canasta], melded: [true, false, true, false] }, ['4D']);
+    g.apply(no, 0, { type: 'draw' });
+    g.apply(no, 0, { type: 'ask' });
+    expect(no.phase).toBe('ask');
+    expect(no.turn).toBe(2);
+    expect(g.actions(no, 2).map((a) => a.type)).toEqual(['allowOut', 'denyOut']);
+    g.apply(no, 2, { type: 'denyOut' });
+    expect(no.turn).toBe(0);
+    // melding everything would go out
+    expect(() => g.apply(no, 0, { type: 'meld', cards: ['QS', 'QH', 'QD', '4C', '4H', '4D'] })).toThrow(/said not to go out/);
+    g.apply(no, 0, { type: 'meld', cards: ['QS', 'QH', 'QD'] });
+    g.apply(no, 0, { type: 'discard', cards: ['4C'] });
+    expect(no.phase).toBe('draw');
+
+    const yes = rig(['QS', 'QH', 'QD', '4C', '4H'], ['8C'], { melds: [canasta], melded: [true, false, true, false] }, ['4D']);
+    g.apply(yes, 0, { type: 'draw' });
+    g.apply(yes, 0, { type: 'ask' });
+    g.apply(yes, 2, { type: 'allowOut' });
+    expect(() => g.apply(yes, 0, { type: 'discard', cards: ['4C'] })).toThrow(/must go out/);
+    g.apply(yes, 0, { type: 'meld', cards: ['QS', 'QH', 'QD'] });
+    expect(() => g.apply(yes, 0, { type: 'discard', cards: ['4D'] })).toThrow(/must go out/);
+    // asking comes before melding from hand, once a turn
+    expect(g.actions(yes, 0).some((a) => a.type === 'ask')).toBe(false);
+  });
+
+  it('with the stock gone a matching unfrozen discard must be taken; otherwise drawing ends the hand', () => {
+    const s = rig(['4C', '9H'], ['8C', 'QS'], { melds: [meld(0, 12, ['QH', 'QD', 'QC'])], melded: [true, false, true, false] }, []);
+    expect(g.actions(s, 0).map((a) => a.type)).toEqual(['takePile']);
+    expect(() => g.apply(s, 0, { type: 'draw' })).toThrow(/must take the pile/);
+    g.apply(s, 0, { type: 'takePile', cards: [] });
+    expect(s.phase).toBe('play');
+
+    const t = rig(['4C', '9H'], ['8C', 'JS'], { melds: [meld(0, 12, ['QH', 'QD', 'QC'])], melded: [true, false, true, false] }, []);
+    g.apply(t, 0, { type: 'draw' });
+    expect(t.phase).toBe('handOver');
+    expect(t.data.result!.lines[0]).toMatch(/stock has run out/);
+  });
+
+  it('a red three as the last card of the stock ends the play at once', () => {
+    const s = rig(['4C', '9H', 'JD'], ['8C'], {}, ['3H']);
+    g.apply(s, 0, { type: 'draw' });
+    expect(s.data.red3[0]).toEqual(['3H']);
+    expect(s.phase).toBe('handOver');
+  });
+
+  it('head to head, a single card left in the stock is a full draw', () => {
+    const s = rig(['4C', '9H', 'JD'], ['8C'], { melded: [false, false] }, ['5D'], 2);
+    g.apply(s, 0, { type: 'draw' });
+    expect(s.phase).toBe('play');
+    expect(ids(s, 'hand:0')).toContain('5D');
+  });
+
+  it('going out concealed from the stock needs no minimum, and adding to partner’s melds isn’t concealed', () => {
+    // side needs 120, but a whole concealed hand with a canasta goes out anyway
+    const hand = ['5C', '5D', '5H', '5S', '5C#2', '5D#2', '2H', '6C', '6D', '6H'];
+    const s = rig(hand, ['8C'], { scores: [3500, 0] }, ['4D']);
+    g.apply(s, 0, { type: 'draw' });
+    g.apply(s, 0, { type: 'meld', cards: hand });
+    g.apply(s, 0, { type: 'discard', cards: ['4D'] });
+    expect(s.data.result!.lines[0]).toMatch(/goes out concealed/);
+
+    const p = rig(['5C', '5D', '5H', '5S', '5C#2', '5D#2', '2H', '9C'], ['8C'], { melds: [meld(0, 9, ['9S', '9H', '9D'])], melded: [false, false, true, false] }, ['4D']);
+    g.apply(p, 0, { type: 'draw' });
+    g.apply(p, 0, { type: 'meld', cards: ['5C', '5D', '5H', '5S', '5C#2', '5D#2', '2H', '9C'] });
+    g.apply(p, 0, { type: 'discard', cards: ['4D'] });
+    expect(p.data.result!.lines[0]).toMatch(/goes out!/);
+  });
+
+  it('is for 2 or 4 players', () => {
+    expect(g.config.players.counts).toEqual([2, 4]);
+  });
+});

@@ -53,6 +53,14 @@
         },
         "recommended": {
           "type": "integer"
+        },
+        "counts": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "description": "Only these numbers of players are allowed (when not every count from min to max works)."
         }
       }
     },

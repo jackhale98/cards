@@ -4,7 +4,7 @@
   "name": "Canasta",
   "tagline": "Meld with your partner, freeze the pile, and build canastas of seven.",
   "icon": "♥",
-  "players": { "min": 2, "max": 4, "recommended": 4 },
+  "players": { "min": 2, "max": 4, "recommended": 4, "counts": [2, 4] },
   "bots": true,
   "deck": { "decks": 2, "jokers": 2 },
   "zones": [
@@ -22,6 +22,10 @@
     "Each turn draw from the stock (two cards head to head), or take the whole discard pile by melding its top card. Then meld and discard.",
     "Melds are 3+ cards of one rank with at least 2 natural cards and no more than 3 wild. Seven cards make a canasta: 500 if natural, 300 if mixed.",
     "A wild card in the pile freezes it: then you need a natural pair of the top card to take it (also until your side has melded). A black 3 on top blocks the pile.",
-    "Your side's first meld must be worth 50 (90 from 1500, 120 from 3000). You need a canasta (two head to head) to go out. First to 5000 wins."
+    "Your side's first meld must be worth 50 (90 from 1500, 120 from 3000; 15 below zero). Only the top card of the pile counts towards it.",
+    "You need a canasta (two head to head) to go out: meld everything, or all but one card and discard it. Going out is worth 100, or 200 concealed (melding your whole hand in one turn, with a canasta of your own and nothing added to partner's melds — no minimum needed).",
+    "With partners, you may ask “May I go out?” right after drawing. The answer binds: yes means you must, no means you can't this turn.",
+    "When the stock runs out, play goes on as long as players take the discard — and you must take it if it matches your side's meld and isn't frozen. A red 3 drawn as the last card ends the play.",
+    "Red 3s score 100 each (800 for all four), but count against a side that hasn't melded. Cards left in hand count against you. First to 5000 wins."
   ]
 }
