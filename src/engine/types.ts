@@ -31,7 +31,7 @@ export interface GameConfig {
   id: string;
   name: string;
   tagline: string;
-  /** Short emoji/glyph shown on the game tile. */
+  /** Short glyph shown on the game tile when the game has no drawing in GameIcon.svelte. */
   icon: string;
   players: { min: number; max: number; recommended?: number };
   /** Seats that may be filled by bots, if the game supports them. */
