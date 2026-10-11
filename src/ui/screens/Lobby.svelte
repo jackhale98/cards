@@ -87,7 +87,7 @@
     <div class="code">{#each lobby.code.split('') as ch}<span>{ch}</span>{/each}</div>
     <!-- the QR is generated a moment later: hold its place so the page doesn't jump -->
     {#if qr}<img class="qr" src={qr} alt="QR code to join this table" />{:else}<div class="qr" aria-hidden="true"></div>{/if}
-    <p class="small">Scan, or open the site and enter the code. Friends somewhere else can join with the invite link — pair it with a video call. Same WiFi is fastest.</p>
+    <p class="small">Scan, or open the site and enter the code. Friends somewhere else can join with the invite link. Same WiFi is fastest.</p>
     <div class="row">
       <button class="btn" onclick={share}>Share invite</button>
       <button class="btn" onclick={() => (tv = true)}>📺 TV</button>

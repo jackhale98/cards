@@ -69,7 +69,7 @@
         let them connect directly). It stores nothing. There are no accounts, no ads and nothing to install.
       </p>
       <h4>Far apart?</h4>
-      <p>Send the invite link and pair the game with a video call — it works over the internet too.</p>
+      <p>Send the invite link — it works over the internet too.</p>
       <h4>Good to know</h4>
       <ul>
         <li>Refresh or lose signal and you keep your seat; the host can resume the table later.</li>
