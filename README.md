@@ -1,4 +1,4 @@
-# Cards 🂡
+# Lamplight 🂡
 
 **Your phone is your hand.** A fast, good-looking card table for friends in the same room.
 One person hosts, everyone else scans a QR code, and each phone shows that player's hand plus

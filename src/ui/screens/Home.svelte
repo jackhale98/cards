@@ -44,8 +44,8 @@
       <div class="f f3"><Card id="QD" /></div>
       <div class="f f4"><Card id="JC" /></div>
     </div>
-    <h1>Cards</h1>
-    <p class="tag">Your phone is your hand. Gather round one table, play any game.</p>
+    <h1>Lamplight</h1>
+    <p class="tag">Your phone is your hand. Pull up a chair, any game.</p>
   </section>
 
   <section class="form panel">
@@ -60,7 +60,7 @@
       </div>
     </div>
 
-    <button class="btn primary wide" onclick={host}>Host a table</button>
+    <button class="btn primary wide light" onclick={host}>Light a table</button>
 
     <div class="or"><span>or join one</span></div>
 
@@ -105,12 +105,24 @@
     gap: 1rem 2rem;
     padding: calc(16px + var(--safe-t)) calc(24px + var(--safe-r)) calc(10px + var(--safe-b)) calc(24px + var(--safe-l));
     overflow: auto;
+    /* Lamplight: a warm lamp just out of frame, upper left, over a warmer felt */
+    --glow: rgba(255, 196, 118, 0.51);
+    background:
+      radial-gradient(ellipse 85% 150% at -6% -12%, var(--glow) 0%, rgba(255, 186, 104, 0.14) 40%, rgba(255, 186, 104, 0) 78%),
+      radial-gradient(ellipse 130% 125% at 18% 10%, rgba(30, 12, 0, 0) 45%, rgba(30, 12, 0, 0.42) 100%),
+      linear-gradient(rgba(255, 160, 80, 0.07), rgba(255, 160, 80, 0.07)),
+      radial-gradient(ellipse 80% 70% at 50% 42%, #2f5e3e 0%, #1b3b28 55%, #0d1a10 100%);
   }
   @media (orientation: portrait), (max-width: 620px) {
     .home {
       grid-template-columns: 1fr;
       grid-template-rows: auto auto auto;
       align-content: center;
+      background:
+        radial-gradient(ellipse 150% 75% at -14% -8%, var(--glow) 0%, rgba(255, 186, 104, 0.14) 40%, rgba(255, 186, 104, 0) 78%),
+        radial-gradient(ellipse 150% 110% at 15% 5%, rgba(30, 12, 0, 0) 45%, rgba(30, 12, 0, 0.42) 100%),
+        linear-gradient(rgba(255, 160, 80, 0.07), rgba(255, 160, 80, 0.07)),
+        radial-gradient(ellipse 80% 70% at 50% 42%, #2f5e3e 0%, #1b3b28 55%, #0d1a10 100%);
     }
   }
   .hero {
@@ -152,6 +164,13 @@
   .f {
     transform: rotate(var(--r));
   }
+  /* shadows fall down and right, away from the lamp */
+  .fan :global(.card) {
+    box-shadow:
+      0 0.08em 0.2em rgba(0, 0, 0, 0.25),
+      10px 14px 18px -6px rgba(20, 8, 0, 0.5),
+      inset 0 0 0 1px var(--card-edge);
+  }
   @keyframes deal {
     from {
       transform: rotate(0deg) translateY(30px);
@@ -161,12 +180,11 @@
   h1 {
     font-family: var(--font-card);
     font-size: clamp(2.4rem, 9vh, 4rem);
+    font-weight: 400;
     margin: 0.4rem 0 0;
-    letter-spacing: -0.02em;
-    background: linear-gradient(180deg, #fff6dc, var(--gold));
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+    letter-spacing: -0.01em;
+    color: #fbe7b2;
+    text-shadow: 0 0 24px rgba(255, 200, 110, 0.35);
   }
   .tag {
     margin: 0.2rem 0 0;
@@ -174,6 +192,8 @@
     max-width: 26rem;
   }
   .form {
+    background: rgba(26, 24, 14, 0.58);
+    border-color: rgba(255, 214, 140, 0.22);
     padding: 1.1rem;
     display: flex;
     flex-direction: column;
@@ -224,6 +244,10 @@
   }
   .wide {
     width: 100%;
+  }
+  .light {
+    background: linear-gradient(180deg, #ffe7a3, #f2b84b);
+    box-shadow: 0 6px 24px rgba(242, 184, 75, 0.35);
   }
   .or {
     display: flex;
