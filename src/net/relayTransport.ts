@@ -19,6 +19,7 @@ const LINK_AFTER = 3;
 
 type FromRelay =
   | { t: 'welcome'; peers: string[] }
+  | { t: 'taken' }
   | { t: 'join' | 'leave'; peer: string }
   | { t: 'msg'; from: string; d?: Msg; s?: Signal };
 type Signal = { sdp: RTCSessionDescriptionInit } | { ice: RTCIceCandidateInit };
@@ -59,12 +60,18 @@ export class RelayTransport implements Transport {
   private keepalive: ReturnType<typeof setInterval> | null = null;
   private readonly direct: boolean;
 
+  /** Hosting: our secret claim on the table code (the relay turns away a different host). */
+  private readonly hostKey?: string;
+  /** Another host already holds this code: we've stopped, and the owner should pick a new one. */
+  onTaken: () => void = () => {};
+
   constructor(
     private code: string,
     private url = RELAY_URL,
-    opts: { direct?: boolean } = {},
+    opts: { direct?: boolean; hostKey?: string } = {},
   ) {
     this.direct = (opts.direct ?? true) && typeof RTCPeerConnection !== 'undefined';
+    this.hostKey = opts.hostKey;
     this.connect();
   }
 
@@ -72,7 +79,8 @@ export class RelayTransport implements Transport {
 
   private connect() {
     if (this.closed) return;
-    const ws = new WebSocket(`${this.url.replace(/\/$/, '')}/room/${ROOM_PREFIX}${this.code}?peer=${this.selfId}`);
+    const host = this.hostKey ? `&host=${encodeURIComponent(this.hostKey)}` : '';
+    const ws = new WebSocket(`${this.url.replace(/\/$/, '')}/room/${ROOM_PREFIX}${this.code}?peer=${this.selfId}${host}`);
     this.ws = ws;
     ws.onopen = () => {
       this.retries = 0;
@@ -109,7 +117,10 @@ export class RelayTransport implements Transport {
   }
 
   private fromRelay(m: FromRelay) {
-    if (m.t === 'welcome') for (const p of m.peers) this.arrived(p);
+    if (m.t === 'taken') {
+      this.leave();
+      this.onTaken();
+    } else if (m.t === 'welcome') for (const p of m.peers) this.arrived(p);
     else if (m.t === 'join') this.arrived(m.peer);
     else if (m.t === 'leave') {
       this.present.delete(m.peer);

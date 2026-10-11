@@ -82,12 +82,17 @@ export type HostMsg =
 
 export type Msg = ClientMsg | HostMsg;
 
-/** Room codes avoid vowels (no accidental words) and look-alike characters. */
+/**
+ * Room codes: five letters (3.2 million codes) without vowels (no accidental words) or look-alike
+ * characters. The relay refuses a second host on a code that's in use, and the app picks another.
+ */
 const CODE_CHARS = 'BCDFGHJKLMNPQRSTVWXZ';
+export const CODE_LENGTH = 5;
 export function makeRoomCode(): string {
-  const a = new Uint32Array(4);
+  const a = new Uint32Array(CODE_LENGTH);
   crypto.getRandomValues(a);
   return [...a].map((n) => CODE_CHARS[n % CODE_CHARS.length]).join('');
 }
-export const normaliseCode = (c: string) => c.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 4);
-export const isValidCode = (c: string) => /^[A-Z]{4}$/.test(c);
+export const normaliseCode = (c: string) => c.toUpperCase().replace(/[^A-Z]/g, '').slice(0, CODE_LENGTH);
+// (four-letter codes from before the switch still open)
+export const isValidCode = (c: string) => /^[A-Z]{4,5}$/.test(c);

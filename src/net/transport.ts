@@ -38,7 +38,13 @@ export interface Joined {
  * guest adds them one by one while no host answers (`addNext`), and the host opens them all if the
  * relay can't be reached (`addAll`), so the two still meet during a relay outage.
  */
-export async function createTransport(kind: TransportKind, code: string, role: 'host' | 'guest'): Promise<Joined> {
+export async function createTransport(
+  kind: TransportKind,
+  code: string,
+  role: 'host' | 'guest',
+  /** Hosting: a secret that claims the code on our relay, and what to do if another host has it. */
+  host?: { key: string; onTaken: () => void },
+): Promise<Joined> {
   const multi = new MultiTransport();
   const none = { addNext: async () => false, addAll: async () => {} };
   if (kind === 'local') {
@@ -48,7 +54,9 @@ export async function createTransport(kind: TransportKind, code: string, role: '
   }
   if (kind !== 'public') {
     const { RelayTransport } = await import('./relayTransport');
-    multi.add(new RelayTransport(code));
+    const relay = new RelayTransport(code, undefined, { hostKey: host?.key });
+    if (host) relay.onTaken = host.onTaken;
+    multi.add(relay);
   }
   if (kind === 'relay') return { transport: multi, ...none };
   const { TrysteroTransport, STRATEGIES } = await import('./trysteroTransport');

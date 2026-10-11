@@ -31,6 +31,20 @@ const store = {
   },
 };
 
+/** Per-tab secret that claims a table code on the relay while this tab hosts it (kept across reloads). */
+function hostKey(): string {
+  try {
+    let key = sessionStorage.getItem('cards.hostKey');
+    if (!key) {
+      key = crypto.randomUUID();
+      sessionStorage.setItem('cards.hostKey', key);
+    }
+    return key;
+  } catch {
+    return crypto.randomUUID();
+  }
+}
+
 /** Per-tab client id: survives a reload (so you keep your seat) but differs between tabs. */
 function clientId(): string {
   try {
@@ -173,6 +187,21 @@ class App {
     this.go(`/room/${code}`);
   }
 
+  /**
+   * The relay says someone else is already hosting this code (rare: 3.2 million codes). Move our
+   * table, as it stands, to a fresh code; anyone who joined with the old one will need the new one.
+   */
+  private codeTaken(code: string) {
+    if (this.currentCode !== code || !this.isHost) return;
+    const saved = this.savedHost;
+    const next = makeRoomCode();
+    if (saved?.code === code) store.set('cards.host', JSON.stringify({ ...saved, code: next, at: Date.now() } satisfies SavedHost));
+    else store.set('cards.host', null);
+    this.say('That table code was already in use — here’s a new one');
+    this.pendingHostCode = next;
+    this.go(`/room/${next}`);
+  }
+
   /** Re-open the table this device was hosting (e.g. after the browser was closed). */
   resumeRoom(code: string) {
     this.pendingHostCode = code;
@@ -180,7 +209,7 @@ class App {
   }
 
   private async startHost(code: string, restore?: HostSnapshot) {
-    const joined = await createTransport(this.net, code, 'host').catch((e) => {
+    const joined = await createTransport(this.net, code, 'host', { key: hostKey(), onTaken: () => this.codeTaken(code) }).catch((e) => {
       console.warn('Network unavailable, hosting offline', e);
       return null;
     });

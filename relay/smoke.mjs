@@ -8,9 +8,9 @@ const check = (ok, what) => {
   if (!ok) failed++;
 };
 
-function connect(peer, headers) {
+function connect(peer, headers, host, at = room) {
   return new Promise((resolve, reject) => {
-    const ws = new WebSocket(`${base}/room/${room}?peer=${peer}`, headers ? { headers } : undefined);
+    const ws = new WebSocket(`${base}/room/${at}?peer=${peer}${host ? `&host=${host}` : ''}`, headers ? { headers } : undefined);
     const inbox = [];
     ws.onmessage = (e) => inbox.push(e.data === 'pong' ? 'pong' : JSON.parse(e.data));
     ws.onopen = () => resolve({ ws, inbox });
@@ -82,5 +82,28 @@ ok.ws.close();
 
 a.ws.close();
 b2.ws.close();
+
+// one host per code
+const table = `${room}-hosted`;
+const h1 = await connect('host01', undefined, 'key-one-1234', table);
+await wait(150);
+check(!!take(h1, (m) => m.t === 'welcome'), 'a host claims a free code');
+const h2 = await connect('host02', undefined, 'key-two-5678', table);
+await wait(250);
+check(!!take(h2, (m) => m.t === 'taken') && h2.ws.readyState !== WebSocket.OPEN, 'a second host on the same code is told it is taken');
+const g = await connect('guest1', undefined, undefined, table);
+await wait(150);
+check(JSON.stringify(take(g, (m) => m.t === 'welcome')?.peers) === '["host01"]', 'guests still join the first host');
+h1.ws.close();
+await wait(250);
+const h1b = await connect('host03', undefined, 'key-one-1234', table);
+await wait(150);
+check(!!take(h1b, (m) => m.t === 'welcome'), 'the same host reconnects after a refresh');
+h1b.ws.close();
+await wait(250);
+const h3 = await connect('host04', undefined, 'key-two-5678', table);
+await wait(250);
+check(!!take(h3, (m) => m.t === 'taken'), 'a recently gone host keeps its code for a while');
+g.ws.close();
 console.log(failed ? `${failed} failed` : 'all good');
 process.exit(failed ? 1 : 0);

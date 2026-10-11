@@ -10,6 +10,7 @@ import { DurableObject } from 'cloudflare:workers';
  *   device → relay   { "to": "<peer>"?, "d": <game message> }      (no `to` = everyone else)
  *                    { "to": "<peer>",  "s": <WebRTC signal> }
  *   relay → device   { "t": "welcome", "peers": ["<peer>", …] }    (on connect)
+ *                    { "t": "taken" }                               (then closed: see below)
  *                    { "t": "join" | "leave", "peer": "<peer>" }
  *                    { "t": "msg", "from": "<peer>", "d" | "s": … }
  *
@@ -17,6 +18,11 @@ import { DurableObject } from 'cloudflare:workers';
  * here once it's open; the relay only carries the game when a direct link can't be made.
  * Nothing is stored. The room uses WebSocket hibernation, so an idle table costs nothing, and a
  * plain "ping" text frame is answered with "pong" without waking it.
+ *
+ * The host connects with `&host=<secret>`, which claims the table code. Another host (a different
+ * secret) on the same code gets `taken` and is closed, so it can pick a new code: the claim holds
+ * while its host is connected and for a while after (a refresh, a phone asleep). A room nobody has
+ * used for a day forgets its claim.
  */
 
 interface Env {
@@ -28,6 +34,11 @@ const MAX_PEERS = 24;
 const MAX_MESSAGE = 512 * 1024;
 const ROOM_NAME = /^[A-Za-z0-9_-]{1,64}$/;
 const PEER_ID = /^[A-Za-z0-9_-]{4,40}$/;
+const HOST_KEY = /^[A-Za-z0-9_-]{8,64}$/;
+/** How long a host's claim on its code outlasts its connection. */
+const HOST_GRACE_MS = 30 * 60_000;
+/** An unused room forgets everything after this. */
+const FORGET_MS = 24 * 3600_000;
 /** Messages a device may send per second before extras are dropped. */
 const RATE = 120;
 
@@ -61,12 +72,16 @@ export default {
     if (!originAllowed(req.headers.get('Origin'), env.ALLOWED_ORIGINS ?? ''))
       return new Response('Origin not allowed', { status: 403 });
     if (!PEER_ID.test(url.searchParams.get('peer') ?? '')) return new Response('Bad peer id', { status: 400 });
+    const host = url.searchParams.get('host');
+    if (host !== null && !HOST_KEY.test(host)) return new Response('Bad host key', { status: 400 });
     return env.ROOMS.get(env.ROOMS.idFromName(m[1])).fetch(req);
   },
 } satisfies ExportedHandler<Env>;
 
 interface Attachment {
   peer: string;
+  /** The host's claim key, on the host's socket. */
+  host?: string;
   /** Rate limiting: the current one-second window and messages sent in it. */
   window: number;
   count: number;
@@ -103,13 +118,31 @@ export class Room extends DurableObject<Env> {
   }
 
   async fetch(req: Request): Promise<Response> {
-    const peer = new URL(req.url).searchParams.get('peer')!;
+    const url = new URL(req.url);
+    const peer = url.searchParams.get('peer')!;
+    const host = url.searchParams.get('host') ?? undefined;
     const [client, server] = Object.values(new WebSocketPair());
+    if (host) {
+      // one host per code: a different host is told the code is taken
+      const claim = await this.ctx.storage.get<{ key: string; seen: number }>('host');
+      const otherHost = this.open().some((ws) => {
+        const a = ws.deserializeAttachment() as Attachment;
+        return a.host && a.host !== host;
+      });
+      if (otherHost || (claim && claim.key !== host && Date.now() - claim.seen < HOST_GRACE_MS)) {
+        server.accept();
+        server.send(JSON.stringify({ t: 'taken' }));
+        server.close(4009, 'Table code in use');
+        return new Response(null, { status: 101, webSocket: client });
+      }
+      await this.ctx.storage.put('host', { key: host, seen: Date.now() });
+    }
     // a device reconnecting (same peer id) replaces its old socket
     const old = this.ctx.getWebSockets(peer);
     if (!old.length && this.peers().length >= MAX_PEERS) return new Response('Table is full', { status: 503 });
     this.ctx.acceptWebSocket(server, [peer]);
-    server.serializeAttachment({ peer, window: 0, count: 0 } satisfies Attachment);
+    server.serializeAttachment({ peer, host, window: 0, count: 0 } satisfies Attachment);
+    await this.ctx.storage.setAlarm(Date.now() + FORGET_MS);
     for (const ws of old) ws.close(4000, 'Replaced by a new connection');
     server.send(JSON.stringify({ t: 'welcome', peers: this.peers(server).filter((p) => p !== peer) }));
     if (!old.length) this.broadcast(JSON.stringify({ t: 'join', peer }), server);
@@ -149,8 +182,17 @@ export class Room extends DurableObject<Env> {
     this.gone(ws, 1011);
   }
 
+  /** Nobody has connected for a day: forget the host's claim. */
+  async alarm() {
+    if (this.open().length) await this.ctx.storage.setAlarm(Date.now() + FORGET_MS);
+    else await this.ctx.storage.deleteAll();
+  }
+
   private gone(ws: WebSocket, code: number) {
     const peer = this.peerOf(ws);
+    // the host's claim runs from when it was last connected
+    const host = (ws.deserializeAttachment() as Attachment).host;
+    if (host) void this.ctx.storage.put('host', { key: host, seen: Date.now() });
     try {
       ws.close(code === 1000 || (code >= 3000 && code < 5000) ? code : 1000, 'Bye');
     } catch {

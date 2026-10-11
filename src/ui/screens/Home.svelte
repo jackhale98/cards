@@ -1,7 +1,7 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import { app } from '../../app.svelte';
-  import { isValidCode, normaliseCode } from '../../net/protocol';
+  import { CODE_LENGTH, isValidCode, normaliseCode } from '../../net/protocol';
   import AvatarBadge from '../components/AvatarBadge.svelte';
   import AvatarPicker from '../components/AvatarPicker.svelte';
   import Card from '../components/Card.svelte';
@@ -34,7 +34,7 @@
     app.createRoom();
   }
   function join(display = false) {
-    if (!isValidCode(code)) return app.say('Table codes are 4 letters');
+    if (!isValidCode(code)) return app.say(`Table codes are ${CODE_LENGTH} letters`);
     if (!display && !name.trim()) return askForName();
     commitName();
     app.go(`/${display ? 'display' : 'room'}/${code}`);
@@ -91,7 +91,7 @@
         oninput={(e) => (code = normaliseCode(e.currentTarget.value))}
         onkeydown={(e) => e.key === 'Enter' && join()}
         placeholder="CODE"
-        maxlength="4"
+        maxlength={CODE_LENGTH}
         autocapitalize="characters"
         autocomplete="off"
         spellcheck="false"

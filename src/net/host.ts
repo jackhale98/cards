@@ -52,6 +52,8 @@ export class Host {
   ) {
     if (restore) {
       this.lobby = restore.lobby;
+      // (the table may have moved to a new code, if its old one turned out to be taken)
+      this.lobby.code = code;
       this.lobby.seats.forEach((s) => (s.connected = !!s.bot || !!s.host));
       // the host may be resuming from a new browser session with a new client id
       const hostSeat = this.lobby.seats.find((s) => s.host);

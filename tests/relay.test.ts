@@ -11,6 +11,14 @@ class FakeRelay {
   }
   connect(s: FakeSocket) {
     if (!this.up) return queueMicrotask(() => s.drop());
+    if (s.host && [...this.sockets].some((o) => o.room === s.room && o.host && o.host !== s.host && o.readyState === 1)) {
+      // another host has this code
+      return queueMicrotask(() => {
+        s.readyState = 1;
+        s.deliver({ t: 'taken' });
+        s.drop();
+      });
+    }
     this.sockets.add(s);
     queueMicrotask(() => {
       s.readyState = 1;
@@ -44,12 +52,14 @@ class FakeSocket {
   readyState = 0;
   peer: string;
   room: string;
+  host: string | null;
   onopen?: () => void;
   onmessage?: (e: { data: string }) => void;
   onclose?: () => void;
   constructor(url: string) {
     this.peer = new URL(url).searchParams.get('peer')!;
     this.room = new URL(url).pathname;
+    this.host = new URL(url).searchParams.get('host');
     relay.connect(this);
   }
   deliver(m: unknown) {
@@ -159,5 +169,27 @@ describe('relay transport', () => {
     expect([...relay.sockets].map((s) => s.room).sort()).toEqual(['/room/lamplight-v1-AAAA', '/room/lamplight-v1-BBBB']);
     expect(a.joined).toEqual([]);
     expect(b.joined).toEqual([]);
+  });
+});
+
+describe('one host per table code', () => {
+  it('a second host on a code in use is told so, and stops trying', async () => {
+    const first = new RelayTransport('BCDFG', 'ws://relay.test', { hostKey: 'first-host-key' });
+    await flush();
+    const second = new RelayTransport('BCDFG', 'ws://relay.test', { hostKey: 'other-host-key' });
+    let taken = 0;
+    second.onTaken = () => taken++;
+    await flush();
+    expect(taken).toBe(1);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(taken).toBe(1); // no reconnect attempts
+    // guests and the first host are unaffected
+    const guest = new RelayTransport('BCDFG', 'ws://relay.test');
+    const seen: string[] = [];
+    guest.onPeerJoin = (p) => seen.push(p);
+    await flush();
+    expect(seen).toEqual([first.selfId]);
+    first.leave();
+    guest.leave();
   });
 });
