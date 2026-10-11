@@ -80,8 +80,8 @@
     run(quick, undefined, sel);
   }
 
-  function run(spec: ActionSpec, amount?: number, cards = selected) {
-    app.act({ type: spec.type, cards: spec.select ? [...cards] : undefined, amount });
+  function run(spec: ActionSpec, amount?: number, cards = selected, seat?: number) {
+    app.act({ type: spec.type, cards: spec.select ? [...cards] : undefined, amount, seat });
     if (spec.select) selected = [];
     haptic(10);
   }
@@ -137,15 +137,15 @@
   // Before the DOM updates, note where the acting player sits so cards fly to/from them.
   let tableEl: HTMLElement;
   $effect.pre(() => {
-    const seat = s.log.at(-1)?.seat;
+    const entry = s.log.at(-1);
     if (!tableEl) return;
-    const el =
-      seat == null
-        ? null
-        : seat === you
-          ? tableEl.querySelector('.hand-wrap')
-          : tableEl.querySelector(`[data-seat="${seat}"]`);
-    flight.actor = el?.getBoundingClientRect() ?? null;
+    const rect = (seat: number | undefined) => {
+      if (seat == null) return null;
+      const el = seat === you ? tableEl.querySelector('.hand-wrap') : tableEl.querySelector(`[data-seat="${seat}"]`);
+      return el?.getBoundingClientRect() ?? null;
+    };
+    flight.actor = rect(entry?.seat);
+    flight.to = rect(entry?.to);
   });
 
   const me = $derived(you >= 0 ? s.players[you] : null);
@@ -264,7 +264,18 @@
       </div>
     </footer>
     <aside>
-      <ActionBar actions={view.actions} {selected} pot={status.pot} onact={run} onclear={() => (selected = [])} />
+      <ActionBar
+        actions={view.actions}
+        {selected}
+        pot={status.pot}
+        onact={(spec, amount, seat) => run(spec, amount, selected, seat)}
+        onclear={() => (selected = [])}
+        seatInfo={(seat) => ({
+          name: s.players[seat]?.name ?? '',
+          avatar: view.lobby.seats[seat]?.avatar,
+          relation: seatRelation(you, seat, n),
+        })}
+      />
     </aside>
   {/if}
 </div>

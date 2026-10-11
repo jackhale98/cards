@@ -6,7 +6,7 @@ import { crossfade } from 'svelte/transition';
  * Set by the table right before each update, so a card that leaves for a hidden hand flies
  * toward that player, and a card played from a hidden hand flies in from them.
  */
-export const flight: { actor: DOMRect | null } = { actor: null };
+export const flight: { actor: DOMRect | null; to: DOMRect | null } = { actor: null, to: null };
 
 /**
  * Cards keyed by id glide between zones (hand → trick, deck → hand …). Cards with no visible
@@ -18,7 +18,8 @@ export const [send, receive] = crossfade({
   fallback(node, _params, intro) {
     const t0 = getComputedStyle(node).transform;
     const base = t0 === 'none' ? '' : t0;
-    const actor = flight.actor;
+    // arriving cards come from the actor; leaving cards go to the recipient (or the actor, who took them)
+    const actor = intro ? flight.actor : (flight.to ?? flight.actor);
     if (actor) {
       const r = node.getBoundingClientRect();
       const dx = actor.left + actor.width / 2 - (r.left + r.width / 2);

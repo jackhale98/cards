@@ -111,6 +111,8 @@ export interface LogEntry {
   seat?: number;
   /** Bubble text, e.g. "Raise 60" or "7♥". */
   short?: string;
+  /** Seat the cards went to, if any (cards are animated toward them). */
+  to?: number;
 }
 
 export interface GameState<D = unknown> {
@@ -158,6 +160,8 @@ export interface ActionSpec {
   menu?: boolean;
   /** Tapping this zone (e.g. "deck", "discard") triggers the action. */
   zone?: string;
+  /** Requires choosing another player; the choice is sent as `Action.seat`. */
+  target?: { seats: number[]; label?: string };
   /**
    * Shortcut for card actions: `true` = swipe a card up, or tap a selected card again, to do it;
    * `'swipe'` = swipe only (tapping a selected card deselects it). Use `'swipe'` where an

@@ -84,7 +84,8 @@ describe('privacy: log lines never name hidden cards', () => {
         const spec = specs[rand(specs.length)];
         const cards = spec.select ? [...spec.select.cards].sort(() => rand(3) - 1).slice(0, Math.max(spec.select.min, 1 + rand(2))) : undefined;
         if (spec.select && cards!.length < spec.select.min) return null;
-        return { seat, a: { type: spec.type, cards, amount: spec.amount?.default } };
+        const target = spec.target ? spec.target.seats[rand(spec.target.seats.length)] : undefined;
+        return { seat, a: { type: spec.type, cards, amount: spec.amount?.default, seat: target } };
       },
       400,
     );

@@ -1,6 +1,6 @@
 import { buildDeck, cardName, parseCard, rankLabel, sortCards, SUIT_SYMBOL } from '../cards';
 import { shuffle } from '../rng';
-import { createState, deal, findCard, hand, ids, log, moveCards, moveTop, name, seatOrderFrom, zone } from '../state';
+import { createState, deal, findCard, hand, ids, log, moveCards, moveTop, name, seatOrderFrom, seatRelation, zone } from '../state';
 import { assertRule, type ActionSpec, type CardRef, type GameConfig, type GameModule, type GameState } from '../types';
 
 const cardLabel = (id: string) => {
@@ -73,6 +73,13 @@ export function freeFamily(config: GameConfig): GameModule<FreeData> {
       if (mine.length) out.push({ type: 'play', label: 'Play', style: 'primary', quick: 'swipe', select: any(mine) });
       if (hasDiscard && movable.length) out.push({ type: 'discard', label: 'Discard', select: any(movable) });
       if (hasMelds && mine.length) out.push({ type: 'meld', label: 'Lay down meld', select: any(mine) });
+      if (mine.length && s.players.length > 1) {
+        // left first, then right, then everyone else in turn order
+        const n = s.players.length;
+        const others = seatOrderFrom(s, seat + 1).filter((x) => x !== seat);
+        const order = [others[0], ...(n > 2 ? [others[others.length - 1]] : []), ...others.slice(1, -1)];
+        out.push({ type: 'give', label: 'Pass…', select: any(mine), target: { seats: order, label: 'Pass to' } });
+      }
       if (hasMelds && mine.length && meldCards(s).length)
         out.push({ type: 'layoff', label: 'Add to meld', select: { min: 2, max: 99, cards: [...mine, ...meldCards(s)] } });
       if (onTable.length) out.push({ type: 'take', label: 'Take', select: any(onTable) });
@@ -175,6 +182,15 @@ export function freeFamily(config: GameConfig): GameModule<FreeData> {
           sortGroups(s, targetZone.id);
           const owner = targetZone.owner === seat ? 'their' : `${name(s, targetZone.owner!)}’s`;
           return log(s, `${who} adds ${fromHand.map(cardLabel).join(' ')} to ${owner} meld`, seat, `Added ${fromHand.map(cardLabel).join(' ')}`);
+        }
+        case 'give': {
+          const to = a.seat ?? -1;
+          assertRule(to !== seat && s.players[to], 'Choose who to pass to');
+          for (const c of cards) assertRule(ids(hand(s, seat)).includes(c), 'You can only pass cards from your hand');
+          moveCards(s, `hand:${seat}`, `hand:${to}`, cards);
+          const rel = seatRelation(seat, to, s.players.length);
+          const dir = rel === 'left' || rel === 'right' ? `${rel} ` : '';
+          return log(s, `${who} passes ${plural(n)} ${dir}to ${name(s, to)}`, seat, `${plural(n)} → ${name(s, to)}`, to);
         }
         case 'takeDiscard': {
           const top = zone(s, 'discard').cards.at(-1);

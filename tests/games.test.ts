@@ -233,3 +233,31 @@ describe('free table: rummy moves and deck placement', () => {
     expect(s.zones['hand:1'].cards.at(-1)!.id).toBe('7H');
   });
 });
+
+describe('free table: passing cards', () => {
+  const four = () => {
+    const s = freetable.setup(['A', 'B', 'C', 'D'].map((name) => ({ name })), 9, {});
+    freetable.apply(s, 0, { type: 'deal', amount: 3 });
+    return s;
+  };
+
+  it('offers left, then right, then everyone else', () => {
+    const s = four();
+    const give = freetable.actions(s, 0).find((a) => a.type === 'give')!;
+    expect(give.target!.seats).toEqual([1, 3, 2]);
+    expect(freetable.actions(s, 2).find((a) => a.type === 'give')!.target!.seats).toEqual([3, 1, 0]);
+  });
+
+  it('passes face down to the chosen player without naming the cards', () => {
+    const s = four();
+    const cards = s.zones['hand:0'].cards.slice(0, 2).map((c) => c.id);
+    freetable.apply(s, 0, { type: 'give', cards, seat: 3 });
+    expect(s.zones['hand:3'].cards.map((c) => c.id)).toEqual(expect.arrayContaining(cards));
+    expect(s.zones['hand:0'].cards).toHaveLength(1);
+    const entry = s.log.at(-1)!;
+    expect(entry.text).toBe('A passes 2 cards right to D');
+    expect(entry.to).toBe(3);
+    expect(() => freetable.apply(s, 0, { type: 'give', cards: [s.zones['hand:0'].cards[0].id], seat: 0 })).toThrow();
+    expect(() => freetable.apply(s, 0, { type: 'give', cards: [s.zones['hand:1'].cards[0].id], seat: 2 })).toThrow();
+  });
+});

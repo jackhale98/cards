@@ -1,22 +1,32 @@
 <script lang="ts">
+  import type { Relation } from '../../engine/state';
   import type { ActionSpec } from '../../engine/types';
+  import type { Avatar } from '../../net/protocol';
+  import AvatarBadge from './AvatarBadge.svelte';
 
   interface Props {
     actions: ActionSpec[];
     selected: string[];
     pot?: number;
-    onact: (spec: ActionSpec, amount?: number) => void;
+    onact: (spec: ActionSpec, amount?: number, seat?: number) => void;
     onclear?: () => void;
+    /** Name/avatar/relation of a seat, for choosing a player. */
+    seatInfo?: (seat: number) => { name: string; avatar?: Avatar; relation: Relation | null };
   }
-  let { actions, selected, pot = 0, onact, onclear }: Props = $props();
+  let { actions, selected, pot = 0, onact, onclear, seatInfo }: Props = $props();
+  let targetFor = $state<ActionSpec | null>(null);
+  const RELATION: Record<Relation, string> = { left: '◂ Your left', right: 'Your right ▸', across: 'Across' };
 
   let amountFor = $state<ActionSpec | null>(null);
   let amount = $state(0);
   let menuOpen = $state(false);
 
   // With many options, card actions only appear once a matching selection is made.
+  // While cards are selected, pile shortcuts (Draw — also a tap on the deck) step aside for card actions.
   const crowded = $derived(actions.filter((a) => !a.menu).length > 3);
-  const main = $derived(actions.filter((a) => !a.menu && (!crowded || !a.select || ready(a))));
+  const main = $derived(
+    actions.filter((a) => !a.menu && (!crowded || (a.select ? ready(a) : !(a.zone && selected.length)))),
+  );
   const more = $derived(actions.filter((a) => a.menu));
 
   function ready(a: ActionSpec) {
@@ -34,6 +44,10 @@
 
   function press(a: ActionSpec) {
     menuOpen = false;
+    if (a.target) {
+      targetFor = a;
+      return;
+    }
     if (a.amount) {
       amountFor = a;
       amount = a.amount.default;
@@ -84,6 +98,31 @@
         {#if hint(a)}<small>{hint(a)}</small>{/if}
       </button>
     {/each}
+  </div>
+{/if}
+
+{#if targetFor?.target && seatInfo}
+  {@const spec = targetFor}
+  <button class="scrim" onclick={() => (targetFor = null)} aria-label="Cancel"></button>
+  <div class="sheet panel">
+    <div class="eyebrow">{spec.target!.label ?? spec.label} · {selected.length} card{selected.length === 1 ? '' : 's'}</div>
+    <div class="targets">
+      {#each spec.target!.seats as seat (seat)}
+        {@const info = seatInfo(seat)}
+        <button
+          class="target"
+          onclick={() => {
+            onact(spec, undefined, seat);
+            targetFor = null;
+          }}
+        >
+          <AvatarBadge avatar={info.avatar} name={info.name} {seat} size={34} />
+          <span class="tname">{info.name}</span>
+          {#if info.relation}<small>{RELATION[info.relation]}</small>{/if}
+        </button>
+      {/each}
+    </div>
+    <div class="row"><button class="btn quiet" onclick={() => (targetFor = null)}>Cancel</button></div>
   </div>
 {/if}
 
@@ -206,6 +245,39 @@
     background: rgba(8, 26, 20, 0.96);
     max-height: calc(100dvh - 24px);
     overflow: auto;
+  }
+  .targets {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+    gap: 0.4rem;
+  }
+  .target {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.45rem 0.6rem;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--line);
+    text-align: left;
+    min-width: 0;
+  }
+  .target:active {
+    transform: scale(0.97);
+  }
+  .tname {
+    font-weight: 700;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .target small {
+    font-size: 0.65rem;
+    color: var(--gold);
+    font-weight: 600;
+    white-space: nowrap;
   }
   .numbers {
     display: grid;
