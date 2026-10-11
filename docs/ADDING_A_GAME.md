@@ -76,7 +76,10 @@ layoffs are made for the defender, so players only choose what to draw and disca
 
 ## Telling players what happened
 
-Call `log(s, text, seat, short)` in your engine for every player action. The table shows the
+Call `log(s, text, seat, short)` in your engine for every player action. **Only name cards that
+were face up for everyone** (before or after the move). Log lines go to every device, so
+"draws from the stock" never says which card, while "takes the 7♥ from the discard pile" does.
+`tests/privacy.test.ts` plays every game and fails if a log line names a hidden card. The table shows the
 latest entry under the headline (with the player's avatar) and pops `short` up as a bubble on
 that player's seat, e.g. `log(s, 'Riley raises to 60', seat, 'Raise to 60')`.
 

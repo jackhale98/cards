@@ -120,6 +120,16 @@ export function freeFamily(config: GameConfig): GameModule<FreeData> {
           moveCards(s, z.id, to, [c], extra);
         }
       };
+      /** Name face-up cards; only count face-down ones (nobody may learn what they were). */
+      const describe = (list: string[]) => {
+        const shown = list.filter((c) => {
+          const z = findCard(s, c);
+          return z?.visibility === 'all' && z.cards.find((x) => x.id === c)?.up !== false;
+        });
+        const hidden = list.length - shown.length;
+        const parts = [...(shown.length ? [shown.map(cardLabel).join(' ')] : []), ...(hidden ? [`${hidden} face-down card${hidden === 1 ? '' : 's'}`] : [])];
+        return { text: parts.join(' and '), short: shown.length && !hidden ? shown.map(cardLabel).join(' ') : `${list.length} card${list.length === 1 ? '' : 's'}` };
+      };
       switch (a.type) {
         case 'play':
           moveFromAnywhere(playZone, { up: true, by: seat });
@@ -172,19 +182,25 @@ export function freeFamily(config: GameConfig): GameModule<FreeData> {
           moveCards(s, 'discard', `hand:${seat}`, [top.id]);
           return log(s, `${who} takes ${top.up === false ? 'the face-down discard' : `the ${cardName(top.id)}`} from the discard pile`, seat, top.up === false ? 'Took discard' : `Took ${cardLabel(top.id)}`);
         }
-        case 'take':
+        case 'take': {
+          const what = describe(cards); // before the cards leave the table
           moveFromAnywhere(`hand:${seat}`);
-          return log(s, `${who} takes ${plural(n)} from the table`, seat, `Took ${n}`);
-        case 'flip':
+          return log(s, `${who} takes ${what.text} from the table`, seat, `Took ${what.short}`);
+        }
+        case 'flip': {
           for (const z of publicZones(s)) for (const c of zone(s, z).cards) if (cards.includes(c.id)) c.up = c.up === false;
-          return log(s, `${who} flips ${plural(n)}`, seat, 'Flip');
+          const revealed = describe(cards); // after flipping: names the cards now face up
+          return log(s, `${who} flips over ${revealed.text}`, seat, `Flipped ${revealed.short}`);
+        }
         case 'draw':
           assertRule(zone(s, 'deck').cards.length, 'The deck is empty');
           moveTop(s, 'deck', `hand:${seat}`, 1);
           return log(s, `${who} draws`, seat);
-        case 'flipTop':
+        case 'flipTop': {
           moveTop(s, 'deck', playZone, 1, { up: true });
-          return;
+          const top = zone(s, playZone).cards.at(-1)!.id;
+          return log(s, `${who} turns up the ${cardName(top)}`, seat, cardLabel(top));
+        }
         case 'deal': {
           const n = Math.max(1, Math.floor(a.amount ?? 1));
           deal(s, [{ to: 'hand', count: n }], seatOrderFrom(s, seat + 1));

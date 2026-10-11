@@ -1,4 +1,4 @@
-import { redact } from '../engine/redact';
+import { redact, redactActions, resolveAction } from '../engine/redact';
 import { randomSeed } from '../engine/rng';
 import { RuleError, type Action, type GameModule, type GameState } from '../engine/types';
 import { getGame, GAMES } from '../games';
@@ -131,7 +131,10 @@ export class Host {
   act(cid: string, a: Action): string | null {
     const seat = this.lobby.seats.findIndex((s) => s.id === cid);
     if (!this.state || !this.module || seat < 0) return 'You are not seated';
-    return this.applyAs(seat, a);
+    // face-down cards are referred to by placeholder ids; map them back to real cards
+    const resolved = resolveAction(this.state, seat, a);
+    if (!resolved) return 'The table changed — try again';
+    return this.applyAs(seat, resolved);
   }
 
   private applyAs(seat: number, a: Action): string | null {
@@ -308,7 +311,7 @@ export class Host {
       lobby: this.lobby,
       you: s ? seat : -1,
       state: s && m ? redact(m, s, seat) : null,
-      actions: s && m && seat >= 0 ? m.actions(s, seat) : [],
+      actions: s && m && seat >= 0 ? redactActions(s, seat, m.actions(s, seat)) : [],
       status: s && m ? m.status(s, seat) : null,
     };
     if (s && m?.config.undo && this.history.length && seat >= 0)
