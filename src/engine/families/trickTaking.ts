@@ -47,15 +47,17 @@ export interface TrickRules {
   bidding?:
     | { type?: 'tricks'; nil?: boolean; hook?: boolean }
     | { type: 'euchre'; stickTheDealer?: boolean; alone?: boolean }
-    | { type: 'auction'; schedule: 'avondale' };
+    | { type: 'auction'; schedule: 'avondale' }
+    | { type: 'bridge' };
   scoring:
     | { type: 'penalty'; cardPoints: Record<string, number>; moon?: boolean }
     | { type: 'contract'; bags?: { every: number; penalty: number }; nil?: number }
     | { type: 'exact'; bonus: number }
     | { type: 'tricks' }
     | { type: 'euchre' }
-    | { type: 'auction'; perTrick: number; slam?: number };
-  end: { target?: number; lowWins?: boolean; rounds?: boolean };
+    | { type: 'auction'; perTrick: number; slam?: number }
+    | { type: 'bridge' };
+  end: { target?: number; lowWins?: boolean; rounds?: boolean; deals?: number };
 }
 
 /** A 500 bid: tricks (6–10) in a suit or no trumps. */
@@ -76,6 +78,45 @@ const contractLabel = (c: Contract) => `${c.tricks}\u2009${c.suit === 'NT' ? 'NT
 const SAME_COLOUR: Record<Suit, Suit> = { S: 'C', C: 'S', H: 'D', D: 'H' };
 /** Suits by index, for "name trumps" choices. */
 const NAMEABLE: Suit[] = ['S', 'H', 'D', 'C'];
+/** Contract bridge: bids are numbered 0 (1♣) … 34 (7NT). */
+const STRAINS: (Suit | 'NT')[] = ['C', 'D', 'H', 'S', 'NT'];
+export const bidOf = (i: number) => ({ level: Math.floor(i / 5) + 1, strain: STRAINS[i % 5] });
+const bidLabel = (i: number) => contractLabel({ tricks: bidOf(i).level, suit: bidOf(i).strain, value: 0 });
+export type Call = number | 'P' | 'X' | 'XX';
+export interface BridgeContract {
+  level: number;
+  strain: Suit | 'NT';
+  /** 0 undoubled, 1 doubled, 2 redoubled. */
+  dbl: 0 | 1 | 2;
+}
+const bridgeLabel = (c: BridgeContract, short = false) =>
+  `${contractLabel({ tricks: c.level, suit: c.strain, value: 0 })}${short ? ['', '×', '××'][c.dbl] : ['', ' doubled', ' redoubled'][c.dbl]}`;
+
+/**
+ * Duplicate bridge score for one deal: positive = the declaring side's score, negative = what the
+ * defenders score.
+ */
+export function bridgeScore(c: BridgeContract, vul: boolean, won: number): number {
+  const need = c.level + 6;
+  if (won < need) {
+    const down = need - won;
+    if (!c.dbl) return -down * (vul ? 100 : 50);
+    let pts = 0;
+    for (let i = 1; i <= down; i++) pts += vul ? (i === 1 ? 200 : 300) : i === 1 ? 100 : i <= 3 ? 200 : 300;
+    return -pts * c.dbl;
+  }
+  const per = c.strain === 'C' || c.strain === 'D' ? 20 : 30;
+  const mult = [1, 2, 4][c.dbl];
+  const trickPts = (c.level * per + (c.strain === 'NT' ? 10 : 0)) * mult;
+  let score = trickPts + (trickPts >= 100 ? (vul ? 500 : 300) : 50);
+  if (c.level === 6) score += vul ? 750 : 500;
+  if (c.level === 7) score += vul ? 1500 : 1000;
+  score += 50 * c.dbl;
+  const over = won - need;
+  score += c.dbl ? over * (vul ? 200 : 100) * c.dbl : over * per;
+  return score;
+}
+
 const label = (id: string) => (parseCard(id).suit === 'X' ? 'Joker' : `${rankLabel(parseCard(id).rank)}${SUIT_SYMBOL[parseCard(id).suit]}`);
 
 export interface TrickData {
@@ -108,6 +149,12 @@ export interface TrickData {
   passedOut?: boolean[];
   /** Euchre: how many players have passed in this bidding round. */
   declines?: number;
+  /** Bridge: the auction so far, the final contract, the dummy, and who is vulnerable (per team). */
+  calls?: { seat: number; call: Call }[];
+  bridge?: BridgeContract | null;
+  dummy?: number | null;
+  dummyUp?: boolean;
+  vul?: boolean[];
 }
 
 type S = GameState<TrickData>;
@@ -129,6 +176,7 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
   const trickBids = R.bidding && (!R.bidding.type || R.bidding.type === 'tricks') ? (R.bidding as { nil?: boolean; hook?: boolean }) : null;
   const euchreBids = R.bidding?.type === 'euchre' ? R.bidding : null;
   const auction = R.bidding?.type === 'auction' ? R.bidding : null;
+  const bridgeBids = R.bidding?.type === 'bridge';
   const nilAllowed = !!trickBids?.nil;
   const target = (s: S) => Number(s.options.target ?? R.end.target ?? 100);
 
@@ -160,6 +208,15 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
     d.declines = 0;
     d.bidRound = 1;
     d.upcard = null;
+    if (bridgeBids) {
+      d.calls = [];
+      d.bridge = null;
+      d.dummy = null;
+      d.dummyUp = false;
+      // Chicago: nobody, dealer's side, dealer's side, everybody
+      const k = d.round % 4;
+      d.vul = teamsFor(n).map((t) => k === 3 || ((k === 1 || k === 2) && t.includes(s.dealer)));
+    }
     if (euchreBids && zone(s, 'deck').cards.length) {
       moveTop(s, 'deck', 'upcard', 1, { up: true });
       d.upcard = zone(s, 'upcard').cards[0].id;
@@ -188,8 +245,9 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
 
   function startBidding(s: S) {
     if (!R.bidding) return startPlay(s);
-    s.phase = euchreBids ? 'order' : auction ? 'auction' : 'bid';
-    s.turn = nextSeat(s, s.dealer);
+    s.phase = euchreBids ? 'order' : auction ? 'auction' : bridgeBids ? 'call' : 'bid';
+    // in bridge the dealer calls first
+    s.turn = bridgeBids ? s.dealer : nextSeat(s, s.dealer);
   }
 
   function startPlay(s: S) {
@@ -199,6 +257,7 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
     const twoClubs = s.players.findIndex((_, i) => ids(hand(s, i)).includes('2C'));
     if (R.lead === 'twoOfClubs' && twoClubs >= 0) s.turn = twoClubs;
     else if (R.lead === 'maker' && d.maker != null) s.turn = d.maker;
+    else if (bridgeBids && d.maker != null) s.turn = nextSeat(s, d.maker); // left of the declarer leads
     else s.turn = active(s, nextSeat(s, s.dealer)) ? nextSeat(s, s.dealer) : nextActive(s, nextSeat(s, s.dealer));
   }
 
@@ -238,6 +297,61 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
     s.turn = seat;
   }
 
+  // ---- bridge auction ----
+
+  /** The last bid, who made it, and whether it has been doubled. */
+  function auctionState(s: S) {
+    let lastBid = -1;
+    let bidder = -1;
+    let dbl: 0 | 1 | 2 = 0;
+    for (const c of s.data.calls ?? []) {
+      if (typeof c.call === 'number') {
+        lastBid = c.call;
+        bidder = c.seat;
+        dbl = 0;
+      } else if (c.call === 'X') dbl = 1;
+      else if (c.call === 'XX') dbl = 2;
+    }
+    return { lastBid, bidder, dbl };
+  }
+  const canDouble = (s: S, seat: number) => {
+    const a = auctionState(s);
+    return a.lastBid >= 0 && a.dbl === 0 && teamOf(s, a.bidder) !== teamOf(s, seat);
+  };
+  const canRedouble = (s: S, seat: number) => {
+    const a = auctionState(s);
+    return a.dbl === 1 && teamOf(s, a.bidder) === teamOf(s, seat);
+  };
+  const callLabel = (c: Call) => (typeof c === 'number' ? bidLabel(c) : c === 'P' ? 'Pass' : c === 'X' ? 'Double' : 'Redouble');
+
+  /** After each call: four passes throws the deal in; three passes after a bid ends the auction. */
+  function afterCall(s: S, seat: number) {
+    const d = s.data;
+    const calls = d.calls!;
+    if (calls.length === 4 && calls.every((c) => c.call === 'P')) {
+      log(s, 'All pass — new deal');
+      return startRound(s); // same dealer, same vulnerability
+    }
+    const a = auctionState(s);
+    if (a.lastBid >= 0 && calls.length >= 4 && calls.slice(-3).every((c) => c.call === 'P')) {
+      const { level, strain } = bidOf(a.lastBid);
+      const side = teamOf(s, a.bidder);
+      // the declarer is whoever on that side named the strain first
+      const declarer = calls.find((c) => typeof c.call === 'number' && bidOf(c.call).strain === strain && teamOf(s, c.seat) === side)!.seat;
+      d.bridge = { level, strain, dbl: a.dbl };
+      d.maker = declarer;
+      d.dummy = (declarer + 2) % s.players.length;
+      d.trump = strain === 'NT' ? null : strain;
+      log(s, `${name(s, declarer)} declares ${bridgeLabel(d.bridge)}`, declarer, bridgeLabel(d.bridge, true));
+      return startPlay(s);
+    }
+    s.turn = nextSeat(s, seat);
+  }
+
+  /** Who acts on the current turn: the declarer plays for the dummy once it's on the table. */
+  const controller = (s: S) => (s.turn != null && s.data.dummyUp && s.turn === s.data.dummy ? s.data.maker! : s.turn);
+  const sourceZone = (s: S, seat: number) => (s.data.dummyUp && seat === s.data.dummy ? 'dummy' : `hand:${seat}`);
+
   /** Bids still open to `seat` in a 500 auction. */
   const higherBids = (s: S) => ALL_BIDS.filter((b) => b.value > (s.data.contract?.value ?? 0));
 
@@ -268,7 +382,7 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
   const nextActive = (s: S, seat: number) => nextSeat(s, seat, (x) => !active(s, x));
 
   function legalCards(s: S, seat: number): string[] {
-    const cards = ids(hand(s, seat));
+    const cards = ids(zone(s, sourceZone(s, seat)));
     const trick = zone(s, 'trick').cards;
     const d = s.data;
     if (trick.length === 0) {
@@ -342,6 +456,17 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
         deltas[1 - makers] = 2;
         lines.push(`${teamName(s, makers)} are euchred! (${won} tricks)`);
       }
+    } else if (sc.type === 'bridge') {
+      const c = d.bridge!;
+      const side = teamOf(s, d.maker!);
+      const won = teams[side].reduce((n, i) => n + d.tricks[i], 0);
+      const pts = bridgeScore(c, !!d.vul?.[side], won);
+      if (pts >= 0) deltas[side] = pts;
+      else deltas[1 - side] = -pts;
+      const diff = won - c.level - 6;
+      lines.push(
+        `${name(s, d.maker!)} ${diff >= 0 ? `made ${bridgeLabel(c)}${diff ? ` +${diff}` : ''}` : `went down ${-diff} in ${bridgeLabel(c)}`}${d.vul?.[side] ? ' (vulnerable)' : ''}`,
+      );
     } else if (sc.type === 'auction') {
       const c = d.contract!;
       const makers = teamOf(s, d.maker!);
@@ -402,7 +527,9 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
     d.result = { lines };
     s.turn = null;
     const best = lowWins ? Math.min(...d.scores) : Math.max(...d.scores);
-    const reached = R.end.rounds
+    const reached = R.end.deals
+      ? d.round + 1 >= Number(s.options.deals ?? R.end.deals)
+      : R.end.rounds
       ? d.round + 1 >= totalRounds(s.players.length)
       : lowWins
         ? Math.max(...d.scores) >= target(s)
@@ -439,7 +566,7 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
   function wantsTricks(s: S, seat: number): boolean {
     const d = s.data;
     if (R.scoring.type === 'penalty') return false;
-    if (R.scoring.type === 'tricks' || R.scoring.type === 'euchre' || R.scoring.type === 'auction') return true;
+    if (R.scoring.type === 'tricks' || R.scoring.type === 'euchre' || R.scoring.type === 'auction' || R.scoring.type === 'bridge') return true;
     if (d.bids[seat] === 0 && nilAllowed) return false;
     if (R.scoring.type === 'exact') return d.tricks[seat] < (d.bids[seat] ?? 0);
     const team = teamsFor(s.players.length)[teamOf(s, seat)];
@@ -493,6 +620,90 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
     );
     const options = higherBids(s).filter((b) => b.tricks <= (capacity.get(b.suit) ?? 0));
     return options.length ? { type: 'bid500', amount: ALL_BIDS.indexOf(options[0]) } : { type: 'decline' };
+  }
+
+  /**
+   * A plain bridge bidder: count points (A4 K3 Q2 J1, +1 per card past four), guess partner's from
+   * their calls, pick a strain (major fit, then no trumps, then minor fit, then a long suit) and bid
+   * up to the level the combined points are worth, jumping straight to game when it's there.
+   */
+  function botCall(s: S, seat: number): Action {
+    const calls = s.data.calls ?? [];
+    const SUITS: Suit[] = ['S', 'H', 'D', 'C'];
+    const len = Object.fromEntries(SUITS.map((x) => [x, 0])) as Record<Suit, number>;
+    let hcp = 0;
+    for (const c of ids(hand(s, seat))) {
+      const p = parseCard(c);
+      len[p.suit as Suit]++;
+      hcp += Math.max(0, p.rank - 10);
+    }
+    const shape = Object.values(len).sort((a, b) => a - b);
+    const balanced = shape[0] >= 2 && shape[1] >= 3;
+    const mine = hcp + SUITS.reduce((n, x) => n + Math.max(0, len[x] - 4), 0);
+
+    // what partner has shown
+    const partner = (seat + 2) % s.players.length;
+    const pLen = Object.fromEntries(SUITS.map((x) => [x, 0])) as Record<Suit, number>;
+    let pPts = 0;
+    let pNT = false;
+    let pBids = 0;
+    calls.forEach((c, k) => {
+      if (c.seat !== partner || typeof c.call !== 'number') return;
+      const { level, strain } = bidOf(c.call);
+      const before = calls.slice(0, k).some((x) => typeof x.call === 'number');
+      const ours = calls.slice(0, k).some((x) => typeof x.call === 'number' && teamOf(s, x.seat) === teamOf(s, seat));
+      // an opening 1NT shows 15–17; a no-trump response shows a modest balanced hand
+      if (pBids === 0) pPts = !before ? (strain === 'NT' ? (level === 1 ? 16 : 21) : 13) : ours ? (strain === 'NT' ? 6 + level * 2 : 8) : strain === 'NT' ? 16 : 11;
+      else pPts += 2;
+      pBids++;
+      if (strain === 'NT') pNT = true;
+      else pLen[strain] = pLen[strain] ? 6 : strain === 'S' || strain === 'H' ? 5 : 4;
+    });
+    const weBid = calls.some((c) => typeof c.call === 'number' && teamOf(s, c.seat) === teamOf(s, seat));
+    const a = auctionState(s);
+    const pass: Action = { type: 'decline' };
+
+    // nothing from our side yet: open (or overcall) on our own cards
+    if (!weBid) {
+      const longest = [...SUITS].sort((x, y) => len[y] - len[x] || (y === 'S' || y === 'H' ? 1 : 0) - (x === 'S' || x === 'H' ? 1 : 0))[0];
+      if (a.lastBid < 0) {
+        if (mine < 13) return pass;
+        if (balanced && hcp >= 15 && hcp <= 17) return { type: 'call', amount: 4 }; // 1NT
+        const major = (['S', 'H'] as Suit[]).find((x) => len[x] >= 5);
+        const open = major ?? (len.D >= len.C ? 'D' : 'C');
+        return { type: 'call', amount: STRAINS.indexOf(open) };
+      }
+      // overcall: a good five-card suit at the one or two level
+      const cheapest = Array.from({ length: 35 }, (_, i) => i).find((i) => i > a.lastBid && bidOf(i).strain === longest);
+      if (cheapest != null && len[longest] >= 5 && hcp >= 10 && bidOf(cheapest).level <= 2) return { type: 'call', amount: cheapest };
+      return pass;
+    }
+
+    // our side has bid: choose a strain and a level
+    const fit = (x: Suit) => len[x] + pLen[x];
+    const shortness = (x: Suit) => SUITS.filter((y) => y !== x).reduce((n, y) => n + (len[y] === 0 ? 3 : len[y] === 1 ? 2 : 0), 0);
+    const majorFit = (['S', 'H'] as Suit[]).filter((x) => fit(x) >= 8).sort((x, y) => fit(y) - fit(x))[0];
+    const minorFit = (['D', 'C'] as Suit[]).filter((x) => fit(x) >= 8).sort((x, y) => fit(y) - fit(x))[0];
+    const long = [...SUITS].sort((x, y) => len[y] - len[x])[0];
+    let strain: Suit | 'NT';
+    if (majorFit) strain = majorFit;
+    else if (balanced || pNT) strain = 'NT';
+    else if (minorFit) strain = minorFit;
+    else if (len[long] >= 6 || !pBids) strain = long;
+    else strain = 'NT';
+    const total = (pBids ? pPts : 7) + mine + (strain !== 'NT' && fit(strain) >= 8 ? shortness(strain) : 0);
+    const game = strain === 'NT' ? 3 : strain === 'S' || strain === 'H' ? 4 : 5;
+    const level =
+      total >= 37 ? 7 : total >= 33 ? 6 : total >= 29 && strain !== 'NT' ? 5 : total >= 26 ? game : total >= 23 ? (strain === 'NT' ? 2 : 3) : total >= 18 ? (strain === 'NT' ? 1 : 2) : total >= 13 ? 1 : 0;
+    const cheapest = Array.from({ length: 35 }, (_, i) => i).find((i) => i > a.lastBid && bidOf(i).strain === strain);
+    if (cheapest != null && bidOf(cheapest).level <= level) {
+      // jump straight to game (or slam) rather than inching up
+      const target = level >= game ? STRAINS.indexOf(strain) + (level - 1) * 5 : cheapest;
+      return { type: 'call', amount: Math.max(cheapest, target) };
+    }
+    // opponents have overreached: double them
+    if (canDouble(s, seat) && bidOf(a.lastBid).level >= 3 && total >= 23 + (bidOf(a.lastBid).level - 3) * 3) return { type: 'double' };
+    return pass;
   }
 
   /** Discard the weakest cards (never trumps if avoidable), keeping short suits short. */
@@ -605,11 +816,22 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
         const options = higherBids(s).map((b) => ({ value: ALL_BIDS.indexOf(b), label: `${contractLabel(b)} · ${b.value}` }));
         if (options.length) out.push({ type: 'bid500', label: 'Bid', style: 'primary', choose: { label: d.contract ? `Bid over ${contractLabel(d.contract)}` : 'Your bid', options } });
         out.push({ type: 'decline', label: 'Pass', style: 'quiet' });
+      } else if (s.phase === 'call' && s.turn === seat) {
+        const a = auctionState(s);
+        // whole levels, one per row (♣ ♦ ♥ ♠ NT), with bids already passed greyed out
+        const options = Array.from({ length: 35 }, (_, i) => i)
+          .filter((i) => i >= Math.floor((a.lastBid + 1) / 5) * 5)
+          .map((i) => ({ value: i, label: bidLabel(i), disabled: i <= a.lastBid }));
+        if (a.lastBid < 34) out.push({ type: 'call', label: 'Bid', style: 'primary', choose: { label: a.lastBid >= 0 ? `Bid over ${bidLabel(a.lastBid)}` : 'Your bid', options } });
+        if (canDouble(s, seat)) out.push({ type: 'double', label: 'Double' });
+        if (canRedouble(s, seat)) out.push({ type: 'redouble', label: 'Redouble' });
+        out.push({ type: 'decline', label: 'Pass', style: 'quiet' });
       } else if (s.phase === 'discard' && s.turn === seat) {
         const k = auction ? (R.kitty ?? 3) : 1;
         out.push({ type: 'bury', label: k > 1 ? `Discard ${k}` : 'Discard', style: 'primary', select: { min: k, max: k, cards: ids(hand(s, seat)) } });
-      } else if (s.phase === 'play' && s.turn === seat) {
-        out.push({ type: 'play', label: 'Play', style: 'primary', quick: true, select: { min: 1, max: 1, cards: legalCards(s, seat) } });
+      } else if (s.phase === 'play' && controller(s) === seat) {
+        const fromDummy = s.turn !== seat;
+        out.push({ type: 'play', label: fromDummy ? 'Play from dummy' : 'Play', style: 'primary', quick: true, select: { min: 1, max: 1, cards: legalCards(s, s.turn!) } });
       } else if (s.phase === 'roundOver') {
         out.push({ type: 'next', label: 'Next hand', style: 'primary' });
       } else if (s.phase === 'gameOver') {
@@ -684,7 +906,30 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
           s.turn = nextSeat(s, seat, (x) => d.passedOut![x]);
           return;
         }
+        case 'call': {
+          assertRule(s.phase === 'call' && s.turn === seat, 'Not your turn to bid');
+          const bid = Math.floor(a.amount ?? -1);
+          assertRule(bid >= 0 && bid < 35 && bid > auctionState(s).lastBid, 'Bid higher than the last bid');
+          d.calls!.push({ seat, call: bid });
+          log(s, `${who} bids ${bidLabel(bid)}`, seat, bidLabel(bid));
+          return afterCall(s, seat);
+        }
+        case 'double':
+        case 'redouble': {
+          const x = a.type === 'double';
+          assertRule(s.phase === 'call' && s.turn === seat, 'Not your turn');
+          assertRule(x ? canDouble(s, seat) : canRedouble(s, seat), x ? 'You can only double an opponent’s bid' : 'You can only redouble a double of your side’s bid');
+          d.calls!.push({ seat, call: x ? 'X' : 'XX' });
+          log(s, `${who} ${x ? 'doubles' : 'redoubles'}`, seat, x ? 'Double' : 'Redouble');
+          return afterCall(s, seat);
+        }
         case 'decline': {
+          if (s.phase === 'call') {
+            assertRule(s.turn === seat, 'Not your turn');
+            d.calls!.push({ seat, call: 'P' });
+            log(s, `${who} passes`, seat, 'Pass');
+            return afterCall(s, seat);
+          }
           assertRule(s.turn === seat && (s.phase === 'order' || s.phase === 'name' || s.phase === 'auction'), 'Not your turn');
           log(s, `${who} passes`, seat, 'Pass');
           if (s.phase === 'auction') {
@@ -722,12 +967,23 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
           return startPlay(s);
         }
         case 'play': {
-          assertRule(s.phase === 'play' && s.turn === seat, 'Not your turn');
+          assertRule(s.phase === 'play' && controller(s) === seat, 'Not your turn');
+          // the declarer plays the dummy's cards on the dummy's turn
+          const turn = s.turn!;
           const card = a.cards?.[0];
-          assertRule(card && legalCards(s, seat).includes(card), 'You can’t play that card');
-          moveCards(s, `hand:${seat}`, 'trick', [card], { by: seat, up: true });
-          d.received[seat] = [];
-          log(s, `${name(s, seat)} plays the ${cardName(card)}`, seat, `${rankLabel(parseCard(card).rank)}${SUIT_SYMBOL[parseCard(card).suit]}`);
+          assertRule(card && legalCards(s, turn).includes(card), 'You can’t play that card');
+          moveCards(s, sourceZone(s, turn), 'trick', [card], { by: turn, up: true });
+          d.received[turn] = [];
+          log(s, `${name(s, seat)} plays the ${cardName(card)}${turn !== seat ? ' from dummy' : ''}`, seat, `${rankLabel(parseCard(card).rank)}${SUIT_SYMBOL[parseCard(card).suit]}`);
+          if (bridgeBids && !d.dummyUp) {
+            // after the opening lead the dummy's hand goes face up on the table, grouped by suit
+            const dummy = d.dummy!;
+            sortHand(s, dummy, { trump: d.trump });
+            moveCards(s, `hand:${dummy}`, 'dummy', ids(hand(s, dummy)), { up: true });
+            for (const c of zone(s, 'dummy').cards) c.group = 'SHDC'.indexOf(parseCard(c.id).suit);
+            d.dummyUp = true;
+            log(s, `${name(s, dummy)} lays down the dummy`, dummy, 'Dummy');
+          }
           if (R.breaks && parseCard(card).suit === R.breaks && !d.broken) {
             d.broken = true;
             log(s, `${SUIT_SYMBOL[R.breaks]} broken`);
@@ -735,7 +991,7 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
           if (zone(s, 'trick').cards.length === playersThisHand(s)) {
             s.phase = 'trickEnd';
             s.turn = null;
-          } else s.turn = nextActive(s, seat);
+          } else s.turn = nextActive(s, turn);
           return;
         }
         case 'next':
@@ -774,7 +1030,8 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
       if ((s.phase === 'order' || s.phase === 'name') && s.turn === seat) return botMakeTrumps(s, seat);
       if (s.phase === 'auction' && s.turn === seat) return botAuction(s, seat);
       if (s.phase === 'discard' && s.turn === seat) return botBury(s, seat);
-      if (s.phase === 'play' && s.turn === seat) return { type: 'play', cards: [botCard(s, seat)] };
+      if (s.phase === 'call' && s.turn === seat) return botCall(s, seat);
+      if (s.phase === 'play' && controller(s) === seat) return { type: 'play', cards: [botCard(s, s.turn!)] };
       return null;
     },
 
@@ -803,6 +1060,12 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
       } else if (s.phase === 'auction') {
         const cur = d.contract ? `${contractLabel(d.contract)} (${d.contract.value}) by ${name(s, d.maker!)}` : 'no bids yet';
         headline = s.turn === viewer ? `Your bid · ${cur}` : `${name(s, s.turn!)} to bid · ${cur}`;
+      } else if (s.phase === 'call') {
+        const a = auctionState(s);
+        const cur = a.lastBid >= 0 ? `${bridgeLabel({ ...bidOf(a.lastBid), dbl: a.dbl }, true)} by ${name(s, a.bidder)}` : 'no bids yet';
+        const vul = d.vul ?? [];
+        const vulText = vul.every(Boolean) ? 'all vulnerable' : !vul.some(Boolean) ? 'none vulnerable' : `${teamName(s, vul.indexOf(true))} vulnerable`;
+        headline = `${s.turn === viewer ? 'Your call' : `${name(s, s.turn!)} to call`} · ${cur} · ${vulText}`;
       } else if (s.phase === 'discard') {
         const k = auction ? (R.kitty ?? 3) : 1;
         headline = s.turn === viewer ? `Discard ${k > 1 ? `${k} cards` : 'a card'}` : `${name(s, s.turn!)} is discarding`;
@@ -810,8 +1073,12 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
         headline = s.turn === viewer ? `Your bid · ${d.handSize} tricks this hand` : `${name(s, s.turn!)} is bidding`;
       } else if (s.phase === 'play' || s.phase === 'trickEnd') {
         const leading = zone(s, 'trick').cards.length === 0;
-        if (s.turn === viewer) headline = leading ? (d.trickNo === 0 && R.lead === 'twoOfClubs' ? 'Lead the 2♣' : 'Your lead') : 'Your turn';
+        const ctl = controller(s);
+        if (ctl === viewer && s.turn !== viewer) headline = leading ? 'Lead from dummy' : 'Play from dummy';
+        else if (s.turn === viewer) headline = leading ? (d.trickNo === 0 && R.lead === 'twoOfClubs' ? 'Lead the 2♣' : 'Your lead') : 'Your turn';
+        else if (ctl != null && ctl !== s.turn) headline = `${name(s, ctl)} to play from dummy`;
         else if (s.turn != null) headline = `${name(s, s.turn)} to play`;
+        if (d.bridge && d.maker != null) headline += ` · ${bridgeLabel(d.bridge, true)} by ${name(s, d.maker)}`;
       } else if (s.phase === 'roundOver') headline = 'Hand complete';
       else if (s.phase === 'gameOver') headline = 'Game over';
       if (d.trump && s.phase !== 'gameOver') headline += ` · trumps ${SUIT_SYMBOL[d.trump]}`;
@@ -819,6 +1086,15 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
 
       const seatBadge = (i: number) => {
         if (s.phase === 'pass' && d.passes[i]) return 'Passed ✓';
+        if (bridgeBids) {
+          const last = [...(d.calls ?? [])].reverse().find((c) => c.seat === i);
+          const playing = s.phase === 'play' || s.phase === 'trickEnd';
+          const role = playing && d.bridge ? (i === d.maker ? `Declarer ${bridgeLabel(d.bridge, true)}` : i === d.dummy ? 'Dummy' : '') : s.phase === 'call' && last ? callLabel(last.call) : '';
+          const side = teamOf(s, i);
+          return [role, playing ? `${teamsFor(s.players.length)[side].reduce((n, x) => n + d.tricks[x], 0)} tricks` : '', `${d.scores[side]} pts`, d.vul?.[side] && s.phase === 'call' ? 'vul' : '']
+            .filter(Boolean)
+            .join(' · ');
+        }
         if (euchreBids || auction) {
           const role =
             d.sittingOut === i ? 'Sitting out' : d.maker === i && (s.phase === 'play' || s.phase === 'trickEnd' || s.phase === 'discard') ? (d.sittingOut != null ? 'Alone' : auction ? contractLabel(d.contract!) : 'Maker') : auction && d.passedOut?.[i] && s.phase === 'auction' ? 'Passed' : '';
@@ -834,6 +1110,7 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
 
       return {
         headline,
+        actor: s.phase === 'play' ? controller(s) : undefined,
         seats: s.players.map((_, i) => ({ badge: seatBadge(i), tag: i === s.dealer ? 'D' : undefined })),
         scoreboard: {
           columns: [bidding ? 'Won / bid' : R.scoring.type === 'penalty' ? 'This hand' : 'Tricks', 'Total'],

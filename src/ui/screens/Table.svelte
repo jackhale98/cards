@@ -55,11 +55,15 @@
     if (keep.length !== selected.length) selected = keep;
   });
 
+  /** Whose move it is (the declarer moves for the dummy in bridge). */
+  const actor = $derived(status.actor ?? s.turn);
   // nudge when it becomes your turn
   let lastTurn = -1;
+  let lastActor = -1;
   $effect(() => {
-    if (s.turn === you && lastTurn !== you && you >= 0) haptic(18);
+    if (actor === you && (lastActor !== you || s.turn !== lastTurn) && you >= 0) haptic(18);
     lastTurn = s.turn ?? -1;
+    lastActor = actor ?? -1;
   });
 
   function tap(id: string) {
@@ -208,7 +212,7 @@
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
   <main onclick={(e) => !(e.target as Element).closest('button, .card') && (selected = [])}>
     {#if status.track}<Track track={status.track} avatars={view.lobby.seats.map((x) => x.avatar)} />{/if}
-    <div class="headline" class:mine={s.turn === you && you >= 0}>{status.headline}</div>
+    <div class="headline" class:mine={actor === you && you >= 0}>{status.headline}</div>
     {#if lastMove}
       {#key lastMove.t}
         <div class="last" aria-live="polite">

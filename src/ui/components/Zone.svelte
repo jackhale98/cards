@@ -137,12 +137,19 @@
   .spread:has(> :nth-child(8)) .scard + .scard {
     margin-left: calc(var(--cw) * -0.45);
   }
+  /* a whole hand on the table (bridge dummy): just the corner indices show */
+  .spread:has(> :nth-child(12)) .scard + .scard {
+    margin-left: calc(var(--cw) * -0.66);
+  }
   .scard {
     position: relative;
     padding: 0;
   }
   .spread .scard.newgroup {
     margin-left: calc(var(--cw) * 0.22) !important;
+  }
+  .spread:has(> :nth-child(12)) .scard.newgroup {
+    margin-left: calc(var(--cw) * -0.4) !important;
   }
   .scard:disabled {
     cursor: default;

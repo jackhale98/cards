@@ -1,0 +1,33 @@
+{
+  "$schema": "../../../schemas/game.schema.json",
+  "id": "bridge",
+  "name": "Contract Bridge",
+  "tagline": "Bid a contract with your partner, then make it with dummy's help.",
+  "icon": "♠",
+  "players": { "min": 4, "max": 4, "recommended": 4 },
+  "bots": true,
+  "deck": {},
+  "zones": [
+    { "id": "deck", "visibility": "none", "layout": "stack", "area": "none" },
+    { "id": "dummy", "label": "Dummy", "visibility": "all", "layout": "spread", "area": "center", "hideEmpty": true },
+    { "id": "hand", "perPlayer": true, "visibility": "owner", "layout": "fan", "area": "hand" },
+    { "id": "trick", "label": "Trick", "visibility": "all", "layout": "trick", "area": "center" },
+    { "id": "taken", "perPlayer": true, "visibility": "none", "layout": "stack", "area": "none" }
+  ],
+  "rules": {
+    "family": "trick-taking",
+    "teams": [[0, 2], [1, 3]],
+    "bidding": { "type": "bridge" },
+    "scoring": { "type": "bridge" },
+    "end": { "deals": 4 }
+  },
+  "options": [
+    { "id": "deals", "label": "Deals", "type": "number", "default": 4, "min": 4, "max": 16, "step": 4 }
+  ],
+  "rulesSummary": [
+    "Partners sit across. The dealer calls first: bid a number of tricks over six (1–7) in a suit or no trumps (♣ < ♦ < ♥ < ♠ < NT), pass, double an opponent's bid, or redouble their double. Three passes after a bid end the auction.",
+    "The first of the winning side to name the final suit is declarer. The player on their left leads; then declarer's partner lays their hand face up as dummy, and declarer plays both hands.",
+    "Duplicate scoring each deal: tricks bid count 20 (♣ ♦), 30 (♥ ♠) or 40 then 30 (NT); 100+ is a game bonus, plus slam bonuses. Going down gives the defenders 50 or 100 a trick (more if doubled).",
+    "Chicago rotation over four deals: nobody, then the dealer's side, then everyone is vulnerable. Highest total wins."
+  ]
+}

@@ -166,7 +166,8 @@ export interface ActionSpec {
   /** Requires choosing another player; the choice is sent as `Action.seat`. */
   target?: { seats: number[]; label?: string };
   /** Requires picking one option (a trump suit, a bid…); the choice is sent as `Action.amount`. */
-  choose?: { label?: string; options: { value: number; label: string }[] };
+  /** Pick one option; `disabled` ones are shown (to keep a grid aligned) but can't be chosen. */
+  choose?: { label?: string; options: { value: number; label: string; disabled?: boolean }[] };
   /**
    * Shortcut for card actions: `true` = swipe a card up, or tap a selected card again, to do it;
    * `'swipe'` = swipe only (tapping a selected card deselects it). Use `'swipe'` where an
@@ -194,6 +195,8 @@ export interface Scoreboard {
 
 export interface GameStatus {
   headline: string;
+  /** Seat that moves now when it isn't `state.turn` (bridge: the declarer plays for the dummy). */
+  actor?: number | null;
   seats: SeatInfo[];
   /** Chips in the middle of the table. */
   pot?: number;

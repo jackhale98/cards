@@ -127,6 +127,7 @@
         <button
           class="choice"
           class:red={/[♥♦]/.test(o.label)}
+          disabled={o.disabled}
           onclick={() => {
             onact(spec, o.value);
             chooseFor = null;
@@ -289,6 +290,9 @@
   }
   .choice.red {
     color: #ff8e8e;
+  }
+  .choice:disabled {
+    opacity: 0.25;
   }
   .choice:active {
     transform: scale(0.97);

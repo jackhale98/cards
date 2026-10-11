@@ -424,6 +424,19 @@
                       "const": "avondale"
                     }
                   }
+                },
+                {
+                  "type": "object",
+                  "required": [
+                    "type"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "type": {
+                      "const": "bridge"
+                    }
+                  },
+                  "description": "Contract bridge auction: bids 1–7 in ♣ ♦ ♥ ♠ NT, pass, double, redouble. The declarer's partner is dummy."
                 }
               ]
             },
@@ -540,6 +553,19 @@
                       "type": "number"
                     }
                   }
+                },
+                {
+                  "type": "object",
+                  "required": [
+                    "type"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "type": {
+                      "const": "bridge"
+                    }
+                  },
+                  "description": "Duplicate bridge scoring per deal, Chicago vulnerability."
                 }
               ]
             },
@@ -555,6 +581,10 @@
                 },
                 "rounds": {
                   "type": "boolean"
+                },
+                "deals": {
+                  "type": "number",
+                  "description": "Play this many deals (option `deals` overrides)."
                 }
               }
             },
