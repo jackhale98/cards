@@ -129,8 +129,15 @@ export function sortHand(s: GameState<any>, seat: number, opts: Parameters<typeo
 }
 
 /** Record what happened. Pass `seat` (and a `short` bubble label) for player actions. */
-export function log(s: GameState<any>, text: string, seat?: number, short?: string, to?: number) {
-  s.log.push({ t: Date.now(), text, seat, short, to });
+export function log(
+  s: GameState<any>,
+  text: string,
+  seat?: number,
+  short?: string,
+  to?: number,
+  zones?: { from?: string; to?: string },
+) {
+  s.log.push({ t: Date.now(), text, seat, short, to, fromZone: zones?.from, toZone: zones?.to });
   if (s.log.length > 40) s.log.splice(0, s.log.length - 40);
 }
 

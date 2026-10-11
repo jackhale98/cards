@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { ZoneState } from '../../engine/types';
   import { receive, send } from '../motion';
+  import { isHidden } from '../../engine/redact';
   import Card from './Card.svelte';
 
   interface Props {
@@ -27,14 +28,17 @@
   const top = $derived(zone.cards[zone.cards.length - 1]);
 </script>
 
-<div class="zone" data-layout={zone.layout} style:--cw="{cw}px">
+<div class="zone" data-zone={zone.id} data-layout={zone.layout} style:--cw="{cw}px">
   {#if zone.label && zone.layout !== 'trick'}<div class="label eyebrow" data-flip>{zone.label}{#if zone.layout === 'stack'} · {zone.cards.length}{/if}</div>{/if}
 
   {#if zone.layout === 'stack'}
     <button class="stack" data-flip class:active={zoneActive} onclick={() => (top && selectable?.has(top.id) ? ontap(top.id) : onzone?.())} disabled={!zoneActive && !(top && selectable?.has(top.id))}>
       {#if zone.cards.length > 1}<div class="under"><Card id="?u" /></div>{/if}
       {#if zone.cards.length > 8}<div class="under two"><Card id="?u2" /></div>{/if}
-      {#if top}
+      {#if top && isHidden(top.id)}
+        <!-- a face-down top just sits there: cards drawn from it fly out on their own -->
+        <div class="top"><Card id={top.id} /></div>
+      {:else if top}
         {#key top.id}
           <div class="top" in:receive={{ key: top.id }} out:send={{ key: top.id }}>
             <Card id={top.id} down={top.up === false} selected={selected.includes(top.id)} />

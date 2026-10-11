@@ -94,7 +94,7 @@ export function rummyFamily(config: GameConfig): GameModule<RummyData> {
     d.result = null;
     s.phase = 'firstPick';
     s.turn = first;
-    log(s, `Hand ${d.handNo}: ${name(s, s.dealer)} deals, ${label(topDiscard(s)!)} turned up`);
+    log(s, `Hand ${d.handNo}: ${name(s, s.dealer)} deals, ${label(topDiscard(s)!)} turned up`, undefined, undefined, undefined, { from: 'deck' });
   }
 
   function takeDiscard(s: S, seat: number) {
@@ -103,7 +103,7 @@ export function rummyFamily(config: GameConfig): GameModule<RummyData> {
     s.data.justTook = card;
     s.data.received[seat] = [card];
     arrange(s, seat);
-    log(s, `${name(s, seat)} takes the ${cardName(card)} from the discard pile`, seat, `Took ${label(card)}`);
+    log(s, `${name(s, seat)} takes the ${cardName(card)} from the discard pile`, seat, `Took ${label(card)}`, undefined, { from: 'discard' });
     s.phase = 'discard';
   }
 
@@ -256,7 +256,7 @@ export function rummyFamily(config: GameConfig): GameModule<RummyData> {
           d.justTook = null;
           d.mustDrawStock = false;
           arrange(s, seat);
-          log(s, `${who} draws from the stock`, seat, 'Drew');
+          log(s, `${who} draws from the stock`, seat, 'Drew', undefined, { from: 'deck' });
           s.phase = 'discard';
           return;
         case 'discard':
@@ -272,7 +272,7 @@ export function rummyFamily(config: GameConfig): GameModule<RummyData> {
           d.justTook = null;
           d.received[seat] = [];
           if (a.type !== 'discard') return endHand(s, seat, opt.points === 0 ? 'gin' : 'knock');
-          log(s, `${who} discards the ${cardName(card)}`, seat, label(card));
+          log(s, `${who} discards the ${cardName(card)}`, seat, label(card), undefined, { to: 'discard' });
           if (zone(s, 'deck').cards.length <= 2) {
             d.result = { headline: 'The stock ran out — no score this hand', lines: ['Nobody knocked before the stock ran low.'] };
             log(s, d.result.headline);

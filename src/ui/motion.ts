@@ -15,7 +15,12 @@ import type { TransitionConfig } from 'svelte/transition';
  */
 
 /** Where the current move came from / goes to; set by the table right before each update. */
-export const flight: { actor: DOMRect | null; to: DOMRect | null } = { actor: null, to: null };
+export const flight: {
+  actor: DOMRect | null;
+  to: DOMRect | null;
+  fromZone: DOMRect | null;
+  toZone: DOMRect | null;
+} = { actor: null, to: null, fromZone: null, toZone: null };
 
 const EASE = cubicOut;
 const CSS_EASE = 'cubic-bezier(0.2, 0.8, 0.2, 1)';
@@ -28,6 +33,7 @@ function pin(node: HTMLElement) {
   if (style.position === 'absolute' || style.position === 'fixed') return;
   const { width, height } = style;
   const a = node.getBoundingClientRect();
+  node.dataset.pinned = '1';
   node.style.position = 'absolute';
   node.style.width = width;
   node.style.height = height;
@@ -57,20 +63,29 @@ function glide(from: DOMRect, node: Element): TransitionConfig {
   };
 }
 
-/** No visible counterpart: fly to/from the acting player's seat, or just fade. */
+/**
+ * No visible counterpart. Cards drawn from / put onto a pile fly solidly between the pile and
+ * their spot, matching the pile's card size. Cards going to or coming from someone's hidden hand
+ * fly to/from their seat, shrinking and fading. Otherwise, a short fade.
+ */
 function fallback(node: Element, intro: boolean): TransitionConfig {
   const base = getComputedStyle(node).transform;
   const rest = base === 'none' ? '' : base;
-  const target = intro ? flight.actor : (flight.to ?? flight.actor);
+  const pile = intro ? flight.fromZone : flight.toZone;
+  const seat = intro ? flight.actor : (flight.to ?? flight.actor);
+  const target = pile ?? seat;
   if (target) {
     const r = node.getBoundingClientRect();
     const dx = center(target).x - center(r).x;
     const dy = center(target).y - center(r).y;
+    // a pile is drawn with real cards: end/start at that size, fully opaque
+    const endScale = pile && r.width ? Math.min(1.5, Math.max(0.4, target.width / r.width)) : 0.45;
     return {
       duration: travel(dx, dy),
       easing: EASE,
       css: (t, u) =>
-        `z-index:30;transform:translate(${u * dx}px,${u * dy}px) ${rest} scale(${0.45 + 0.55 * t});opacity:${Math.min(1, t * (intro ? 3 : 2))}`,
+        `z-index:30;transform:translate(${u * dx}px,${u * dy}px) ${rest} scale(${1 + (endScale - 1) * u})` +
+        (pile ? '' : `;opacity:${Math.min(1, t * (intro ? 3 : 2))}`),
     };
   }
   return {
@@ -83,18 +98,29 @@ function fallback(node: Element, intro: boolean): TransitionConfig {
 const sending = new Map<string, HTMLElement>();
 const receiving = new Map<string, HTMLElement>();
 
+/** Undo pin()/hide if an element that was leaving comes back (e.g. a quick undo). */
+function unpin(node: HTMLElement) {
+  node.style.visibility = '';
+  if (!node.dataset.pinned) return;
+  delete node.dataset.pinned;
+  for (const prop of ['position', 'width', 'height', 'margin', 'transform'] as const) node.style[prop] = '';
+}
+
 function pair(intro: boolean) {
   const mine = intro ? receiving : sending;
   const theirs = intro ? sending : receiving;
   return (node: HTMLElement, params: { key: string }) => {
     mine.set(params.key, node);
-    if (!intro) pin(node);
+    if (intro) unpin(node);
+    else pin(node);
     // decided once both sides of the move have registered
     return () => {
       const other = theirs.get(params.key);
       if (other) {
         theirs.delete(params.key);
         if (intro) return glide(other.getBoundingClientRect(), node);
+        // hide the copy left behind right now (not one frame later via the animation)
+        node.style.visibility = 'hidden';
         return { duration: travel(0, 0), css: () => 'opacity:0' };
       }
       mine.delete(params.key);

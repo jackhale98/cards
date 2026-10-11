@@ -113,6 +113,9 @@ export interface LogEntry {
   short?: string;
   /** Seat the cards went to, if any (cards are animated toward them). */
   to?: number;
+  /** Pile the cards came from / went to (e.g. "deck"), so hidden cards fly from/to it. */
+  fromZone?: string;
+  toZone?: string;
 }
 
 export interface GameState<D = unknown> {

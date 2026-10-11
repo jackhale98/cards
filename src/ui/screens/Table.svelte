@@ -144,6 +144,13 @@
     };
     flight.actor = rect(entry?.seat);
     flight.to = rect(entry?.to);
+    const pile = (id: string | undefined) => {
+      if (!id) return null;
+      const el = tableEl.querySelector(`[data-zone="${id}"] .stack`) ?? tableEl.querySelector(`[data-zone="${id}"]`);
+      return el?.getBoundingClientRect() ?? null;
+    };
+    flight.fromZone = pile(entry?.fromZone);
+    flight.toZone = pile(entry?.toZone);
     snapshot(tableEl);
   });
   // …and after it, slide whatever merely shifted into its new place

@@ -146,22 +146,22 @@ export function freeFamily(config: GameConfig): GameModule<FreeData> {
           return log(s, `${who} plays ${plural(n)} face down`, seat, `${n} face down`);
         case 'discard':
           moveFromAnywhere('discard', { up: true });
-          return log(s, `${who} discards ${n === 1 ? `the ${cardName(cards[0])}` : plural(n)}`, seat, n === 1 ? cardLabel(cards[0]) : `Discarded ${n}`);
+          return log(s, `${who} discards ${n === 1 ? `the ${cardName(cards[0])}` : plural(n)}`, seat, n === 1 ? cardLabel(cards[0]) : `Discarded ${n}`, undefined, { to: 'discard' });
         case 'discardDown':
           moveFromAnywhere('discard', { up: false });
-          return log(s, `${who} discards ${plural(n)} face down`, seat, 'Discarded face down');
+          return log(s, `${who} discards ${plural(n)} face down`, seat, 'Discarded face down', undefined, { to: 'discard' });
         case 'toBottom': {
           moveFromAnywhere('deck');
           // moved cards land on top (end of the array); slide them underneath instead
           const deck = zone(s, 'deck');
           const moved = deck.cards.splice(deck.cards.length - n, n).map((c) => ({ id: c.id }));
           deck.cards.unshift(...moved);
-          return log(s, `${who} puts ${plural(n)} on the bottom of the deck`, seat, 'To bottom of deck');
+          return log(s, `${who} puts ${plural(n)} on the bottom of the deck`, seat, 'To bottom of deck', undefined, { to: 'deck' });
         }
         case 'toTop':
           moveFromAnywhere('deck');
           for (const c of zone(s, 'deck').cards.slice(-n)) delete c.up;
-          return log(s, `${who} puts ${plural(n)} on top of the deck`, seat, 'To top of deck');
+          return log(s, `${who} puts ${plural(n)} on top of the deck`, seat, 'To top of deck', undefined, { to: 'deck' });
         case 'meld': {
           assertRule(hasMelds, 'This table has no melds');
           const target = `melds:${seat}`;
@@ -196,7 +196,7 @@ export function freeFamily(config: GameConfig): GameModule<FreeData> {
           const top = zone(s, 'discard').cards.at(-1);
           assertRule(top, 'The discard pile is empty');
           moveCards(s, 'discard', `hand:${seat}`, [top.id]);
-          return log(s, `${who} takes ${top.up === false ? 'the face-down discard' : `the ${cardName(top.id)}`} from the discard pile`, seat, top.up === false ? 'Took discard' : `Took ${cardLabel(top.id)}`);
+          return log(s, `${who} takes ${top.up === false ? 'the face-down discard' : `the ${cardName(top.id)}`} from the discard pile`, seat, top.up === false ? 'Took discard' : `Took ${cardLabel(top.id)}`, undefined, { from: 'discard' });
         }
         case 'take': {
           const what = describe(cards); // before the cards leave the table
@@ -211,16 +211,16 @@ export function freeFamily(config: GameConfig): GameModule<FreeData> {
         case 'draw':
           assertRule(zone(s, 'deck').cards.length, 'The deck is empty');
           moveTop(s, 'deck', `hand:${seat}`, 1);
-          return log(s, `${who} draws`, seat);
+          return log(s, `${who} draws`, seat, 'Drew', undefined, { from: 'deck' });
         case 'flipTop': {
           moveTop(s, 'deck', playZone, 1, { up: true });
           const top = zone(s, playZone).cards.at(-1)!.id;
-          return log(s, `${who} turns up the ${cardName(top)}`, seat, cardLabel(top));
+          return log(s, `${who} turns up the ${cardName(top)}`, seat, cardLabel(top), undefined, { from: 'deck' });
         }
         case 'deal': {
           const n = Math.max(1, Math.floor(a.amount ?? 1));
           deal(s, [{ to: 'hand', count: n }], seatOrderFrom(s, seat + 1));
-          return log(s, `${who} deals ${n} to everyone`, seat);
+          return log(s, `${who} deals ${n} to everyone`, seat, undefined, undefined, { from: 'deck' });
         }
         case 'shuffle':
           shuffle(zone(s, 'deck').cards, s);
