@@ -765,6 +765,35 @@
               "description": "Points to win (121 standard, 61 for a short game)."
             }
           }
+        },
+        {
+          "description": "Climbing games (President): beat the last play with the same number of higher cards, or pass; first out wins.",
+          "required": [
+            "family",
+            "style",
+            "end"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "family": {
+              "const": "climbing"
+            },
+            "style": {
+              "const": "president"
+            },
+            "end": {
+              "type": "object",
+              "required": [
+                "target"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "target": {
+                  "type": "number"
+                }
+              }
+            }
+          }
         }
       ]
     }

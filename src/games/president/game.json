@@ -1,0 +1,27 @@
+{
+  "$schema": "../../../schemas/game.schema.json",
+  "id": "president",
+  "name": "President",
+  "tagline": "Get rid of your cards first. Presidents rule; the Scum hands over their best.",
+  "icon": "♛",
+  "players": { "min": 3, "max": 8, "recommended": 5 },
+  "bots": true,
+  "deck": {},
+  "zones": [
+    { "id": "deck", "visibility": "none", "layout": "stack", "area": "none" },
+    { "id": "pile", "label": "Lead anything", "visibility": "all", "layout": "spread", "area": "center" },
+    { "id": "cleared", "visibility": "none", "layout": "stack", "area": "none" },
+    { "id": "hand", "perPlayer": true, "visibility": "owner", "layout": "fan", "area": "hand" }
+  ],
+  "rules": { "family": "climbing", "style": "president", "end": { "target": 11 } },
+  "options": [
+    { "id": "target", "label": "Play to", "type": "number", "default": 11, "min": 3, "max": 21, "step": 2 }
+  ],
+  "rulesSummary": [
+    "All cards are dealt. 2 is the highest card, then A, K, Q… down to 3. The holder of the 3♣ leads the first hand.",
+    "Play one card, or a set of the same rank. The next play must be the same number of cards and higher. Or pass — you can still play later in the trick.",
+    "When everyone else passes, whoever played last starts a new trick. Get rid of all your cards to go out.",
+    "First out is President (2 points), next Vice-President (1). Last is the Scum, and next-to-last the Vice-Scum.",
+    "Next hand the Scum gives the President their 2 best cards and gets 2 of the President's choosing back (1 card between Vice-Scum and Vice-President). The President leads. First to 11 points wins."
+  ]
+}

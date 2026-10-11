@@ -16,7 +16,7 @@
 
   const DRAWN = new Set([
     'holdem', 'omaha', 'hearts', 'spades', 'euchre', 'five-hundred', 'cribbage',
-    'bridge', 'gin-rummy', 'oh-hell', 'freetable', 'crazy-eights', 'rummy-500',
+    'bridge', 'gin-rummy', 'oh-hell', 'freetable', 'crazy-eights', 'rummy-500', 'president',
   ]);
 
   // Suit shapes in a 100-unit box centred on the origin.
@@ -188,6 +188,17 @@
       <rect x="20.5" y="44.5" width="30" height="15" rx="4" fill="#000" opacity="0.3" />
       <rect x="19" y="42.5" width="30" height="15" rx="4" fill="#e9c46a" />
       <text x="34" y="53.6" font-size="10.5" font-weight="700" text-anchor="middle" fill="#2a1d05" font-family={SERIF}>500</text>
+    {:else if id === 'president'}
+      <!-- the top cards (a pair of 2s) wearing the crown -->
+      <g transform="translate(25 38) rotate(-9)">{@render card()}{@render corner('2', 'S', INK)}{@render suit('S', -4, -2, 11, INK)}</g>
+      <g transform="translate(38 38) rotate(8)">{@render card()}{@render corner('2', 'H', RED)}{@render suit('H', -4, -2, 11, RED)}</g>
+      <g transform="translate(32 13)">
+        <path d="M-12.5,6.5 L-14,-6 L-6.5,0.5 L0,-9 L6.5,0.5 L14,-6 L12.5,6.5Z" fill="#000" opacity="0.3" transform="translate(0.8 1.2)" />
+        <path d="M-12.5,6.5 L-14,-6 L-6.5,0.5 L0,-9 L6.5,0.5 L14,-6 L12.5,6.5Z" fill="#e9c46a" stroke="#a87b1c" stroke-width="0.8" stroke-linejoin="round" />
+        <rect x="-12.5" y="5" width="25" height="3.4" rx="1" fill="#c99a2e" />
+        {#each [-14, 0, 14] as x (x)}<circle cx={x} cy={x === 0 ? -9.5 : -6.5} r="1.6" fill="#fbf8f1" />{/each}
+        <circle cy="2" r="1.5" fill={RED} />
+      </g>
     {:else if id === 'crazy-eights'}
       <g transform="translate(32 32) rotate(-6)">
         {@render face(-15, -21.4, 32)}

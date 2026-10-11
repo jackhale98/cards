@@ -16,7 +16,7 @@ for (const [path, config] of Object.entries(configs)) {
 }
 
 /** Display order on the game picker; anything else follows alphabetically. */
-const ORDER = ['holdem', 'hearts', 'spades', 'euchre', 'five-hundred', 'cribbage', 'bridge', 'gin-rummy', 'rummy-500', 'oh-hell', 'omaha', 'freetable'];
+const ORDER = ['holdem', 'hearts', 'spades', 'euchre', 'five-hundred', 'cribbage', 'bridge', 'gin-rummy', 'rummy-500', 'president', 'oh-hell', 'omaha', 'freetable'];
 const rank = (id: string) => (ORDER.indexOf(id) + 1 || 99);
 export const GAME_LIST: GameModule[] = Object.values(GAMES).sort(
   (a, b) => rank(a.config.id) - rank(b.config.id) || a.config.name.localeCompare(b.config.name),
