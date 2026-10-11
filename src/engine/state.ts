@@ -22,6 +22,7 @@ export function createState<D>(
       layout: z.layout,
       area: z.area,
       hideEmpty: z.hideEmpty,
+      scale: z.scale,
       cards: [],
     });
     if (z.perPlayer) players.forEach((_, i) => (zones[`${z.id}:${i}`] = make(`${z.id}:${i}`, i)));

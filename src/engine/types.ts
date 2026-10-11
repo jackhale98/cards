@@ -6,7 +6,8 @@ import type { DeckSpec } from './cards';
 
 export type Visibility = 'all' | 'owner' | 'none';
 export type Layout = 'fan' | 'stack' | 'spread' | 'trick';
-export type Area = 'hand' | 'center' | 'seat' | 'none';
+/** `strip`: a compact row along the bottom of the table that scrolls sideways (e.g. everyone's melds). */
+export type Area = 'hand' | 'center' | 'strip' | 'seat' | 'none';
 
 export interface ZoneConfig {
   id: string;
@@ -18,6 +19,8 @@ export interface ZoneConfig {
   area: Area;
   /** Don't draw the zone while it's empty. */
   hideEmpty?: boolean;
+  /** Card size relative to other table cards (e.g. 0.6 for many small melds). */
+  scale?: number;
 }
 
 export interface DealStep {
@@ -94,6 +97,7 @@ export interface ZoneState {
   layout: Layout;
   area: Area;
   hideEmpty?: boolean;
+  scale?: number;
   cards: CardRef[];
 }
 

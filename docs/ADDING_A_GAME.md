@@ -15,7 +15,7 @@ src/games/my-game/
 | `free`         | anything (rules not enforced), e.g. Crazy Eights. Optional zones add moves: `discard` (discard face up/down, take the top discard) and a per-player `melds` zone (lay down melds, add to anyone's) | `src/engine/families/free.ts` |
 | `trick-taking` | Hearts, Spades, Oh Hell, Euchre, 500, Contract Bridge, Whist… | `src/engine/families/trickTaking.ts` |
 | `poker`        | Texas Hold'em, Omaha, Pineapple-style variants | `src/engine/families/poker.ts` |
-| `rummy`        | Gin Rummy (style `gin`); Rummy 500 / Oklahoma next | `src/engine/families/rummy.ts` |
+| `rummy`        | Gin Rummy (style `gin`), Rummy 500 (style `500`) | `src/engine/families/rummy.ts`, `rummy500.ts` |
 | `cribbage`     | Cribbage for 2–4 (4 = partners), to 121 or 61 | `src/engine/families/cribbage.ts` |
 
 `schemas/game.schema.json` describes every parameter, so editors like VS Code give you
@@ -153,4 +153,10 @@ When a game ends (`phase: 'gameOver'` with `winner` set), the host adds it to th
 tally. The winners come first; everyone else is ranked by the family's optional
 `standings(s)` (a place per seat, 0 = first, ties share; `placesFromScores` in
 `src/engine/state.ts` builds it from scores). A family without it ranks everyone else equal.
+
+## Zone size and the meld strip
+
+A zone can set `"scale"` (e.g. `0.6`) to draw its cards smaller than other table cards, and
+`"area": "strip"` to sit in one row beside the centre piles that scrolls sideways instead of
+wrapping. Rummy 500 uses both for everyone's melds, so a busy table still fits on a phone.
 

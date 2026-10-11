@@ -1,0 +1,27 @@
+{
+  "$schema": "../../../schemas/game.schema.json",
+  "id": "rummy-500",
+  "name": "Rummy 500",
+  "tagline": "Meld from the pile, lay off on anyone's melds, and race to 500.",
+  "icon": "♣",
+  "players": { "min": 2, "max": 6, "recommended": 4 },
+  "bots": true,
+  "deck": {},
+  "zones": [
+    { "id": "deck", "label": "Stock", "visibility": "none", "layout": "stack", "area": "center" },
+    { "id": "discard", "label": "Discard pile", "visibility": "all", "layout": "spread", "area": "center", "scale": 0.8 },
+    { "id": "hand", "perPlayer": true, "visibility": "owner", "layout": "fan", "area": "hand" },
+    { "id": "melds", "perPlayer": true, "visibility": "all", "layout": "spread", "area": "strip", "hideEmpty": true, "scale": 0.62 }
+  ],
+  "rules": { "family": "rummy", "style": "500", "end": { "target": 500 } },
+  "options": [
+    { "id": "target", "label": "Play to", "type": "number", "default": 500, "min": 100, "max": 1000, "step": 100 }
+  ],
+  "rulesSummary": [
+    "Deal 7 cards each (13 with two players). Each turn, draw from the stock — or take any card from the discard pile along with every card on top of it.",
+    "If you take more than the top card, you must meld the deepest one this turn.",
+    "Meld sets (3–4 of a rank) and runs (3+ in a suit; ace high or low, not both), and lay off on anyone's melds. Then discard.",
+    "Cards you meld or lay off score for you: aces 15 (1 in A-2-3), faces 10, others their number. When someone goes out, cards left in hand count against you.",
+    "First past 500 wins. Two decks are used for five or six players. Played without jokers."
+  ]
+}

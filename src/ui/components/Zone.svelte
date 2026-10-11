@@ -134,7 +134,7 @@
     justify-content: center;
     max-width: 100%;
   }
-  .spread:has(> :nth-child(8)) .scard + .scard {
+  .spread:has(> :nth-child(5)) .scard + .scard {
     margin-left: calc(var(--cw) * -0.45);
   }
   /* a whole hand on the table (bridge dummy): just the corner indices show */

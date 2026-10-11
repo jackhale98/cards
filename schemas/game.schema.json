@@ -143,14 +143,21 @@
             "enum": [
               "hand",
               "center",
+              "strip",
               "seat",
               "none"
             ],
-            "description": "Where the zone is drawn."
+            "description": "Where the zone is drawn: the hand, the centre, a compact sideways-scrolling strip along the bottom of the table, by a seat, or nowhere."
           },
           "hideEmpty": {
             "type": "boolean",
             "description": "Don't draw the zone while it's empty."
+          },
+          "scale": {
+            "type": "number",
+            "minimum": 0.3,
+            "maximum": 1.5,
+            "description": "Card size relative to other table cards (e.g. 0.6 for many small melds)."
           }
         }
       }
@@ -697,6 +704,35 @@
                   "type": "number"
                 }
               }
+            },
+            "end": {
+              "type": "object",
+              "required": [
+                "target"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "target": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        },
+        {
+          "description": "Rummy 500: 2–6 players meld and lay off on the table; melded cards score, cards in hand count against you.",
+          "required": [
+            "family",
+            "style",
+            "end"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "family": {
+              "const": "rummy"
+            },
+            "style": {
+              "const": "500"
             },
             "end": {
               "type": "object",

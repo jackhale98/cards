@@ -49,6 +49,8 @@
 
   const myHand = $derived(you >= 0 ? (s.zones[`hand:${you}`]?.cards ?? []) : []);
   const allCenterZones = $derived(Object.values(s.zones).filter((z) => z.area === 'center' && !(z.hideEmpty && !z.cards.length)));
+  /** Zones on the compact strip along the bottom of the table (e.g. everyone's melds). */
+  const allStripZones = $derived(Object.values(s.zones).filter((z) => z.area === 'strip' && !(z.hideEmpty && !z.cards.length)));
   const seatZone = (seat: number) => s.zones[`hand:${seat}`]?.cards ?? [];
 
   // ---- selection --------------------------------------------------------------------------
@@ -105,9 +107,9 @@
   /** Actions triggered by tapping a pile (draw from the deck, take the discard…). */
   const zoneAction = (zoneId: string) => view.actions.find((a) => a.zone === zoneId && !a.select);
   /** In hand mode only piles you can use right now stay on the phone (e.g. the deck to draw from, a bridge dummy). */
-  const centerZones = $derived(
-    handMode ? allCenterZones.filter((z) => zoneAction(z.id) || z.cards.some((c) => selectable?.has(c.id))) : allCenterZones,
-  );
+  const usable = (z: (typeof allCenterZones)[number]) => !!zoneAction(z.id) || z.cards.some((c) => selectable?.has(c.id));
+  const centerZones = $derived(handMode ? allCenterZones.filter(usable) : allCenterZones);
+  const stripZones = $derived(handMode ? allStripZones.filter(usable) : allStripZones);
   // ---- table screen -----------------------------------------------------------------------
   /** On a table screen everything sized in rem grows with the screen (1rem = this many px). */
   // (a little smaller with lots of players, so seats don't collide around the oval)
@@ -273,12 +275,12 @@
         </div>
       {/key}
     {/if}
-    <div class="zones">
+    <div class="zones" class:has-strip={stripZones.length > 0}>
       {#each centerZones as z (z.id)}
         <div class="zone-slot">
           <Zone
           zone={z}
-          cw={z.layout === 'spread' && z.cards.length >= 10 && !display ? Math.round(centerCw * 0.82) : centerCw}
+          cw={Math.round(centerCw * (z.scale ?? 1) * (z.layout === 'spread' && z.cards.length >= 10 && !display ? 0.82 : 1))}
           {you}
           players={n}
           {selected}
@@ -297,6 +299,23 @@
             {/each}
           </div>
           <div><div class="eyebrow">Pot</div><b>{status.pot.toLocaleString()}</b></div>
+        </div>
+      {/if}
+      {#if stripZones.length}
+        <div class="strip">
+          {#each stripZones as z (z.id)}
+            <Zone
+              zone={z}
+              cw={Math.round(centerCw * (z.scale ?? 1))}
+              {you}
+              players={n}
+              {selected}
+              {selectable}
+              ontap={tap}
+              zoneActive={!!zoneAction(z.id)}
+              onzone={zoneAction(z.id) ? () => run(zoneAction(z.id)!) : undefined}
+            />
+          {/each}
         </div>
       {/if}
     </div>
@@ -615,6 +634,33 @@
     gap: clamp(10px, 3vw, 32px);
     flex-wrap: wrap;
     min-height: 0;
+  }
+  /* everyone's melds: beside the piles, in one row that scrolls sideways when long */
+  .zones.has-strip {
+    flex-wrap: nowrap;
+    max-width: 100%;
+  }
+  .zones.has-strip > .zone-slot {
+    flex: none;
+  }
+  .strip {
+    flex: 0 1 auto;
+    min-width: 0;
+    display: flex;
+    align-items: flex-end;
+    gap: clamp(10px, 2.5vw, 24px);
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding: 0 4px;
+  }
+  .strip > :global(*) {
+    flex: none;
+  }
+  .strip :global(.spread) {
+    flex-wrap: nowrap;
+  }
+  .strip :global(.spread .scard + .scard) {
+    margin-left: calc(var(--cw) * -0.45);
   }
   .pot {
     display: flex;

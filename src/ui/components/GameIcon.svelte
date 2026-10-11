@@ -16,7 +16,7 @@
 
   const DRAWN = new Set([
     'holdem', 'omaha', 'hearts', 'spades', 'euchre', 'five-hundred', 'cribbage',
-    'bridge', 'gin-rummy', 'oh-hell', 'freetable', 'crazy-eights',
+    'bridge', 'gin-rummy', 'oh-hell', 'freetable', 'crazy-eights', 'rummy-500',
   ]);
 
   // Suit shapes in a 100-unit box centred on the origin.
@@ -176,6 +176,18 @@
         {@render corner('3', 'H', RED)}
         {@render suit('H', -4, -2, 11, RED)}
       </g>
+    {:else if id === 'rummy-500'}
+      <!-- a run laid down on the table, and the score everyone's racing to -->
+      {#each [['7', 15], ['8', 27], ['9', 39]] as [r, x] (r)}
+        <g transform="translate({x} 25) rotate(-4)">
+          {@render card()}
+          {@render corner(String(r), 'C', INK)}
+          {#if r === '9'}{@render suit('C', -4, -2, 11, INK)}{/if}
+        </g>
+      {/each}
+      <rect x="20.5" y="44.5" width="30" height="15" rx="4" fill="#000" opacity="0.3" />
+      <rect x="19" y="42.5" width="30" height="15" rx="4" fill="#e9c46a" />
+      <text x="34" y="53.6" font-size="10.5" font-weight="700" text-anchor="middle" fill="#2a1d05" font-family={SERIF}>500</text>
     {:else if id === 'crazy-eights'}
       <g transform="translate(32 32) rotate(-6)">
         {@render face(-15, -21.4, 32)}
