@@ -1,0 +1,24 @@
+{
+  "$schema": "../../../schemas/game.schema.json",
+  "id": "spoons",
+  "name": "Spoons",
+  "tagline": "Pass cards round as fast as you can. Four of a kind? Quietly take a spoon — and watch the others.",
+  "icon": "🥄",
+  "players": { "min": 3, "max": 10, "recommended": 5 },
+  "bots": true,
+  "deck": {},
+  "zones": [
+    { "id": "deck", "label": "Deck", "visibility": "none", "layout": "stack", "area": "center" },
+    { "id": "discard", "label": "Discards", "visibility": "none", "layout": "stack", "area": "center", "hideEmpty": true },
+    { "id": "in", "perPlayer": true, "visibility": "none", "layout": "stack", "area": "none" },
+    { "id": "hand", "perPlayer": true, "visibility": "owner", "layout": "fan", "area": "hand" }
+  ],
+  "rules": { "family": "spoons" },
+  "rulesSummary": [
+    "Everyone holds four cards. The spoons in the middle are shown at the top: one fewer than there are players.",
+    "There are no turns. The dealer picks up from the deck and everyone else from the cards passed to them. Pick up one, keep four, and pass one to your left (swipe it up). The last player discards.",
+    "Collect four of a kind and quietly grab a spoon. Nobody is told, so keep an eye on the spoons!",
+    "Once a spoon is gone, anyone may grab one. Grab the first spoon without four of a kind and you get a letter.",
+    "Whoever is left without a spoon gets a letter: S, P, O, O, N. Spell SPOON and you're out. The last player in wins."
+  ]
+}

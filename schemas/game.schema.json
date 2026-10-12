@@ -1010,6 +1010,18 @@
             "family"
           ],
           "additionalProperties": false,
+          "description": "Spoons: pass cards along at once, grab a spoon on four of a kind.",
+          "properties": {
+            "family": {
+              "const": "spoons"
+            }
+          }
+        },
+        {
+          "required": [
+            "family"
+          ],
+          "additionalProperties": false,
           "description": "Spit: two players race to play onto two middle piles.",
           "properties": {
             "family": {

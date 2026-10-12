@@ -43,6 +43,7 @@ const BY_FAMILY: Record<string, string> = {
   corners: 'Family',
   slap: 'Speed',
   spit: 'Speed',
+  spoons: 'Speed',
   baccarat: 'Casino',
   blackjack: 'Casino',
 };
