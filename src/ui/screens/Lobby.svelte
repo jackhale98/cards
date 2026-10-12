@@ -95,16 +95,24 @@
     app.split(going, newHost);
     splitting = false;
   }
-  /** Marks which ends of a sideways-scrolling line have more text past them (for the edge fades). */
-  function sideways(el: HTMLElement) {
+  /**
+   * A line too long for its space glides along by itself: a pause at the start, slowly across to
+   * the end, a pause, and back. How far it goes (and so how long it takes) is measured here.
+   */
+  function marquee(el: HTMLElement) {
+    const run = el.firstElementChild as HTMLElement;
+    const SPEED = 30; // px a second
     const update = () => {
-      el.classList.toggle('more-left', el.scrollLeft > 1);
-      el.classList.toggle('more-right', el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
+      const over = Math.ceil(run.scrollWidth - el.clientWidth);
+      el.classList.toggle('moving', over > 2);
+      el.style.setProperty('--over', `${-over}px`);
+      // the glide out takes half the cycle
+      el.style.setProperty('--cycle', `${Math.max(6, (over / SPEED) * 2).toFixed(1)}s`);
     };
     update();
     const ro = new ResizeObserver(update);
     ro.observe(el);
-    el.addEventListener('scroll', update, { passive: true });
+    ro.observe(run);
     return { destroy: () => ro.disconnect() };
   }
   /** How many options differ from the game's defaults. */
@@ -287,7 +295,6 @@
             type="search"
             bind:value={query}
             onkeydown={searchKey}
-            onfocus={(e) => (e.currentTarget.closest('.search') as HTMLElement).scrollIntoView({ block: 'start', behavior: 'smooth' })}
             placeholder="Search games or player count"
             aria-label="Search games"
             enterkeyhint="search"
@@ -326,10 +333,10 @@
     <span class="gicon"><GameIcon id={game.config.id} icon={game.config.icon} size={34} /></span>
     <div class="what">
       <b>{game.config.name}</b>
-      <!-- a long line scrolls sideways (with a fade at the edge that has more) rather than being cut off -->
+      <!-- a long line glides along by itself rather than being cut off -->
       {#key `${game.config.id}|${startError}|${changed}`}
-        {#if host && startError}<span class="small warn-text line" use:sideways>{startError}{game.bot ? ' — add bots to fill seats' : ''}</span>
-        {:else}<span class="small line" use:sideways>{changed ? `${changed} setting${changed > 1 ? 's' : ''} changed` : game.config.tagline}</span>{/if}
+        {#if host && startError}<span class="small warn-text line" use:marquee><span class="run">{startError}{game.bot ? ' — add bots to fill seats' : ''}</span></span>
+        {:else}<span class="small line" use:marquee><span class="run">{changed ? `${changed} setting${changed > 1 ? 's' : ''} changed` : game.config.tagline}</span></span>{/if}
       {/key}
     </div>
     {#if game.config.options?.length}
@@ -584,10 +591,6 @@
     background: rgba(0, 0, 0, 0.22);
     color: var(--ink-dim);
   }
-  .search {
-    /* (tapped, it scrolls to the top: clear of the status bar, results above the keyboard) */
-    scroll-margin-top: calc(var(--safe-t) + 12px);
-  }
   .search:focus-within {
     border-color: var(--gold);
     color: var(--ink);
@@ -800,26 +803,38 @@
     white-space: nowrap;
   }
   .dealbar .what > .line {
-    overflow-x: auto;
     text-overflow: clip;
-    scrollbar-width: none;
-    overscroll-behavior-x: contain;
   }
-  .dealbar .what > .line::-webkit-scrollbar {
-    display: none;
+  .dealbar .what > .line .run {
+    display: inline-block;
   }
-  /* fade out whichever end has more text past it */
-  .dealbar .what > .line:global(.more-right) {
-    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 1.6rem), transparent);
-    mask-image: linear-gradient(to right, #000 calc(100% - 1.6rem), transparent);
+  .dealbar .what > .line:global(.moving) {
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 0.5rem, #000 calc(100% - 1rem), transparent);
+    mask-image: linear-gradient(to right, transparent, #000 0.5rem, #000 calc(100% - 1rem), transparent);
+    padding-left: 0.5rem;
+    margin-left: -0.5rem;
   }
-  .dealbar .what > .line:global(.more-left) {
-    -webkit-mask-image: linear-gradient(to right, transparent, #000 1.6rem);
-    mask-image: linear-gradient(to right, transparent, #000 1.6rem);
+  .dealbar .what > .line:global(.moving) .run {
+    animation: glide var(--cycle) ease-in-out infinite;
   }
-  .dealbar .what > .line:global(.more-left.more-right) {
-    -webkit-mask-image: linear-gradient(to right, transparent, #000 1.6rem, #000 calc(100% - 1.6rem), transparent);
-    mask-image: linear-gradient(to right, transparent, #000 1.6rem, #000 calc(100% - 1.6rem), transparent);
+  @keyframes glide {
+    0%,
+    15% {
+      transform: translateX(0);
+    }
+    65%,
+    80% {
+      transform: translateX(var(--over));
+    }
+    100% {
+      transform: translateX(0);
+    }
+  }
+  /* (without motion: the ending is cut off as before) */
+  @media (prefers-reduced-motion: reduce) {
+    .dealbar .what > .line:global(.moving) .run {
+      animation: none;
+    }
   }
   .dealbar .gicon {
     flex: none;

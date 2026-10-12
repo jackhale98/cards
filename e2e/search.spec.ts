@@ -7,6 +7,12 @@ test('searching the game picker narrows it, and Enter picks the best match', asy
   await page.click('text=Start a table');
   await page.waitForURL(/#\/room\//);
   const search = page.locator('input[aria-label="Search games"]');
+  // tapping into it doesn't move the page
+  const top = () => search.evaluate((el) => Math.round(el.getBoundingClientRect().top));
+  const y = await top();
+  await search.focus();
+  await page.waitForTimeout(600);
+  expect(await top()).toBe(y);
   await search.fill('rat screw');
   await expect(page.locator('.games .game')).toHaveCount(1);
   await expect(page.locator('nav.cats')).toHaveCount(0);
