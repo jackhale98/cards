@@ -48,6 +48,7 @@ describe('a player with a modified client', () => {
     r.t.send({ t: 'hello', cid: 'ann', name: 'Ann' }, 'host-peer');
     expect(r.views().every((v) => v.who && v.you === -1)).toBe(true);
     // with a made-up key: watching, no cards of Ann's, can't act for her
+    vi.advanceTimersByTime(500);
     r.t.send({ t: 'hello', cid: 'ann', name: 'Ann', key: 'guess' }, 'host-peer');
     const v = r.views().at(-1)!;
     expect(v.you).toBe(-1);
@@ -55,7 +56,9 @@ describe('a player with a modified client', () => {
     r.t.send({ t: 'act', a: { type: 'pass', cards: [] }, seq: 1 }, 'host-peer');
     expect(r.got.at(-1)!.msg).toMatchObject({ t: 'err' });
     // nor the host's
+    vi.advanceTimersByTime(500);
     r.t.send({ t: 'hello', cid: 'h', name: 'Hana', key: 'guess' }, 'host-peer');
+    vi.advanceTimersByTime(500);
     expect(r.views().at(-1)!.you).toBe(-1);
   });
 
@@ -103,11 +106,22 @@ describe('a player with a modified client', () => {
     expect(chips()).toEqual(before);
   });
 
-  it("can't fill the table with seats from one connection", () => {
+  it("can't fill the table with seats from one connection, or swamp the host with hellos", () => {
     const { host, rogue } = table();
     const r = rogue();
-    for (let i = 0; i < 10; i++) r.t.send({ t: 'hello', cid: `ghost${i}`, name: 'Ghost' }, 'host-peer');
-    expect(host.lobby.seats.map((s) => s.id)).toEqual(['h', 'ghost9']);
+    const views = () => r.views().length;
+    // a flood of hellos all at once: one handled now, the latest of the rest a moment later
+    for (let i = 0; i < 50; i++) r.t.send({ t: 'hello', cid: 'ghost', name: `G${i}` }, 'host-peer');
+    vi.advanceTimersByTime(1000);
+    expect(views()).toBeLessThanOrEqual(3);
+    expect(host.lobby.seats.map((s) => s.name)).toEqual(['Hana', 'G49']);
+    // hopping between ids, slowly: one seat at a time, and only a few hops a minute
+    for (let i = 0; i < 10; i++) {
+      r.t.send({ t: 'hello', cid: `ghost${i}`, name: 'Ghost' }, 'host-peer');
+      vi.advanceTimersByTime(500);
+    }
+    expect(host.lobby.seats).toHaveLength(2);
+    expect(host.lobby.seats[1].id).toBe('ghost2');
   });
 
   it("can't fill tonight's tally with junk", () => {

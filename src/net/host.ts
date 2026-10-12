@@ -32,6 +32,10 @@ export const SCREEN_SOUND = '__screenSound';
 /** Host handoff: players get a fresh sealed backup at most this often. */
 export const BACKUP_EVERY_MS = 2000;
 const BOT_NAMES = ['Ada', 'Bix', 'Cleo', 'Dash', 'Echo', 'Fizz', 'Gus', 'Hux', 'Ivy'];
+/** A connection's hellos are handled at most this often; a burst is folded into its latest. */
+export const HELLO_GAP_MS = 400;
+/** How many different seats one connection may ask for in a minute (a client keeps one id). */
+export const IDENTITIES_PER_MINUTE = 3;
 /** Most people at one table (more than any game seats: the rest sit out and rotate in). */
 export const TABLE_MAX = 16;
 
@@ -133,7 +137,10 @@ export class Host {
     }
     if (transport) {
       transport.onMessage = (msg, from) => this.receive(from, msg);
-      transport.onPeerLeave = (peer) => this.peerLeft(peer);
+      transport.onPeerLeave = (peer) => {
+        this.forget(peer);
+        this.peerLeft(peer);
+      };
       transport.onPeerJoin = () => {};
       this.heartbeat = setInterval(() => this.beat(), HEARTBEAT_MS);
     }
@@ -156,12 +163,7 @@ export class Host {
     }
     if (msg.t === 'hello') {
       if (typeof msg.cid !== 'string' || !msg.cid || msg.cid.length > 64) return;
-      const key = typeof msg.key === 'string' && msg.key.length <= 128 ? msg.key : undefined;
-      this.hello(peer, msg.cid, String(msg.name ?? 'Player'), cleanAvatar(msg.avatar), !!msg.display, key);
-      // back from a split-off table: only someone now seated here brings its games back
-      if (typeof msg.from === 'string' && Array.isArray(msg.merge) && this.peers.get(peer) === msg.cid && this.lobby.seats.some((s) => s.id === msg.cid))
-        this.mergeBack(msg.from, msg.merge);
-      return;
+      return this.paced(peer, msg);
     }
     if (msg.t === 'act') {
       const cid = this.peers.get(peer);
@@ -169,6 +171,55 @@ export class Host {
       const err = this.act(cid, msg.a);
       if (err) this.transport?.send({ t: 'err', msg: err, seq: msg.seq }, peer);
     }
+  }
+
+  /**
+   * Hellos, rate-limited per connection: every hello re-sends the whole table, so a connection
+   * saying hello over and over (a bug, or on purpose) could swamp the host. One is handled at
+   * once; any more within HELLO_GAP_MS wait, and only the latest of them is handled. A connection
+   * hopping between client ids is cut off after a few.
+   */
+  private helloPace = new Map<string, { last: number; pending: Extract<ClientMsg, { t: 'hello' }> | null; timer: ReturnType<typeof setTimeout> | null; ids: number[] }>();
+
+  private paced(peer: string, msg: Extract<ClientMsg, { t: 'hello' }>) {
+    const now = Date.now();
+    let p = this.helloPace.get(peer);
+    if (!p) this.helloPace.set(peer, (p = { last: 0, pending: null, timer: null, ids: [] }));
+    const prev = this.peers.get(peer);
+    if (prev !== undefined && prev !== msg.cid && prev !== `screen:${msg.cid}` && !prev.startsWith('watch:')) {
+      p.ids = p.ids.filter((t) => now - t < 60_000);
+      if (p.ids.length >= IDENTITIES_PER_MINUTE) return;
+      p.ids.push(now);
+    }
+    if (now - p.last >= HELLO_GAP_MS && !p.timer) {
+      p.last = now;
+      return this.greet(peer, msg);
+    }
+    p.pending = msg;
+    p.timer ??= setTimeout(() => {
+      const q = this.helloPace.get(peer);
+      if (!q) return;
+      q.timer = null;
+      const latest = q.pending;
+      q.pending = null;
+      q.last = Date.now();
+      if (latest) this.greet(peer, latest);
+    }, HELLO_GAP_MS - (now - p.last));
+  }
+
+  private greet(peer: string, msg: Extract<ClientMsg, { t: 'hello' }>) {
+    const key = typeof msg.key === 'string' && msg.key.length <= 128 ? msg.key : undefined;
+    this.hello(peer, msg.cid, String(msg.name ?? 'Player'), cleanAvatar(msg.avatar), !!msg.display, key);
+    // back from a split-off table: only someone now seated here brings its games back
+    if (typeof msg.from === 'string' && Array.isArray(msg.merge) && this.peers.get(peer) === msg.cid && this.lobby.seats.some((s) => s.id === msg.cid))
+      this.mergeBack(msg.from, msg.merge);
+  }
+
+  /** A connection has gone for good: drop its pacing (and any hello still waiting). */
+  private forget(peer: string) {
+    const p = this.helloPace.get(peer);
+    if (p?.timer) clearTimeout(p.timer);
+    this.helloPace.delete(peer);
   }
 
   private hello(peer: string, cid: string, name: string, avatar: Avatar | undefined, display: boolean, key?: string) {
@@ -227,6 +278,7 @@ export class Host {
     const now = Date.now();
     for (const [peer, h] of this.health) {
       if (now - h.seen > DEAD_AFTER_MS) {
+        this.forget(peer);
         this.peerLeft(peer);
         continue;
       }
@@ -695,6 +747,7 @@ export class Host {
 
   close() {
     this.clearTimers();
+    for (const peer of [...this.helloPace.keys()]) this.forget(peer);
     if (this.backupTimer) clearTimeout(this.backupTimer);
     if (this.heartbeat) clearInterval(this.heartbeat);
     this.transport?.leave();

@@ -21,6 +21,8 @@ describe('real-time host', () => {
   afterEach(() => vi.useRealTimers());
 
   it('bots act on their own timers, without waiting for each other', () => {
+    // (a fixed deal: with some deals a jack is slapped early and the person is up again sooner)
+    vi.spyOn(crypto, 'getRandomValues').mockImplementationOnce(<T extends ArrayBufferView | null>(a: T) => ((a as unknown as Uint32Array)[0] = 7, a));
     const host = game('slapjack', 3);
     expect(state(host).turn).toBe(0);
     expect(host.act('h', { type: 'flip' })).toBeNull();

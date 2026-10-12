@@ -38,9 +38,12 @@ describe('host ↔ clients', () => {
     const { host, mk } = setup();
     const a = mk('a', 'Ann');
     a.c.updateProfile('Annie', { emoji: '<img>', color: 'red' });
+    // (hellos from one connection are spaced out: see HELLO_GAP_MS)
+    vi.advanceTimersByTime(500);
     expect(host.lobby.seats[1].name).toBe('Annie');
     expect(host.lobby.seats[1].avatar).toEqual({ emoji: '🦊', color: '#e9c46a' });
     a.c.updateProfile('Annie', { emoji: '🐙', color: '#5fb3d9' });
+    vi.advanceTimersByTime(500);
     expect(host.lobby.seats[1].avatar).toEqual({ emoji: '🐙', color: '#5fb3d9' });
   });
 
