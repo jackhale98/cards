@@ -1,5 +1,5 @@
 import { buildDeck, cardName, parseCard, rankLabel, SUIT_NAME, SUIT_SYMBOL, type Suit } from '../../cards';
-import { passTarget, type PassDirection } from '../../lib/passing';
+import { PASS_WORDS, passTarget, type PassDirection } from '../../lib/passing';
 import { followSuit, trickWinner } from '../../lib/trickTaking';
 import { createState, deal, hand, ids, log, moveCards, moveTop, name, nextSeat, placesFromScores, resetDeck, sortHand, zone } from '../../state';
 import { botBudget, searchMove } from '../../bots/search';
@@ -140,6 +140,10 @@ type S = GameState<TrickData>;
 export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
   const R = config.rules as unknown as TrickRules;
   const deckSize = buildDeck(config.deck).length;
+  /** The card that leads the first trick with `lead: twoOfClubs`: the lowest club in the deck (the 3♣ when the 2♣ is out). */
+  const opener = buildDeck(config.deck)
+    .filter((c) => parseCard(c).suit === 'C')
+    .sort((a, b) => parseCard(a).rank - parseCard(b).rank)[0];
   const pointsOf = (id: string) => {
     if (R.scoring.type !== 'penalty') return 0;
     const pts = R.scoring.cardPoints;
@@ -284,7 +288,7 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
     const d = s.data;
     s.phase = 'play';
     s.players.forEach((_, i) => sortHand(s, i, { trump: d.trump }));
-    const twoClubs = s.players.findIndex((_, i) => ids(hand(s, i)).includes('2C'));
+    const twoClubs = s.players.findIndex((_, i) => ids(hand(s, i)).includes(opener));
     if (R.lead === 'twoOfClubs' && twoClubs >= 0) s.turn = twoClubs;
     else if (R.lead === 'maker' && d.maker != null) s.turn = d.maker;
     else if (bridgeBids && d.maker != null) s.turn = nextSeat(s, d.maker); // left of the declarer leads
@@ -465,7 +469,7 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
     const trick = zone(s, 'trick').cards;
     const d = s.data;
     if (trick.length === 0) {
-      if (d.trickNo === 0 && R.lead === 'twoOfClubs' && cards.includes('2C')) return ['2C'];
+      if (d.trickNo === 0 && R.lead === 'twoOfClubs' && cards.includes(opener)) return [opener];
       // a suitless joker is led with its own action, which calls a suit
       cards = cards.filter((c) => !suitless(s, c));
       if (R.breaks && !d.broken) {
@@ -713,7 +717,7 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
   // ---- bots (./bots.ts): the quick rule-of-thumb bot, and the search bot's view of a hand
   function dirLabel(s: S, seat: number) {
     const to = passTarget(seat, s.data.passDir!, s.players.length);
-    return `${s.data.passDir} → ${name(s, to)}`;
+    return `${PASS_WORDS[s.data.passDir!]} → ${name(s, to)}`;
   }
 
   const { quickBot, search, botBid } = trickBots({
@@ -857,7 +861,7 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
               d.received[to] = cards!;
             });
             s.players.forEach((_, i) => sortHand(s, i, { trump: d.trump }));
-            log(s, `Cards passed ${d.passDir}`);
+            log(s, `Cards passed ${PASS_WORDS[d.passDir!]}`);
             startBidding(s);
           }
           return;

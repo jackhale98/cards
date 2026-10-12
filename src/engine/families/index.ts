@@ -46,5 +46,33 @@ export function moduleFor(config: GameConfig): GameModule {
   const family = config.rules?.family ?? 'free';
   const make = FAMILIES[family];
   if (!make) throw new Error(`${config.id}: unknown rules family "${family}"`);
-  return make(config);
+  return config.byPlayers ? bySize(config, make) : make(config);
+}
+
+/**
+ * A game whose rules change with the number of players (`byPlayers` in game.json): the family
+ * engine is built once per table size from the merged config, and every call goes to the one for
+ * the table's size (setup by the players it's given, everything else by the game's own state).
+ */
+function bySize(config: GameConfig, make: (config: GameConfig) => GameModule): GameModule {
+  const base = make(config);
+  const built = new Map<number, GameModule>();
+  const forSize = (n: number): GameModule => {
+    const v = config.byPlayers?.[n];
+    if (!v) return base;
+    if (!built.has(n)) {
+      const rules = { ...config.rules!, ...(v.rules ?? {}) } as GameConfig['rules'];
+      built.set(n, make({ ...config, rules, deck: { ...config.deck, ...(v.deck ?? {}) } }));
+    }
+    return built.get(n)!;
+  };
+  const out: Record<string, unknown> = { ...base };
+  for (const [k, f] of Object.entries(base)) {
+    if (typeof f !== 'function') continue;
+    out[k] =
+      k === 'setup'
+        ? (players: unknown[], ...rest: unknown[]) => (forSize(players.length).setup as (...a: unknown[]) => unknown)(players, ...rest)
+        : (s: { players: unknown[] }, ...rest: unknown[]) => ((forSize(s.players.length) as unknown as Record<string, (...a: unknown[]) => unknown>)[k])(s, ...rest);
+  }
+  return out as unknown as GameModule;
 }

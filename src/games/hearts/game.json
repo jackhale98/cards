@@ -4,7 +4,7 @@
   "name": "Hearts",
   "tagline": "Dodge the hearts and the Queen of Spades — or shoot the moon.",
   "icon": "♥",
-  "players": { "min": 4, "max": 4, "recommended": 4 },
+  "players": { "min": 3, "max": 5, "recommended": 4 },
   "bots": true,
   "deck": {},
   "zones": [
@@ -23,11 +23,19 @@
     "scoring": { "type": "penalty", "cardPoints": { "H": 1, "QS": 13 }, "moon": true },
     "end": { "target": 100, "lowWins": true }
   },
+  "byPlayers": {
+    "3": { "deck": { "exclude": ["2D"] }, "rules": { "passing": { "count": 3, "cycle": ["left", "right", "hold"] } } },
+    "5": {
+      "deck": { "exclude": ["2D", "2C"] },
+      "rules": { "passing": { "count": 3, "cycle": ["left", "right", "left2", "hold", "left", "right", "right2", "hold"] } }
+    }
+  },
   "options": [
     { "id": "target", "label": "Play to", "type": "number", "default": 100, "min": 25, "max": 200, "step": 25 }
   ],
   "rulesSummary": [
     "Pass three cards (left, right, across, then no pass), then play 13 tricks.",
+    "Three players: the 2♦ is taken out, 17 cards each, and the passes go left, right, then none. Five: the 2♦ and 2♣ are out, 10 each, and the 3♣ leads; passes go left, right, two to the left, none, left, right, two to the right, none.",
     "Follow suit if you can. The 2♣ leads the first trick; hearts can't be led until broken (unless you hold nothing else).",
     "No hearts or Q♠ on the first trick, unless you have nothing else to play.",
     "Each heart is 1 point, the Q♠ is 13. Lowest score wins when someone reaches the target.",

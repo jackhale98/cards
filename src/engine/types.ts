@@ -59,6 +59,12 @@ export interface GameConfig {
    * no rules enforced), `trick-taking`, `poker`. Each family documents its own parameters.
    */
   rules?: { family: string; [param: string]: unknown };
+  /**
+   * Changes for a particular number of players, keyed by the count: rule parameters merged over
+   * `rules`, and deck settings over `deck` (Hearts for three takes out the 2♦ and passes left,
+   * right, hold). The game runs with the merged config at that table size.
+   */
+  byPlayers?: Record<string, { rules?: Record<string, unknown>; deck?: DeckSpec }>;
 }
 
 export interface GameOption {

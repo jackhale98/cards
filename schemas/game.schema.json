@@ -1008,6 +1008,21 @@
         }
       ]
     },
+    "byPlayers": {
+      "type": "object",
+      "description": "Changes for a particular number of players, keyed by the count (\"3\", \"5\"…): rule parameters merged over `rules`, deck settings over `deck`.",
+      "patternProperties": {
+        "^[0-9]+$": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "rules": { "type": "object" },
+            "deck": { "type": "object" }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
     "category": {
       "type": "string",
       "description": "Picker section (Poker, Casino, Trick-taking, Rummy, Shedding, Family, More). Defaults to one based on the rules family."

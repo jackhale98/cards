@@ -39,13 +39,13 @@ function watch(page: Page) {
 }
 
 /** Start a table, pick the game, fill the seats with bots and deal. Returns the table code. */
-async function deal(page: Page, g: GameJson): Promise<string> {
+async function deal(page: Page, g: GameJson, seats = seatsFor(g)): Promise<string> {
   await page.goto('/?net=local');
   await page.fill('input[aria-label="Your name"]', 'Tester');
   await page.click('text=Start a table');
   await page.waitForURL(/#\/room\//);
   await page.locator(`[data-game="${g.id}"]`).first().click();
-  for (let i = 1; i < seatsFor(g); i++) await page.click('text=+ Add bot');
+  for (let i = 1; i < seats; i++) await page.click('text=+ Add bot');
   await page.click(`button:has-text("Deal ${g.name}")`);
   await page.locator('.table').waitFor();
   return (await page.evaluate(() => location.hash)).split('/').pop()!;
@@ -99,6 +99,37 @@ for (const g of GAMES) {
     await page.setViewportSize({ width: 1280, height: 720 });
     const errors = watch(page);
     const code = await deal(page, g);
+    const tv = await context.newPage();
+    await tv.setViewportSize({ width: 1366, height: 768 });
+    errors.push(...watch(tv));
+    await tv.goto(`/?net=local#/display/${code}`);
+    await tv.locator('.table.display').waitFor();
+    await tv.waitForTimeout(2500);
+    await checkLayout(tv, { seatsMayScroll: false });
+    expect(errors).toEqual([]);
+  });
+}
+
+/** Other table sizes where the game changes (more or fewer cards each, more seats): phone and TV. */
+const SIZES: [string, number][] = [
+  ['hearts', 3],
+  ['hearts', 5],
+  ['hand-and-foot', 6],
+];
+for (const [id, seats] of SIZES) {
+  const g = GAMES.find((x) => x.id === id)!;
+  test(`${g.name} with ${seats} on a phone`, async ({ page }) => {
+    await page.setViewportSize(PHONES[0]);
+    const errors = watch(page);
+    await deal(page, g, seats);
+    await page.waitForTimeout(1500);
+    await checkLayout(page, { seatsMayScroll: true });
+    expect(errors).toEqual([]);
+  });
+  test(`${g.name} with ${seats} on a TV`, async ({ page, context }) => {
+    await page.setViewportSize({ width: 1280, height: 720 });
+    const errors = watch(page);
+    const code = await deal(page, g, seats);
     const tv = await context.newPage();
     await tv.setViewportSize({ width: 1366, height: 768 });
     errors.push(...watch(tv));
