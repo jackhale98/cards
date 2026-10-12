@@ -4,7 +4,7 @@
   "name": "Euchre",
   "tagline": "Order it up, make trumps with your partner, and watch out for the bowers.",
   "icon": "♣",
-  "players": { "min": 4, "max": 4, "recommended": 4 },
+  "players": { "min": 4, "max": 6, "recommended": 4, "counts": [4, 6] },
   "bots": true,
   "deck": { "ranks": [9, 10, 11, 12, 13, 14] },
   "zones": [
@@ -26,6 +26,12 @@
     "scoring": { "type": "euchre" },
     "end": { "target": 10 }
   },
+  "byPlayers": {
+    "6": {
+      "deck": { "ranks": [7, 8, 9, 10, 11, 12, 13, 14] },
+      "rules": { "teams": [[0, 2, 4], [1, 3, 5]], "scoring": { "type": "euchre", "march": 3, "euchred": 3 } }
+    }
+  },
   "options": [
     { "id": "target", "label": "Play to", "type": "number", "default": 10, "min": 5, "max": 15, "step": 1 },
     { "id": "defendAlone", "label": "Defenders may go alone", "type": "boolean", "default": false }
@@ -36,6 +42,7 @@
     "Trumps rank: jack of trumps (right bower), the other jack of the same colour (left bower — it counts as a trump), then A K Q 10 9.",
     "Whoever makes trumps may go alone: their partner sits out and the player on the lone player's left leads. Otherwise the player left of the dealer leads.",
     "The suit turned down can't be named in the second round.",
-    "Makers need 3 tricks: 1 point, all 5: 2 points, alone and all 5: 4. Fail and the other team scores 2 (euchred; 4 if a lone defender does it). First to 10."
+    "Makers need 3 tricks: 1 point, all 5: 2 points, alone and all 5: 4. Fail and the other team scores 2 (euchred; 4 if a lone defender does it). First to 10.",
+    "Six players: two teams of three, sitting alternately, with the 7s and 8s added (32 cards). Going alone, both your partners sit out. All five tricks or a euchre scores 3 (6 alone)."
   ]
 }

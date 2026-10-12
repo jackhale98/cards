@@ -180,3 +180,56 @@ describe('500 for three (pagat)', () => {
     }
   }, 180000);
 });
+
+describe('euchre for six (pagat: Cornwall)', () => {
+  const euchre = GAMES.euchre as GameModule<TrickData>;
+
+  it('two teams of three, alternate seats; 32 cards with the 7s and 8s; five each and a turn-up', () => {
+    const s = euchre.setup(bots(6), 1, {});
+    expect(allCards(s)).toHaveLength(32);
+    for (let i = 0; i < 6; i++) expect(ids(s, `hand:${i}`)).toHaveLength(5);
+    expect(s.data.scores).toHaveLength(2);
+    expect(euchre.status(s, 0).scoreboard!.rows.map((r) => r.name.split(' & ').length)).toEqual([3, 3]);
+  });
+
+  it('going alone: both partners sit out, and the trick has four cards', () => {
+    const s = euchre.setup(bots(6), 2, {});
+    const seat = s.turn!;
+    euchre.apply(s, seat, { type: 'orderAlone' });
+    while (s.phase === 'discard') euchre.apply(s, s.turn!, euchre.bot!(s, s.turn!)!);
+    const out = s.data.outSeats!;
+    expect(out.sort()).toEqual([(seat + 2) % 6, (seat + 4) % 6].sort());
+    for (const o of out) expect(euchre.actions(s, o).find((a) => a.type === 'play')).toBeUndefined();
+    // play a trick
+    for (let k = 0; k < 4; k++) euchre.apply(s, s.turn!, euchre.bot!(s, s.turn!)!);
+    expect(s.zones.trick.cards.length === 4 || s.data.trickNo === 1).toBe(true);
+  });
+
+  it('a march or a euchre scores 3 with six', () => {
+    for (let seed = 1; seed < 60; seed++) {
+      const s = euchre.setup(bots(6), seed, {});
+      simulate(euchre, s, 60000, 'roundOver');
+      const makers = s.data.maker! % 2;
+      const won = [0, 2, 4].map((k) => (k + makers) % 6).reduce((n, i) => n + s.data.tricks[i], 0);
+      const alone = s.data.sittingOut != null;
+      if (won === 5 && !alone) {
+        expect(s.data.scores[makers]).toBe(3);
+        return;
+      }
+      if (won < 3 && s.data.defAlone == null) {
+        expect(s.data.scores[1 - makers]).toBe(3);
+        return;
+      }
+    }
+    throw new Error('no march or euchre in 60 deals');
+  });
+
+  it('bots play whole games at six (and the thinking bots play a hand)', () => {
+    const s = euchre.setup(bots(6), 9, {});
+    simulate(euchre, s, 200000);
+    expect(s.phase).toBe('gameOver');
+    const n = euchre.setup(bots(6), 10, { botLevel: 1 });
+    simulate(euchre, n, 60000, 'roundOver');
+    expect(n.data.tricks.reduce((a, b) => a + b, 0)).toBe(5);
+  }, 120000);
+});

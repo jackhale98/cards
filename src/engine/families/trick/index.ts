@@ -63,7 +63,8 @@ export interface TrickRules {
     | { type: 'tricks' }
     /** Whist: the side taking more tricks scores one a trick over six (`honours` option: A K Q J of trumps). */
     | { type: 'whist' }
-    | { type: 'euchre' }
+    /** `march` (all five tricks) and `euchred` (makers fail) score 2 unless given (six-handed: 3); alone, twice that. */
+    | { type: 'euchre'; march?: number; euchred?: number }
     | { type: 'auction'; perTrick: number; slam?: number }
     | { type: 'bridge' };
   /** `loseAt`: a side at or below this score loses (500: −500). */
@@ -100,6 +101,8 @@ export interface TrickData {
   maker?: number | null;
   /** Partner of a player going alone (doesn't play this hand). */
   sittingOut?: number | null;
+  /** Everyone sitting out (six-handed euchre: a lone player's two partners); `sittingOut` is the first. */
+  outSeats?: number[];
   /** 500: an open misère hand on the table (after the first trick). */
   exposed?: number | null;
   /** 500: the winning bid so far / the contract, and who has passed. */
@@ -195,6 +198,7 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
     d.trump = R.trump && R.trump !== 'none' && R.trump !== 'turnUp' && R.trump !== 'chosen' && R.trump !== 'lastCard' ? R.trump : null;
     d.maker = null;
     d.sittingOut = null;
+    d.outSeats = [];
     d.contract = null;
     d.exposed = null;
     d.passedOut = s.players.map(() => false);
@@ -342,9 +346,13 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
     const d = s.data;
     d.trump = suit;
     d.maker = seat;
-    if (alone) d.sittingOut = partnersOf(s, seat)[0] ?? null;
+    if (alone) {
+      // (with teams of three both partners sit out)
+      d.outSeats = partnersOf(s, seat);
+      d.sittingOut = d.outSeats[0] ?? null;
+    }
     log(s, `${name(s, seat)} ${pickUp ? (seat === s.dealer ? 'picks it up' : 'orders it up') : `names ${SUIT_SYMBOL[suit]}`}${alone ? ' and goes alone' : ''}`, seat, `${SUIT_SYMBOL[suit]}${alone ? ' alone' : ''}`);
-    if (pickUp && d.sittingOut !== s.dealer) {
+    if (pickUp && !d.outSeats?.includes(s.dealer)) {
       moveCards(s, 'upcard', `hand:${s.dealer}`, ids(zone(s, 'upcard')));
       s.phase = 'discard';
       s.turn = s.dealer;
@@ -360,7 +368,10 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
     d.maker = seat;
     d.trump = d.contract!.suit === 'NT' ? null : d.contract!.suit;
     // misère is played alone: partner's cards stay face down
-    if (d.contract!.misere) d.sittingOut = partnersOf(s, seat)[0] ?? null;
+    if (d.contract!.misere) {
+      d.outSeats = partnersOf(s, seat);
+      d.sittingOut = d.outSeats[0] ?? null;
+    }
     log(s, `${name(s, seat)} wins the bid: ${contractLabel(d.contract!)} (${d.contract!.value})`, seat, contractLabel(d.contract!));
     moveCards(s, 'deck', `hand:${seat}`, ids(zone(s, 'deck')));
     sortHand(s, seat, { trump: d.trump });
@@ -470,7 +481,10 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
 
   /** Seats taking part this hand, in turn order from `seat` (someone going alone leaves their partner out). */
   const active = (s: S, seat: number) =>
-    s.data.sittingOut !== seat && !(s.data.defAlone != null && (s.data.defAlone + 2) % s.players.length === seat);
+    // (a game saved before outSeats only has sittingOut)
+    s.data.sittingOut !== seat &&
+    !s.data.outSeats?.includes(seat) &&
+    !(s.data.defAlone != null && partnersOf(s, s.data.defAlone).includes(seat));
   const playersThisHand = (s: S) => s.players.filter((p) => active(s, p.seat)).length;
   const nextActive = (s: S, seat: number) => nextSeat(s, seat, (x) => !active(s, x));
 
@@ -577,12 +591,14 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
       const makers = teamOf(s, d.maker!);
       const won = teams[makers].reduce((n, i) => n + d.tricks[i], 0);
       const alone = d.sittingOut != null;
+      const march = sc.march ?? 2;
+      const euchred = sc.euchred ?? 2;
       if (won >= 3) {
-        deltas[makers] = won === 5 ? (alone ? 4 : 2) : 1;
+        deltas[makers] = won === 5 ? (alone ? march * 2 : march) : 1;
         lines.push(`${teamName(s, makers)} make it${won === 5 ? (alone ? ' — a loner march!' : ' — march!') : ''} (${won} tricks)`);
       } else {
         // a lone defender who euchres the makers scores 4
-        deltas[1 - makers] = d.defAlone != null ? 4 : 2;
+        deltas[1 - makers] = d.defAlone != null ? euchred * 2 : euchred;
         lines.push(`${teamName(s, makers)} are euchred${d.defAlone != null ? ` by ${name(s, d.defAlone)} alone` : ''}! (${won} tricks)`);
       }
     } else if (sc.type === 'bridge') {
