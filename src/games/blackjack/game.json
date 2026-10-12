@@ -3,6 +3,7 @@
   "id": "blackjack",
   "name": "Blackjack",
   "tagline": "Beat the dealer to 21 without going over.",
+  "aliases": ["21", "Twenty-One", "Pontoon"],
   "icon": "21",
   "players": { "min": 1, "max": 7, "recommended": 4 },
   "bots": true,

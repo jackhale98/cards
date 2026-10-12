@@ -3,6 +3,7 @@
   "id": "kings-corners",
   "name": "Kings Corners",
   "tagline": "Solitaire for everyone: build down in red and black, kings in the corners, first out wins.",
+  "aliases": ["Kings in the Corner"],
   "icon": "♚",
   "players": { "min": 2, "max": 6, "recommended": 4 },
   "bots": true,

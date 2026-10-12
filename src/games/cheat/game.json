@@ -3,6 +3,7 @@
   "id": "cheat",
   "name": "Cheat",
   "tagline": "Play your cards face down and lie with a straight face. Call Cheat! when you smell a bluff.",
+  "aliases": ["Bullshit", "BS", "I Doubt It"],
   "icon": "?",
   "players": { "min": 3, "max": 10, "recommended": 5 },
   "bots": true,

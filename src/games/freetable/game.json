@@ -3,6 +3,7 @@
   "id": "freetable",
   "name": "Free Table",
   "tagline": "A real deck on a virtual table. Play any game, house rules welcome.",
+  "aliases": ["Sandbox", "Anything"],
   "icon": "🂠",
   "players": { "min": 1, "max": 10, "recommended": 4 },
   "deck": {},

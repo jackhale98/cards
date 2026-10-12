@@ -3,6 +3,7 @@
   "id": "palace",
   "name": "Palace",
   "tagline": "Also known as Shithead. Get rid of every card — don't be the last one holding them.",
+  "aliases": ["Shithead", "Karma"],
   "icon": "🏰",
   "players": { "min": 2, "max": 5, "recommended": 4 },
   "bots": true,

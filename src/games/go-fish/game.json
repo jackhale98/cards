@@ -3,6 +3,7 @@
   "id": "go-fish",
   "name": "Go Fish",
   "tagline": "Ask for the cards you need and collect books of four. Great with kids.",
+  "aliases": ["Fish"],
   "icon": "🐟",
   "players": { "min": 2, "max": 6, "recommended": 4 },
   "bots": true,

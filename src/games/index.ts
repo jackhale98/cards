@@ -84,3 +84,47 @@ export function getGame(id: string): GameModule {
   if (!g) throw new Error(`Unknown game: ${id}`);
   return g;
 }
+
+/** Lower case, no accents or apostrophes ("Hold'em" → "holdem"), words split on anything else. */
+const fold = (text: string) =>
+  text
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/['’]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+
+const seats = (g: GameModule, n: number) => {
+  const p = g.config.players;
+  return p.counts ? p.counts.includes(n) : n >= p.min && n <= p.max;
+};
+
+/**
+ * The picker's search. Every word typed must match the start of a word in the game's name, other
+ * names, kind or tagline; a number also matches games that seat that many ("6" finds the games for
+ * six). Best matches first: the name itself, then other names, then the rest.
+ */
+export function searchGames(query: string, games: GameModule[] = GAME_LIST): GameModule[] {
+  const words = fold(query).split(' ').filter(Boolean);
+  if (!words.length) return games;
+  const scored: { g: GameModule; score: number }[] = [];
+  for (const g of games) {
+    const name = ` ${fold(g.config.name)}`;
+    const aliases = ` ${fold((g.config.aliases ?? []).join(' '))}`;
+    const rest = ` ${fold([categoryOf(g), g.config.rules?.family ?? '', g.config.tagline].join(' '))}`;
+    let score = 0;
+    let ok = true;
+    for (const w of words) {
+      const at = ` ${w}`;
+      if (name.includes(at)) score += name.startsWith(at) ? 4 : 3;
+      else if (aliases.includes(at)) score += 2;
+      else if (rest.includes(at)) score += 1;
+      else if (/^\d+$/.test(w) && seats(g, Number(w))) score += 1;
+      else ok = false;
+    }
+    if (ok) scored.push({ g, score });
+  }
+  // (a stable sort: equal scores keep the picker's alphabetical order)
+  return scored.sort((a, b) => b.score - a.score).map((x) => x.g);
+}

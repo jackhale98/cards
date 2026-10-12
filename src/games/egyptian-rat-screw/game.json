@@ -3,6 +3,7 @@
   "id": "egyptian-rat-screw",
   "name": "Egyptian Rat Screw",
   "tagline": "Court cards set challenges, doubles get slapped. Win every card with quick hands and luck.",
+  "aliases": ["ERS", "Egyptian Ratscrew", "Slap"],
   "icon": "🐀",
   "players": { "min": 2, "max": 8, "recommended": 4 },
   "bots": true,

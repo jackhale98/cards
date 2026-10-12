@@ -3,6 +3,7 @@
   "id": "crazy-eights",
   "name": "Crazy Eights",
   "tagline": "Match suit or rank, eights are wild. First to empty their hand wins.",
+  "aliases": ["Uno"],
   "icon": "8",
   "players": { "min": 2, "max": 8, "recommended": 4 },
   "bots": true,

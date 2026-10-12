@@ -30,6 +30,11 @@
     "tagline": {
       "type": "string"
     },
+    "aliases": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Other names the game goes by, so the picker's search finds it (\"ERS\", \"Bullshit\")."
+    },
     "icon": {
       "type": "string",
       "maxLength": 4

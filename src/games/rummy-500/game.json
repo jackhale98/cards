@@ -3,6 +3,7 @@
   "id": "rummy-500",
   "name": "Rummy 500",
   "tagline": "Meld from the pile, lay off on anyone's melds, and race to 500.",
+  "aliases": ["Rummy Five Hundred", "500 Rum"],
   "icon": "♣",
   "players": { "min": 2, "max": 8, "recommended": 4 },
   "bots": true,

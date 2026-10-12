@@ -3,6 +3,7 @@
   "id": "five-hundred",
   "name": "500",
   "tagline": "Bid your tricks against the Avondale table. The joker is the boss.",
+  "aliases": ["Five Hundred"],
   "icon": "★",
   "players": { "min": 3, "max": 6, "recommended": 4 },
   "bots": true,

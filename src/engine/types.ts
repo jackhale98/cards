@@ -36,6 +36,8 @@ export interface GameConfig {
   id: string;
   name: string;
   tagline: string;
+  /** Other names the game goes by, so the picker's search finds it ("ERS", "Bullshit"). */
+  aliases?: string[];
   /** Short glyph shown on the game tile when the game has no drawing in GameIcon.svelte. */
   icon: string;
   /** Picker section ("Poker", "Trick-taking", …); by default it follows the rules family. */

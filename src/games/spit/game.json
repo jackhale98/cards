@@ -3,6 +3,7 @@
   "id": "spit",
   "name": "Spit",
   "tagline": "No turns: both players play at once, racing to empty their piles onto the middle.",
+  "aliases": ["Speed"],
   "icon": "⚡",
   "players": { "min": 2, "max": 2, "recommended": 2 },
   "bots": true,

@@ -3,6 +3,7 @@
   "id": "holdem",
   "name": "Texas Hold'em",
   "tagline": "No-limit poker. Two hole cards, five on the board, all the chips.",
+  "aliases": ["Texas Holdem", "Poker"],
   "icon": "♠",
   "players": { "min": 2, "max": 9, "recommended": 6 },
   "bots": true,

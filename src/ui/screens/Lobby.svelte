@@ -1,6 +1,6 @@
 <script lang="ts">
   import { app, inviteUrl } from '../../app.svelte';
-  import { CATEGORIES, categoryOf, GAME_LIST, getGame, GAMES, misfit, playersText } from '../../games';
+  import { CATEGORIES, categoryOf, GAME_LIST, getGame, GAMES, misfit, playersText, searchGames } from '../../games';
   import type { GameModule } from '../../engine/types';
   import type { View } from '../../net/protocol';
   import AvatarBadge from '../components/AvatarBadge.svelte';
@@ -53,6 +53,16 @@
   const recent = app.recentGames.filter((id) => GAMES[id]).slice(0, 3).map((id) => GAMES[id]);
   const sections = CATEGORIES.map((c) => ({ name: c, games: GAME_LIST.filter((g) => categoryOf(g) === c) })).filter((x) => x.games.length);
   const sectionEls: Record<string, HTMLElement> = $state({});
+  let query = $state('');
+  const found = $derived(query.trim() ? searchGames(query) : []);
+  /** Enter picks the best match. */
+  function searchKey(e: KeyboardEvent) {
+    if (e.key === 'Escape') query = '';
+    if (e.key === 'Enter' && found.length) {
+      host?.setGame(found[0].config.id);
+      (e.currentTarget as HTMLInputElement).blur();
+    }
+  }
   const jump = (name: string) => sectionEls[name]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   function deal() {
     app.noteGame(lobby.gameId);
@@ -259,17 +269,42 @@
         </div>
       {/if}
       {#if host}
-        <nav class="cats" aria-label="Kinds of game">
-          {#each sections as sec (sec.name)}<button class="cat" onclick={() => jump(sec.name)}>{sec.name}</button>{/each}
-        </nav>
-        {#if recent.length}
-          <div class="sec">Recent</div>
-          <div class="games">{#each recent as g (g.config.id)}{@render tile(g)}{/each}</div>
+        <label class="search">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="11" cy="11" r="6.5" stroke="currentColor" stroke-width="2" fill="none" /><path d="m16 16 4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
+          <input
+            type="search"
+            bind:value={query}
+            onkeydown={searchKey}
+            onfocus={(e) => (e.currentTarget.closest('.search') as HTMLElement).scrollIntoView({ block: 'start', behavior: 'smooth' })}
+            placeholder="Search games or player count"
+            aria-label="Search games"
+            enterkeyhint="search"
+            autocomplete="off"
+            autocapitalize="off"
+            spellcheck="false"
+          />
+          {#if query}<button class="clear" onclick={() => (query = '')} aria-label="Clear search">×</button>{/if}
+        </label>
+        {#if query.trim()}
+          {#if found.length}
+            <div class="sec">{found.length} game{found.length === 1 ? '' : 's'}</div>
+            <div class="games">{#each found as g (g.config.id)}{@render tile(g)}{/each}</div>
+          {:else}
+            <p class="small none">No games match “{query.trim()}”.</p>
+          {/if}
+        {:else}
+          <nav class="cats" aria-label="Kinds of game">
+            {#each sections as sec (sec.name)}<button class="cat" onclick={() => jump(sec.name)}>{sec.name}</button>{/each}
+          </nav>
+          {#if recent.length}
+            <div class="sec">Recent</div>
+            <div class="games">{#each recent as g (g.config.id)}{@render tile(g)}{/each}</div>
+          {/if}
+          {#each sections as sec (sec.name)}
+            <div class="sec" bind:this={sectionEls[sec.name]}>{sec.name}</div>
+            <div class="games">{#each sec.games as g (g.config.id)}{@render tile(g)}{/each}</div>
+          {/each}
         {/if}
-        {#each sections as sec (sec.name)}
-          <div class="sec" bind:this={sectionEls[sec.name]}>{sec.name}</div>
-          <div class="games">{#each sec.games as g (g.config.id)}{@render tile(g)}{/each}</div>
-        {/each}
       {/if}
     </div>
   </section>
@@ -522,6 +557,54 @@
   }
   .ctl button:disabled {
     opacity: 0.25;
+  }
+  .search {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin-top: 0.55rem;
+    padding: 0 0.35rem 0 0.75rem;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: rgba(0, 0, 0, 0.22);
+    color: var(--ink-dim);
+  }
+  .search {
+    /* (tapped, it scrolls to the top: clear of the status bar, results above the keyboard) */
+    scroll-margin-top: calc(var(--safe-t) + 12px);
+  }
+  .search:focus-within {
+    border-color: var(--gold);
+    color: var(--ink);
+  }
+  .search input {
+    flex: 1;
+    min-width: 0;
+    padding: 0.55rem 0;
+    border: 0;
+    outline: none;
+    background: none;
+    color: var(--ink);
+    /* (16px: smaller and iPhones zoom the page in when it's tapped) */
+    font-size: 16px;
+  }
+  .search input::placeholder {
+    color: var(--ink-dim);
+  }
+  .search input::-webkit-search-cancel-button {
+    display: none;
+  }
+  .search .clear {
+    flex: none;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    font-size: 1.2rem;
+    line-height: 1;
+    color: var(--ink-dim);
+  }
+  .none {
+    margin: 0.9rem 0.2rem;
   }
   .cats {
     display: flex;
