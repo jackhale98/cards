@@ -48,6 +48,11 @@ export interface TrickRules {
   bowers?: boolean;
   /** A joker is the highest trump (in no trumps it beats everything and is played when void). */
   joker?: boolean;
+  /**
+   * Five-handed 500: after the kitty the contractor names a card (or plays alone); whoever holds it
+   * is their secret partner, known when the card is played.
+   */
+  callPartner?: boolean;
   /** With a double pack, two identical cards in a trick: `later` (six-handed spades) or the first played (default) wins. */
   duplicates?: 'later' | 'first';
   /** Cards left over after the deal, taken by the bid winner (500) or turned up (euchre). */
@@ -105,6 +110,12 @@ export interface TrickData {
   sittingOut?: number | null;
   /** Everyone sitting out (six-handed euchre: a lone player's two partners); `sittingOut` is the first. */
   outSeats?: number[];
+  /** Five-handed 500: the card the contractor called (null: playing alone), and who holds it. */
+  called?: string | null;
+  /** Hidden from everyone else until the called card is played. */
+  partner?: number | null;
+  partnerShown?: boolean;
+  callAsked?: boolean;
   /** 500: an open misère hand on the table (after the first trick). */
   exposed?: number | null;
   /** 500: the winning bid so far / the contract, and who has passed. */
@@ -201,6 +212,10 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
     d.maker = null;
     d.sittingOut = null;
     d.outSeats = [];
+    d.called = undefined;
+    d.partner = null;
+    d.partnerShown = false;
+    d.callAsked = false;
     d.contract = null;
     d.exposed = null;
     d.passedOut = s.players.map(() => false);
@@ -317,8 +332,29 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
    * Last questions before the first lead: in euchre a defender may go alone (when that option is
    * on); in 500 a contractor holding the joker in no trumps or misère may give it a suit.
    */
+  /** Every card in the pack, in a fixed order (a called card is chosen by its index). */
+  const deckCards = buildDeck(config.deck);
+  /**
+   * Cards the contractor may call: not the joker or a bower, nor one they hold or put in the kitty
+   * (those would make them alone anyway). Trumps first, high to low.
+   */
+  function callable(s: S): string[] {
+    const d = s.data;
+    const mine = new Set([...ids(hand(s, d.maker!)), ...ids(zone(s, 'kitty'))]);
+    const bowers = d.trump ? [`J${d.trump}`, `J${SAME_COLOUR[d.trump]}`] : [];
+    const order = (c: string) => (suitOf(s, c) === d.trump ? 0 : 1) * 100 - parseCard(c).rank;
+    return deckCards.filter((c) => parseCard(c).suit !== 'X' && !bowers.includes(c) && !mine.has(c)).sort((a, b) => order(a) - order(b));
+  }
+
   function beforePlay(s: S) {
     const d = s.data;
+    // five-handed 500: call a partner (misère is always played alone)
+    if (R.callPartner && d.contract && !d.contract.misere && !d.callAsked) {
+      d.callAsked = true;
+      s.phase = 'callPartner';
+      s.turn = d.maker!;
+      return;
+    }
     if (euchreBids?.alone && s.options.defendAlone && !d.defendAsked) {
       d.defendAsked = true;
       const defenders = [1, 2, 3, 4].map((k) => (s.dealer + k) % s.players.length).filter((i) => teamOf(s, i) !== teamOf(s, d.maker!));
@@ -624,6 +660,23 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
         lines.push(`${name(s, d.maker!)} ${made ? 'makes' : 'fails'} ${contractLabel(c)}: ${made ? '+' : '−'}${c.value}`);
         return { deltas, lines };
       }
+      if (R.callPartner) {
+        // five-handed: contractor and partner win or lose half the bid each (alone, all of it);
+        // each opponent scores 10 a trick
+        const side = [d.maker!, ...(d.partner != null ? [d.partner] : [])];
+        const won = side.reduce((n, i) => n + d.tricks[i], 0);
+        const made = won >= c.tricks;
+        const value = made && won === 10 && c.value < (sc.slam ?? 250) ? (sc.slam ?? 250) : c.value;
+        const each = side.length === 2 ? value / 2 : value;
+        for (const i of side) deltas[teamOf(s, i)] = made ? each : -each;
+        lines.push(`${side.map((i) => name(s, i)).join(' & ')} ${made ? 'make' : 'go down on'} ${contractLabel(c)} with ${won} tricks: ${made ? '+' : '−'}${each}${side.length === 2 ? ' each' : ''}`);
+        for (const p of s.players) {
+          if (side.includes(p.seat)) continue;
+          deltas[teamOf(s, p.seat)] = d.tricks[p.seat] * sc.perTrick;
+          if (d.tricks[p.seat]) lines.push(`${p.name}: ${d.tricks[p.seat]} tricks, +${d.tricks[p.seat] * sc.perTrick}`);
+        }
+        return { deltas, lines };
+      }
       teams.forEach((t, ti) => {
         const won = t.reduce((n, i) => n + d.tricks[i], 0);
         if (ti === makers) {
@@ -725,7 +778,10 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
     const makers = teamOf(s, d.maker!);
     const bidToWin = s.options.bidToWin ?? true;
     let winners: number[] = [];
-    if (deltas[makers] > 0 && d.scores[makers] >= target(s)) winners = [makers];
+    // (five-handed, the partner wins with the contractor if they get there too)
+    const makerSides = [makers, ...(d.partner != null ? [teamOf(s, d.partner)] : [])];
+    const reached = makerSides.filter((ti) => deltas[ti] > 0 && d.scores[ti] >= target(s));
+    if (reached.length) winners = reached;
     else if (!bidToWin) {
       const best = Math.max(...d.scores);
       if (best >= target(s)) winners = teams.map((_, ti) => ti).filter((ti) => d.scores[ti] === best);
@@ -854,6 +910,14 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
       } else if (s.phase === 'defend' && s.turn === seat) {
         out.push({ type: 'defendAlone', label: 'Defend alone' });
         out.push({ type: 'stayIn', label: 'Play with partner', style: 'primary' });
+      } else if (s.phase === 'callPartner' && s.turn === seat) {
+        out.push({
+          type: 'callCard',
+          label: 'Call a partner',
+          style: 'primary',
+          choose: { label: 'Whoever holds this card plays with you (secretly, until it’s played)', options: callable(s).map((c) => ({ value: deckCards.indexOf(c), label: label(c) })) },
+        });
+        out.push({ type: 'callAlone', label: 'Play alone' });
       } else if (s.phase === 'joker' && s.turn === seat) {
         const options = NAMEABLE.map((x) => ({ value: NAMEABLE.indexOf(x), label: `${SUIT_SYMBOL[x]} ${SUIT_NAME[x]}` }));
         // in misère an un-nominated joker would make the bid fail, so a suit must be chosen
@@ -1020,6 +1084,11 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
           }
           d.received[turn] = [];
           log(s, `${name(s, seat)} plays the ${cardName(card)}${turn !== seat ? ' from dummy' : ''}`, seat, `${rankLabel(parseCard(card).rank)}${SUIT_SYMBOL[parseCard(card).suit]}`);
+          // the called card shows who the contractor's partner is
+          if (d.called && card === d.called) {
+            d.partnerShown = true;
+            log(s, `${name(s, turn)} is ${name(s, d.maker!)}’s partner`, turn, 'Partner!');
+          }
           if (bridgeBids && !d.dummyUp) {
             // after the opening lead the dummy's hand goes face up on the table, grouped by suit
             const dummy = d.dummy!;
@@ -1051,6 +1120,22 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
           log(s, `${name(s, seat)} leads the joker and calls ${SUIT_SYMBOL[suit]}`, seat, `Joker → ${SUIT_SYMBOL[suit]}`);
           s.turn = nextActive(s, turn);
           return;
+        }
+        case 'callCard':
+        case 'callAlone': {
+          assertRule(s.phase === 'callPartner' && s.turn === seat, 'Not your turn');
+          if (a.type === 'callCard') {
+            const card = deckCards[a.amount ?? -1];
+            assertRule(card && callable(s).includes(card), 'Call another card');
+            d.called = card;
+            d.partner = s.players.map((p) => p.seat).find((i) => ids(hand(s, i)).includes(card)) ?? null;
+            log(s, `${who} calls the ${cardName(card)}: whoever holds it is their partner`, seat, `Calls ${label(card)}`);
+          } else {
+            d.called = null;
+            d.partner = null;
+            log(s, `${who} plays alone`, seat, 'Alone');
+          }
+          return beforePlay(s);
         }
         case 'nominate': {
           assertRule(s.phase === 'joker' && s.turn === seat, 'Not your turn');
@@ -1139,6 +1224,11 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
     },
 
     bot(s, seat) {
+      // five-handed 500: call the best card not held (the top trump, or an ace in no trumps)
+      if (s.phase === 'callPartner' && s.turn === seat) {
+        const best = callable(s)[0];
+        return best ? { type: 'callCard', amount: deckCards.indexOf(best) } : { type: 'callAlone' };
+      }
       // card play is searched unless the bots are set to Easy; the other decisions use the quick rules
       const budget = botBudget(s.options);
       if (budget && s.phase === 'play' && controller(s) === seat) return searchMove(search, s, seat, budget) ?? quickBot(s, seat);
@@ -1150,6 +1240,8 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
       return {
         ...d,
         passes: d.passes.map((p, i) => (p && i !== viewer ? [] : p)),
+        // the called card's holder stays secret until it's played (they know, of course)
+        partner: d.partnerShown || viewer === d.partner ? d.partner : null,
         received: d.received.map((r, i) => (i === viewer ? r : [])),
       };
     },
@@ -1202,6 +1294,8 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
         headline = s.turn === viewer ? `Pass 2 cards to ${name(s, (viewer + 2) % s.players.length)}` : `${name(s, s.turn!)} is passing 2 cards`;
       } else if (s.phase === 'defend') {
         headline = s.turn === viewer ? 'Defend alone, or play with your partner?' : `${name(s, s.turn!)} may defend alone`;
+      } else if (s.phase === 'callPartner') {
+        headline = s.turn === viewer ? 'Call a card: whoever holds it is your partner — or play alone' : `${name(s, s.turn!)} is calling a partner`;
       } else if (s.phase === 'joker') {
         headline = s.turn === viewer ? 'Give the joker a suit' : `${name(s, s.turn!)} is choosing the joker’s suit`;
       } else if (s.phase === 'moon') {
@@ -1210,6 +1304,9 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
       else if (s.phase === 'gameOver') headline = 'Game over';
       // (a bridge contract already names its trump suit)
       if (d.trump && s.phase !== 'gameOver' && !d.bridge) headline += ` · trumps ${SUIT_SYMBOL[d.trump]}`;
+      // five-handed 500: the called card (its holder only once it's played, or to themselves)
+      if (d.called && (s.phase === 'play' || s.phase === 'trickEnd'))
+        headline += d.partnerShown ? ` · ${name(s, d.partner!)} is the partner` : viewer === d.partner ? ` · you hold the ${label(d.called)}: you're the partner` : ` · partner card ${label(d.called)}`;
       else if (auction && d.contract && d.maker != null && s.phase === 'play') {
         headline += d.contract.misere ? ` · ${contractLabel(d.contract)}` : ' · no trumps';
         if (d.jokerSuit) headline += ` · joker ${SUIT_SYMBOL[d.jokerSuit]}`;
@@ -1234,7 +1331,7 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
         }
         if (euchreBids || auction) {
           const role =
-            !active(s, i) ? 'Sitting out' : d.defAlone === i ? 'Defending alone' : d.maker === i && (s.phase === 'play' || s.phase === 'trickEnd' || s.phase === 'discard') ? (auction ? contractLabel(d.contract!) : d.sittingOut != null ? 'Alone' : 'Maker') : auction && d.passedOut?.[i] && s.phase === 'auction' ? 'Passed' : '';
+            !active(s, i) ? 'Sitting out' : d.defAlone === i ? 'Defending alone' : d.partnerShown && d.partner === i ? 'Partner' : d.maker === i && (s.phase === 'play' || s.phase === 'trickEnd' || s.phase === 'discard') ? (auction ? contractLabel(d.contract!) : d.sittingOut != null ? 'Alone' : 'Maker') : auction && d.passedOut?.[i] && s.phase === 'auction' ? 'Passed' : '';
           return [role, s.phase === 'play' || s.phase === 'trickEnd' ? `${d.tricks[i]} tricks` : '', `${d.scores[teamOf(s, i)]} pts`].filter(Boolean).join(' · ');
         }
         const parts: string[] = [];

@@ -10,6 +10,9 @@ the middle of the table. It needs no accounts or app store, and there's no serve
   Cribbage (with a pegboard; auto scoring or count-your-own with muggins), Euchre (bowers, going alone), 500 (Avondale bids, misère and open misère, kitty, joker),
   Contract Bridge (full auction, dummy, duplicate scoring with Chicago vulnerability), Whist, Crazy Eights (eights call a suit, last card, Q/A/2 specials),
   and a rules-free **Free Table** for any game.
+- **Other table sizes, as pagat gives them:** Hearts for 3–5, Spades for 3, 4 or 6, 500 for 3–6 (a called
+  secret partner with five), Euchre for 4 or 6, Canasta for 2–4 or 6, Hand and Foot for 2–6. A game's
+  `byPlayers` in game.json changes its deck and rules for a given number of players.
 - **Rules follow [pagat.com](https://www.pagat.com)**, with common variants as lobby options (25-point gin bonuses, defending alone in euchre, Oh Hell's short ladder…).
 - **Always know what just happened:** the last move appears under the headline, pops up as a
   bubble on that player's seat, and poker seats show each player's action this street.

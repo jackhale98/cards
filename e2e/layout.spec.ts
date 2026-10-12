@@ -121,6 +121,7 @@ const SIZES: [string, number][] = [
   ['canasta', 3],
   ['canasta', 6],
   ['spades', 6],
+  ['five-hundred', 5],
   ['five-hundred', 6],
 ];
 for (const [id, seats] of SIZES) {

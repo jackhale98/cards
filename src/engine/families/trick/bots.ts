@@ -215,7 +215,18 @@ export function trickBots(T: TrickCtx) {
     // (three-handed 500: the two players against the contractor play together, though they score apart)
     const teams = teamsFor(s.players.length);
     const againstMaker = !!d.contract && d.maker != null && teams.length === s.players.length;
-    const partnerWinning = win.by !== seat && ((teamOf(s, win.by!) === teamOf(s, seat) && teams[teamOf(s, seat)].length > 1) || (againstMaker && win.by !== d.maker && seat !== d.maker));
+    // (five-handed: the called card's holder knows they're the contractor's partner; the contractor
+    // and the others only once it's been played)
+    const partner = d.partner ?? null;
+    const known = (i: number) => i === partner && (d.partnerShown || seat === partner);
+    const ally = (other: number) => {
+      if (teamOf(s, other) === teamOf(s, seat) && teams[teamOf(s, seat)].length > 1) return true;
+      if (!againstMaker) return false;
+      if (seat === d.maker) return known(other);
+      if (seat === partner) return other === d.maker;
+      return other !== d.maker && !(d.partnerShown && other === partner);
+    };
+    const partnerWinning = win.by !== seat && ally(win.by!);
     const beats = (c: string) => {
       const before = zone(s, 'trick').cards;
       zone(s, 'trick').cards = [...trick, { id: c, by: seat }];

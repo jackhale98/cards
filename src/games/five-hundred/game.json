@@ -4,7 +4,7 @@
   "name": "500",
   "tagline": "Bid your tricks against the Avondale table. The joker is the boss.",
   "icon": "★",
-  "players": { "min": 3, "max": 6, "recommended": 4, "counts": [3, 4, 6] },
+  "players": { "min": 3, "max": 6, "recommended": 4 },
   "bots": true,
   "deck": { "ranks": [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14], "exclude": ["4S", "4C"], "jokers": 1 },
   "zones": [
@@ -33,6 +33,10 @@
       "deck": { "ranks": [7, 8, 9, 10, 11, 12, 13, 14], "exclude": [], "jokers": 1 },
       "rules": { "teams": [[0], [1], [2]] }
     },
+    "5": {
+      "deck": { "ranks": [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14], "exclude": [], "jokers": 1 },
+      "rules": { "teams": [[0], [1], [2], [3], [4]], "callPartner": true }
+    },
     "6": {
       "deck": {
         "ranks": [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14],
@@ -56,6 +60,7 @@
     "Make it and score the bid (all 10 tricks is at least 250); fail and lose it. Opponents score 10 per trick (nothing against misère).",
     "Win by reaching 500 with a bid you make — points on defence alone don't win. Fall to −500 and you lose.",
     "Three players: 33 cards (7s to aces and the joker), 10 each and a kitty of 3. The highest bidder plays alone against the other two, who play together; everyone keeps their own score, and each opponent scores 10 for every trick they take.",
-    "Six players: two teams of three, sitting alternately. 63 cards: a full pack and the joker, plus the 2s, 3s and red 4s of a second pack; if two identical cards fall on the same trick, the first one played wins. In a misère both partners sit out."
+    "Six players: two teams of three, sitting alternately. 63 cards: a full pack and the joker, plus the 2s, 3s and red 4s of a second pack; if two identical cards fall on the same trick, the first one played wins. In a misère both partners sit out.",
+    "Five players: a full pack and the joker (53 cards). After taking the kitty, the contractor calls a card (not the joker or a bower) — whoever holds it is their partner, kept secret until that card is played — or plays alone. Made with a partner, each wins half the bid; alone, all of it. Each opponent scores 10 a trick. Misère is always alone."
   ]
 }

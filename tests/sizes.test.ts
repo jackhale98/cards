@@ -372,3 +372,95 @@ describe('identical cards in one trick', () => {
     expect(trickWinner([...trick, { id: '2S' }], { trump: 'S', laterWinsTies: true })).toBe(4);
   });
 });
+
+describe('500 for five (pagat): a called partner', () => {
+  const five = GAMES['five-hundred'] as GameModule<TrickData>;
+  /** Bid and discard with the bots until the contractor is calling a partner (not a misère). */
+  const toCall = (seed: number) => {
+    for (let k = seed; k < seed + 40; k++) {
+      const s = five.setup(bots(5), k, {});
+      for (let i = 0; i < 400 && s.phase !== 'callPartner' && s.phase !== 'play' && s.phase !== 'roundOver'; i++) {
+        const sys = five.system?.(s);
+        if (sys) {
+          sys.run(s);
+          continue;
+        }
+        const seat = s.players.find((p) => five.bot!(s, p.seat))!.seat;
+        five.apply(s, seat, five.bot!(s, seat)!);
+      }
+      if (s.phase === 'callPartner') return s;
+    }
+    throw new Error('no contract to call a partner for');
+  };
+
+  it('53 cards: 10 each and a kitty of 3; everyone scores alone', () => {
+    const s = five.setup(bots(5), 1, {});
+    expect(allCards(s)).toHaveLength(53);
+    for (let i = 0; i < 5; i++) expect(ids(s, `hand:${i}`)).toHaveLength(10);
+    expect(s.data.scores).toHaveLength(5);
+  });
+
+  it('the contractor calls a card (never the joker, a bower, or one of their own); its holder is the partner', () => {
+    const s = toCall(1);
+    const maker = s.data.maker!;
+    const spec = five.actions(s, maker).find((a) => a.type === 'callCard')!;
+    const labels = spec.choose!.options.map((o) => o.label);
+    expect(labels.some((l) => l === 'Joker')).toBe(false);
+    if (s.data.trump) expect(labels).not.toContain(`J${{ S: '♠', H: '♥', D: '♦', C: '♣' }[s.data.trump as 'S']}`);
+    expect(five.actions(s, maker).some((a) => a.type === 'callAlone')).toBe(true);
+    five.apply(s, maker, five.bot!(s, maker)!);
+    const called = s.data.called!;
+    expect(called).toBeTruthy();
+    const holder = s.data.partner!;
+    expect(ids(s, `hand:${holder}`)).toContain(called);
+  });
+
+  it('the partner is secret: only they know, until the card is played', async () => {
+    const { redact } = await import('../src/engine/redact');
+    const s = toCall(2);
+    const maker = s.data.maker!;
+    five.apply(s, maker, five.bot!(s, maker)!);
+    const partner = s.data.partner!;
+    const other = [0, 1, 2, 3, 4].find((i) => i !== maker && i !== partner)!;
+    expect((redact(five, s, maker).data as TrickData).partner).toBeNull();
+    expect((redact(five, s, other).data as TrickData).partner).toBeNull();
+    expect((redact(five, s, partner).data as TrickData).partner).toBe(partner);
+    expect(five.status(s, other).headline).toContain('partner card');
+    expect(five.status(s, other).headline).not.toContain(s.players[partner].name);
+    // play until the called card falls
+    for (let i = 0; i < 200 && !s.data.partnerShown && s.phase !== 'roundOver'; i++) {
+      const sys = five.system?.(s);
+      if (sys) {
+        sys.run(s);
+        continue;
+      }
+      five.apply(s, s.turn!, five.bot!(s, s.turn!)!);
+    }
+    if (s.data.partnerShown) expect((redact(five, s, other).data as TrickData).partner).toBe(partner);
+  });
+
+  it('made with a partner: half the bid each; opponents 10 a trick each', () => {
+    for (let k = 1; k < 60; k++) {
+      const s = toCall(k);
+      const maker = s.data.maker!;
+      five.apply(s, maker, five.bot!(s, maker)!);
+      const partner = s.data.partner;
+      simulate(five, s, 60000, 'roundOver');
+      if (partner == null) continue;
+      const c = s.data.contract!;
+      const won = s.data.tricks[maker] + s.data.tricks[partner];
+      if (won < c.tricks || won === 10) continue;
+      expect(s.data.scores[maker]).toBe(c.value / 2);
+      expect(s.data.scores[partner]).toBe(c.value / 2);
+      for (let i = 0; i < 5; i++) if (i !== maker && i !== partner) expect(s.data.scores[i]).toBe(s.data.tricks[i] * 10);
+      return;
+    }
+    throw new Error('no made contract with a partner');
+  });
+
+  it('bots play whole games at five', () => {
+    const s = five.setup(bots(5), 7, {});
+    simulate(five, s, 300000);
+    expect(s.phase).toBe('gameOver');
+  }, 240000);
+});
