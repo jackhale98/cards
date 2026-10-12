@@ -32,6 +32,7 @@
     font-weight: 700;
     line-height: 1;
     color: #10231c;
+    background: var(--c);
     background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--c) 55%, white), var(--c));
     box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.15);
   }

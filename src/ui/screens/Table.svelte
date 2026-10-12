@@ -830,6 +830,7 @@
   .banner {
     position: absolute;
     z-index: 5;
+    background: rgba(8, 26, 20, 0.94);
     background: color-mix(in srgb, var(--felt-3) 94%, transparent);
     top: 50%;
     left: 50%;

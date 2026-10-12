@@ -59,6 +59,7 @@
     position: absolute;
     inset: 0 auto 0 0;
     border-radius: 4px;
+    background: rgba(255, 255, 255, 0.12);
     background: color-mix(in srgb, var(--c) 35%, transparent);
     transition: width 0.6s var(--ease-out);
   }

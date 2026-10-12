@@ -665,6 +665,7 @@
     gap: 0.7rem;
     padding: 0.5rem 0.6rem 0.5rem 0.8rem;
     border-radius: 20px;
+    background: rgba(8, 26, 20, 0.82);
     background: color-mix(in srgb, var(--felt-3) 82%, transparent);
     backdrop-filter: blur(14px);
     -webkit-backdrop-filter: blur(14px);

@@ -10,8 +10,8 @@
   --gold-deep: #c99a2e;
   --danger: #e76f51;
   --good: #7bd389;
-  /* (follows the table cloth) */
-  --glass: color-mix(in srgb, var(--felt-3) 62%, transparent);
+  /* (follows the table cloth; older browsers, like some TVs, get a fixed tint) */
+  --glass: rgba(10, 30, 24, 0.55);
   --glass-hi: rgba(255, 255, 255, 0.08);
   --line: rgba(255, 255, 255, 0.12);
   --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
@@ -41,6 +41,12 @@
 *::before,
 *::after {
   box-sizing: border-box;
+}
+
+@supports (color: color-mix(in srgb, red 50%, blue)) {
+  :root {
+    --glass: color-mix(in srgb, var(--felt-3) 62%, transparent);
+  }
 }
 
 html,
@@ -76,6 +82,7 @@ body::before {
 
 #app {
   position: relative;
+  height: 100vh;
   height: 100dvh;
   width: 100vw;
 }
