@@ -56,6 +56,9 @@ Found a bug, or want a game we don't have yet? Email **[contact@lamplight.cards]
 (the site has "Report a bug" and "Request a game" links on the home screen, and "Report a problem" in
 the table menu, which fills in the game and table for you).
 
+Lamplight is free, with no ads and no accounts. If it makes your game nights better, you can
+[buy us a coffee on Ko-fi](https://ko-fi.com/lamplightcards) ☕
+
 ## How the connection works
 
 The site is static files (Cloudflare Pages, [lamplight.cards](https://lamplight.cards)); the

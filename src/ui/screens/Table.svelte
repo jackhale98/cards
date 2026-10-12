@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { bugReportLink } from '../contact';
+  import { bugReportLink, SUPPORT_URL } from '../contact';
   import SuitText from '../components/SuitText.svelte';
   import { app, inviteUrl } from '../../app.svelte';
   import type { ActionSpec } from '../../engine/types';
@@ -400,6 +400,10 @@
           <p class="tonight">
             Tonight: {tonight.slice(0, 4).map((r) => `${r.name} ${r.points}`).join(' · ')}{tonight.length > 4 ? ` · +${tonight.length - 4} more` : ''}
           </p>
+        {/if}
+        {#if s.phase === 'gameOver' && !display}
+          <!-- one quiet line, only when a game is over (never during play) -->
+          <p class="support">Enjoyed that? Lamplight is free and ad-free — <a href={SUPPORT_URL} target="_blank" rel="noreferrer">buy us a coffee ☕</a></p>
         {/if}
       </div>
     {/if}
@@ -807,6 +811,14 @@
       inset 0 -2px 0 rgba(0, 0, 0, 0.3),
       0 1px 2px rgba(0, 0, 0, 0.4);
     border: 1.5px dashed rgba(255, 255, 255, 0.6);
+  }
+  .banner p.support {
+    margin-top: 0.6rem;
+    font-size: 0.75rem;
+    color: var(--ink-faint);
+  }
+  .support a {
+    color: var(--gold);
   }
   .tonight {
     margin-top: 0.5rem;

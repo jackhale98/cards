@@ -1,6 +1,9 @@
 /** Where bug reports and game requests go. */
 export const CONTACT_EMAIL = 'contact@lamplight.cards';
 
+/** Tips that keep Lamplight free and ad-free. */
+export const SUPPORT_URL = 'https://ko-fi.com/lamplightcards';
+
 const mailto = (subject: string, body: string) =>
   `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 
