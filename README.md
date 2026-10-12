@@ -90,6 +90,7 @@ another player's hidden cards, so nobody can peek with dev tools.
 pnpm install
 pnpm dev          # http://localhost:5173
 pnpm test         # engine, rules, networking and schema tests
+pnpm test:e2e     # every game dealt in a real browser at phone, laptop and TV sizes
 pnpm check        # type check
 pnpm build        # static site in dist/
 ```

@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Local multiplayer card table — your phone is your hand.",
+  "description": "Local multiplayer card table \u2014 your phone is your hand.",
   "license": "MIT",
   "scripts": {
     "dev": "vite",
@@ -11,7 +11,8 @@
     "preview": "vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@trystero-p2p/mqtt": "0.26.0",
@@ -20,6 +21,7 @@
     "qrcode": "^1.5.4"
   },
   "devDependencies": {
+    "@playwright/test": "1.56.1",
     "@sveltejs/vite-plugin-svelte": "^7.3.1",
     "@tsconfig/svelte": "^5.0.8",
     "@types/qrcode": "^1.5.6",

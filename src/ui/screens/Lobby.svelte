@@ -50,7 +50,7 @@
   const people = $derived(lobby.seats.filter((s) => !s.bot).length);
   const recent = app.recentGames.filter((id) => GAMES[id]).slice(0, 3).map((id) => GAMES[id]);
   const sections = CATEGORIES.map((c) => ({ name: c, games: GAME_LIST.filter((g) => categoryOf(g) === c) })).filter((x) => x.games.length);
-  const sectionEls: Record<string, HTMLElement> = {};
+  const sectionEls: Record<string, HTMLElement> = $state({});
   const jump = (name: string) => sectionEls[name]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   function deal() {
     app.noteGame(lobby.gameId);
@@ -62,7 +62,7 @@
 
 {#snippet tile(g: GameModule)}
   {@const why = misfit(g, people)}
-  <button class="game" class:active={g.config.id === lobby.gameId} class:misfit={!!why} onclick={() => host?.setGame(g.config.id)}>
+  <button class="game" data-game={g.config.id} class:active={g.config.id === lobby.gameId} class:misfit={!!why} onclick={() => host?.setGame(g.config.id)}>
     <span class="gicon"><GameIcon id={g.config.id} icon={g.config.icon} size={40} /></span>
     <span class="gname">{g.config.name}</span>
     <span class="gmeta">
