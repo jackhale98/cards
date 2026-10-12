@@ -8,7 +8,8 @@ import { assertRule, type Action, type ActionSpec, type GameConfig, type GameMod
 
 /**
  * Poker family: no-limit betting, side pots and showdown, for community-card games (blinds, a
- * board dealt street by street) and draw poker (antes, one draw).
+ * board dealt street by street), draw poker (antes, one draw) and stud (antes, a bring-in, cards
+ * dealt face up and down to each player).
  *
  * ```jsonc
  * "rules": {
@@ -16,7 +17,8 @@ import { assertRule, type Action, type ActionSpec, type GameConfig, type GameMod
  *   "holeCards": 2,          // cards dealt to each player (Omaha: 4; five card draw: 5)
  *   "useHole": 0,            // 0 = best five of any cards; 2 = exactly two hole cards (Omaha)
  *   "board": [3, 1, 1],      // community cards per street (flop, turn, river); [] for draw
- *   "draw": { "max": 3 }     // draw poker: everyone antes, bets, swaps up to `max` cards, bets again
+ *   "draw": { "max": 3 },    // draw poker: everyone antes, bets, swaps up to `max` cards, bets again
+ *   "stud": true             // seven card stud: two down and one up, three more up, the last down
  * }
  * ```
  */
@@ -26,6 +28,7 @@ export interface PokerRules {
   useHole?: number;
   board: number[];
   draw?: { max: number };
+  stud?: boolean;
 }
 
 export interface PokerData {
@@ -52,6 +55,24 @@ export interface PokerData {
   discards?: string[];
 }
 
+const SUIT_ORDER = 'CDHS'; // stud ties: clubs lowest, then diamonds, hearts, spades
+
+/**
+ * How good the cards showing in a stud hand are, for who bets first: quads, trips, two pair, a
+ * pair, then high cards (straights and flushes don't count until five cards are up).
+ */
+export function showingScore(cards: string[]): number {
+  if (cards.length >= 5) return bestHand(cards).score;
+  const ranks = cards.map((c) => parseCard(c).rank);
+  const counts = new Map<number, number>();
+  for (const r of ranks) counts.set(r, (counts.get(r) ?? 0) + 1);
+  const groups = [...counts].sort((a, b) => b[1] - a[1] || b[0] - a[0]);
+  const shape = groups.map((g) => g[1]).join('');
+  const category = shape.startsWith('4') ? 7 : shape.startsWith('3') ? 3 : shape.startsWith('22') ? 2 : shape.startsWith('2') ? 1 : 0;
+  // (eval5 scores put the category in front: scale to compare with them only among short hands)
+  return groups.reduce((v, g) => v * 15 + g[0], category) * 15 ** (5 - groups.length);
+}
+
 type S = GameState<PokerData>;
 
 const chipsOf = (s: S) => s.players.map((p) => p.chips);
@@ -61,11 +82,13 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
   const R = config.rules as unknown as PokerRules;
   const draw = R.draw;
   /** Streets: one per board deal; draw poker has the betting before the draw and after it. */
-  const lastStreet = draw ? 1 : R.board.length;
+  const stud = !!R.stud;
+  const lastStreet = draw ? 1 : stud ? 4 : R.board.length;
   const evaluate = (hole: string[], board: string[]) => bestWithHole(hole, board, R.useHole ?? 0);
   const streetName = (st: number, showdown: boolean) => {
     if (showdown) return 'Showdown';
     if (draw) return st === 0 ? 'Before the draw' : 'After the draw';
+    if (stud) return ['Third street', 'Fourth street', 'Fifth street', 'Sixth street', 'Seventh street'][st];
     if (R.board.join() === '3,1,1') return ['Pre-flop', 'Flop', 'Turn', 'River'][st];
     return st === 0 ? 'Opening' : `Street ${st}`;
   };
@@ -90,17 +113,21 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
     d.b = bet.newBetting(s.players.length, out);
     resetDeck(s, config);
     for (const [id, z] of Object.entries(s.zones)) if (id.startsWith('hand:')) z.visibility = 'owner';
+    if (stud) s.players.forEach((p) => (zone(s, `up:${p.seat}`).label = p.name));
 
     // deal two cards each starting left of the button
     for (let r = 0; r < R.holeCards; r++) {
       let seat = d.button;
       for (let i = 0; i < alive.length; i++) {
         seat = nextSeat(s, seat, skip);
-        moveTop(s, 'deck', `hand:${seat}`, 1);
+        // (stud: the third card is dealt face up, to the player's row on the table)
+        if (stud && r === 2) moveTop(s, 'deck', `up:${seat}`, 1, { up: true });
+        else moveTop(s, 'deck', `hand:${seat}`, 1);
       }
     }
 
     if (draw) return startDrawHand(s);
+    if (stud) return startStudHand(s);
     const headsUp = alive.length === 2;
     const sbSeat = headsUp ? d.button : nextSeat(s, d.button, skip);
     const bbSeat = nextSeat(s, sbSeat, skip);
@@ -141,6 +168,49 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
     if (s.turn == null || bet.streetComplete(d.b)) advance(s);
   }
 
+  /** Stud: everyone antes; the lowest card showing must open with the bring-in. */
+  function startStudHand(s: S) {
+    const d = s.data;
+    const chips = chipsOf(s);
+    for (const p of s.players) if (!d.b.out[p.seat]) bet.post(d.b, chips, p.seat, d.ante!);
+    d.b.bets.fill(0);
+    d.b.currentBet = 0;
+    const low = bringIn(s);
+    bet.post(d.b, chips, low, d.sb);
+    // the bring-in is a full turn: if everyone just calls it, the betting is over
+    d.b.acted[low] = true;
+    // anyone may complete it to the smallest bet (or raise more: no limit)
+    d.b.minRaise = Math.max(1, d.bb - d.b.currentBet);
+    writeChips(s, chips);
+    d.acted = s.players.map(() => null);
+    d.acted[low] = `Bring-in ${d.b.bets[low]}`;
+    log(s, `Hand #${d.handNo}: everyone antes ${d.ante}; ${name(s, low)} brings it in for ${d.b.bets[low]}`, low, `Bring-in ${d.b.bets[low]}`);
+    s.phase = 'betting';
+    s.turn = nextActor(s, low);
+    if (s.turn == null || bet.streetComplete(d.b)) advance(s);
+  }
+
+  const upCards = (s: S, seat: number) => ids(zone(s, `up:${seat}`));
+
+  /** Stud: the lowest up card brings it in (ties: clubs, diamonds, hearts, spades from the lowest). */
+  function bringIn(s: S): number {
+    const key = (seat: number) => {
+      const c = parseCard(upCards(s, seat)[0]);
+      return c.rank * 4 + SUIT_ORDER.indexOf(c.suit);
+    };
+    return bet.live(s.data.b).reduce((lo, i) => (key(i) < key(lo) ? i : lo));
+  }
+
+  /** Stud, from fourth street: the best hand showing bets first (ties: the first from the dealer's left). */
+  function studFirst(s: S): number | null {
+    const d = s.data;
+    const n = s.players.length;
+    const order = bet.live(d.b).sort((a, b) => showingScore(upCards(s, b)) - showingScore(upCards(s, a)) || ((a - d.button - 1 + n) % n) - ((b - d.button - 1 + n) % n));
+    const first = order[0];
+    if (first == null) return null;
+    return bet.canAct(d.b, first) ? first : nextActor(s, first);
+  }
+
   /** Draw poker: may this seat bet first? (With "jacks or better", only a pair of jacks or better opens.) */
   const mayOpen = (s: S, seat: number) => !s.options.jacks || eval5(ids(hand(s, seat))).score >= eval5(['JS', 'JH', '4C', '3D', '2C']).score;
   const opening = (s: S) => !!draw && s.data.street === 0 && s.data.b.currentBet === 0;
@@ -173,6 +243,9 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
     const start = d.opener ?? d.button;
     s.turn = bet.canAct(d.b, start) ? start : nextActor(s, start);
   }
+
+  /** A seat's cards: its hand and (stud) its face-up row. */
+  const cardsOf = (s: S, seat: number) => (stud ? [...ids(hand(s, seat)), ...ids(zone(s, `up:${seat}`))] : ids(hand(s, seat)));
 
   function nextActor(s: S, from: number): number | null {
     const b = s.data.b;
@@ -209,11 +282,22 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
     dealStreet(s);
     bet.newStreet(d.b, d.bb);
     d.acted = d.acted.map(() => null);
-    s.turn = nextActor(s, d.button);
+    s.turn = stud ? studFirst(s) : nextActor(s, d.button);
   }
 
   function dealStreet(s: S) {
     const d = s.data;
+    if (stud) {
+      // a card to everyone still in, from the dealer's left: face up, the last one face down
+      const n = s.players.length;
+      const live = bet.live(d.b).sort((a, b) => ((a - d.button - 1 + n) % n) - ((b - d.button - 1 + n) % n));
+      for (const seat of live) {
+        if (d.street + 1 < lastStreet) moveTop(s, 'deck', `up:${seat}`, 1, { up: true });
+        else moveTop(s, 'deck', `hand:${seat}`, 1);
+      }
+      d.street++;
+      return;
+    }
     moveTop(s, 'deck', 'muck', 1); // burn
     moveTop(s, 'deck', 'board', R.board[d.street], { up: true });
     d.street++;
@@ -254,7 +338,7 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
     const live = bet.live(d.b);
     const values = new Map<number, HandValue>();
     for (const seat of live) {
-      values.set(seat, evaluate(ids(hand(s, seat)), board));
+      values.set(seat, evaluate(cardsOf(s, seat), board));
       for (const c of hand(s, seat).cards) c.up = true; // reveal
     }
     const lines: string[] = [];
@@ -306,6 +390,8 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
 
     setup(players, seed, options) {
       const bb = Number(draw ? (options.ante ?? config.chips!.ante ?? 10) : (options.bigBlind ?? config.chips!.bigBlind));
+      // (stud: the smallest bet; the bring-in is half of it)
+      const studAnte = stud ? Number(options.ante ?? config.chips!.ante ?? Math.max(1, Math.floor(bb / 5))) : 0;
       const s = createState<PokerData>(config, players, seed, options, {
         b: bet.newBetting(players.length, players.map(() => false)),
         street: 0,
@@ -317,6 +403,7 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
         acted: [],
         result: null,
         ...(draw ? { ante: bb, carry: 0, opener: null, drawn: [], discards: [] } : {}),
+        ...(stud ? { ante: studAnte } : {}),
       });
       const stack = Number(options.stack ?? config.chips!.start);
       s.players.forEach((p) => (p.chips = stack));
@@ -420,7 +507,10 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
       d.acted[seat] = short;
       if (draw && d.street === 0 && raised && d.opener == null) d.opener = seat;
       log(s, `${name(s, seat)} ${verb}`, seat, short);
-      if (a.type === 'fold') moveCards(s, `hand:${seat}`, 'muck', ids(hand(s, seat)));
+      if (a.type === 'fold') {
+        moveCards(s, `hand:${seat}`, 'muck', ids(hand(s, seat)));
+        if (stud) moveCards(s, `up:${seat}`, 'muck', upCards(s, seat));
+      }
       advance(s);
     },
 
@@ -491,8 +581,9 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
       else if (s.phase === 'gameOver') headline = 'Game over';
 
       const handName = (seat: number) => {
-        const cards = ids(hand(s, seat));
+        const cards = cardsOf(s, seat);
         const board = ids(zone(s, 'board'));
+        if (stud) return cards.length >= 5 && !cards.some((c) => c.startsWith('?')) ? bestHand(cards).name : undefined;
         if (cards.length !== R.holeCards || cards.some((c) => c.startsWith('?')) || cards.length + board.length < 5) return undefined;
         if (R.useHole && board.length < 5 - R.useHole) return undefined;
         return evaluate(cards, board).name;
@@ -520,6 +611,7 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
    * players' hands, the rest of the board, and (before the draw) the cards it would draw.
    */
   function equity(s: S, seat: number, level: number): number {
+    if (stud) return studEquity(s, seat, level);
     const d = s.data;
     const budget = botBudget({ botLevel: level })!;
     const rivals = s.players.map((p) => p.seat).filter((i) => i !== seat && !d.b.folded[i] && !d.b.out[i]);
@@ -565,6 +657,47 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
       const best = Math.max(...theirs.map((h) => score(h, full)));
       if (v > best) won += 1;
       else if (v === best) won += 1 / (1 + theirs.filter((h) => score(h, full) === best).length);
+      runs++;
+    }
+    return won / runs;
+  }
+
+  /**
+   * Stud: the same, dealing out everyone's face-down and future cards around what's showing. A
+   * rival who bet this street is assumed to have at least a pair among the cards it holds now.
+   */
+  function studEquity(s: S, seat: number, level: number): number {
+    const d = s.data;
+    const budget = botBudget({ botLevel: level })!;
+    const rivals = bet.live(d.b).filter((i) => i !== seat);
+    if (!rivals.length) return 1;
+    const mine = cardsOf(s, seat);
+    const shown = rivals.map((i) => upCards(s, i));
+    const downs = rivals.map((i) => hand(s, i).cards.length);
+    const seen = new Set([...mine, ...shown.flat()]);
+    const unseen = buildDeck(config.deck).filter((c) => !seen.has(c));
+    const toCome = 7 - mine.length;
+    const aggressive = rivals.map((i) => d.b.currentBet > d.sb && d.b.bets[i] === d.b.currentBet);
+    const pair = (cards: string[]) => new Set(cards.map((c) => parseCard(c).rank)).size < cards.length;
+    let won = 0;
+    let runs = 0;
+    const stop = now() + budget.ms;
+    // seven-card hands cost more to value than hold'em ones: fewer deals
+    while (runs < budget.samples * 3 && (runs < 20 || now() < stop)) {
+      const deck = shuffled([...unseen]);
+      let k = 0;
+      const take = (n: number) => deck.slice(k, (k += n));
+      const theirs = rivals.map((_, j) => {
+        let down = take(downs[j]);
+        for (let t = 0; t < 4 && aggressive[j] && !pair([...shown[j], ...down]) && deck.length - k > 7 * rivals.length; t++) down = take(downs[j]);
+        return [...shown[j], ...down, ...take(toCome)];
+      });
+      const me = [...mine, ...take(toCome)];
+      const v = bestHand(me).score;
+      const scores = theirs.map((h) => bestHand(h).score);
+      const best = Math.max(...scores);
+      if (v > best) won += 1;
+      else if (v === best) won += 1 / (1 + scores.filter((x) => x === best).length);
       runs++;
     }
     return won / runs;
@@ -629,7 +762,13 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
 
   /** Crude 0–1 hand strength used by bots. */
   function handStrength(s: S, seat: number): number {
-    const cards = ids(hand(s, seat));
+    const cards = cardsOf(s, seat);
+    if (stud) {
+      if (cards.length >= 5) return Math.min(1, 0.2 + bestHand(cards).category * 0.17);
+      const ranks = cards.map((c) => parseCard(c).rank);
+      const paired = Math.max(...ranks.filter((r, i) => ranks.indexOf(r) !== i), 0);
+      return paired ? Math.min(1, 0.55 + paired / 35) : Math.max(...ranks) / 28;
+    }
     const board = ids(zone(s, 'board'));
     if (draw) {
       const v = eval5(cards);

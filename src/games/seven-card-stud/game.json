@@ -1,0 +1,30 @@
+{
+  "$schema": "../../../schemas/game.schema.json",
+  "id": "seven-card-stud",
+  "name": "Seven Card Stud",
+  "tagline": "No board: four of your seven cards are face up for all to read.",
+  "icon": "7",
+  "players": { "min": 2, "max": 7, "recommended": 5 },
+  "bots": true,
+  "deck": {},
+  "zones": [
+    { "id": "deck", "visibility": "none", "layout": "stack", "area": "none" },
+    { "id": "muck", "visibility": "none", "layout": "stack", "area": "none" },
+    { "id": "hand", "perPlayer": true, "visibility": "owner", "layout": "fan", "area": "hand" },
+    { "id": "up", "perPlayer": true, "label": "Showing", "visibility": "all", "layout": "spread", "area": "strip", "hideEmpty": true, "scale": 0.6 },
+    { "id": "board", "visibility": "all", "layout": "spread", "area": "center", "hideEmpty": true }
+  ],
+  "chips": { "start": 1000, "ante": 2, "bigBlind": 10 },
+  "rules": { "family": "poker", "holeCards": 3, "useHole": 0, "board": [], "stud": true },
+  "options": [
+    { "id": "stack", "label": "Starting chips", "type": "number", "default": 1000, "min": 100, "max": 100000, "step": 100 },
+    { "id": "ante", "label": "Ante", "type": "number", "default": 2, "min": 1, "max": 1000, "step": 1 },
+    { "id": "bigBlind", "label": "Smallest bet (bring-in is half)", "type": "number", "default": 10, "min": 2, "max": 1000, "step": 2 }
+  ],
+  "rulesSummary": [
+    "Everyone antes and gets two cards face down and one face up. The lowest card showing must bring it in for half the smallest bet (ties go by suit: clubs lowest, then diamonds, hearts, spades).",
+    "Fourth, fifth and sixth street: one more card face up to each player still in, then a round of betting. Seventh street: a last card face down, and a final round.",
+    "From fourth street on, the best hand showing bets first. No limit: you can go all in at any time.",
+    "At the showdown, the best five of your seven cards wins the pot. Ties split it."
+  ]
+}

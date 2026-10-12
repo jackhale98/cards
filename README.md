@@ -5,7 +5,7 @@ One person hosts, everyone else scans a QR code, and each phone shows that playe
 the middle of the table. It needs no accounts or app store, and there's no server to pay for.
 
 - **Games are plain JSON config files** run by family engines (trick-taking, poker, rummy,
-  canasta, climbing, cribbage, eights, blackjack, cheat, go fish, free table). Included: Texas Hold'em, Omaha, Five Card Draw (antes, one draw; jacks-or-better option), Blackjack (against the house: double, split, insurance), Baccarat (Punto Banco), Cheat, Go Fish, Hearts (moon shooter's choice), Spades (nil, blind nil, bags),
+  canasta, climbing, cribbage, eights, blackjack, baccarat, cheat, go fish, free table). Included: Texas Hold'em, Omaha, Five Card Draw (antes, one draw; jacks-or-better option), Seven Card Stud (bring-in, up cards on the table), Blackjack (against the house: double, split, insurance), Baccarat (Punto Banco), Cheat, Go Fish, Hearts (moon shooter's choice), Spades (nil, blind nil, bags),
   Oh Hell, Gin Rummy, Rummy 500 (jokers, Rummy! calls), Canasta (may I go out?, play after the stock), President,
   Cribbage (with a pegboard; auto scoring or count-your-own with muggins), Euchre (bowers, going alone), 500 (Avondale bids, misère and open misère, kitty, joker),
   Contract Bridge (full auction, dummy, duplicate scoring with Chicago vulnerability), Whist, Crazy Eights (eights call a suit, last card, Q/A/2 specials),

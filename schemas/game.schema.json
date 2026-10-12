@@ -673,6 +673,10 @@
               },
               "description": "Community cards dealt on each street ([] for draw poker)."
             },
+            "stud": {
+              "type": "boolean",
+              "description": "Seven card stud: two cards down and one up, three more up, the last down; antes and a bring-in."
+            },
             "draw": {
               "type": "object",
               "required": [
