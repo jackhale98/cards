@@ -1,0 +1,31 @@
+{
+  "$schema": "../../../schemas/game.schema.json",
+  "id": "egyptian-rat-screw",
+  "name": "Egyptian Rat Screw",
+  "tagline": "Court cards set challenges, doubles get slapped. Win every card with quick hands and luck.",
+  "icon": "🐀",
+  "players": { "min": 2, "max": 8, "recommended": 4 },
+  "bots": true,
+  "deck": {},
+  "zones": [
+    { "id": "deck", "visibility": "none", "layout": "stack", "area": "none" },
+    { "id": "pile", "label": "Pile", "visibility": "all", "layout": "stack", "area": "center", "peek": 3 },
+    { "id": "hand", "perPlayer": true, "label": "Your pile", "visibility": "none", "layout": "stack", "area": "hand" }
+  ],
+  "rules": { "family": "slap", "style": "ers" },
+  "options": [
+    { "id": "sandwich", "label": "Slap sandwiches (7-2-7)", "type": "boolean", "default": false },
+    { "id": "topBottom", "label": "Slap top and bottom", "type": "boolean", "default": false },
+    { "id": "marriage", "label": "Slap a marriage (K and Q)", "type": "boolean", "default": false },
+    { "id": "tens", "label": "Slap tens (two that add to 10)", "type": "boolean", "default": false },
+    { "id": "timer", "label": "Time limit", "type": "number", "choices": ["None", "5 min", "10 min", "15 min"], "default": 0 }
+  ],
+  "rulesSummary": [
+    "All the cards are dealt face down, one pile each. In turn, tap your pile to turn its top card face up onto the middle.",
+    "Turn up a court card or an ace and the next player must answer it: they turn up cards until they hit a court card or ace, with 1 try for a jack, 2 for a queen, 3 for a king, 4 for an ace. If they hit one, the challenge passes on. If they don't, whoever set the challenge takes the pile.",
+    "Doubles (two of a rank, one on the other) can be slapped by anyone. The quickest hand takes the pile, timed on each player's own screen. The lobby can add sandwiches, top-and-bottom, marriages and tens.",
+    "A wrong slap burns one of your cards under the pile.",
+    "Out of cards? You're still in: slap your way back.",
+    "Win by collecting every card, or set a time limit and the most cards wins."
+  ]
+}

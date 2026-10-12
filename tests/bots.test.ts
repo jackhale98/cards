@@ -14,7 +14,7 @@ function playDeal(g: GameModule, seed: number, n: number): string | null {
     { ...Object.fromEntries((g.config.options ?? []).map((o) => [o.id, o.default])), botLevel: 0 },
   );
   const start = s.phase;
-  for (let i = 0; i < 2000; i++) {
+  for (let i = 0; i < 5000; i++) {
     if (i > 0 && s.phase === 'handOver') return null; // an all-bot poker table deals on by itself
     const sys = g.system?.(s);
     if (sys) {
@@ -33,7 +33,7 @@ function playDeal(g: GameModule, seed: number, n: number): string | null {
       return `seed ${seed}: ${JSON.stringify(a)} rejected in ${s.phase}: ${(e as Error).message}`;
     }
   }
-  return `seed ${seed}: still in ${s.phase} after 2000 moves (started in ${start})`;
+  return `seed ${seed}: still in ${s.phase} after 5000 moves (started in ${start})`;
 }
 
 describe('bots only make moves the rules allow', () => {

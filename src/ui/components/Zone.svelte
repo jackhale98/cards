@@ -16,11 +16,13 @@
     ontap: (id: string) => void;
     /** Tap on an empty spot / the stack itself (e.g. draw from the deck). */
     onzone?: () => void;
+    /** Tapping the pile is a slap: it goes on touch, not on release. */
+    fast?: boolean;
     zoneActive?: boolean;
     /** The selected card(s) can be put here: a tap places them (rather than selecting the top card). */
     place?: boolean;
   }
-  let { zone, cw, you, players, selected, selectable, ontap, onzone, zoneActive = false, place = false }: Props = $props();
+  let { zone, cw, you, players, selected, selectable, ontap, onzone, zoneActive = false, place = false, fast = false }: Props = $props();
 
   /** Trick cards sit between the centre and the seat that played them. */
   function trickPos(by: number | undefined) {
@@ -35,9 +37,14 @@
   {#if zone.label && zone.layout !== 'trick'}<div class="label eyebrow" data-flip><SuitText text={zone.label} />{#if zone.layout === 'stack'} · {zone.cards.length}{/if}</div>{/if}
 
   {#if zone.layout === 'stack'}
-    <button class="stack" data-flip class:active={zoneActive} onclick={() => (!place && top && selectable?.has(top.id) ? ontap(top.id) : onzone?.())} disabled={!zoneActive && !(top && selectable?.has(top.id))}>
+    {@const below = zone.peek ? zone.cards.slice(-zone.peek, -1).filter((c) => c.up !== false && !isHidden(c.id)) : []}
+    <button class="stack" style:margin-left={zone.peek ? `calc(var(--cw) * ${0.3 * (zone.peek - 1)})` : undefined} data-flip class:active={zoneActive} onpointerdown={fast ? () => onzone?.() : undefined} onclick={(e) => (fast && e.detail !== 0 ? undefined : !place && top && selectable?.has(top.id) ? ontap(top.id) : onzone?.())} disabled={!zoneActive && !(top && selectable?.has(top.id))}>
       {#if zone.cards.length > 1}<div class="under"><Card id="?u" /></div>{/if}
       {#if zone.cards.length > 8}<div class="under two"><Card id="?u2" /></div>{/if}
+      {#each below as c, i (c.id)}
+        <!-- the cards just under the top, fanned out to the left -->
+        <div class="peeked" style:transform="translateX(calc(var(--cw) * {-0.3 * (below.length - i)})) rotate({-4 * (below.length - i)}deg)"><Card id={c.id} /></div>
+      {/each}
       {#if top && isHidden(top.id)}
         <!-- a face-down top just sits there: cards drawn from it fly out on their own -->
         <div class="top"><Card id={top.id} /></div>

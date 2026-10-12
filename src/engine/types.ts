@@ -21,6 +21,8 @@ export interface ZoneConfig {
   hideEmpty?: boolean;
   /** Card size relative to other table cards (e.g. 0.6 for many small melds). */
   scale?: number;
+  /** A stack that shows its top few cards overlapping, not just the top one (slap games). */
+  peek?: number;
 }
 
 export interface DealStep {
@@ -112,6 +114,7 @@ export interface ZoneState {
   area: Area;
   hideEmpty?: boolean;
   scale?: number;
+  peek?: number;
   cards: CardRef[];
 }
 
@@ -168,6 +171,15 @@ export interface Action {
   amount?: number;
   zone?: string;
   seat?: number;
+  /**
+   * Real-time games: what the player was reacting to (`GameStatus.race` when they acted) and how
+   * long after it appeared on their own screen they acted, in ms. Measured on each device, so a
+   * slower connection doesn't make anyone slower; the quickest reaction wins a race.
+   */
+  race?: number;
+  rt?: number;
+  /** Set by the host: when it received the action (ms since the epoch). */
+  at?: number;
 }
 
 /** Describes a button the player may press. Clients render these without knowing the rules. */
@@ -183,6 +195,8 @@ export interface ActionSpec {
   menu?: boolean;
   /** Tapping this zone (e.g. "deck", "discard") triggers the action. */
   zone?: string;
+  /** A reaction (a slap): the device adds how fast the player responded to `GameStatus.race`. */
+  react?: boolean;
   /** Requires choosing another player; the choice is sent as `Action.seat`. */
   target?: { seats: number[]; label?: string };
   /** Requires picking one option (a trump suit, a bid…); the choice is sent as `Action.amount`. */
@@ -227,6 +241,8 @@ export interface GameStatus {
   track?: { target: number; lanes: { label: string; seat: number; score: number; prev: number }[] };
   /** Banner shown at end of a round / game. */
   banner?: { title: string; lines: string[] };
+  /** Real-time games: what players are reacting to right now (changes when e.g. a card lands on the pile). */
+  race?: number;
 }
 
 export interface SetupPlayer {
@@ -245,6 +261,12 @@ export interface GameModule<D = any> {
   system?(s: GameState<D>): { delay: number; run: (s: GameState<D>) => void } | null;
   /** Pick an action for a bot seat, or null if it has nothing to do. */
   bot?(s: GameState<D>, seat: number): Action | null;
+  /**
+   * Real-time: anyone may act at any moment. Every bot gets its own timer (`botDelay`: its reaction
+   * time for that move), and the host stamps each action with when it arrived.
+   */
+  realtime?: boolean;
+  botDelay?(s: GameState<D>, seat: number, a: Action): number;
   /** The bot searches when the `botLevel` option is above Easy (the lobby offers the setting). */
   botLevels?: boolean;
   /** Remove private information from `data` for `viewer` (-1 = spectator). */

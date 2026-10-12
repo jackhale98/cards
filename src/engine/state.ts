@@ -23,6 +23,7 @@ export function createState<D>(
       area: z.area,
       hideEmpty: z.hideEmpty,
       scale: z.scale,
+      ...(z.peek ? { peek: z.peek } : {}),
       cards: [],
     });
     if (z.perPlayer) players.forEach((_, i) => (zones[`${z.id}:${i}`] = make(`${z.id}:${i}`, i)));

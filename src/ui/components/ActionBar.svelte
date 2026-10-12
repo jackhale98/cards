@@ -68,7 +68,14 @@
     <button class="btn quiet clear" onclick={onclear}>✕ Clear{selected.length > 1 ? ` (${selected.length})` : ''}</button>
   {/if}
   {#each main as a (a.type)}
-    <button class="btn {a.style ?? ''}" disabled={!ready(a)} onclick={() => press(a)}>
+    <!-- a slap goes the moment a finger touches it (a click waits for the finger to lift) -->
+    <button
+      class="btn {a.style ?? ''}"
+      class:slap={a.react}
+      disabled={!ready(a)}
+      onpointerdown={a.react ? () => press(a) : undefined}
+      onclick={(e) => (!a.react || e.detail === 0 ? press(a) : undefined)}
+    >
       <SuitText text={a.label} />
       {#if hint(a)}<small>{hint(a)}</small>{/if}
     </button>
@@ -341,5 +348,11 @@
       opacity: 0;
       scale: 0.96;
     }
+  }
+  .btn.slap {
+    min-width: 6.5rem;
+    font-size: 1.05rem;
+    letter-spacing: 0.04em;
+    touch-action: manipulation;
   }
 </style>

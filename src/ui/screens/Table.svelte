@@ -54,6 +54,7 @@
     return Array.from({ length: n - 1 }, (_, i) => (you + 1 + i) % n);
   });
 
+  const myHandZone = $derived(you >= 0 ? s.zones[`hand:${you}`] : undefined);
   const myHand = $derived(you >= 0 ? (s.zones[`hand:${you}`]?.cards ?? []) : []);
   const allCenterZones = $derived(Object.values(s.zones).filter((z) => z.area === 'center' && !(z.hideEmpty && !z.cards.length)));
   /** Zones on the compact strip along the bottom of the table (e.g. everyone's melds). */
@@ -108,10 +109,35 @@
     run(quick, undefined, sel);
   }
 
+  // ---- real-time games: how quickly you reacted, timed on this device ----------------------
+  /** When the current `status.race` first showed on this screen (after it was drawn). */
+  let raceSeen = { race: -1, at: 0 };
+  $effect(() => {
+    const race = status.race;
+    if (race === undefined || race === raceSeen.race) return;
+    const at = performance.now();
+    raceSeen = { race, at };
+    // count from when it was painted, not from when the message arrived
+    requestAnimationFrame(() => {
+      if (raceSeen.race === race) raceSeen.at = Math.max(at, performance.now());
+    });
+  });
+
+  /** The space bar slaps (on a laptop at the table). */
+  const slapSpec = $derived(view.actions.find((a) => a.react && !a.select && !a.target && !a.choose));
+  function onkey(e: KeyboardEvent) {
+    if (e.code !== 'Space' || e.repeat || !slapSpec || display) return;
+    const el = e.target as HTMLElement | null;
+    if (el?.closest('input, textarea, select')) return;
+    e.preventDefault();
+    run(slapSpec);
+  }
+
   function run(spec: ActionSpec, amount?: number, cards = selected, seat?: number) {
-    app.act({ type: spec.type, cards: spec.select ? [...cards] : undefined, amount, seat });
+    const timing = spec.react && status.race !== undefined ? { race: status.race, rt: Math.round(Math.max(0, performance.now() - raceSeen.at)) } : {};
+    app.act({ type: spec.type, cards: spec.select ? [...cards] : undefined, amount, seat, ...timing });
     if (spec.select) selected = [];
-    haptic(10);
+    haptic(spec.react ? 25 : 10);
   }
 
   /** Actions triggered by tapping a pile (draw from the deck, take the discard…). */
@@ -194,7 +220,7 @@
     const t = e.text.toLowerCase();
     if (/\b(deals?|shuffles?)\b/.test(t)) return 'deal';
     if (showChips && /\b(bets?|raises?|calls?|all in|antes?|blinds?|wins?|splits?|doubles?|insures?|pays?)\b/.test(t)) return 'chips';
-    if (e.toZone || e.fromZone || /\b(plays?|leads?|discards?|draws?|lays?|melds?|turns? over|passes \d)\b/.test(t)) return 'card';
+    if (e.toZone || e.fromZone || /\b(plays?|leads?|discards?|draws?|lays?|melds?|turns? (?:over|up)|slaps?|passes \d)\b/.test(t)) return 'card';
     return null;
   }
   $effect(() => {
@@ -297,7 +323,7 @@
   const myInfo = $derived(you >= 0 ? status.seats[you] : undefined);
 </script>
 
-<svelte:window bind:innerWidth={vw} bind:innerHeight={vh} onfullscreenchange={() => (fullscreen = !!document.fullscreenElement)} />
+<svelte:window onkeydown={onkey} bind:innerWidth={vw} bind:innerHeight={vh} onfullscreenchange={() => (fullscreen = !!document.fullscreenElement)} />
 
 <div class="table" class:display class:handmode={handMode} bind:this={tableEl}>
   <!-- top: menu + opponents + scores -->
@@ -362,6 +388,7 @@
           zoneActive={!!zoneAction(z.id)}
           place={!!zoneAction(z.id)?.select}
           onzone={zoneAction(z.id) ? () => run(zoneAction(z.id)!) : undefined}
+          fast={!!zoneAction(z.id)?.react}
         />
         </div>
       {/each}
@@ -389,6 +416,7 @@
               zoneActive={!!zoneAction(z.id)}
               place={!!zoneAction(z.id)?.select}
               onzone={zoneAction(z.id) ? () => run(zoneAction(z.id)!) : undefined}
+              fast={!!zoneAction(z.id)?.react}
             />
           {/each}
         </div>
@@ -435,6 +463,21 @@
       </div>
       <!-- bigger fanned cards tip further past the ends: keep them clear of the buttons -->
       <div class="hand-wrap" style:padding-inline={handMode ? `${Math.round(handCw * 0.3)}px` : undefined}>
+        {#if myHandZone?.layout === 'stack'}
+          <!-- a face-down pile instead of a hand (slap games): tap it to turn up your top card -->
+          <Zone
+            zone={myHandZone}
+            cw={handCw}
+            {you}
+            players={n}
+            {selected}
+            {selectable}
+            ontap={tap}
+            zoneActive={!!zoneAction(myHandZone.id)}
+            onzone={zoneAction(myHandZone.id) ? () => run(zoneAction(myHandZone.id)!) : undefined}
+            fast={!!zoneAction(myHandZone.id)?.react}
+          />
+        {:else}
         <Hand
           cards={myHand}
           cw={handCw}
@@ -444,6 +487,7 @@
           ontap={tap}
           onswipe={swipe}
         />
+        {/if}
       </div>
     </footer>
     <aside>

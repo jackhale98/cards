@@ -171,6 +171,12 @@
             "minimum": 0.3,
             "maximum": 1.5,
             "description": "Card size relative to other table cards (e.g. 0.6 for many small melds)."
+          },
+          "peek": {
+            "type": "integer",
+            "minimum": 2,
+            "maximum": 4,
+            "description": "A stack that shows its top few face-up cards overlapping, not just the top one (slap games)."
           }
         }
       }
@@ -276,6 +282,11 @@
           },
           "step": {
             "type": "number"
+          },
+          "choices": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Show a number option as named choices; the value is the index."
           }
         }
       }
@@ -991,6 +1002,22 @@
           "properties": {
             "family": {
               "const": "handfoot"
+            }
+          }
+        },
+        {
+          "required": [
+            "family",
+            "style"
+          ],
+          "additionalProperties": false,
+          "description": "Real-time slap games: Slapjack or Egyptian Rat Screw.",
+          "properties": {
+            "family": {
+              "const": "slap"
+            },
+            "style": {
+              "enum": ["slapjack", "ers"]
             }
           }
         },

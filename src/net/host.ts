@@ -237,6 +237,8 @@ export class Host {
     // face-down cards are referred to by placeholder ids; map them back to real cards
     const resolved = resolveAction(this.state, seat, a);
     if (!resolved) return 'The table changed — try again';
+    // real-time games: when it arrived, and a believable reaction time (measured on the player's device)
+    if (this.module.realtime) Object.assign(resolved, { at: Date.now(), rt: typeof a.rt === 'number' && isFinite(a.rt) ? Math.max(0, Math.min(10_000, a.rt)) : undefined });
     return this.applyAs(seat, resolved);
   }
 
@@ -310,6 +312,7 @@ export class Host {
     const s = this.state;
     const module = this.module;
     if (!s || !module) return;
+    if (module.realtime) return this.pumpRealtime(s, module);
     const sys = module.system?.(s);
     if (sys) {
       this.timer = setTimeout(() => {
@@ -338,6 +341,62 @@ export class Host {
       }, 650 + Math.random() * 600);
       return;
     }
+  }
+
+  /** Real-time games: each bot's planned move, its key (to tell when the plan changes) and its timer. */
+  private botPlans = new Map<number, { key: string; timer: ReturnType<typeof setTimeout> }>();
+
+  /**
+   * Real-time games: the system step on its own timer, and every bot on its own, all at once. A
+   * bot keeps its timer while its plan stays the same (so a busy table doesn't keep pushing its
+   * reaction back), and starts a new one when the plan changes.
+   */
+  private pumpRealtime(s: GameState, module: GameModule) {
+    const sys = module.system?.(s);
+    if (sys)
+      this.timer = setTimeout(() => {
+        this.timer = null;
+        if (!this.state || this.module !== module) return;
+        const next = structuredClone(this.state);
+        sys.run(next);
+        this.state = next;
+        this.commit();
+      }, sys.delay);
+    const keyOf = (a: Action) => JSON.stringify({ ...a, rt: undefined, at: undefined });
+    for (const p of s.players) {
+      if (!p.bot) continue;
+      const a = module.bot?.(s, p.seat) ?? null;
+      const plan = this.botPlans.get(p.seat);
+      if (!a) {
+        if (plan) clearTimeout(plan.timer);
+        this.botPlans.delete(p.seat);
+        continue;
+      }
+      const key = keyOf(a);
+      if (plan?.key === key) continue;
+      if (plan) clearTimeout(plan.timer);
+      const delay = Math.max(0, module.botDelay?.(s, p.seat, a) ?? 600);
+      const timer = setTimeout(() => {
+        this.botPlans.delete(p.seat);
+        if (!this.state || this.module !== module) return;
+        // still what it means to do?
+        const again = module.bot?.(this.state, p.seat);
+        if (!again || keyOf(again) !== key) return this.pump();
+        const err = this.applyAs(p.seat, { ...a, rt: delay, at: Date.now() });
+        if (err) {
+          // (in a real-time game the table can move on under a bot: just think again)
+          this.pump();
+        }
+      }, delay);
+      this.botPlans.set(p.seat, { key, timer });
+    }
+  }
+
+  private clearTimers() {
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = null;
+    for (const plan of this.botPlans.values()) clearTimeout(plan.timer);
+    this.botPlans.clear();
   }
 
   // ---- lobby controls (host device only) --------------------------------------------------
@@ -530,7 +589,7 @@ export class Host {
 
   /** Back to the lobby. */
   endGame() {
-    if (this.timer) clearTimeout(this.timer);
+    this.clearTimers();
     this.lobby.started = false;
     this.state = null;
     this.module = null;
@@ -554,7 +613,7 @@ export class Host {
   }
 
   close() {
-    if (this.timer) clearTimeout(this.timer);
+    this.clearTimers();
     if (this.backupTimer) clearTimeout(this.backupTimer);
     if (this.heartbeat) clearInterval(this.heartbeat);
     this.transport?.leave();

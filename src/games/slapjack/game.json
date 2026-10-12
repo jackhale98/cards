@@ -1,0 +1,25 @@
+{
+  "$schema": "../../../schemas/game.schema.json",
+  "id": "slapjack",
+  "name": "Slapjack",
+  "tagline": "Turn cards over one by one and be the first to slap every jack. Fast hands win.",
+  "icon": "✋",
+  "players": { "min": 2, "max": 8, "recommended": 4 },
+  "bots": true,
+  "deck": {},
+  "zones": [
+    { "id": "deck", "visibility": "none", "layout": "stack", "area": "none" },
+    { "id": "pile", "label": "Pile", "visibility": "all", "layout": "stack", "area": "center" },
+    { "id": "hand", "perPlayer": true, "label": "Your pile", "visibility": "none", "layout": "stack", "area": "hand" }
+  ],
+  "rules": { "family": "slap", "style": "slapjack" },
+  "options": [{ "id": "timer", "label": "Time limit", "type": "number", "choices": ["None", "5 min", "10 min", "15 min"], "default": 0 }],
+  "rulesSummary": [
+    "All the cards are dealt face down, one pile each. Nobody looks at their cards.",
+    "In turn, tap your pile to turn its top card face up onto the middle.",
+    "When a jack turns up, slap it! Tap the pile, press Slap, or hit the space bar. The quickest hand takes the whole pile, shuffled under their own. Speed is timed on your own screen, so a slow connection doesn't cost you.",
+    "Slap anything else and you pay a card to whoever turned it up.",
+    "Run out of cards and you can still slap the next jack to get back in. Miss it and you're out.",
+    "Win by collecting every card, or set a time limit and the most cards wins."
+  ]
+}

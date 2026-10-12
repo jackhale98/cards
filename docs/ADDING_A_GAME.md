@@ -25,6 +25,7 @@ src/games/my-game/
 | `eights`       | Crazy Eights: match rank or suit, eights call a suit, optional Q/A/2 specials | `src/engine/families/eights.ts` |
 | `palace`       | Palace / Shithead: beat the pile or pick it up, then face-up and blind face-down cards | `src/engine/families/palace.ts` |
 | `corners`      | Kings Corners: build down in alternating colours, kings in the corners | `src/engine/families/corners.ts` |
+| `slap`         | Slapjack and Egyptian Rat Screw, in real time: turn cards over, slap the pile (`style`: `slapjack` or `ers`) | `src/engine/families/slap.ts` |
 | `handfoot`     | Hand and Foot: partnership canasta with a hand and a foot, four rounds | `src/engine/families/handfoot.ts` |
 | `pinochle`     | Partnership auction Pinochle: bid, pass four, meld, must-beat trick play | `src/engine/families/pinochle.ts` |
 
@@ -189,3 +190,19 @@ Easy should be the quick rule-of-thumb bot. What Normal and Hard do is up to the
 
 `tests/search.bench.test.ts` measures one level against another (see the comment at its top) —
 check a new level really is stronger before shipping it.
+
+## Real-time games
+
+Most games take turns, and the host runs one bot at a time. A game whose module sets
+`realtime: true` (the slap games) works differently:
+
+- Anyone may act at any moment. Every bot gets its own timer. `botDelay(s, seat, action)` is how long
+  that bot takes to react, and a bot keeps its timer while its planned action stays the same.
+- `status.race` names what players are reacting to (it changes when a new card lands). An action
+  spec marked `react: true` goes the moment a finger touches it. The space bar triggers it too. The
+  player's device adds `race` and `rt` (how long after `race` appeared on *that* screen they reacted).
+- The host stamps every action with `at` (its own clock). To decide a race, collect the reactions
+  that arrive within a short window after the first, and the smallest `rt` wins. That way a slow
+  connection doesn't cost anyone a slap. See `judge` in `families/slap.ts`.
+- `system()` steps run on their own timer alongside the bots, so a step's `delay` can count down to
+  a deadline (`judgeAt`, a game timer).

@@ -40,7 +40,7 @@ describe('rng', () => {
 
 describe('registry', () => {
   it('loads every game folder, including config-only games', () => {
-    expect(Object.keys(GAMES).sort()).toEqual(['baccarat', 'blackjack', 'bridge', 'canasta', 'cheat', 'crazy-eights', 'cribbage', 'euchre', 'five-card-draw', 'five-hundred', 'freetable', 'gin-rummy', 'go-fish', 'hand-and-foot', 'hearts', 'holdem', 'kings-corners', 'oh-hell', 'omaha', 'palace', 'pinochle', 'president', 'rummy-500', 'seven-card-stud', 'spades', 'whist']);
+    expect(Object.keys(GAMES).sort()).toEqual(['baccarat', 'blackjack', 'bridge', 'canasta', 'cheat', 'crazy-eights', 'cribbage', 'egyptian-rat-screw', 'euchre', 'five-card-draw', 'five-hundred', 'freetable', 'gin-rummy', 'go-fish', 'hand-and-foot', 'hearts', 'holdem', 'kings-corners', 'oh-hell', 'omaha', 'palace', 'pinochle', 'president', 'rummy-500', 'seven-card-stud', 'slapjack', 'spades', 'whist']);
     for (const g of GAME_LIST) {
       expect(g.config.players.min).toBeLessThanOrEqual(g.config.players.max);
       expect(g.config.zones.some((z) => z.id === 'deck')).toBe(true);
@@ -82,7 +82,9 @@ describe('redaction', () => {
         }
       }
       expect(v.zones.deck.cards.every((c) => isHidden(c.id))).toBe(true);
-      expect(v.zones['hand:0'].cards.map((c) => c.id)).toEqual(s.zones['hand:0'].cards.map((c) => c.id));
+      // (a slap game's pile is face down even to its owner)
+      if (s.zones['hand:0'].visibility === 'none') expect(v.zones['hand:0'].cards.every((c) => isHidden(c.id))).toBe(true);
+      else expect(v.zones['hand:0'].cards.map((c) => c.id)).toEqual(s.zones['hand:0'].cards.map((c) => c.id));
     }
   });
 });
