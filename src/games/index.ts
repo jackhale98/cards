@@ -41,6 +41,7 @@ const BY_FAMILY: Record<string, string> = {
   pinochle: 'Trick-taking',
   gofish: 'Family',
   corners: 'Family',
+  baccarat: 'Casino',
   blackjack: 'Casino',
 };
 export function categoryOf(g: GameModule): string {

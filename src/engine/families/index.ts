@@ -1,4 +1,5 @@
 import type { GameConfig, GameModule } from '../types';
+import { baccaratFamily } from './baccarat';
 import { blackjackFamily } from './blackjack';
 import { canastaFamily } from './canasta';
 import { cheatFamily } from './cheat';
@@ -23,6 +24,7 @@ import { trickTakingFamily } from './trick';
  */
 export const FAMILIES: Record<string, (config: GameConfig) => GameModule> = {
   free: freeFamily,
+  baccarat: baccaratFamily,
   blackjack: blackjackFamily,
   cheat: cheatFamily,
   corners: cornersFamily,

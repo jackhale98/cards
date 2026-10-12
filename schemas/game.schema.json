@@ -890,6 +890,24 @@
             "family"
           ],
           "additionalProperties": false,
+          "description": "Baccarat (Punto Banco) against the house.",
+          "properties": {
+            "family": {
+              "const": "baccarat"
+            },
+            "minBet": {
+              "type": "integer"
+            },
+            "maxBet": {
+              "type": "integer"
+            }
+          }
+        },
+        {
+          "required": [
+            "family"
+          ],
+          "additionalProperties": false,
           "description": "Blackjack against the house.",
           "properties": {
             "family": {

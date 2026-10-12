@@ -1,0 +1,32 @@
+{
+  "$schema": "../../../schemas/game.schema.json",
+  "id": "baccarat",
+  "name": "Baccarat",
+  "tagline": "Back the Player or the Banker: closest to nine wins.",
+  "icon": "9",
+  "players": { "min": 1, "max": 8, "recommended": 4 },
+  "bots": true,
+  "deck": {},
+  "zones": [
+    { "id": "deck", "label": "Shoe", "visibility": "none", "layout": "stack", "area": "none" },
+    { "id": "discard", "visibility": "none", "layout": "stack", "area": "none" },
+    { "id": "player", "label": "Player", "visibility": "all", "layout": "spread", "area": "center" },
+    { "id": "banker", "label": "Banker", "visibility": "all", "layout": "spread", "area": "center" },
+    { "id": "hand", "perPlayer": true, "visibility": "owner", "layout": "fan", "area": "none" }
+  ],
+  "chips": { "start": 1000 },
+  "rules": { "family": "baccarat", "minBet": 10, "maxBet": 500 },
+  "options": [
+    { "id": "stack", "label": "Starting chips", "type": "number", "default": 1000, "min": 100, "max": 100000, "step": 100 },
+    { "id": "minBet", "label": "Minimum bet", "type": "number", "default": 10, "min": 2, "max": 100, "step": 2 },
+    { "id": "rounds", "label": "Rounds", "type": "number", "default": 10, "min": 1, "max": 50, "step": 1 },
+    { "id": "decks", "label": "Decks in the shoe", "type": "number", "default": 8, "min": 1, "max": 8, "step": 1 }
+  ],
+  "rulesSummary": [
+    "Punto Banco: everyone plays against the house. Bet on the Player hand, the Banker hand, or a Tie. Nobody holds cards; the house deals both hands by fixed rules.",
+    "Aces count 1, two to nine their number, tens and faces 0. Only the last digit counts: 7 and 8 make 5. Closest to 9 wins.",
+    "Each hand gets two cards. An 8 or 9 is a natural and both stand. Otherwise the Player draws a third card on 0 to 5 and stands on 6 or 7.",
+    "If the Player stood, the Banker draws on 0 to 5. If the Player drew, the Banker draws on 0–2; on 3 unless the Player's third card was an 8; on 4 against a 2–7; on 5 against a 4–7; on 6 against a 6 or 7; and stands on 7.",
+    "Player pays 1:1, Banker 1:1 less 5% commission, Tie 8:1 (Player and Banker bets are returned on a tie). Most chips after the last round wins."
+  ]
+}

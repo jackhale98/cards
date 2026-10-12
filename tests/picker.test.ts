@@ -8,7 +8,7 @@ describe('game picker', () => {
     expect(by('Trick-taking')).toEqual(['bridge', 'euchre', 'five-hundred', 'hearts', 'oh-hell', 'pinochle', 'spades', 'whist']);
     expect(by('Rummy')).toEqual(['canasta', 'gin-rummy', 'hand-and-foot', 'rummy-500']);
     expect(by('Shedding')).toEqual(['cheat', 'crazy-eights', 'palace', 'president']);
-    expect(by('Casino')).toEqual(['blackjack']);
+    expect(by('Casino')).toEqual(['baccarat', 'blackjack']);
     expect(by('Family')).toEqual(['go-fish', 'kings-corners']);
     expect(by('More')).toEqual(['cribbage', 'freetable']);
   });
