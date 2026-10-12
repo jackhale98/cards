@@ -21,11 +21,9 @@
   --card-edge: #e7e0d0;
   --card-red: #c8323c;
   --card-black: #1b1d22;
-  --back-a: #23395b;
-  --back-b: #c99a2e;
-  --back-pattern: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.12) 0 18%, transparent 19%),
-    repeating-linear-gradient(45deg, transparent 0 0.35em, rgba(255, 255, 255, 0.07) 0.35em 0.7em),
-    repeating-linear-gradient(-45deg, transparent 0 0.35em, rgba(255, 255, 255, 0.07) 0.35em 0.7em);
+  /* the card back: set from ui/backArt.ts by applyLook(); a flat colour until then */
+  --back-a: #1f3356;
+  --back-art: none;
   --card-radius: 0.6em;
 
   --font-ui: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;

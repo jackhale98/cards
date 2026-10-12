@@ -148,17 +148,13 @@
     font-weight: 700;
   }
 
-  /* the table's card back (see ui/looks.ts): a pattern over the base colour */
+  /* the table's card back (see ui/backArt.ts): one drawing of the whole card, margin included */
   .back {
-    background:
-      var(--back-pattern),
-      linear-gradient(160deg, var(--back-a), color-mix(in srgb, var(--back-a) 70%, black));
-    background-size: var(--back-tile, auto);
+    background: var(--back-art) center / 100% 100% no-repeat, var(--back-a);
     box-shadow:
       0 0.08em 0.2em rgba(0, 0, 0, 0.3),
       0 0.6em 1.2em -0.4em rgba(0, 0, 0, 0.5),
-      inset 0 0 0 0.22em var(--card-face),
-      inset 0 0 0 0.3em var(--back-b);
+      inset 0 0 0 1px var(--card-edge);
   }
 
   .selected {
