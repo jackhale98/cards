@@ -21,7 +21,7 @@ test('more people than a game seats: choose who plays, then split the table and 
   const guests: Page[] = [];
   for (const n of ['Ann', 'Ben', 'Cal', 'Dee']) guests.push(await phone(context, n, code));
   const [ann, ben, cal, dee] = guests;
-  await host.locator('[data-game="hearts"]').first().click();
+  await host.locator('[data-game="bridge"]').first().click();
   await expect(host.locator('.players li')).toHaveCount(5);
   // the last to arrive sits out of a four-player game
   await expect(host.locator('.block .eyebrow').first()).toHaveText(/Playing · 4\/4 · 1 sitting out/);
@@ -30,7 +30,7 @@ test('more people than a game seats: choose who plays, then split the table and 
   await host.click('button[aria-label="Sit Ann out"]');
   await host.click('button[aria-label="Deal Dee in"]');
   await expect(ann.locator('.players li', { hasText: 'Ann' })).toContainText('sitting out');
-  await host.click('button:has-text("Deal Hearts")');
+  await host.click('button:has-text("Deal Contract Bridge")');
   await expect(ann.locator('.me-sub')).toContainText('Sitting this one out');
   await expect(dee.locator('.hand .slot')).toHaveCount(13);
   // back to the lobby
