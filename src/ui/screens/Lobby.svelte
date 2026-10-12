@@ -95,6 +95,18 @@
     app.split(going, newHost);
     splitting = false;
   }
+  /** Marks which ends of a sideways-scrolling line have more text past them (for the edge fades). */
+  function sideways(el: HTMLElement) {
+    const update = () => {
+      el.classList.toggle('more-left', el.scrollLeft > 1);
+      el.classList.toggle('more-right', el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    el.addEventListener('scroll', update, { passive: true });
+    return { destroy: () => ro.disconnect() };
+  }
   /** How many options differ from the game's defaults. */
   const changed = $derived((game.config.options ?? []).filter((o) => lobby.options[o.id] !== undefined && lobby.options[o.id] !== o.default).length);
 </script>
@@ -314,8 +326,11 @@
     <span class="gicon"><GameIcon id={game.config.id} icon={game.config.icon} size={34} /></span>
     <div class="what">
       <b>{game.config.name}</b>
-      {#if host && startError}<span class="small warn-text">{startError}{game.bot ? ' — add bots to fill seats' : ''}</span>
-      {:else}<span class="small">{changed ? `${changed} setting${changed > 1 ? 's' : ''} changed` : game.config.tagline}</span>{/if}
+      <!-- a long line scrolls sideways (with a fade at the edge that has more) rather than being cut off -->
+      {#key `${game.config.id}|${startError}|${changed}`}
+        {#if host && startError}<span class="small warn-text line" use:sideways>{startError}{game.bot ? ' — add bots to fill seats' : ''}</span>
+        {:else}<span class="small line" use:sideways>{changed ? `${changed} setting${changed > 1 ? 's' : ''} changed` : game.config.tagline}</span>{/if}
+      {/key}
     </div>
     {#if game.config.options?.length}
       <button class="btn" onclick={() => (settings = true)} aria-label="Settings">⚙ <span class="long">Settings</span></button>
@@ -783,6 +798,28 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  .dealbar .what > .line {
+    overflow-x: auto;
+    text-overflow: clip;
+    scrollbar-width: none;
+    overscroll-behavior-x: contain;
+  }
+  .dealbar .what > .line::-webkit-scrollbar {
+    display: none;
+  }
+  /* fade out whichever end has more text past it */
+  .dealbar .what > .line:global(.more-right) {
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 1.6rem), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 1.6rem), transparent);
+  }
+  .dealbar .what > .line:global(.more-left) {
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 1.6rem);
+    mask-image: linear-gradient(to right, transparent, #000 1.6rem);
+  }
+  .dealbar .what > .line:global(.more-left.more-right) {
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 1.6rem, #000 calc(100% - 1.6rem), transparent);
+    mask-image: linear-gradient(to right, transparent, #000 1.6rem, #000 calc(100% - 1.6rem), transparent);
   }
   .dealbar .gicon {
     flex: none;
