@@ -95,7 +95,7 @@
     <span class="gicon"><GameIcon id={g.config.id} icon={g.config.icon} size={40} /></span>
     <span class="gname">{g.config.name}</span>
     <span class="gmeta">
-      {#if why}<span class="warn">{why} players{why.startsWith('up to') ? ' · rest sit out' : ''}</span>{:else}{playersText(g)} players{g.config.chips ? ' · chips' : ''}{g.bot ? ' · bots' : ''}{/if}
+      {#if why}<span class="warn">{why} players{why.startsWith('up to') ? ' · rest sit out' : ''}</span>{:else}{playersText(g)} players{g.config.chips ? ' · chips' : ''}{/if}
     </span>
   </button>
 {/snippet}
