@@ -1,0 +1,27 @@
+{
+  "$schema": "../../../schemas/game.schema.json",
+  "id": "spit",
+  "name": "Spit",
+  "tagline": "No turns: both players play at once, racing to empty their piles onto the middle.",
+  "icon": "⚡",
+  "players": { "min": 2, "max": 2, "recommended": 2 },
+  "bots": true,
+  "deck": {},
+  "zones": [
+    { "id": "deck", "visibility": "none", "layout": "stack", "area": "none" },
+    { "id": "left", "label": "Left", "visibility": "all", "layout": "stack", "area": "center" },
+    { "id": "right", "label": "Right", "visibility": "all", "layout": "stack", "area": "center" },
+    { "id": "hand", "perPlayer": true, "visibility": "all", "layout": "fan", "area": "hand" },
+    { "id": "under", "perPlayer": true, "visibility": "none", "layout": "stack", "area": "none" },
+    { "id": "spit", "perPlayer": true, "visibility": "none", "layout": "stack", "area": "none" }
+  ],
+  "rules": { "family": "spit" },
+  "rulesSummary": [
+    "Each player gets half the deck and lays out five piles of 1 to 5 cards. The top cards (your hand here) are face up. The rest of your cards are your spit pile.",
+    "Both call Spit! to turn a card from each spit pile onto the middle. Then there are no turns: play any of your top cards onto either middle pile if it's one rank up or down. Ace and king are next to each other. Tap a card, then a pile, or swipe it up.",
+    "When you play a top card, the card beneath turns up. A top card can move into an empty space.",
+    "When neither of you can go, both call Spit! again.",
+    "Clear your five piles and both race to slap a middle pile. Whoever slaps first takes that pile, so slap the smaller one! The other player takes the other. Gather up, lay out again and play another round.",
+    "With fewer than 15 cards you lay out what you can and have no spit pile. Clear your piles with no spit pile left and you win."
+  ]
+}

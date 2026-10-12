@@ -1007,6 +1007,18 @@
         },
         {
           "required": [
+            "family"
+          ],
+          "additionalProperties": false,
+          "description": "Spit: two players race to play onto two middle piles.",
+          "properties": {
+            "family": {
+              "const": "spit"
+            }
+          }
+        },
+        {
+          "required": [
             "family",
             "style"
           ],

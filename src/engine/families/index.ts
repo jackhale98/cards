@@ -16,6 +16,7 @@ import { pokerFamily } from './poker';
 import { rummyFamily } from './rummy';
 import { rummy500Family } from './rummy500';
 import { slapFamily } from './slap';
+import { spitFamily } from './spit';
 import { trickTakingFamily } from './trick';
 
 /**
@@ -40,6 +41,7 @@ export const FAMILIES: Record<string, (config: GameConfig) => GameModule> = {
   'trick-taking': trickTakingFamily,
   poker: pokerFamily,
   slap: slapFamily,
+  spit: spitFamily,
   // Gin (two players, knock) or Rummy 500 (melds on the table, any number)
   rummy: (config) => ((config.rules as { style?: string }).style === '500' ? rummy500Family(config) : rummyFamily(config)),
 };

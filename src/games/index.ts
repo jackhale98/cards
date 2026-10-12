@@ -42,6 +42,7 @@ const BY_FAMILY: Record<string, string> = {
   gofish: 'Family',
   corners: 'Family',
   slap: 'Speed',
+  spit: 'Speed',
   baccarat: 'Casino',
   blackjack: 'Casino',
 };

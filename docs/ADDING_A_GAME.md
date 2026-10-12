@@ -25,6 +25,7 @@ src/games/my-game/
 | `eights`       | Crazy Eights: match rank or suit, eights call a suit, optional Q/A/2 specials | `src/engine/families/eights.ts` |
 | `palace`       | Palace / Shithead: beat the pile or pick it up, then face-up and blind face-down cards | `src/engine/families/palace.ts` |
 | `corners`      | Kings Corners: build down in alternating colours, kings in the corners | `src/engine/families/corners.ts` |
+| `spit`         | Spit: two players play at once onto two middle piles, one rank up or down | `src/engine/families/spit.ts` |
 | `slap`         | Slapjack and Egyptian Rat Screw, in real time: turn cards over, slap the pile (`style`: `slapjack` or `ers`) | `src/engine/families/slap.ts` |
 | `handfoot`     | Hand and Foot: partnership canasta with a hand and a foot, four rounds | `src/engine/families/handfoot.ts` |
 | `pinochle`     | Partnership auction Pinochle: bid, pass four, meld, must-beat trick play | `src/engine/families/pinochle.ts` |
