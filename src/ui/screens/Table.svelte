@@ -170,7 +170,8 @@
         await (screen.orientation as any).lock?.('landscape').catch(() => {});
       }
     } catch {
-      app.say('Fullscreen isn’t available here — try “Add to Home Screen”.');
+      // (Safari on iPhone has no full screen for websites; an app added to the Home Screen does)
+      app.say('Full screen isn’t available here — on iPhone, tap Share, then Add to Home Screen');
     }
   }
 

@@ -67,6 +67,12 @@
         <li><b>Split the table</b> to run two games at once: the host picks a group and whose phone hosts their new table. They take the scoreboard with them, and <b>Everyone back</b> brings them home with their games added.</li>
       </ul>
 
+      <h4>Go full screen</h4>
+      <ul>
+        <li><b>Android:</b> tap <b>Full screen</b> in the table menu (☰) — the browser's bars disappear and the table fills the phone.</li>
+        <li><b>iPhone:</b> Safari doesn't allow full screen for websites, so add Lamplight to your Home Screen: tap <b>Share</b>, then <b>Add to Home Screen</b>. Open it from that icon and it fills the screen like an app.</li>
+      </ul>
+
       <h4>On a TV or a big screen</h4>
       <ul>
         <li><b>Chromecast or Google TV:</b> tap <b>📺 TV</b> in the lobby (or <b>Show on a TV</b> in the table menu), then <b>Cast</b>. Cast from Chrome or Edge on any device at the table — a player's Android phone, or a laptop.</li>

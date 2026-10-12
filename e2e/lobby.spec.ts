@@ -55,3 +55,23 @@ for (const size of [
     expect((await page.locator('[data-game="canasta"]').boundingBox())!.y).toBeLessThan(bar);
   });
 }
+
+test('on a phone on its side, the table code stays in view while scrolling the games', async ({ page }) => {
+  await page.setViewportSize({ width: 852, height: 393 });
+  await page.goto('/?net=local');
+  await page.fill('input[aria-label="Your name"]', 'Tester');
+  await page.click('text=Start a table');
+  await page.waitForURL(/#\/room\//);
+  await page.locator('.lobby').waitFor();
+  await page.evaluate(() => document.querySelector('.lobby')!.scrollTo(0, 1e6));
+  await page.waitForTimeout(300);
+  const code = (await page.locator('.invite .code').boundingBox())!;
+  expect(code.y).toBeGreaterThanOrEqual(0);
+  expect(code.y + code.height).toBeLessThanOrEqual(393);
+  // the rest of the panel (Share, TV, Leave) is reached by scrolling it, and isn't under the deal bar
+  const leave = page.locator('.invite button:has-text("Leave")');
+  await leave.scrollIntoViewIfNeeded();
+  const bar = (await page.locator('.dealbar').boundingBox())!;
+  const l = (await leave.boundingBox())!;
+  expect(l.y + l.height).toBeLessThanOrEqual(bar.y);
+});

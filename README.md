@@ -27,6 +27,7 @@ the middle of the table. It needs no accounts or app store, and there's no serve
 - **Pick your look:** each player chooses an emoji avatar and colour, and every seat is labelled
   *your left*, *across* or *your right*.
 - **Built for landscape phones:** fanned hand, tap or swipe up to play, haptics, and keeps the screen awake.
+  Full screen from the table menu on Android; on iPhone, Share → Add to Home Screen opens it full screen.
 - **Table display:** put a tablet or laptop in the middle as the shared board (`Use this device as the table display`). While one is connected, phones switch to *hand mode*: a bigger hand and your own info, with only the piles you can tap right now (switch back from the menu).
 - **Friends far away:** the invite link works over the internet too (through the Lamplight relay), so someone in another city can join the table live.
 - **Game night:** every finished game adds to a running scoreboard for the evening (3 / 2 / 1 points for the podium, partners share), shown in the lobby, on the game-over screen and in the scores sheet. The host can start a new night.
