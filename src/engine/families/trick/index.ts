@@ -57,7 +57,8 @@ export interface TrickRules {
     | { type: 'bridge' };
   scoring:
     | { type: 'penalty'; cardPoints: Record<string, number>; moon?: boolean }
-    | { type: 'contract'; bags?: { every: number; penalty: number }; nil?: number }
+    /** `overtrick`: points for each trick over the bid (default +1, a bag; three-handed spades −10). */
+    | { type: 'contract'; bags?: { every: number; penalty: number }; nil?: number; overtrick?: number }
     | { type: 'exact'; bonus: number }
     | { type: 'tricks' }
     /** Whist: the side taking more tricks scores one a trick over six (`honours` option: A K Q J of trumps). */
@@ -140,10 +141,15 @@ type S = GameState<TrickData>;
 export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
   const R = config.rules as unknown as TrickRules;
   const deckSize = buildDeck(config.deck).length;
-  /** The card that leads the first trick with `lead: twoOfClubs`: the lowest club in the deck (the 3♣ when the 2♣ is out). */
-  const opener = buildDeck(config.deck)
-    .filter((c) => parseCard(c).suit === 'C')
-    .sort((a, b) => parseCard(a).rank - parseCard(b).rank)[0];
+  /**
+   * The card that leads the first trick with `lead: twoOfClubs`: the lowest club dealt (the 3♣ when
+   * the 2♣ is out of the deck, or is the card left over in three-handed spades).
+   */
+  const openerOf = (s: S) =>
+    s.players
+      .flatMap((_, i) => ids(hand(s, i)))
+      .filter((c) => parseCard(c).suit === 'C')
+      .sort((a, b) => parseCard(a).rank - parseCard(b).rank)[0];
   const pointsOf = (id: string) => {
     if (R.scoring.type !== 'penalty') return 0;
     const pts = R.scoring.cardPoints;
@@ -288,6 +294,7 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
     const d = s.data;
     s.phase = 'play';
     s.players.forEach((_, i) => sortHand(s, i, { trump: d.trump }));
+    const opener = openerOf(s);
     const twoClubs = s.players.findIndex((_, i) => ids(hand(s, i)).includes(opener));
     if (R.lead === 'twoOfClubs' && twoClubs >= 0) s.turn = twoClubs;
     else if (R.lead === 'maker' && d.maker != null) s.turn = d.maker;
@@ -469,7 +476,7 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
     const trick = zone(s, 'trick').cards;
     const d = s.data;
     if (trick.length === 0) {
-      if (d.trickNo === 0 && R.lead === 'twoOfClubs' && cards.includes(opener)) return [opener];
+      if (d.trickNo === 0 && R.lead === 'twoOfClubs' && cards.includes(openerOf(s))) return [openerOf(s)];
       // a suitless joker is led with its own action, which calls a suit
       cards = cards.filter((c) => !suitless(s, c));
       if (R.breaks && !d.broken) {
@@ -635,7 +642,7 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
             newBags += won - bid;
           } else deltas[ti] -= bid * 10;
         }
-        deltas[ti] += newBags;
+        deltas[ti] += newBags * ((sc as { overtrick?: number }).overtrick ?? 1);
         d.bags[ti] += newBags;
         const bags = (sc as { bags?: { every: number; penalty: number } }).bags;
         while (bags && d.bags[ti] >= bags.every) {

@@ -4,7 +4,7 @@
   "name": "Spades",
   "tagline": "Partners bid their tricks. Spades are always trump. Watch your bags.",
   "icon": "♤",
-  "players": { "min": 4, "max": 4, "recommended": 4 },
+  "players": { "min": 3, "max": 4, "recommended": 4 },
   "bots": true,
   "deck": {},
   "zones": [
@@ -23,6 +23,15 @@
     "scoring": { "type": "contract", "bags": { "every": 10, "penalty": 100 }, "nil": 100 },
     "end": { "target": 500 }
   },
+  "byPlayers": {
+    "3": {
+      "rules": {
+        "teams": [[0], [1], [2]],
+        "lead": "twoOfClubs",
+        "scoring": { "type": "contract", "nil": 100, "overtrick": -10 }
+      }
+    }
+  },
   "options": [
     { "id": "target", "label": "Play to", "type": "number", "default": 500, "min": 100, "max": 1000, "step": 50 },
     { "id": "blindNil", "label": "Blind nil (100 behind)", "type": "boolean", "default": true }
@@ -33,6 +42,7 @@
     "Make your team's bid: 10 × bid, plus 1 per extra trick (a bag). Miss it: −10 × bid.",
     "Nil scores ±100; a nil player's tricks don't count towards the partner's bid but do count as bags. Every 10 bags costs 100.",
     "Blind nil: a side 100 or more behind may bid nil before looking at their cards, for ±200. Partners then swap two cards.",
-    "First team to the target wins; if both sides are level, play another hand."
+    "First team to the target wins; if both sides are level, play another hand.",
+    "Three players: everyone for themselves, 17 cards each (the last card is out of play). The 2♣ leads (the 3♣ if the 2♣ is out). Make your bid for 10 a trick; each trick over it costs 10, and missing costs 10 × the bid."
   ]
 }

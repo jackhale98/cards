@@ -95,3 +95,37 @@ describe('hearts for three and five (pagat)', () => {
     }
   }, 120000);
 });
+
+describe('spades for three (pagat)', () => {
+  const spades = GAMES.spades as GameModule<TrickData>;
+
+  it('everyone for themselves, 17 each with one card out; the lowest club leads', () => {
+    const s = spades.setup(bots(3), 1, {});
+    for (let i = 0; i < 3; i++) expect(ids(s, `hand:${i}`)).toHaveLength(17);
+    expect(s.data.scores).toHaveLength(3);
+    while (s.phase === 'bid') spades.apply(s, s.turn!, spades.bot!(s, s.turn!)!);
+    expect(s.phase).toBe('play');
+    const clubs = s.players.flatMap((_, i) => ids(s, `hand:${i}`)).filter((c) => c.endsWith('C')).sort((a, b) => '23456789TJQKA'.indexOf(a[0]) - '23456789TJQKA'.indexOf(b[0]));
+    expect(ids(s, `hand:${s.turn}`)).toContain(clubs[0]);
+    expect(spades.actions(s, s.turn!).find((a) => a.type === 'play')!.select!.cards).toEqual([clubs[0]]);
+  });
+
+  it('making your bid scores 10 a trick; each overtrick costs 10; missing costs 10 × the bid', () => {
+    const s = spades.setup(bots(3), 2, {});
+    while (s.phase === 'bid') spades.apply(s, s.turn!, spades.bot!(s, s.turn!)!);
+    simulate(spades, s, 60000, 'roundOver');
+    const bids = s.data.bids as number[];
+    s.data.scores.forEach((score, i) => {
+      const won = s.data.tricks[i];
+      const bid = bids[i];
+      const expected = bid === 0 ? (won === 0 ? 100 : -100 + 0) : won >= bid ? bid * 10 - (won - bid) * 10 : -bid * 10;
+      if (bid !== 0) expect(score).toBe(expected);
+    });
+  });
+
+  it('bots play whole games at three', () => {
+    const s = spades.setup(bots(3), 3, { target: 200 });
+    simulate(spades, s);
+    expect(s.phase).toBe('gameOver');
+  }, 120000);
+});
