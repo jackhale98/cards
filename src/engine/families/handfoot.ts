@@ -4,7 +4,9 @@ import { assertRule, type Action, type ActionSpec, type GameConfig, type GameMod
 import { cardPoints, isBlackThree, isRedThree, isWild } from './canasta';
 
 /**
- * Hand and Foot (pagat.com/rummy/handfoot.html, the basic partnership game). Configured from
+ * Hand and Foot (pagat.com/rummy/handfoot.html, the basic partnership game). Two to six players:
+ * four in two partnerships (partners opposite), six in two teams of three (alternate seats), and
+ * two, three or five each for themselves. Configured from
  * `game.json`:
  *
  * ```jsonc
@@ -81,9 +83,12 @@ export function groupHF(cards: string[], incomplete: Map<number, string[]>): Map
 }
 
 export function handFootFamily(config: GameConfig): GameModule<HandFootData> {
-  const twoHanded = (s: S) => s.players.length === 2;
-  const teamOf = (s: S, seat: number) => (twoHanded(s) ? seat : seat % 2);
-  const teamSeats = (s: S, team: number) => (twoHanded(s) ? [team] : [team, team + 2]);
+  /** Four or six play in two teams, alternate seats; otherwise everyone plays for themselves. */
+  const partners = (n: number) => n === 4 || n === 6;
+  const teamCount = (n: number) => (partners(n) ? 2 : n);
+  const teams = (s: S) => [...Array(teamCount(s.players.length)).keys()];
+  const teamOf = (s: S, seat: number) => (partners(s.players.length) ? seat % 2 : seat);
+  const teamSeats = (s: S, team: number) => s.players.map((p) => p.seat).filter((i) => teamOf(s, i) === team);
   const teamName = (s: S, team: number) => teamSeats(s, team).map((i) => name(s, i)).join(' & ');
   const teamMelds = (s: S, team: number) => s.data.melds.filter((m) => m.team === team);
   const incompleteOf = (s: S, team: number) => new Map(teamMelds(s, team).filter((m) => !isPile(m)).map((m) => [m.rank, m.cards]));
@@ -115,7 +120,7 @@ export function handFootFamily(config: GameConfig): GameModule<HandFootData> {
 
   /** Lay out a side: red 3s, unfinished melds in full, finished piles as their top card (the rest squared up beneath). */
   function relayout(s: S) {
-    for (const t of [0, 1]) {
+    for (const t of teams(s)) {
       const z = zone(s, meldZ(t));
       const under = zone(s, `stacked:${t}`);
       const melds = teamMelds(s, t).sort((a, b) => Number(isPile(b)) - Number(isPile(a)) || b.rank - a.rank);
@@ -174,7 +179,7 @@ export function handFootFamily(config: GameConfig): GameModule<HandFootData> {
       }
     d.round++;
     d.melds = [];
-    d.red3 = [[], []];
+    d.red3 = teams(s).map(() => []);
     d.footTaken = s.players.map(() => false);
     d.received = s.players.map(() => []);
     d.result = null;
@@ -230,7 +235,7 @@ export function handFootFamily(config: GameConfig): GameModule<HandFootData> {
     }
     // in the foot, keep a card to discard unless the side can go out
     const left = ids(hand(s, seat)).length - cards.length;
-    if (left < 2 && d.footTaken[seat]) assertRule(sideCanGoOut(s, team, groups), 'You can’t go out yet: you need 2 clean, 2 dirty and 1 wild pile (and your partner in their foot)');
+    if (left < 2 && d.footTaken[seat]) assertRule(sideCanGoOut(s, team, groups), `You can’t go out yet: you need 2 clean, 2 dirty and 1 wild pile${partners(s.players.length) ? ' (and your partners in their feet)' : ''}`);
     return groups;
   }
 
@@ -265,7 +270,7 @@ export function handFootFamily(config: GameConfig): GameModule<HandFootData> {
   function endRound(s: S, outSeat: number | null) {
     const d = s.data;
     const lines = [outSeat != null ? `${name(s, outSeat)} goes out!` : 'The stock has run out'];
-    for (const t of [0, 1]) {
+    for (const t of teams(s)) {
       const melds = teamMelds(s, t);
       const meldPts = melds.flatMap((m) => m.cards).reduce((n, c) => n + cardPoints(c), 0);
       const p = piles(s, t);
@@ -287,7 +292,7 @@ export function handFootFamily(config: GameConfig): GameModule<HandFootData> {
     log(s, lines[0], outSeat ?? undefined, outSeat != null ? 'Out!' : undefined);
     if (d.round >= ROUNDS) {
       const best = Math.max(...d.scores);
-      s.winner = [0, 1].filter((t) => d.scores[t] === best).flatMap((t) => teamSeats(s, t));
+      s.winner = teams(s).filter((t) => d.scores[t] === best).flatMap((t) => teamSeats(s, t));
       s.phase = 'gameOver';
     } else s.phase = 'handOver';
   }
@@ -369,12 +374,12 @@ export function handFootFamily(config: GameConfig): GameModule<HandFootData> {
     config,
 
     setup(players, seed, options) {
-      assertRule(players.length === 2 || players.length === 4, 'Hand and Foot is for 2 or 4 players');
+      assertRule(players.length >= 2 && players.length <= 6, 'Hand and Foot is for 2 to 6 players');
       const s = createState<HandFootData>(config, players, seed, options, {
         round: 0,
-        scores: [0, 0],
+        scores: Array(teamCount(players.length)).fill(0),
         melds: [],
-        red3: [[], []],
+        red3: [],
         footTaken: [],
         received: [],
         result: null,
@@ -420,7 +425,7 @@ export function handFootFamily(config: GameConfig): GameModule<HandFootData> {
           return startRound(s);
         case 'rematch':
           assertRule(s.phase === 'gameOver', 'Game not over');
-          d.scores = [0, 0];
+          d.scores = teams(s).map(() => 0);
           d.round = 0;
           s.winner = undefined;
           return startRound(s);
@@ -488,7 +493,7 @@ export function handFootFamily(config: GameConfig): GameModule<HandFootData> {
           // a last card can only go if the side may go out — or the stock is gone (a red 3 drawn as the
           // last card can leave a single card), when the round is over anyway
           const stuck = own.length === 1 && d.footTaken[seat] && !sideCanGoOut(s, teamOf(s, seat));
-          if (stuck) assertRule(zone(s, 'deck').cards.length === 0, 'You can’t go out yet: you need 2 clean, 2 dirty and 1 wild pile (and your partner in their foot)');
+          if (stuck) assertRule(zone(s, 'deck').cards.length === 0, `You can’t go out yet: you need 2 clean, 2 dirty and 1 wild pile${partners(s.players.length) ? ' (and your partners in their feet)' : ''}`);
           moveCards(s, `hand:${seat}`, 'discard', [card], { up: true });
           if (stuck) return endRound(s, null);
           d.received[seat] = [];
@@ -544,7 +549,7 @@ export function handFootFamily(config: GameConfig): GameModule<HandFootData> {
         seats: s.players.map((_, i) => ({ badge: `${d.scores[teamOf(s, i)]} pts${d.footTaken[i] ? ' · in foot' : ''}`, tag: i === s.dealer ? 'D' : undefined })),
         scoreboard: {
           columns: ['Clean', 'Dirty', 'Wild', 'Score'],
-          rows: [0, 1].map((t) => {
+          rows: teams(s).map((t) => {
             const p = piles(s, t);
             return { name: teamName(s, t), values: [p.clean, p.dirty, p.wild, d.scores[t]], highlight: !!s.winner && teamSeats(s, t).some((i) => s.winner!.includes(i)) };
           }),

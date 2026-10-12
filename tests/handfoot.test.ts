@@ -109,8 +109,24 @@ describe('hand and foot (pagat)', () => {
     expect(s.data.result!.lines[0]).toMatch(/stock has run out/);
   });
 
-  it('bots play whole four-round games (2 and 4 players)', () => {
-    for (const n of [2, 4]) {
+  it('sides: four as two partnerships, six as two teams of three, otherwise everyone alone (pagat)', () => {
+    const sides = (n: number) => {
+      const s = g.setup(bots(n), 1, {});
+      return { scores: s.data.scores.length, decks: total(s) / 54 };
+    };
+    expect(sides(2)).toEqual({ scores: 2, decks: 3 });
+    expect(sides(3)).toEqual({ scores: 3, decks: 4 });
+    expect(sides(4)).toEqual({ scores: 2, decks: 5 });
+    expect(sides(5)).toEqual({ scores: 5, decks: 6 });
+    expect(sides(6)).toEqual({ scores: 2, decks: 7 });
+    // six: seats 0, 2, 4 against 1, 3, 5 — so the scoreboard lists three names a side
+    const six = g.setup(bots(6), 1, {});
+    expect(g.status(six, 0).scoreboard!.rows.map((r) => r.name.split(' & ').length)).toEqual([3, 3]);
+    expect(() => g.setup(bots(7), 1, {})).toThrow();
+  });
+
+  it('bots play whole four-round games (2 to 6 players)', () => {
+    for (const n of [2, 3, 4, 5, 6]) {
       const s = g.setup(bots(n), n, {});
       const cards = total(s);
       for (let i = 0; i < 20000 && s.phase !== 'gameOver'; i++) {
@@ -125,6 +141,7 @@ describe('hand and foot (pagat)', () => {
       }
       expect(s.phase).toBe('gameOver');
       expect(s.data.round).toBe(4);
+      expect(g.standings!(s)).toHaveLength(n);
     }
-  }, 60000);
+  }, 180000);
 });
