@@ -97,6 +97,11 @@
             "type": "string"
           },
           "description": "Card ids to leave out, e.g. [\"4S\", \"4C\"]."
+        },
+        "extra": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Extra cards added on top, e.g. [\"2S#2\"] (a second copy of the 2♠)."
         }
       }
     },

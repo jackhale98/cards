@@ -327,3 +327,48 @@ describe('canasta for three and six (pagat)', () => {
     }
   }, 240000);
 });
+
+describe('six-handed spades and 500 (pagat): double packs', () => {
+  const spades = GAMES.spades as GameModule<TrickData>;
+  const five = GAMES['five-hundred'] as GameModule<TrickData>;
+
+
+  it('spades for six: three pairs across; 102 cards (two packs without the 2♦s), 17 each', () => {
+    const s = spades.setup(bots(6), 1, {});
+    expect(allCards(s)).toHaveLength(102);
+    expect(allCards(s).filter((c) => c.startsWith('2D'))).toHaveLength(0);
+    for (let i = 0; i < 6; i++) expect(ids(s, `hand:${i}`)).toHaveLength(17);
+    expect(spades.status(s, 0).scoreboard!.rows.map((r) => r.name)).toEqual(['B0 & B3', 'B1 & B4', 'B2 & B5']);
+  });
+
+  it('500 for six: two teams of three; 63 cards with the 2s, 3s and red 4s twice; 10 each and 3 in the kitty', () => {
+    const s = five.setup(bots(6), 1, {});
+    const cards = allCards(s);
+    expect(cards).toHaveLength(63);
+    expect(new Set(cards).size).toBe(63);
+    expect(cards.filter((c) => c.startsWith('2S'))).toHaveLength(2);
+    expect(cards.filter((c) => c.startsWith('4S'))).toHaveLength(1);
+    for (let i = 0; i < 6; i++) expect(ids(s, `hand:${i}`)).toHaveLength(10);
+    expect(five.status(s, 0).scoreboard!.rows.map((r) => r.name.split(' & ').length)).toEqual([3, 3]);
+  });
+
+  it('bots play whole games at six', () => {
+    const sp = spades.setup(bots(6), 3, { target: 200 });
+    simulate(spades, sp, 300000);
+    expect(sp.phase).toBe('gameOver');
+    const fh = five.setup(bots(6), 4, {});
+    simulate(five, fh, 300000);
+    expect(fh.phase).toBe('gameOver');
+  }, 240000);
+});
+
+describe('identical cards in one trick', () => {
+  it('the first played wins by default (six-handed 500); the later one with laterWinsTies (six-handed spades)', async () => {
+    const { trickWinner } = await import('../src/engine/lib/trickTaking');
+    const trick = ['9H', 'KH', 'KH#2', '4H'].map((id) => ({ id }));
+    expect(trickWinner(trick, {})).toBe(1);
+    expect(trickWinner(trick, { laterWinsTies: true })).toBe(2);
+    // a trump still beats both
+    expect(trickWinner([...trick, { id: '2S' }], { trump: 'S', laterWinsTies: true })).toBe(4);
+  });
+});

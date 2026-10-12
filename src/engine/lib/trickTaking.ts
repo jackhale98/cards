@@ -14,6 +14,8 @@ export interface TrickRules {
   suitOf?: (id: string) => string;
   /** Override the rank used to compare cards within a suit. */
   rankOf?: (id: string) => number;
+  /** Two identical cards (from a double pack): the one played later wins (six-handed spades). Otherwise the first does. */
+  laterWinsTies?: boolean;
 }
 
 /** Index (into `trick`) of the winning card. */
@@ -28,7 +30,7 @@ export function trickWinner(trick: CardRef[], rules: TrickRules = {}): number {
     const cTrump = !!rules.trump && suitOf(c) === rules.trump;
     const bTrump = !!rules.trump && suitOf(b) === rules.trump;
     if (cTrump && !bTrump) best = i;
-    else if (cTrump === bTrump && suitOf(c) === suitOf(b) && rankOf(c) > rankOf(b)) best = i;
+    else if (cTrump === bTrump && suitOf(c) === suitOf(b) && (rankOf(c) > rankOf(b) || (!!rules.laterWinsTies && rankOf(c) === rankOf(b)))) best = i;
     else if (!cTrump && !bTrump && suitOf(c) === led && suitOf(b) !== led) best = i;
   }
   return best;

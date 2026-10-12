@@ -71,6 +71,8 @@ export interface DeckSpec {
   ranks?: number[];
   /** Leave out specific cards (e.g. 500 drops the black fours). */
   exclude?: string[];
+  /** Extra cards on top (six-handed 500: the 2s, 3s and red 4s of a second pack, as "2S#2"…). */
+  extra?: string[];
 }
 
 export function buildDeck(spec: DeckSpec = {}): string[] {
@@ -82,6 +84,7 @@ export function buildDeck(spec: DeckSpec = {}): string[] {
     for (const s of SUITS) for (const r of ranks) if (!spec.exclude?.includes(cardId(r, s))) out.push(cardId(r, s) + suffix);
     for (let j = 1; j <= (spec.jokers ?? 0); j++) out.push(`X${j}${suffix}`);
   }
+  out.push(...(spec.extra ?? []));
   return out;
 }
 

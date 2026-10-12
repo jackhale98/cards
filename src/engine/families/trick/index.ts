@@ -48,6 +48,8 @@ export interface TrickRules {
   bowers?: boolean;
   /** A joker is the highest trump (in no trumps it beats everything and is played when void). */
   joker?: boolean;
+  /** With a double pack, two identical cards in a trick: `later` (six-handed spades) or the first played (default) wins. */
+  duplicates?: 'later' | 'first';
   /** Cards left over after the deal, taken by the bid winner (500) or turned up (euchre). */
   kitty?: number;
   bidding?:
@@ -521,7 +523,7 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
     const joker = trick.find((c) => parseCard(c.id).suit === 'X');
     if (joker && (s.data.trump || suitless(s, joker.id))) return joker;
     // a led suitless joker has been handled above; otherwise the led card's suit is the one to beat
-    return trick[trickWinner(trick, { trump: s.data.trump, suitOf: (c) => suitOf(s, c), rankOf: (c) => rankOf(s, c) })];
+    return trick[trickWinner(trick, { trump: s.data.trump, suitOf: (c) => suitOf(s, c), rankOf: (c) => rankOf(s, c), laterWinsTies: R.duplicates === 'later' })];
   }
 
   function collectTrick(s: S) {
