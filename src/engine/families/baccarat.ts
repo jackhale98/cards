@@ -1,4 +1,4 @@
-import { buildDeck, parseCard, rankLabel, SUIT_SYMBOL } from '../cards';
+import { buildDeck, cardLabel, parseCard } from '../cards';
 import { shuffle } from '../rng';
 import { createState, ids, log, moveCards, moveTop, name, placesFromScores, zone } from '../state';
 import { assertRule, type Action, type GameConfig, type GameModule, type GameState } from '../types';
@@ -53,7 +53,6 @@ export function bankerDraws(banker: number, third: number | null): boolean {
   return false;
 }
 
-const label = (id: string) => `${rankLabel(parseCard(id).rank)}${SUIT_SYMBOL[parseCard(id).suit]}`;
 const SIDE_NAME: Record<BaccaratSide, string> = { player: 'Player', banker: 'Banker', tie: 'Tie' };
 
 export function baccaratFamily(config: GameConfig): GameModule<BaccaratData> {
@@ -122,12 +121,12 @@ export function baccaratFamily(config: GameConfig): GameModule<BaccaratData> {
     if (p.length === 2 && b.length === 2 && (pt >= 8 || bt >= 8)) return settle(s);
     if (p.length === 2 && pt <= 5) {
       const c = draw(s, 'player');
-      log(s, `The Player draws ${label(c)} — ${baccaratTotal(cards(s, 'player'))}`);
+      log(s, `The Player draws ${cardLabel(c)} — ${baccaratTotal(cards(s, 'player'))}`);
       return;
     }
     if (b.length === 2 && bankerDraws(bt, p.length === 3 ? pointValue(p[2]) : null)) {
       const c = draw(s, 'banker');
-      log(s, `The Banker draws ${label(c)} — ${baccaratTotal(cards(s, 'banker'))}`);
+      log(s, `The Banker draws ${cardLabel(c)} — ${baccaratTotal(cards(s, 'banker'))}`);
       return;
     }
     settle(s);

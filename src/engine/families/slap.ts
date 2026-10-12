@@ -2,6 +2,7 @@ import { parseCard } from '../cards';
 import { createState, deal, hand, log, name, nextSeat, placesFromScores, resetDeck, zone } from '../state';
 import { shuffle } from '../rng';
 import { botLevel } from '../bots/search';
+import { msUntil, REACTION_WINDOW, span } from '../lib/realtime';
 import { assertRule, type Action, type ActionSpec, type CardRef, type GameConfig, type GameModule, type GameState } from '../types';
 
 /**
@@ -55,8 +56,6 @@ export interface SlapData {
 
 type S = GameState<SlapData>;
 
-/** How long the host waits after the first good slap for quicker reactions to arrive. */
-export const SLAP_WINDOW = 350;
 /** The pause before a challenge winner takes the pile (time to slap it first). */
 const COLLECT_DELAY = 1300;
 const MINUTES = [0, 5, 10, 15];
@@ -255,7 +254,7 @@ export function slapFamily(config: GameConfig): GameModule<SlapData> {
     if (why) {
       // a slap aimed at an earlier card that happens to land on a good one counts, but last
       const rt = stale ? 60_000 : Math.max(0, a.rt ?? 0);
-      if (!d.slaps.length) d.judgeAt = (a.at ?? 0) + SLAP_WINDOW;
+      if (!d.slaps.length) d.judgeAt = (a.at ?? 0) + REACTION_WINDOW;
       d.slaps.push({ seat, rt });
       return;
     }
@@ -354,7 +353,7 @@ export function slapFamily(config: GameConfig): GameModule<SlapData> {
     system(s) {
       if (s.phase !== 'play') return null;
       const d = s.data;
-      if (d.slaps.length) return { delay: Math.max(0, d.judgeAt - Date.now()), run: judge };
+      if (d.slaps.length) return { delay: msUntil(d.judgeAt), run: judge };
       if (d.collect !== null)
         return {
           delay: COLLECT_DELAY,
@@ -369,7 +368,7 @@ export function slapFamily(config: GameConfig): GameModule<SlapData> {
         };
       if (d.endsAt)
         return {
-          delay: Math.max(0, d.endsAt - Date.now()),
+          delay: msUntil(d.endsAt),
           run: (s) => {
             // the pile in the middle goes to nobody
             finish(s, ['Time’s up! Most cards wins.']);
@@ -396,15 +395,8 @@ export function slapFamily(config: GameConfig): GameModule<SlapData> {
     /** Reaction times: Easy is slow, Hard quicker than most people. */
     botDelay(s, _seat, a) {
       const level = botLevel(s.options);
-      if (a.type === 'slap') {
-        const [lo, hi] = [
-          [800, 1400],
-          [520, 900],
-          [340, 580],
-        ][level];
-        return lo + Math.random() * (hi - lo);
-      }
-      return 550 + Math.random() * 450;
+      if (a.type === 'slap') return span(([[800, 1400], [520, 900], [340, 580]] as const)[level]);
+      return span([550, 1000]);
     },
 
     standings(s) {

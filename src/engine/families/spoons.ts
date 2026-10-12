@@ -2,6 +2,7 @@ import { parseCard } from '../cards';
 import { createState, hand, ids, log, name, placesFromScores, resetDeck, zone } from '../state';
 import { shuffle } from '../rng';
 import { botLevel } from '../bots/search';
+import { msUntil, REACTION_WINDOW, span } from '../lib/realtime';
 import { assertRule, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
 
 /**
@@ -42,7 +43,6 @@ export interface SpoonsData {
 type S = GameState<SpoonsData>;
 
 const WORD = 'SPOON';
-const WINDOW = 350;
 const NEXT_ROUND = 3500;
 
 export function spoonsFamily(config: GameConfig): GameModule<SpoonsData> {
@@ -179,7 +179,7 @@ export function spoonsFamily(config: GameConfig): GameModule<SpoonsData> {
           d.tooSoon = true;
           return letter(s, seat, 'grabs a spoon without four of a kind');
         }
-        if (!d.claims.length) d.judgeAt = (a.at ?? 0) + WINDOW;
+        if (!d.claims.length) d.judgeAt = (a.at ?? 0) + REACTION_WINDOW;
         d.claims.push({ seat, rt: a.race !== undefined && a.race !== d.race ? 60_000 : Math.max(0, a.rt ?? 0) });
         return;
       }
@@ -208,7 +208,7 @@ export function spoonsFamily(config: GameConfig): GameModule<SpoonsData> {
 
     system(s) {
       const d = s.data;
-      if (s.phase === 'play' && d.claims.length) return { delay: Math.max(0, d.judgeAt - Date.now()), run: judge };
+      if (s.phase === 'play' && d.claims.length) return { delay: msUntil(d.judgeAt), run: judge };
       if (s.phase === 'roundOver')
         return {
           delay: NEXT_ROUND,
@@ -237,7 +237,6 @@ export function spoonsFamily(config: GameConfig): GameModule<SpoonsData> {
 
     botDelay(s, _seat, a) {
       const level = botLevel(s.options);
-      const span = ([lo, hi]: readonly [number, number]) => lo + Math.random() * (hi - lo);
       if (a.type === 'spoon') {
         // with four of a kind a bot takes the first spoon at once; noticing a missing one takes longer
         if (!started(s)) return span([300, 700]);

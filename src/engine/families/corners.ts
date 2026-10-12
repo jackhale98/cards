@@ -1,4 +1,4 @@
-import { cardName, parseCard, rankLabel, SUIT_SYMBOL } from '../cards';
+import { cardLabel, cardName, parseCard } from '../cards';
 import { createState, hand, ids, log, moveCards, moveTop, name, nextSeat, placesFromScores, resetDeck, sortHand, zone } from '../state';
 import { assertRule, type Action, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
 
@@ -57,7 +57,6 @@ const red = (id: string) => 'HD'.includes(parseCard(id).suit);
 const rank = (id: string) => (parseCard(id).rank === 14 ? 1 : parseCard(id).rank); // ace low
 /** Does `card` go on `top`: one lower and the other colour. */
 export const fits = (card: string, top: string) => rank(card) === rank(top) - 1 && red(card) !== red(top);
-const label = (id: string) => `${rankLabel(parseCard(id).rank)}${SUIT_SYMBOL[parseCard(id).suit]}`;
 export const penalty = (id: string) => (parseCard(id).rank === 13 ? 10 : 1);
 
 export function cornersFamily(config: GameConfig): GameModule<CornersData> {
@@ -92,7 +91,7 @@ export function cornersFamily(config: GameConfig): GameModule<CornersData> {
     for (const p of PILES) {
       const cs = cards(s, p);
       // (short labels: nine piles have to fit in two rows)
-      zone(s, p).label = cs.length > 1 ? `${PILE_NAME[p]} · ${label(cs[0])}↓` : isCorner(p) && !cs.length ? `${PILE_NAME[p]} · K` : PILE_NAME[p];
+      zone(s, p).label = cs.length > 1 ? `${PILE_NAME[p]} · ${cardLabel(cs[0])}↓` : isCorner(p) && !cs.length ? `${PILE_NAME[p]} · K` : PILE_NAME[p];
     }
   }
 
@@ -232,10 +231,10 @@ export function cornersFamily(config: GameConfig): GameModule<CornersData> {
       if (from) {
         const moving = cards(s, from);
         moveCards(s, from, to, moving, { up: true });
-        log(s, `${who} moves the ${label(moving[0])} pile${isCorner(to) ? ' into a corner' : ` onto ${PILE_NAME[to]}`}`, seat, `${label(moving[0])} →`);
+        log(s, `${who} moves the ${cardLabel(moving[0])} pile${isCorner(to) ? ' into a corner' : ` onto ${PILE_NAME[to]}`}`, seat, `${cardLabel(moving[0])} →`);
       } else {
         moveCards(s, `hand:${seat}`, to, [card], { up: true, by: seat });
-        log(s, `${who} plays the ${cardName(card)}${isCorner(to) && cards(s, to).length === 1 ? ' into a corner' : ` on ${isCorner(to) ? `the ${PILE_NAME[to]} corner` : PILE_NAME[to]}`}`, seat, label(card), undefined, { to });
+        log(s, `${who} plays the ${cardName(card)}${isCorner(to) && cards(s, to).length === 1 ? ' into a corner' : ` on ${isCorner(to) ? `the ${PILE_NAME[to]} corner` : PILE_NAME[to]}`}`, seat, cardLabel(card), undefined, { to });
       }
       d.moved++;
       labelPiles(s);

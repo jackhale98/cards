@@ -1,6 +1,9 @@
 import { parseCard, rankLabel } from '../cards';
-import { createState, hand, ids, log, moveCards, moveTop, name, nextSeat, placesFromScores, resetDeck, zone } from '../state';
+import { cardPoints, groupByRank, isBlackThree, isRedThree, isWild } from '../lib/canastaCards';
+import { createState, hand, ids, log, moveCards, moveTop, name, nextSeat, placesFromScores, resetDeck, showHands, zone } from '../state';
 import { assertRule, type Action, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
+import { ownOnly } from '../redact';
+import { acrossTeams, sideName, soloTeams, teamIndex } from '../lib/teams';
 
 /**
  * Classic Canasta. Two to six players: two alone, three alone until someone takes the pile (then that
@@ -63,27 +66,8 @@ export interface CanastaData {
 
 type S = GameState<CanastaData>;
 
-export const isWild = (id: string) => {
-  const c = parseCard(id);
-  return c.suit === 'X' || c.rank === 2;
-};
-export const isRedThree = (id: string) => {
-  const c = parseCard(id);
-  return c.rank === 3 && (c.suit === 'H' || c.suit === 'D');
-};
-export const isBlackThree = (id: string) => {
-  const c = parseCard(id);
-  return c.rank === 3 && (c.suit === 'S' || c.suit === 'C');
-};
-
-/** Card values: joker 50, 2 and A 20, K–8 10, 7–4 and black 3 5. */
-export function cardPoints(id: string): number {
-  const c = parseCard(id);
-  if (c.suit === 'X') return 50;
-  if (c.rank === 2 || c.rank === 14) return 20;
-  if (c.rank >= 8) return 10;
-  return 5;
-}
+// (the cards are shared with Hand and Foot in lib/canastaCards.ts; still exported from here too)
+export { cardPoints, isBlackThree, isRedThree, isWild };
 
 /** A side's first meld must be worth at least this, depending on its score. */
 export function minimumMeld(score: number): number {
@@ -104,13 +88,10 @@ const isNatural = (m: CanastaMeld) => !m.cards.some(isWild);
  * something can't be melded (a red three, a lone wild, mixed black threes and wilds…).
  */
 export function groupMeld(cards: string[], existing: number[] = [], existingWilds: Map<number, number> = new Map()): Map<number, string[]> | null {
-  const groups = new Map<number, string[]>();
   const wilds = cards.filter(isWild);
-  for (const c of cards.filter((x) => !isWild(x))) {
-    if (isRedThree(c)) return null;
-    const r = parseCard(c).rank;
-    groups.set(r, [...(groups.get(r) ?? []), c]);
-  }
+  const naturals = cards.filter((x) => !isWild(x));
+  if (naturals.some(isRedThree)) return null;
+  const groups = groupByRank(naturals);
   if (wilds.length && !groups.size) return null;
   const order = [...groups.keys()].filter((r) => r !== 3);
   if (wilds.length && !order.length) return null; // black threes take no wild cards
@@ -133,14 +114,13 @@ export function canastaFamily(config: GameConfig): GameModule<CanastaData> {
   /** Three players: everyone alone until someone takes the pile, then that player against the other two. */
   const threeHanded = (s: S) => s.players.length === 3;
   /** Sides at the table: two alone, four as two pairs (partners across), six as three pairs (partners across). */
-  const fixedSides = (n: number): number[][] =>
-    n === 4 ? [[0, 2], [1, 3]] : n === 6 ? [[0, 3], [1, 4], [2, 5]] : Array.from({ length: n }, (_, i) => [i]);
+  const fixedSides = (n: number): number[][] => (n === 4 || n === 6 ? acrossTeams(n) : soloTeams(n));
   const sides = (s: S) => s.data.sides ?? fixedSides(s.players.length);
   /** Sides with someone on them (with three, a side can be emptied by its player becoming a partner). */
   const liveSides = (s: S) => sides(s).map((_, i) => i).filter((i) => sides(s)[i].length);
-  const teamOf = (s: S, seat: number) => sides(s).findIndex((x) => x.includes(seat));
+  const teamOf = (s: S, seat: number) => teamIndex(sides(s), seat);
   const teamSeats = (s: S, team: number) => sides(s)[team] ?? [];
-  const teamName = (s: S, team: number) => teamSeats(s, team).map((i) => name(s, i)).join(' & ');
+  const teamName = (s: S, team: number) => sideName(s, teamSeats(s, team));
   /** Scores are kept per player with three (the partnerships change), per side otherwise. */
   const scoreOf = (s: S, seat: number) => (threeHanded(s) ? s.data.scores[seat] : s.data.scores[teamOf(s, seat)]);
   /** Red threes a side has laid out (with three, each partner's own). */
@@ -379,7 +359,7 @@ export function canastaFamily(config: GameConfig): GameModule<CanastaData> {
         lines.push(`${teamName(s, t)}: ${parts.filter(Boolean).join(', ')} = ${total >= 0 ? '+' : ''}${total} → ${d.scores[t]}`);
       }
     }
-    for (const z of Object.values(s.zones)) if (z.id.startsWith('hand:')) for (const c of z.cards) c.up = true;
+    showHands(s);
     d.result = { lines };
     s.turn = null;
     log(s, lines[0]);
@@ -420,8 +400,7 @@ export function canastaFamily(config: GameConfig): GameModule<CanastaData> {
     const team = teamOf(s, seat);
     const cards = ids(hand(s, seat));
     const naturals = cards.filter((c) => !isWild(c) && !isBlackThree(c));
-    const byRank = new Map<number, string[]>();
-    for (const c of naturals) byRank.set(parseCard(c).rank, [...(byRank.get(parseCard(c).rank) ?? []), c]);
+    const byRank = groupByRank(naturals);
     const existing = new Set(teamMelds(s, team).map((m) => m.rank));
     let pick: string[] = [];
     for (const [r, cs] of byRank) if (existing.has(r) || cs.length >= 3) pick.push(...cs);
@@ -691,7 +670,7 @@ export function canastaFamily(config: GameConfig): GameModule<CanastaData> {
     },
 
     redactData(s, viewer) {
-      return { ...s.data, received: s.data.received.map((r, i) => (i === viewer ? r : [])) };
+      return { ...s.data, received: ownOnly(s.data.received, viewer) };
     },
 
     bot(s, seat) {

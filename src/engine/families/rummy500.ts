@@ -1,6 +1,7 @@
-import { cardName, parseCard, rankLabel, SUIT_SYMBOL } from '../cards';
-import { createState, hand, ids, log, moveCards, moveTop, name, nextSeat, placesFromScores, resetDeck, zone } from '../state';
+import { cardName, cardOrJokerLabel, parseCard, rankLabel, SUIT_SYMBOL } from '../cards';
+import { createState, hand, ids, log, moveCards, moveTop, name, nextSeat, placesFromScores, resetDeck, showHands, zone } from '../state';
 import { assertRule, type Action, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
+import { ownOnly } from '../redact';
 
 /**
  * Rummy 500 (500 Rum), 2–8 players. Configured from `game.json`:
@@ -68,8 +69,7 @@ export interface Rummy500Data {
 type S = GameState<Rummy500Data>;
 
 export const isJoker = (id: string) => parseCard(id).suit === 'X';
-const label = (id: string) => (isJoker(id) ? 'Joker' : `${rankLabel(parseCard(id).rank)}${SUIT_SYMBOL[parseCard(id).suit]}`);
-const list = (cards: string[]) => cards.map(label).join(' ');
+const list = (cards: string[]) => cards.map(cardOrJokerLabel).join(' ');
 const rankText = (v: number) => rankLabel(v === 1 ? 14 : v);
 
 /** Card value in hand: joker and ace 15, faces 10, others their number. */
@@ -271,7 +271,7 @@ export function rummy500Family(config: GameConfig): GameModule<Rummy500Data> {
     relayout(s);
     s.phase = 'draw';
     s.turn = first;
-    log(s, `Hand ${d.handNo}: ${name(s, s.dealer)} deals ${size} each, ${label(pile(s)[0])} turned up`, undefined, undefined, undefined, { from: 'deck' });
+    log(s, `Hand ${d.handNo}: ${name(s, s.dealer)} deals ${size} each, ${cardOrJokerLabel(pile(s)[0])} turned up`, undefined, undefined, undefined, { from: 'deck' });
   }
 
   function sortHand(s: S, seat: number) {
@@ -296,7 +296,7 @@ export function rummy500Family(config: GameConfig): GameModule<Rummy500Data> {
       lines.push(`${name(s, i)}: ${melded}${left ? ` − ${left} held` : ''} = ${delta >= 0 ? '+' : ''}${delta} → ${d.scores[i]}`);
     });
     // show what everyone was left holding
-    for (const z of Object.values(s.zones)) if (z.id.startsWith('hand:')) for (const c of z.cards) c.up = true;
+    showHands(s);
     s.turn = null;
     d.mustMeld = null;
     d.pending = null;
@@ -529,7 +529,7 @@ export function rummy500Family(config: GameConfig): GameModule<Rummy500Data> {
           d.mustMeld = deep ? card : null;
           d.justTook = deep ? null : card;
           sortHand(s, seat);
-          log(s, `${who} takes ${deep ? `${list(taken)} from the pile` : `the ${cardName(card)}`}`, seat, `Took ${taken.length > 1 ? `${taken.length} cards` : label(card)}`, undefined, { from: 'discard' });
+          log(s, `${who} takes ${deep ? `${list(taken)} from the pile` : `the ${cardName(card)}`}`, seat, `Took ${taken.length > 1 ? `${taken.length} cards` : cardOrJokerLabel(card)}`, undefined, { from: 'discard' });
           s.phase = 'play';
           return;
         }
@@ -582,7 +582,7 @@ export function rummy500Family(config: GameConfig): GameModule<Rummy500Data> {
           moveCards(s, `hand:${seat}`, 'discard', [card], { up: true });
           d.justTook = null;
           d.received[seat] = [];
-          log(s, `${who} discards the ${isJoker(card) ? 'joker' : cardName(card)}`, seat, label(card), undefined, { to: 'discard' });
+          log(s, `${who} discards the ${isJoker(card) ? 'joker' : cardName(card)}`, seat, cardOrJokerLabel(card), undefined, { to: 'discard' });
           if (checkOut(s, seat)) return;
           s.phase = 'draw';
           s.turn = nextSeat(s, seat);
@@ -597,7 +597,7 @@ export function rummy500Family(config: GameConfig): GameModule<Rummy500Data> {
     redactData(s, viewer) {
       return {
         ...s.data,
-        received: s.data.received.map((r, i) => (i === viewer ? r : [])),
+        received: ownOnly(s.data.received, viewer),
         // a meld waiting on its joker's declaration is still in the player's hand
         pending: s.turn === viewer ? s.data.pending : null,
       };
@@ -633,7 +633,7 @@ export function rummy500Family(config: GameConfig): GameModule<Rummy500Data> {
         headline =
           s.turn === viewer
             ? d.mustMeld
-              ? `Meld the ${label(d.mustMeld)} you took, then discard`
+              ? `Meld the ${cardOrJokerLabel(d.mustMeld)} you took, then discard`
               : 'Meld or lay off, then discard'
             : `${turnName} is playing`;
       else headline = d.result?.headline ?? '';

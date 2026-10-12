@@ -1,4 +1,4 @@
-import { buildDeck, parseCard, rankLabel, SUIT_SYMBOL } from '../cards';
+import { buildDeck, cardLabel, parseCard } from '../cards';
 import { shuffle } from '../rng';
 import { createState, hand, ids, log, moveCards, moveTop, name, placesFromScores, zone } from '../state';
 import { assertRule, type Action, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
@@ -68,7 +68,6 @@ export function handTotal(cards: string[]): { total: number; soft: boolean } {
 }
 const value = (id: string) => Math.min(parseCard(id).rank === 14 ? 11 : parseCard(id).rank, 10);
 const isBlackjack = (h: BjHand): boolean => h.cards.length === 2 && !h.split && handTotal(h.cards).total === 21;
-const label = (id: string) => `${rankLabel(parseCard(id).rank)}${SUIT_SYMBOL[parseCard(id).suit]}`;
 
 export function blackjackFamily(config: GameConfig): GameModule<BlackjackData> {
   const R = config.rules as unknown as BlackjackRules;
@@ -132,7 +131,7 @@ export function blackjackFamily(config: GameConfig): GameModule<BlackjackData> {
     }
     players.forEach((i) => relayout(s, i));
     dealerLabel(s);
-    log(s, `Round ${d.round}: the dealer shows ${label(dealerCards(s)[0])}`);
+    log(s, `Round ${d.round}: the dealer shows ${cardLabel(dealerCards(s)[0])}`);
     if (parseCard(dealerCards(s)[0]).rank === 14) {
       // an ace up: insurance
       s.phase = 'insurance';
@@ -212,7 +211,7 @@ export function blackjackFamily(config: GameConfig): GameModule<BlackjackData> {
     if (t > 21) {
       h.done = true;
       h.result = 'bust';
-      log(s, `${name(s, seat)} draws ${label(card)} and busts with ${t}`, seat, `Bust ${t}`);
+      log(s, `${name(s, seat)} draws ${cardLabel(card)} and busts with ${t}`, seat, `Bust ${t}`);
     } else if (t === 21 || h.splitAces || h.doubled) h.done = true;
   }
 
@@ -224,7 +223,7 @@ export function blackjackFamily(config: GameConfig): GameModule<BlackjackData> {
     if (live && hits) {
       const card = draw(s, 'dealer');
       dealerLabel(s);
-      log(s, `The dealer draws ${label(card)} — ${handTotal(dealerCards(s)).total}`);
+      log(s, `The dealer draws ${cardLabel(card)} — ${handTotal(dealerCards(s)).total}`);
       return;
     }
     settle(s);

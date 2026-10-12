@@ -1,9 +1,10 @@
-import { buildDeck, cardName, parseCard, rankLabel, SUIT_SYMBOL } from '../cards';
+import { buildDeck, cardLabel, cardName, parseCard } from '../cards';
 import { nextRandom } from '../rng';
 import { describeShow, pegPoints, pipValue, scoreHand } from '../lib/cribbageScore';
 import { createState, cutForDeal, deal, hand, ids, log, moveCards, moveTop, name, nextSeat, placesFromScores, resetDeck, seatOrderFrom, sortHand, zone } from '../state';
 import { botBudget, dealUnseen, edge, fork, playOut, searchMove, shuffled, type SearchGame } from '../bots/search';
 import { assertRule, type Action, type GameConfig, type GameModule, type GameState } from '../types';
+import { acrossTeams, sideName, soloTeams, teamIndex } from '../lib/teams';
 
 /**
  * Cribbage family. Configured from `game.json`:
@@ -53,7 +54,6 @@ export interface CribData {
 
 type S = GameState<CribData>;
 
-const label = (id: string) => `${rankLabel(parseCard(id).rank)}${SUIT_SYMBOL[parseCard(id).suit]}`;
 const LAYOUT: Record<number, { deal: number; discard: number; fromDeck: number }> = {
   2: { deal: 6, discard: 2, fromDeck: 0 },
   3: { deal: 5, discard: 1, fromDeck: 1 },
@@ -63,9 +63,10 @@ const LAYOUT: Record<number, { deal: number; discard: number; fromDeck: number }
 export function cribbageFamily(config: GameConfig): GameModule<CribData> {
   const R = config.rules as unknown as CribbageRules;
   const target = (s: S) => Number(s.options.target ?? R.target);
-  const teamsFor = (n: number) => (n === 4 ? [[0, 2], [1, 3]] : Array.from({ length: n }, (_, i) => [i]));
-  const teamOf = (s: S, seat: number) => teamsFor(s.players.length).findIndex((t) => t.includes(seat));
-  const teamName = (s: S, team: number) => teamsFor(s.players.length)[team].map((i) => name(s, i)).join(' & ');
+  // four play as partners, sitting opposite
+  const teamsFor = (n: number) => (n === 4 ? acrossTeams(n) : soloTeams(n));
+  const teamOf = (s: S, seat: number) => teamIndex(teamsFor(s.players.length), seat);
+  const teamName = (s: S, team: number) => sideName(s, teamsFor(s.players.length)[team]);
   const layout = (s: S) => LAYOUT[s.players.length];
   const pone = (s: S) => nextSeat(s, s.dealer);
   const canPlay = (s: S, seat: number) => ids(hand(s, seat)).some((c) => s.data.count + pipValue(c) <= 31);
@@ -423,7 +424,7 @@ export function cribbageFamily(config: GameConfig): GameModule<CribData> {
           deck.push(cut);
           moveTop(s, 'deck', 'starter', 1, { up: true });
           const starter = zone(s, 'starter').cards[0].id;
-          log(s, `${who} cuts: the ${cardName(starter)}`, seat, label(starter), undefined, { from: 'deck' });
+          log(s, `${who} cuts: the ${cardName(starter)}`, seat, cardLabel(starter), undefined, { from: 'deck' });
           s.phase = 'peg';
           s.turn = null;
           if (parseCard(starter).rank === 11 && peg(s, s.dealer, 2, 'his heels for 2 (jack turned up)', 'His heels +2')) return;
@@ -441,8 +442,8 @@ export function cribbageFamily(config: GameConfig): GameModule<CribData> {
           zone(s, 'pegging').label = `Count ${d.count}`;
           const { points, reasons } = pegPoints(ids(zone(s, 'pegging')));
           if (points) {
-            if (peg(s, seat, points, `${label(card)} makes ${d.count}: ${reasons.join(', ')}`, `${d.count}: +${points}`)) return;
-          } else log(s, `${who} plays ${label(card)} — ${d.count}`, seat, `${label(card)} · ${d.count}`);
+            if (peg(s, seat, points, `${cardLabel(card)} makes ${d.count}: ${reasons.join(', ')}`, `${d.count}: +${points}`)) return;
+          } else log(s, `${who} plays ${cardLabel(card)} — ${d.count}`, seat, `${cardLabel(card)} · ${d.count}`);
           if (d.count === 31) return endSequence(s);
           return advance(s, seat);
         }

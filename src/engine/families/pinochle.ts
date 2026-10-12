@@ -1,6 +1,7 @@
-import { parseCard, rankLabel, SUIT_NAME, SUIT_SYMBOL, type Suit } from '../cards';
+import { cardLabel, parseCard, type Suit, SUIT_NAME, SUIT_SYMBOL } from '../cards';
 import { createState, deal, hand, ids, log, moveCards, name, nextSeat, placesFromScores, resetDeck, zone } from '../state';
 import { assertRule, type Action, type GameConfig, type GameModule, type GameState } from '../types';
+import { sideName } from '../lib/teams';
 
 /**
  * Partnership auction Pinochle, single deck (pagat.com/marriage/pinmain.html). Configured from
@@ -54,7 +55,6 @@ const POWER: Record<number, number> = { 14: 6, 10: 5, 13: 4, 12: 3, 11: 2, 9: 1 
 const power = (id: string) => POWER[parseCard(id).rank];
 const suitOf = (id: string) => parseCard(id).suit as Suit;
 const isCounter = (id: string) => [14, 10, 13].includes(parseCard(id).rank);
-const label = (id: string) => `${rankLabel(parseCard(id).rank)}${SUIT_SYMBOL[suitOf(id)]}`;
 const MIN_BID = 250;
 const teamOf = (seat: number) => seat % 2;
 
@@ -128,7 +128,7 @@ export function pinochleFamily(config: GameConfig): GameModule<PinochleData> {
   const R = config.rules as unknown as PinochleRules;
   const target = (s: S) => Number(s.options.target ?? R.end.target);
   const partner = (seat: number) => (seat + 2) % 4;
-  const teamName = (s: S, t: number) => `${name(s, t)} & ${name(s, t + 2)}`;
+  const teamName = (s: S, t: number) => sideName(s, [t, t + 2]);
 
   function sortHand(s: S, seat: number) {
     const trump = s.data.trump;
@@ -458,7 +458,7 @@ export function pinochleFamily(config: GameConfig): GameModule<PinochleData> {
           const card = a.cards?.[0];
           assertRule(card && legal(s, seat).includes(card), 'Follow suit and beat the trick if you can; trump (higher) if you can’t follow');
           moveCards(s, `hand:${seat}`, 'trick', [card], { up: true, by: seat });
-          log(s, `${who} plays the ${label(card)}`, seat, label(card), undefined, { to: 'trick' });
+          log(s, `${who} plays the ${cardLabel(card)}`, seat, cardLabel(card), undefined, { to: 'trick' });
           if (zone(s, 'trick').cards.length === 4) {
             s.phase = 'trickEnd';
             s.turn = null;

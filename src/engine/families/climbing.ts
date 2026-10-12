@@ -2,6 +2,7 @@ import { parseCard, rankLabel } from '../cards';
 import { createState, deal, hand, ids, log, moveCards, name, placesFromScores, resetDeck, zone } from '../state';
 import { botBudget, dealUnseen, fork, playOut, searchMove, type SearchGame } from '../bots/search';
 import { assertRule, type Action, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
+import { ownOnly } from '../redact';
 
 /**
  * Climbing games: play a card or a set that beats the last play, or pass; first out wins.
@@ -376,7 +377,7 @@ export function climbingFamily(config: GameConfig): GameModule<ClimbingData> {
     },
 
     redactData(s, viewer) {
-      return { ...s.data, received: s.data.received.map((r, i) => (i === viewer ? r : [])) };
+      return { ...s.data, received: ownOnly(s.data.received, viewer) };
     },
 
     bot(s, seat) {
