@@ -103,8 +103,13 @@
     const run = el.firstElementChild as HTMLElement;
     const SPEED = 30; // px a second
     const update = () => {
-      const over = Math.ceil(run.scrollWidth - el.clientWidth);
-      el.classList.toggle('moving', over > 2);
+      const moving = run.offsetWidth > el.clientWidth + 2;
+      el.classList.toggle('moving', moving);
+      // far enough that the last letter ends up clear of the soft right edge (and the padding)
+      const css = getComputedStyle(el);
+      const room = el.clientWidth - parseFloat(css.paddingLeft) - parseFloat(css.paddingRight);
+      const fade = parseFloat(css.getPropertyValue('--fade')) || 0;
+      const over = moving ? Math.ceil(run.offsetWidth - room + fade) : 0;
       el.style.setProperty('--over', `${-over}px`);
       // the glide out takes half the cycle
       el.style.setProperty('--cycle', `${Math.max(6, (over / SPEED) * 2).toFixed(1)}s`);
@@ -809,8 +814,10 @@
     display: inline-block;
   }
   .dealbar .what > .line:global(.moving) {
-    -webkit-mask-image: linear-gradient(to right, transparent, #000 0.5rem, #000 calc(100% - 1rem), transparent);
-    mask-image: linear-gradient(to right, transparent, #000 0.5rem, #000 calc(100% - 1rem), transparent);
+    /* (the glide measures this, to finish with the text clear of the fade) */
+    --fade: 16px;
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 0.5rem, #000 calc(100% - var(--fade)), transparent);
+    mask-image: linear-gradient(to right, transparent, #000 0.5rem, #000 calc(100% - var(--fade)), transparent);
     padding-left: 0.5rem;
     margin-left: -0.5rem;
   }
