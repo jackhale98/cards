@@ -18,6 +18,8 @@ the middle of the table. It needs no accounts or app store, and there's no serve
   hidden cards many times over and play each choice out, with a hard time cap so phones stay cool.
   Poker bots estimate their real odds of winning against the pot; in Gin Hard looks a draw ahead;
   in Go Fish and Cheat difficulty is memory and card counting.
+- **Sound:** a card snapping down, a deal, chips, a soft chime when it's your turn (handy with your
+  phone face-down) and a fanfare at the end, all made in the browser. Mute it from the table menu.
 - **Pick your look:** each player chooses an emoji avatar and colour, and every seat is labelled
   *your left*, *across* or *your right*.
 - **Built for landscape phones:** fanned hand, tap or swipe up to play, haptics, and keeps the screen awake.

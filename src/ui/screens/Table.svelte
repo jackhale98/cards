@@ -15,6 +15,7 @@
   import { nightTotals } from '../../net/night';
   import { seatRelation } from '../../engine/state';
   import { flight, haptic, play, snapshot } from '../motion';
+  import { play as sound, setSound, soundOn, type Sound } from '../sound';
   import { seatColor } from '../seatColors';
   import { keepAwake } from '../wakeLock';
   import TvSheet from '../components/TvSheet.svelte';
@@ -76,7 +77,10 @@
   let lastTurn = -1;
   let lastActor = -1;
   $effect(() => {
-    if (actor === you && (lastActor !== you || s.turn !== lastTurn) && you >= 0) haptic(18);
+    if (actor === you && (lastActor !== you || s.turn !== lastTurn) && you >= 0) {
+      haptic(18);
+      sound('turn');
+    }
     lastTurn = s.turn ?? -1;
     lastActor = actor ?? -1;
   });
@@ -169,6 +173,32 @@
   const lastEntry = $derived(s.log.at(-1));
   /** Latest player move, shown under the headline (unless the headline already says it). */
   const lastMove = $derived(lastEntry && lastEntry.text !== status.headline ? lastEntry : null);
+
+  // ---- sounds: each new move on the table (on the big screen, when there is one), and the end
+  let soundsOn = $state(soundOn());
+  let heard = -1;
+  function soundFor(e: { text: string; fromZone?: string; toZone?: string }): Sound | null {
+    const t = e.text.toLowerCase();
+    if (/\b(deals?|shuffles?)\b/.test(t)) return 'deal';
+    if (showChips && /\b(bets?|raises?|calls?|all in|antes?|blinds?|wins?|splits?|doubles?|insures?|pays?)\b/.test(t)) return 'chips';
+    if (e.toZone || e.fromZone || /\b(plays?|leads?|discards?|draws?|lays?|melds?|turns? over|passes \d)\b/.test(t)) return 'card';
+    return null;
+  }
+  $effect(() => {
+    const e = lastEntry;
+    if (!e || e.t === heard) return;
+    const first = heard === -1;
+    heard = e.t;
+    // (not for what was already on the table when we arrived; in hand mode the big screen plays them)
+    if (first || handMode) return;
+    const snd = soundFor(e);
+    if (snd) sound(snd);
+  });
+  let lastPhase: string | null = null;
+  $effect(() => {
+    if (s.phase === 'gameOver' && lastPhase != null && lastPhase !== 'gameOver') sound(display || s.winner?.includes(you) ? 'win' : 'end');
+    lastPhase = s.phase;
+  });
   const saidBy = (seat: number) =>
     lastEntry?.seat === seat && lastEntry.short ? { text: lastEntry.short, key: lastEntry.t } : null;
 
@@ -419,6 +449,7 @@
   <Sheet title="Table {view.lobby.code}" onclose={() => (sheet = null)}>
     <div class="menu-list">
       <button class="btn" onclick={toggleFullscreen}>{fullscreen ? 'Exit full screen' : 'Full screen'}</button>
+      <button class="btn" onclick={() => { soundsOn = !soundsOn; setSound(soundsOn); }}>{soundsOn ? 'Sound: on' : 'Sound: off'}</button>
       {#if view.lobby.displays && !display}
         <button class="btn" onclick={() => { app.setHandMode(!app.handMode); sheet = null; }}>
           {app.handMode ? 'Show whole table' : 'Just my hand'}
