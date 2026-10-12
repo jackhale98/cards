@@ -150,7 +150,9 @@
     );
   /** In hand mode only piles you can use right now stay on the phone (e.g. the deck to draw from, a bridge dummy). */
   const usable = (z: (typeof allCenterZones)[number]) => !!zoneAction(z.id) || z.cards.some((c) => selectable?.has(c.id));
-  const centerZones = $derived(handMode ? allCenterZones.filter(usable) : allCenterZones);
+  // (in a real-time game you react to the piles, so they stay put on the phone: watching the TV
+  // instead would also time your reaction from the wrong screen)
+  const centerZones = $derived(handMode && !game.realtime ? allCenterZones.filter(usable) : allCenterZones);
   const stripZones = $derived(handMode ? allStripZones.filter(usable) : allStripZones);
   // ---- table screen -----------------------------------------------------------------------
   /** On a table screen everything sized in rem grows with the screen (1rem = this many px). */

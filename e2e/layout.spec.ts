@@ -148,3 +148,32 @@ for (const [id, seats] of SIZES) {
     expect(errors).toEqual([]);
   });
 }
+
+/** Real-time games with a TV connected: the phone keeps the piles you react to (and still fits). */
+const SPEED: [string, string[]][] = [
+  ['slapjack', ['pile']],
+  ['egyptian-rat-screw', ['pile']],
+  ['spit', ['left', 'right']],
+  ['spoons', ['deck']],
+];
+for (const [id, piles] of SPEED) {
+  const g = GAMES.find((x) => x.id === id)!;
+  test(`${g.name} on a phone with a TV`, async ({ page, context }) => {
+    await page.setViewportSize({ width: 852, height: 393 });
+    const errors = watch(page);
+    const code = await deal(page, g);
+    const tv = await context.newPage();
+    await tv.setViewportSize({ width: 1366, height: 768 });
+    errors.push(...watch(tv));
+    await tv.goto(`/?net=local#/display/${code}`);
+    await tv.locator('.table.display').waitFor();
+    await page.locator('.table.handmode').waitFor();
+    // through a few moves (bots turning cards, slapping), the piles never leave the phone
+    for (let i = 0; i < 4; i++) {
+      for (const z of piles) await expect(page.locator(`main [data-zone="${z}"]`)).toBeVisible();
+      await page.waitForTimeout(700);
+    }
+    await checkLayout(page, { seatsMayScroll: true });
+    expect(errors).toEqual([]);
+  });
+}
