@@ -1,10 +1,12 @@
 # Setting up Chromecast
 
 Lamplight can cast the table straight to a Chromecast or Google TV: the host taps **Cast** and
-the TV becomes the table display, no laptop or HDMI cable needed. The code is already in the app
-(`src/net/cast.ts`); it only needs a **receiver App ID** from Google. Until one is set, the Cast
-button stays hidden and everything else (including the `lamplight.cards/tv` pairing code) works
-as normal.
+the TV becomes the table display, no laptop or HDMI cable needed.
+
+**Status: done.** Lamplight's receiver is published as App ID **`221DFB34`**, built into
+`src/net/cast.ts`, so every build (including Cloudflare preview builds) can cast. This guide is how
+it was set up, kept for reference: to change the receiver's settings, or to try a change on a
+receiver of your own, set `VITE_CAST_APP_ID` to that receiver's ID for a build (step 4).
 
 Time needed: about 20 minutes, plus up to 15 minutes waiting for Google to register a test device.
 
@@ -40,7 +42,8 @@ devices.
 
 ## 4. Give the App ID to the site
 
-The ID is read when the site is built, so it goes in as a build variable.
+Lamplight's ID is built into `src/net/cast.ts`. To point a build at a different (test) receiver,
+set it as a build variable instead:
 
 1. Open the **Cloudflare dashboard** → **Workers & Pages** → the Lamplight Pages project.
 2. **Settings** → **Variables and Secrets** (for *Production*) → **Add**:
@@ -48,9 +51,6 @@ The ID is read when the site is built, so it goes in as a build variable.
    - **Value:** the App ID from step 2
 3. Save, then go to **Deployments** and **Retry deployment** on the latest one (or push any commit)
    so the site is rebuilt with it.
-
-*Alternative:* send the App ID to Claude and it can be set as the default in `src/net/cast.ts`
-instead, so no Cloudflare variable is needed.
 
 ## 5. Try it
 
@@ -71,7 +71,7 @@ Chromecast can show a Lamplight table, not just yours.
 
 | What you see | Try |
 |---|---|
-| No **Cast** button | The App ID isn't in the build: check the variable name is exactly `VITE_CAST_APP_ID` and that you redeployed. Also make sure you're in Chrome. |
+| No **Cast** button | Casting needs Chrome (Android or a computer), and a Chromecast on the same Wi-Fi for it to offer. |
 | Chromecast isn't in the list | Phone and TV on the same Wi-Fi? Guest networks often block casting. |
 | TV shows a blank or error screen | Unpublished app and the device isn't registered (or wasn't restarted after registering). Check its status in the console. |
 | TV shows Lamplight but not the table | The table code didn't arrive: cast again from the table menu (**Show on a TV**). |

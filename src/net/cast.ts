@@ -1,11 +1,14 @@
 /**
  * Chromecast. A phone (Chrome on Android, or Chrome on a computer) starts our receiver on the TV —
  * the app itself at `/?cast=1`, registered in the Google Cast SDK Developer Console — and sends it
- * the table code over a custom channel; the TV then opens the table display. Needs the receiver's
- * App ID at build time (VITE_CAST_APP_ID); without one, casting stays hidden.
+ * the table code over a custom channel; the TV then opens the table display. The receiver's App ID
+ * is built in (VITE_CAST_APP_ID can point a build at a different, test receiver).
  */
 
-export const CAST_APP_ID = (import.meta.env.VITE_CAST_APP_ID as string | undefined) ?? '';
+/** Lamplight's published Cast receiver (the Google Cast SDK Developer Console). Not a secret. */
+export const LAMPLIGHT_CAST_APP_ID = '221DFB34';
+// (VITE_CAST_APP_ID overrides it, e.g. for a test receiver)
+export const CAST_APP_ID = (import.meta.env.VITE_CAST_APP_ID as string | undefined) || LAMPLIGHT_CAST_APP_ID;
 export const CAST_NS = 'urn:x-cast:cards.lamplight';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
