@@ -308,13 +308,7 @@
       grid-template-columns: 1fr;
       grid-auto-rows: min-content;
     }
-    .invite {
-      position: static;
-      max-height: none;
-    }
   }
-  /* side by side (a phone on its side): the table code stays in view while you scroll the games;
-     if the panel is taller than the screen it scrolls on its own */
   .invite {
     padding: 1rem;
     display: flex;
@@ -323,13 +317,20 @@
     text-align: center;
     gap: 0.5rem;
     align-self: start;
-    position: sticky;
-    top: 0;
-    /* (stopping above the deal bar pinned at the bottom) */
-    max-height: calc(100vh - 100px - var(--safe-t) - var(--safe-b));
-    max-height: calc(100dvh - 100px - var(--safe-t) - var(--safe-b));
-    overflow-y: auto;
-    scrollbar-width: none;
+  }
+  /* side by side (a phone on its side, where the left column is otherwise empty space): the table
+     code stays in view while you scroll the games, and if the panel is taller than the screen it
+     scrolls on its own. Stacked (portrait) it scrolls away with the page, leaving room for the games. */
+  @media (orientation: landscape) and (min-width: 561px) {
+    .invite {
+      position: sticky;
+      top: 0;
+      /* (stopping above the deal bar pinned at the bottom) */
+      max-height: calc(100vh - 100px - var(--safe-t) - var(--safe-b));
+      max-height: calc(100dvh - 100px - var(--safe-t) - var(--safe-b));
+      overflow-y: auto;
+      scrollbar-width: none;
+    }
   }
   .code {
     display: flex;

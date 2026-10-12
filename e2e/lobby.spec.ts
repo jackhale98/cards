@@ -75,3 +75,17 @@ test('on a phone on its side, the table code stays in view while scrolling the g
   const l = (await leave.boundingBox())!;
   expect(l.y + l.height).toBeLessThanOrEqual(bar.y);
 });
+
+test('upright, the table code scrolls away with the page, leaving room for the games', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/?net=local');
+  await page.fill('input[aria-label="Your name"]', 'Tester');
+  await page.click('text=Start a table');
+  await page.waitForURL(/#\/room\//);
+  await page.locator('.lobby').waitFor();
+  await page.evaluate(() => document.querySelector('.lobby')!.scrollTo(0, 1e6));
+  await page.waitForTimeout(300);
+  const code = (await page.locator('.invite .code').boundingBox())!;
+  expect(code.y + code.height).toBeLessThan(0);
+  expect(await page.locator('.invite').evaluate((el) => getComputedStyle(el).position)).toBe('static');
+});
