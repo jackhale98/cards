@@ -940,6 +940,18 @@
               "properties": { "target": { "type": "number" } }
             }
           }
+        },
+        {
+          "required": [
+            "family"
+          ],
+          "additionalProperties": false,
+          "description": "Hand and Foot: partnership canasta with a hand and a foot each, four rounds.",
+          "properties": {
+            "family": {
+              "const": "handfoot"
+            }
+          }
         }
       ]
     },

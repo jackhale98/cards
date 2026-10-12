@@ -33,6 +33,7 @@ const BY_FAMILY: Record<string, string> = {
   'trick-taking': 'Trick-taking',
   rummy: 'Rummy',
   canasta: 'Rummy',
+  handfoot: 'Rummy',
   climbing: 'Shedding',
   eights: 'Shedding',
   cheat: 'Shedding',

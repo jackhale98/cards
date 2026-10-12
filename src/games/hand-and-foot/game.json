@@ -1,0 +1,28 @@
+{
+  "$schema": "../../../schemas/game.schema.json",
+  "id": "hand-and-foot",
+  "name": "Hand and Foot",
+  "tagline": "Canasta's big family cousin: play out your hand, pick up your foot, build piles with your partner.",
+  "icon": "🦶",
+  "players": { "min": 2, "max": 4, "recommended": 4, "counts": [2, 4] },
+  "bots": true,
+  "deck": { "decks": 5, "jokers": 2 },
+  "zones": [
+    { "id": "deck", "label": "Stock", "visibility": "none", "layout": "stack", "area": "center", "scale": 0.85 },
+    { "id": "discard", "label": "Discard", "visibility": "all", "layout": "stack", "area": "center", "scale": 0.85 },
+    { "id": "hand", "perPlayer": true, "visibility": "owner", "layout": "fan", "area": "hand" },
+    { "id": "foot", "perPlayer": true, "visibility": "none", "layout": "stack", "area": "none" },
+    { "id": "melds", "perPlayer": true, "visibility": "all", "layout": "spread", "area": "strip", "hideEmpty": true, "scale": 0.55 },
+    { "id": "stacked", "perPlayer": true, "visibility": "all", "layout": "stack", "area": "none" }
+  ],
+  "rules": { "family": "handfoot" },
+  "rulesSummary": [
+    "Partners sit across (or play two head to head). One more deck than players, jokers in. Everyone gets a 13-card hand and a 13-card foot, kept face down until the hand is played out.",
+    "Each turn: draw 2 from the stock, or take the top 7 of the discard pile by melding its top card with two of the same rank from your hand. Then meld and discard.",
+    "Melds are 3 to 7 cards of one rank (4s to aces). 2s and jokers are wild: one in a meld of up to five cards, two in six or seven. Three or more wilds can make a wild meld.",
+    "Seven cards make a pile: clean (no wilds) 500, dirty 300, wild 1500. Red 3s are laid out at once for 100; black 3s can't be melded and block the pile.",
+    "Your side's first meld must be worth 50, then 90, 120 and 150 in rounds two to four.",
+    "Play out your hand and you pick up your foot. To go out your side needs 2 clean, 2 dirty and 1 wild pile, with both partners in their feet. Going out is worth 100.",
+    "Melded cards score their value; cards left in hand or foot count against you. Highest total after four rounds wins."
+  ]
+}
