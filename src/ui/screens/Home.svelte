@@ -77,7 +77,7 @@
         <li>Rules follow <a href="https://www.pagat.com" target="_blank" rel="noreferrer">pagat.com</a>; each game's rules are in its menu.</li>
         <li>Finished games add up to a <b>game night</b> scoreboard for the evening.</li>
         <li>Found a bug, or want a game we don't have? Write to <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>.</li>
-        <li>Lamplight is free, with no ads and no accounts. If it makes your game nights better, you can <a href={SUPPORT_URL} target="_blank" rel="noreferrer">buy us a coffee on Ko-fi</a> ☕</li>
+        <li>Lamplight is free, with no ads and no accounts. If it makes your game nights better, you can <a href={SUPPORT_URL} target="_blank" rel="noreferrer">buy us a beer on Ko-fi</a> 🍺</li>
       </ul>
     </div>
   </Sheet>
@@ -156,7 +156,7 @@
     · <a href="https://github.com/jackhale98/cards" target="_blank" rel="noreferrer">Open source</a>
     · <a href={bugReportLink()}>Report a bug</a>
     · <a href={gameRequestLink()}>Request a game</a>
-    · <a href={SUPPORT_URL} target="_blank" rel="noreferrer">☕ Support Lamplight</a>
+    · <a href={SUPPORT_URL} target="_blank" rel="noreferrer">🍺 Support Lamplight</a>
   </footer>
 </div>
 

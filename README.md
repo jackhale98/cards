@@ -20,9 +20,10 @@ the middle of the table. It needs no accounts or app store, and there's no serve
   in Go Fish and Cheat difficulty is memory and card counting.
 - **Sound:** a card snapping down, a deal, chips, a soft chime when it's your turn (handy with your
   phone face-down) and a fanfare at the end, all made in the browser. Mute it from the table menu.
-- **The table's look:** the host picks the card backs (nine designs: Classic, Crimson, Forest, Art
-  Deco, Lamplight, Tartan, Night sky, Ocean, Rose) and the table cloth (green baize, navy, burgundy,
-  plum, oak, charcoal) in the lobby or mid-game; every phone and the TV follow. All drawn in CSS.
+- **The table's look:** the host picks the card backs (twelve designed decks: Classic, Lamplight,
+  Crimson, Art Deco, Moon & Stars, Botanical, Tide, Rosette, Tartan, Sweater, Groovy, Bauhaus) and
+  the table cloth (green baize, navy, burgundy, plum, oak, charcoal) in the lobby or mid-game; every
+  phone and the TV follow. Each back is a small SVG drawn on the device: nothing to download.
 - **Pick your look:** each player chooses an emoji avatar and colour, and every seat is labelled
   *your left*, *across* or *your right*.
 - **Built for landscape phones:** fanned hand, tap or swipe up to play, haptics, and keeps the screen awake.
@@ -57,7 +58,7 @@ Found a bug, or want a game we don't have yet? Email **[contact@lamplight.cards]
 the table menu, which fills in the game and table for you).
 
 Lamplight is free, with no ads and no accounts. If it makes your game nights better, you can
-[buy us a coffee on Ko-fi](https://ko-fi.com/lamplightcards) ☕
+[buy us a beer on Ko-fi](https://ko-fi.com/lamplightcards) 🍺
 
 ## How the connection works
 

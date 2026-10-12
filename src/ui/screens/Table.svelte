@@ -403,7 +403,7 @@
         {/if}
         {#if s.phase === 'gameOver' && !display}
           <!-- one quiet line, only when a game is over (never during play) -->
-          <p class="support">Enjoyed that? Lamplight is free and ad-free — <a href={SUPPORT_URL} target="_blank" rel="noreferrer">buy us a coffee ☕</a></p>
+          <p class="support">Enjoyed that? Lamplight is free and ad-free — <a href={SUPPORT_URL} target="_blank" rel="noreferrer">buy us a beer 🍺</a></p>
         {/if}
       </div>
     {/if}
