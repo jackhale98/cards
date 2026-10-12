@@ -19,6 +19,7 @@ import {
   type View,
 } from './protocol';
 import { seal } from './backup';
+import { report } from './reports';
 import type { Transport } from './transport';
 
 export const LOCAL = 'local';
@@ -256,6 +257,7 @@ export class Host {
     } catch (e) {
       if (e instanceof RuleError) return e.message;
       console.error(e);
+      report('engine', e, { game: module.config.id, phase: this.state!.phase, action: a.type });
       return 'Something went wrong';
     }
     if (module.config.undo) {
@@ -327,6 +329,8 @@ export class Host {
         const err = this.applyAs(p.seat, a);
         if (!err) return;
         console.warn(`Bot ${p.name}: ${err}`, a);
+        // (a bot proposing a move the rules refuse is a bug in the bot)
+        report('bot', new Error(err), { game: module.config.id, phase: s.phase, action: a.type });
         // never let a bot's mistake freeze the table: fall back to the most passive move on offer
         const offered = module.actions(this.state!, p.seat);
         const safe = ['check', 'call', 'pass', 'decline', 'go', 'fold'].map((t) => offered.find((o) => o.type === t)).find(Boolean);

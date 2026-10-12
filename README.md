@@ -130,6 +130,15 @@ headers live in `public/_headers`. GitHub Actions (`.github/workflows/ci.yml`) t
 and builds every push and pull request.
 The site uses relative paths and hash routing, so it works under any repository name.
 
+**Error reports.** When something breaks on the real site (a crash in the browser, or the host's rules
+engine hitting an error it shouldn't), the app sends the relay a short anonymous report: the error,
+where in the code, the game and phase, the browser and the build. Never cards, names or table codes,
+each distinct error once and a few at most per visit (`src/net/reports.ts`). The relay keeps them in a
+small SQLite-backed Durable Object, counting repeats. To read them, set a secret on the relay
+(`npx wrangler secret put REPORTS_KEY` in `relay/`, or Workers → lamplight-relay → Settings → Variables
+→ add a secret) and open `https://relay.lamplight.cards/reports?key=<that secret>`. Without the secret
+the page doesn't exist.
+
 The relay deploys separately from `relay/` (`npx wrangler deploy`, or connect the repo in
 Cloudflare with root directory `relay`). Test it locally with `npx wrangler dev` in `relay/`,
 `node smoke.mjs`, and the app at `?relay=ws://127.0.0.1:8787` (`&net=relay` to skip the public

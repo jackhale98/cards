@@ -94,6 +94,7 @@
         <li>Refresh or lose signal and you keep your seat. If the host's phone drops out, any player can <b>take over hosting</b> and the game carries on.</li>
         <li>Rules follow <a href="https://www.pagat.com" target="_blank" rel="noreferrer">pagat.com</a>; each game's rules are in its table menu.</li>
         <li>No accounts, no ads, nothing to install.</li>
+        <li>If something breaks, Lamplight sends an anonymous report — the error and the kind of device, never your cards, name or table — so it can be fixed.</li>
         <li>Found a bug, or want a game we don't have? Write to <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>.</li>
         <li>Lamplight is free. If it makes your game nights better, you can <a href={SUPPORT_URL} target="_blank" rel="noreferrer">buy us a beer on Ko-fi</a> 🍺</li>
       </ul>

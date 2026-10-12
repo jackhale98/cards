@@ -35,7 +35,10 @@ import { DurableObject } from 'cloudflare:workers';
 
 interface Env {
   ROOMS: DurableObjectNamespace<Room>;
+  REPORTS: DurableObjectNamespace<Reports>;
   ALLOWED_ORIGINS?: string;
+  /** Secret: opens the error summary at /reports?key=… (unset: the page is off). */
+  REPORTS_KEY?: string;
 }
 
 const MAX_PEERS = 24;
@@ -79,6 +82,8 @@ export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     const url = new URL(req.url);
     if (url.pathname === '/') return new Response('Lamplight relay\n', { headers: { 'content-type': 'text/plain' } });
+    if (url.pathname === '/report') return receiveReport(req, env);
+    if (url.pathname === '/reports') return showReports(url, env);
     const m = url.pathname.match(/^\/room\/([^/]+)$/);
     if (!m || !ROOM_NAME.test(m[1])) return new Response('Not found', { status: 404 });
     if (req.headers.get('Upgrade')?.toLowerCase() !== 'websocket') return new Response('Expected a WebSocket', { status: 426 });
@@ -254,5 +259,121 @@ export class Room extends DurableObject<Env> {
     // only announce a leave if the device has no other (newer) connection
     const still = this.ctx.getWebSockets(peer).some((s) => s !== ws && s.readyState === WebSocket.OPEN);
     if (!still) this.broadcast(JSON.stringify({ t: 'leave', peer }), ws);
+  }
+}
+
+
+// ---- anonymous error reports ------------------------------------------------------------------
+
+/**
+ * The app sends a short report when something breaks in a browser, or the host's rules engine hits
+ * an error it shouldn't: the message, where in the code, the game and phase, the browser and the
+ * app version. Never cards, names or table codes. Reports are kept in one small SQLite-backed
+ * object, the same error counted rather than stored again; /reports?key=<REPORTS_KEY> lists them.
+ */
+export interface ErrorReport {
+  kind: string;
+  msg: string;
+  stack: string;
+  game: string;
+  phase: string;
+  action: string;
+  ua: string;
+  v: string;
+}
+
+const clip = (x: unknown, n: number) => (typeof x === 'string' ? x : '').slice(0, n);
+
+async function receiveReport(req: Request, env: Env): Promise<Response> {
+  const origin = req.headers.get('Origin');
+  const cors = {
+    'access-control-allow-origin': origin && originAllowed(origin, env.ALLOWED_ORIGINS ?? '') ? origin : 'null',
+    'access-control-allow-methods': 'POST',
+    'access-control-allow-headers': 'content-type',
+  };
+  if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
+  if (req.method !== 'POST') return new Response('POST a report', { status: 405, headers: cors });
+  if (!originAllowed(origin, env.ALLOWED_ORIGINS ?? '')) return new Response('Origin not allowed', { status: 403, headers: cors });
+  const text = await req.text();
+  if (text.length > 8192) return new Response('Too long', { status: 413, headers: cors });
+  let body: Record<string, unknown>;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    return new Response('Not JSON', { status: 400, headers: cors });
+  }
+  const r: ErrorReport = {
+    kind: clip(body.kind, 20),
+    msg: clip(body.msg, 300),
+    stack: clip(body.stack, 1500),
+    game: clip(body.game, 40),
+    phase: clip(body.phase, 40),
+    action: clip(body.action, 40),
+    ua: clip(body.ua, 200),
+    v: clip(body.v, 20),
+  };
+  if (!r.msg) return new Response('No message', { status: 400, headers: cors });
+  await env.REPORTS.get(env.REPORTS.idFromName('all')).add(r);
+  return new Response(null, { status: 204, headers: cors });
+}
+
+async function showReports(url: URL, env: Env): Promise<Response> {
+  const key = url.searchParams.get('key') ?? '';
+  if (!env.REPORTS_KEY || key !== env.REPORTS_KEY) return new Response('Not found', { status: 404 });
+  const rows = await env.REPORTS.get(env.REPORTS.idFromName('all')).list();
+  const esc = (s: unknown) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
+  const when = (ms: number) => new Date(ms).toISOString().replace('T', ' ').slice(0, 16);
+  const html = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width">
+<title>Lamplight errors</title>
+<style>body{font:14px system-ui;margin:16px;background:#0f1a16;color:#eee}table{border-collapse:collapse;width:100%}
+td,th{border-bottom:1px solid #345;padding:6px;vertical-align:top;text-align:left}pre{white-space:pre-wrap;margin:4px 0 0;color:#9ab;font-size:12px}
+.n{font-weight:700;color:#e9c46a}</style>
+<h1>Lamplight errors</h1><p>${rows.length} distinct, newest first. Counts are reports received (each browser sends at most a few).</p>
+<table><tr><th>#</th><th>Last seen</th><th>What</th><th>Where</th></tr>
+${rows
+  .map(
+    (r) => `<tr><td class="n">${r.count}</td><td>${when(r.last)}<br><small>first ${when(r.first)}</small></td>
+<td><b>${esc(r.kind)}</b>: ${esc(r.msg)}<pre>${esc(r.stack)}</pre></td>
+<td>${esc(r.game)} ${esc(r.phase)} ${esc(r.action)}<br><small>${esc(r.ua)}<br>v ${esc(r.v)}</small></td></tr>`,
+  )
+  .join('')}
+</table>`;
+  return new Response(html, { headers: { 'content-type': 'text/html; charset=utf-8' } });
+}
+
+/** All error reports, in one SQLite-backed object: one row per distinct error, with a count. */
+export class Reports extends DurableObject<Env> {
+  /** At most this many distinct errors are kept (the least recently seen go first). */
+  static readonly KEEP = 500;
+
+  constructor(ctx: DurableObjectState, env: Env) {
+    super(ctx, env);
+    ctx.storage.sql.exec(`CREATE TABLE IF NOT EXISTS errors (
+      sig TEXT PRIMARY KEY, kind TEXT, msg TEXT, stack TEXT, game TEXT, phase TEXT, action TEXT,
+      ua TEXT, v TEXT, count INTEGER, first INTEGER, last INTEGER)`);
+  }
+
+  add(r: ErrorReport) {
+    // the same error: same message and first line of the stack, in the same game
+    const sig = [r.kind, r.msg, r.stack.split('\n')[0] ?? '', r.game].join('|');
+    const now = Date.now();
+    this.ctx.storage.sql.exec(
+      `INSERT INTO errors (sig, kind, msg, stack, game, phase, action, ua, v, count, first, last)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+       ON CONFLICT(sig) DO UPDATE SET count = count + 1, last = excluded.last, phase = excluded.phase,
+         action = excluded.action, ua = excluded.ua, v = excluded.v, stack = excluded.stack`,
+      sig, r.kind, r.msg, r.stack, r.game, r.phase, r.action, r.ua, r.v, now, now,
+    );
+    this.ctx.storage.sql.exec(
+      `DELETE FROM errors WHERE sig NOT IN (SELECT sig FROM errors ORDER BY last DESC LIMIT ${Reports.KEEP})`,
+    );
+  }
+
+  list() {
+    return this.ctx.storage.sql
+      .exec<{ kind: string; msg: string; stack: string; game: string; phase: string; action: string; ua: string; v: string; count: number; first: number; last: number }>(
+        'SELECT kind, msg, stack, game, phase, action, ua, v, count, first, last FROM errors ORDER BY last DESC LIMIT 200',
+      )
+      .toArray();
   }
 }
