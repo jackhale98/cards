@@ -3,7 +3,7 @@ import { buildDeck } from '../src/engine/cards';
 import * as bet from '../src/engine/lib/betting';
 import type { PokerData as HoldemData } from '../src/engine/families/poker';
 import { GAMES } from '../src/games';
-import type { TrickData } from '../src/engine/families/trickTaking';
+import type { TrickData } from '../src/engine/families/trick';
 import { isHidden, redact } from '../src/engine/redact';
 import type { GameModule, GameState } from '../src/engine/types';
 

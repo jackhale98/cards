@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { PokerData } from '../src/engine/families/poker';
-import type { TrickData } from '../src/engine/families/trickTaking';
+import type { TrickData } from '../src/engine/families/trick';
 import { bestWithHole } from '../src/engine/lib/pokerEval';
 import { seatRelation } from '../src/engine/state';
 import type { GameModule, GameState } from '../src/engine/types';

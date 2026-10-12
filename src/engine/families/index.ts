@@ -13,7 +13,7 @@ import { palaceFamily } from './palace';
 import { pokerFamily } from './poker';
 import { rummyFamily } from './rummy';
 import { rummy500Family } from './rummy500';
-import { trickTakingFamily } from './trickTaking';
+import { trickTakingFamily } from './trick';
 
 /**
  * Family engines. A game's `game.json` picks one with `"rules": { "family": "…" }` and sets its

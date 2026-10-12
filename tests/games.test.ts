@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Action, GameModule, GameState } from '../src/engine/types';
 import { buildDeck } from '../src/engine/cards';
-import type { TrickData } from '../src/engine/families/trickTaking';
+import type { TrickData } from '../src/engine/families/trick';
 import type { PokerData } from '../src/engine/families/poker';
 import { GAMES } from '../src/games';
 

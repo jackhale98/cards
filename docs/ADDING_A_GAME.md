@@ -13,7 +13,7 @@ src/games/my-game/
 | family         | games it can express today | engine |
 |----------------|----------------------------|--------|
 | `free`         | anything (rules not enforced). Optional zones add moves: `discard` (discard face up/down, take the top discard) and a per-player `melds` zone (lay down melds, add to anyone's) | `src/engine/families/free.ts` |
-| `trick-taking` | Hearts, Spades, Oh Hell, Euchre, 500, Contract Bridge, Whist… | `src/engine/families/trickTaking.ts` |
+| `trick-taking` | Hearts, Spades, Oh Hell, Euchre, 500, Contract Bridge, Whist… | `src/engine/families/trick/` (rules in `index.ts`, bots in `bots.ts`, 500 and bridge contracts in `contracts.ts`) |
 | `poker`        | Texas Hold'em, Omaha, Pineapple-style variants (blinds and a board), Five Card Draw (`draw`: antes and one draw) | `src/engine/families/poker.ts` |
 | `rummy`        | Gin Rummy (style `gin`), Rummy 500 (style `500`) | `src/engine/families/rummy.ts`, `rummy500.ts` |
 | `canasta`      | Classic Canasta, partnerships or head to head | `src/engine/families/canasta.ts` |
@@ -23,6 +23,9 @@ src/games/my-game/
 | `cheat`        | Cheat / Bullshit / I Doubt It | `src/engine/families/cheat.ts` |
 | `gofish`       | Go Fish | `src/engine/families/gofish.ts` |
 | `eights`       | Crazy Eights: match rank or suit, eights call a suit, optional Q/A/2 specials | `src/engine/families/eights.ts` |
+| `palace`       | Palace / Shithead: beat the pile or pick it up, then face-up and blind face-down cards | `src/engine/families/palace.ts` |
+| `corners`      | Kings Corners: build down in alternating colours, kings in the corners | `src/engine/families/corners.ts` |
+| `handfoot`     | Hand and Foot: partnership canasta with a hand and a foot, four rounds | `src/engine/families/handfoot.ts` |
 
 `schemas/game.schema.json` describes every parameter, so editors like VS Code give you
 autocomplete and validation as you type (each file points at it with `$schema`). `pnpm test`

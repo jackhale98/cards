@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { dealConstrained } from '../src/engine/bots/search';
 import { parseCard } from '../src/engine/cards';
-import type { TrickData } from '../src/engine/families/trickTaking';
+import type { TrickData } from '../src/engine/families/trick';
 import { GAMES } from '../src/games';
 import type { GameModule, GameState } from '../src/engine/types';
 

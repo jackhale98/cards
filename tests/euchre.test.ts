@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { TrickData } from '../src/engine/families/trickTaking';
+import type { TrickData } from '../src/engine/families/trick';
 import type { GameModule, GameState } from '../src/engine/types';
 import { GAMES } from '../src/games';
 

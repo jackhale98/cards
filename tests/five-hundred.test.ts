@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildDeck } from '../src/engine/cards';
-import { avondale, type TrickData } from '../src/engine/families/trickTaking';
+import { avondale, type TrickData } from '../src/engine/families/trick';
 import type { GameModule, GameState } from '../src/engine/types';
 import { GAMES } from '../src/games';
 
