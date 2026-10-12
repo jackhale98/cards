@@ -52,7 +52,15 @@ export function categoryOf(g: GameModule): string {
 /** Player counts a game takes, as text: "4", "2–8", "2 or 4". */
 export function playersText(g: GameModule): string {
   const p = g.config.players;
-  return p.counts?.join(' or ') ?? (p.min === p.max ? `${p.min}` : `${p.min}–${p.max}`);
+  if (!p.counts) return p.min === p.max ? `${p.min}` : `${p.min}–${p.max}`;
+  // runs of three or more read as a range: 2, 3, 4, 6 → "2–4 or 6"
+  const runs: number[][] = [];
+  for (const c of [...p.counts].sort((a, b) => a - b)) {
+    const last = runs.at(-1);
+    if (last && c === last.at(-1)! + 1) last.push(c);
+    else runs.push([c]);
+  }
+  return runs.flatMap((r) => (r.length >= 3 ? [`${r[0]}–${r.at(-1)}`] : r.map(String))).join(' or ');
 }
 
 /**

@@ -118,6 +118,8 @@ const SIZES: [string, number][] = [
   ['spades', 3],
   ['five-hundred', 3],
   ['euchre', 6],
+  ['canasta', 3],
+  ['canasta', 6],
 ];
 for (const [id, seats] of SIZES) {
   const g = GAMES.find((x) => x.id === id)!;

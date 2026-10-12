@@ -236,7 +236,7 @@ describe('canasta (pagat audit)', () => {
     expect(p.data.result!.lines[0]).toMatch(/goes out!/);
   });
 
-  it('is for 2 or 4 players', () => {
-    expect(g.config.players.counts).toEqual([2, 4]);
+  it('is for 2, 3, 4 or 6 players (pagat)', () => {
+    expect(g.config.players.counts).toEqual([2, 3, 4, 6]);
   });
 });

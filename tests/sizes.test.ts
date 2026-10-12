@@ -233,3 +233,97 @@ describe('euchre for six (pagat: Cornwall)', () => {
     expect(n.data.tricks.reduce((a, b) => a + b, 0)).toBe(5);
   }, 120000);
 });
+
+describe('canasta for three and six (pagat)', () => {
+  const canasta = GAMES.canasta as GameModule<any>;
+
+  it('six: three pairs, partners across; three packs and six jokers, 13 each; two canastas to go out', () => {
+    const s = canasta.setup(bots(6), 1, {});
+    expect(allCards(s)).toHaveLength(162);
+    expect(allCards(s).filter((c) => c.startsWith('X'))).toHaveLength(6);
+    for (let i = 0; i < 6; i++) expect(ids(s, `hand:${i}`).length).toBeGreaterThanOrEqual(13);
+    expect(s.data.scores).toHaveLength(3);
+    expect(canasta.status(s, 0).scoreboard!.rows.map((r) => r.name)).toEqual(['B0 & B3', 'B1 & B4', 'B2 & B5']);
+    expect(canasta.actions(s, s.turn!).find((a) => a.type === 'draw')!.label).toBe('Draw');
+  });
+
+  it('three: 13 each, draw two; everyone alone until someone takes the pile, then the other two are partners', () => {
+    const s = canasta.setup(bots(3), 2, {});
+    for (let i = 0; i < 3; i++) expect(ids(s, `hand:${i}`).length).toBeGreaterThanOrEqual(13);
+    expect(s.data.scores).toEqual([0, 0, 0]);
+    expect(s.data.sides).toEqual([[0], [1], [2]]);
+    expect(canasta.actions(s, s.turn!).find((a) => a.type === 'draw')!.label).toBe('Draw 2');
+    // play until someone takes the pile
+    for (let i = 0; i < 5000 && s.data.sides.every((x: number[]) => x.length === 1) && s.phase !== 'handOver' && s.phase !== 'gameOver'; i++) {
+      const seat = s.turn!;
+      canasta.apply(s, seat, canasta.bot!(s, seat)!);
+    }
+    if (s.phase === 'play' || s.phase === 'draw') {
+      const sides = s.data.sides.filter((x: number[]) => x.length);
+      expect(sides.map((x: number[]) => x.length).sort()).toEqual([1, 2]);
+      // the partners' melds are one side's now: no two melds of the same rank on a side
+      for (const side of [0, 1, 2]) {
+        const ranks = s.data.melds.filter((m: any) => m.team === side).map((m: any) => m.rank);
+        expect(new Set(ranks).size).toBe(ranks.length);
+      }
+    }
+  });
+
+  it('three: taking the pile makes the other two partners, their melds put together', () => {
+    const s = canasta.setup(bots(3), 3, {});
+    s.players.forEach((p) => (p.bot = false));
+    for (const z of Object.values(s.zones)) z.cards = [];
+    s.zones['hand:0'].cards = ['AH', 'AD', '4C', '6D'].map((id) => ({ id }));
+    s.zones['hand:1'].cards = ['5S', '7D'].map((id) => ({ id }));
+    s.zones['hand:2'].cards = ['5C', '7H'].map((id) => ({ id }));
+    s.zones.discard.cards = [{ id: '9C', up: true }, { id: 'AS', up: true }];
+    s.zones.deck.cards = ['5H', '6H', '7S', '8S'].map((id) => ({ id }));
+    Object.assign(s.data, {
+      sides: [[0], [1], [2]],
+      red3: [[], ['3H'], []],
+      melds: [
+        { team: 1, rank: 12, cards: ['QH', 'QD', 'QS'] },
+        { team: 2, rank: 12, cards: ['QC', 'QH#2', 'QD#2'] },
+        { team: 2, rank: 8, cards: ['8H', '8D', '8C'] },
+      ],
+      frozen: false,
+      melded: [false, true, true],
+      turnMelded: false,
+      ask: null,
+      turnStartRanks: [],
+    });
+    s.phase = 'draw';
+    s.turn = 0;
+    canasta.apply(s, 0, { type: 'takePile', cards: ['AH', 'AD'] });
+    expect(s.data.sides).toEqual([[0], [1, 2], []]);
+    const partners = s.data.melds.filter((m: any) => m.team === 1);
+    expect(partners.map((m: any) => [m.rank, m.cards.length]).sort()).toEqual([[12, 6], [8, 3]].sort());
+    expect(s.data.melds.filter((m: any) => m.team === 2)).toEqual([]);
+    // red threes stay with the player who laid them
+    expect(s.data.red3).toEqual([[], ['3H'], []]);
+    // partners can ask each other "may I go out?"; the lone player has nobody to ask
+    expect(canasta.actions(s, 0).some((x) => x.type === 'ask')).toBe(false);
+  });
+
+  it('three: scores are kept per player, and partners each get the side’s score', () => {
+    const s = canasta.setup(bots(3), 4, {});
+    simulate(canasta, s, 100000, 'handOver');
+    const sides = (s.data.sides as number[][]).filter((x) => x.length);
+    const pair = sides.find((x) => x.length === 2);
+    if (pair) {
+      // the same side score plus each partner's own red threes
+      const [a, b] = pair;
+      const red = (i: number) => s.data.red3[i].length;
+      if (red(a) === red(b)) expect(s.data.scores[a]).toBe(s.data.scores[b]);
+    }
+  });
+
+  it('bots play whole games at three and six', () => {
+    for (const n of [3, 6]) {
+      const s = canasta.setup(bots(n), 20 + n, { target: 1500 });
+      simulate(canasta, s, 400000);
+      expect(s.phase).toBe('gameOver');
+      expect(canasta.standings!(s)).toHaveLength(n);
+    }
+  }, 240000);
+});

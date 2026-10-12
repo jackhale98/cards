@@ -19,7 +19,8 @@ describe('game picker', () => {
     expect(misfit(GAMES.holdem, 9)).toBeNull();
     expect(misfit(GAMES.canasta, 3)).toBeNull(); // a bot makes four
     expect(misfit(GAMES.freetable, 1)).toBe(GAMES.freetable.config.players.min > 1 ? `needs ${GAMES.freetable.config.players.min}+` : null);
-    expect(playersText(GAMES.canasta)).toBe('2 or 4');
+    expect(playersText(GAMES.canasta)).toBe('2–4 or 6');
+    expect(playersText(GAMES.euchre)).toBe('4 or 6');
     expect(playersText(GAMES.bridge)).toBe('4');
   });
 });

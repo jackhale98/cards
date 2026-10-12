@@ -4,7 +4,7 @@
   "name": "Canasta",
   "tagline": "Meld with your partner, freeze the pile, and build canastas of seven.",
   "icon": "♥",
-  "players": { "min": 2, "max": 4, "recommended": 4, "counts": [2, 4] },
+  "players": { "min": 2, "max": 6, "recommended": 4, "counts": [2, 3, 4, 6] },
   "bots": true,
   "deck": { "decks": 2, "jokers": 2 },
   "zones": [
@@ -14,6 +14,7 @@
     { "id": "melds", "perPlayer": true, "visibility": "all", "layout": "spread", "area": "strip", "hideEmpty": true, "scale": 0.55 }
   ],
   "rules": { "family": "canasta", "end": { "target": 5000 } },
+  "byPlayers": { "6": { "deck": { "decks": 3, "jokers": 2 } } },
   "options": [
     { "id": "target", "label": "Play to", "type": "number", "default": 5000, "min": 1500, "max": 10000, "step": 500 }
   ],
@@ -26,6 +27,8 @@
     "You need a canasta (two head to head) to go out: meld everything, or all but one card and discard it. Going out is worth 100, or 200 concealed (melding your whole hand in one turn, with a canasta of your own and nothing added to partner's melds — no minimum needed).",
     "With partners, you may ask “May I go out?” right after drawing. The answer binds: yes means you must, no means you can't this turn.",
     "When the stock runs out, play goes on as long as players take the discard — and you must take it if it matches your side's meld and isn't frozen. A red 3 drawn as the last card ends the play.",
-    "Red 3s score 100 each (800 for all four), but count against a side that hasn't melded. Cards left in hand count against you. First to 5000 wins."
+    "Red 3s score 100 each (800 for all four), but count against a side that hasn't melded. Cards left in hand count against you. First to 5000 wins.",
+    "Three players: 13 cards each, draw two and discard one. Everyone plays alone until someone takes the discard pile: they stay alone, and the other two become partners for the hand (their melds put together, red 3s kept apart). Scores are kept per player; pagat plays to 7,500.",
+    "Six players: three pairs, partners across; three packs and six jokers, 13 cards each. A side needs two canastas to go out. Red 3s: four are 400, five 1,000, all six 1,200. Pagat plays to 7,500."
   ]
 }
