@@ -38,6 +38,7 @@ const BY_FAMILY: Record<string, string> = {
   eights: 'Shedding',
   cheat: 'Shedding',
   palace: 'Shedding',
+  pinochle: 'Trick-taking',
   gofish: 'Family',
   corners: 'Family',
   blackjack: 'Casino',

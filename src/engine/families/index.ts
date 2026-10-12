@@ -10,6 +10,7 @@ import { freeFamily } from './free';
 import { goFishFamily } from './gofish';
 import { handFootFamily } from './handfoot';
 import { palaceFamily } from './palace';
+import { pinochleFamily } from './pinochle';
 import { pokerFamily } from './poker';
 import { rummyFamily } from './rummy';
 import { rummy500Family } from './rummy500';
@@ -28,6 +29,7 @@ export const FAMILIES: Record<string, (config: GameConfig) => GameModule> = {
   gofish: goFishFamily,
   handfoot: handFootFamily,
   palace: palaceFamily,
+  pinochle: pinochleFamily,
   canasta: canastaFamily,
   climbing: climbingFamily,
   cribbage: cribbageFamily,

@@ -26,6 +26,7 @@ src/games/my-game/
 | `palace`       | Palace / Shithead: beat the pile or pick it up, then face-up and blind face-down cards | `src/engine/families/palace.ts` |
 | `corners`      | Kings Corners: build down in alternating colours, kings in the corners | `src/engine/families/corners.ts` |
 | `handfoot`     | Hand and Foot: partnership canasta with a hand and a foot, four rounds | `src/engine/families/handfoot.ts` |
+| `pinochle`     | Partnership auction Pinochle: bid, pass four, meld, must-beat trick play | `src/engine/families/pinochle.ts` |
 
 `schemas/game.schema.json` describes every parameter, so editors like VS Code give you
 autocomplete and validation as you type (each file points at it with `$schema`). `pnpm test`

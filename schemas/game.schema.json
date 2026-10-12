@@ -952,6 +952,23 @@
               "const": "handfoot"
             }
           }
+        },
+        {
+          "required": [
+            "family",
+            "end"
+          ],
+          "additionalProperties": false,
+          "description": "Partnership auction Pinochle (single deck, four players).",
+          "properties": {
+            "family": {
+              "const": "pinochle"
+            },
+            "end": {
+              "type": "object",
+              "properties": { "target": { "type": "number" } }
+            }
+          }
         }
       ]
     },

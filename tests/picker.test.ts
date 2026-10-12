@@ -5,7 +5,7 @@ describe('game picker', () => {
   it('sorts every game into a section', () => {
     const by = (c: string) => GAME_LIST.filter((g) => categoryOf(g) === c).map((g) => g.config.id).sort();
     expect(by('Poker')).toEqual(['five-card-draw', 'holdem', 'omaha']);
-    expect(by('Trick-taking')).toEqual(['bridge', 'euchre', 'five-hundred', 'hearts', 'oh-hell', 'spades']);
+    expect(by('Trick-taking')).toEqual(['bridge', 'euchre', 'five-hundred', 'hearts', 'oh-hell', 'pinochle', 'spades']);
     expect(by('Rummy')).toEqual(['canasta', 'gin-rummy', 'hand-and-foot', 'rummy-500']);
     expect(by('Shedding')).toEqual(['cheat', 'crazy-eights', 'palace', 'president']);
     expect(by('Casino')).toEqual(['blackjack']);

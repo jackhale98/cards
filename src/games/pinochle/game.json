@@ -1,0 +1,30 @@
+{
+  "$schema": "../../../schemas/game.schema.json",
+  "id": "pinochle",
+  "name": "Pinochle",
+  "tagline": "Bid, pass cards with your partner, show your meld and take the counters.",
+  "icon": "♦",
+  "players": { "min": 4, "max": 4, "recommended": 4 },
+  "bots": true,
+  "deck": { "decks": 2, "ranks": [9, 10, 11, 12, 13, 14] },
+  "zones": [
+    { "id": "deck", "visibility": "none", "layout": "stack", "area": "none" },
+    { "id": "trick", "visibility": "all", "layout": "trick", "area": "center" },
+    { "id": "hand", "perPlayer": true, "visibility": "owner", "layout": "fan", "area": "hand" },
+    { "id": "meld", "perPlayer": true, "visibility": "all", "layout": "spread", "area": "strip", "hideEmpty": true, "scale": 0.55 },
+    { "id": "won", "perPlayer": true, "visibility": "none", "layout": "stack", "area": "none" }
+  ],
+  "rules": { "family": "pinochle", "end": { "target": 1500 } },
+  "options": [
+    { "id": "target", "label": "Play to", "type": "number", "default": 1500, "min": 500, "max": 3000, "step": 250 }
+  ],
+  "rulesSummary": [
+    "48 cards: two each of A, 10, K, Q, J and 9 in every suit, ranked in that order (the 10 beats the king). Partners sit across; 12 cards each.",
+    "Bid in tens from 250. Once you pass you're out; if the other three pass, the dealer takes it at 250.",
+    "The winning bidder names trumps, takes four cards from their partner and passes four back.",
+    "Everyone's meld goes on the table. In trumps: run (A 10 K Q J) 150, royal marriage 40, each 9 (dix) 10. Other marriages 20; pinochle (Q♠ J♦) 40, double 300; aces around 100, kings 80, queens 60, jacks 40 (both of each: ×10).",
+    "If the bidders' meld plus all 250 points in play can't reach the bid, they're set at once. The declarer may also throw the hand in.",
+    "Play: follow suit and beat the winning card if you can; if you can't follow, trump — higher than any trump already played, if you can.",
+    "Aces, 10s and kings taken score 10 each, the last trick 10 more. Make your bid and score meld plus points; fail and lose the bid. The other side scores too, if it takes at least one point. First to 1500."
+  ]
+}
