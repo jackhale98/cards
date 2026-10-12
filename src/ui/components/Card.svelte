@@ -148,12 +148,12 @@
     font-weight: 700;
   }
 
+  /* the table's card back (see ui/looks.ts): a pattern over the base colour */
   .back {
     background:
-      radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.12) 0 18%, transparent 19%),
-      repeating-linear-gradient(45deg, transparent 0 0.35em, rgba(255, 255, 255, 0.07) 0.35em 0.7em),
-      repeating-linear-gradient(-45deg, transparent 0 0.35em, rgba(255, 255, 255, 0.07) 0.35em 0.7em),
+      var(--back-pattern),
       linear-gradient(160deg, var(--back-a), color-mix(in srgb, var(--back-a) 70%, black));
+    background-size: var(--back-tile, auto);
     box-shadow:
       0 0.08em 0.2em rgba(0, 0, 0, 0.3),
       0 0.6em 1.2em -0.4em rgba(0, 0, 0, 0.5),

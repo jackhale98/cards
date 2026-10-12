@@ -5,6 +5,7 @@
   import Lobby from './ui/screens/Lobby.svelte';
   import Table from './ui/screens/Table.svelte';
   import TvScreen from './ui/screens/TvScreen.svelte';
+  import { applyLook } from './ui/looks';
 
   $effect(() => {
     void app.sync();
@@ -12,6 +13,8 @@
 
   const route = $derived(app.route);
   const view = $derived(app.view);
+  // the table's card backs and cloth on every screen at the table (the default elsewhere)
+  $effect(() => applyLook(route.name === 'home' ? null : view?.lobby.look));
 
   // seconds spent looking for the table, for progress and troubleshooting hints
   let now = $state(Date.now());

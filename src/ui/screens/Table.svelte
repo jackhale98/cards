@@ -10,6 +10,7 @@
   import Seat from '../components/Seat.svelte';
   import Zone from '../components/Zone.svelte';
   import Sheet from '../components/Sheet.svelte';
+  import LookPicker from '../components/LookPicker.svelte';
   import AvatarBadge from '../components/AvatarBadge.svelte';
   import Track from '../components/Track.svelte';
   import NightBoard from '../components/NightBoard.svelte';
@@ -154,7 +155,7 @@
   );
 
   // ---- chrome -----------------------------------------------------------------------------
-  let sheet = $state<'menu' | 'scores' | 'tv' | null>(null);
+  let sheet = $state<'menu' | 'scores' | 'tv' | 'look' | null>(null);
   let bannerHidden = $state<number | null>(null);
   const showBanner = $derived(!!status.banner && bannerHidden !== s.v);
   let portraitOk = $state(false);
@@ -476,6 +477,7 @@
         </button>
       {/if}
       {#if !display}<button class="btn" onclick={() => (sheet = 'tv')}>Show on a TV</button>{/if}
+      {#if app.isHost}<button class="btn" onclick={() => (sheet = 'look')}>Card backs & cloth</button>{/if}
       <button class="btn" onclick={() => { navigator.clipboard?.writeText(inviteUrl(view.lobby.code)); app.say('Invite link copied'); }}>Copy invite link</button>
       {#if app.isHost}
         <button class="btn" onclick={() => { app.host?.endGame(); sheet = null; }}>Back to lobby</button>
@@ -487,6 +489,10 @@
       <div class="eyebrow">How to play {game.config.name}</div>
       <ul class="rules">{#each game.config.rulesSummary as r}<li>{r}</li>{/each}</ul>
     {/if}
+  </Sheet>
+{:else if sheet === 'look'}
+  <Sheet title="The table's look" onclose={() => (sheet = null)}>
+    <LookPicker look={view.lobby.look} onpick={app.isHost ? (l) => app.setLook(l) : undefined} />
   </Sheet>
 {:else if sheet === 'scores'}
   <Sheet title="Scores" onclose={() => (sheet = null)}>
@@ -812,7 +818,7 @@
   .banner {
     position: absolute;
     z-index: 5;
-    background: rgba(8, 26, 20, 0.94);
+    background: color-mix(in srgb, var(--felt-3) 94%, transparent);
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);

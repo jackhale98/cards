@@ -6,6 +6,8 @@
   import AvatarBadge from '../components/AvatarBadge.svelte';
   import AvatarPicker from '../components/AvatarPicker.svelte';
   import GameIcon from '../components/GameIcon.svelte';
+  import LookPicker from '../components/LookPicker.svelte';
+  import { backOf, clothOf } from '../looks';
   import NetStatus from '../components/NetStatus.svelte';
   import { keepAwake } from '../wakeLock';
   import NightBoard from '../components/NightBoard.svelte';
@@ -59,6 +61,7 @@
   let picking = $state(false);
   let tv = $state(false);
   let settings = $state(false);
+  let looking = $state(false);
   // who plays: the table can hold more people than the game seats
   const seatsMax = $derived(game.config.players.counts ? Math.max(...game.config.players.counts) : game.config.players.max);
   const playing = $derived(lobby.seats.filter((s) => !s.out).length);
@@ -127,6 +130,12 @@
     <p class="small">{game.config.tagline}</p>
     {#if game.config.options?.length}{@render optionList()}{/if}
     {#if !host}<p class="small">The host chooses the settings.</p>{/if}
+  </Sheet>
+{/if}
+
+{#if looking}
+  <Sheet title="The table's look" onclose={() => (looking = false)}>
+    <LookPicker look={lobby.look} onpick={host ? (l) => app.setLook(l) : undefined} />
   </Sheet>
 {/if}
 
@@ -218,6 +227,7 @@
       </ul>
       {#if sittingOut && host}<p class="small">More people than {game.config.name} seats: whoever sits out plays the next game. Tap In / Out to choose.</p>{/if}
       {#if lobby.spectators}<p class="small">+ {lobby.spectators} watching</p>{/if}
+      <button class="btn small-btn look-btn" onclick={() => (looking = true)}>🎴 {backOf(lobby.look?.back).name} backs · {clothOf(lobby.look?.cloth).name}</button>
       {#if host && splittable.length >= 1}
         <button class="btn small-btn split-btn" onclick={openSplit}>⑂ Split the table</button>
       {/if}
@@ -461,8 +471,10 @@
     border-color: var(--gold);
     color: #1a1408;
   }
-  .split-btn {
+  .split-btn,
+  .look-btn {
     margin-top: 0.5rem;
+    margin-right: 0.4rem;
   }
   .pick {
     list-style: none;

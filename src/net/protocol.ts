@@ -68,6 +68,8 @@ export interface Lobby {
   parent?: string;
   /** Tables that split off from this one and haven't come back yet. */
   splits?: SplitTable[];
+  /** The table's card back and cloth, chosen by the host (ids from ui/looks.ts). */
+  look?: { back: string; cloth: string };
 }
 
 /** Everything a device needs to render: personalised and redacted by the host. */

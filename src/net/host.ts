@@ -477,6 +477,12 @@ export class Host {
     this.broadcast();
   }
 
+  /** The table's card back and cloth (any time, mid-game too). */
+  setLook(look: { back: string; cloth: string }) {
+    this.lobby.look = { back: String(look.back).slice(0, 24), cloth: String(look.cloth).slice(0, 24) };
+    this.broadcast();
+  }
+
   /** The host changing their own name/avatar. */
   updateSelf(name: string, avatar?: Avatar) {
     const me = this.lobby.seats.find((s) => s.host)!;

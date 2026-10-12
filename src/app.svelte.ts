@@ -259,6 +259,20 @@ class App {
     setTimeout(() => this.go(`/room/${parent}`), 400);
   }
 
+  /** The card back and cloth this device last chose as host: new tables start with them. */
+  get savedLook(): { back: string; cloth: string } | null {
+    try {
+      const l = JSON.parse(store.get('cards.look') ?? 'null');
+      return l && typeof l.back === 'string' && typeof l.cloth === 'string' ? l : null;
+    } catch {
+      return null;
+    }
+  }
+  setLook(look: { back: string; cloth: string }) {
+    store.set('cards.look', JSON.stringify(look));
+    this.host?.setLook(look);
+  }
+
   /** Split the table (host only): these people go to a new table that `newHost` hosts. */
   split(ids: string[], newHost: string) {
     const code = this.host?.split(ids, newHost);
@@ -324,7 +338,11 @@ class App {
     this.isHost = true;
     this.connected = true;
     if (restore) host.resume();
-    else host.broadcast();
+    else {
+      const look = this.savedLook;
+      if (look) host.lobby.look = look;
+      host.broadcast();
+    }
     this.startWatching();
   }
 

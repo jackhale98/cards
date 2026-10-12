@@ -20,6 +20,9 @@ the middle of the table. It needs no accounts or app store, and there's no serve
   in Go Fish and Cheat difficulty is memory and card counting.
 - **Sound:** a card snapping down, a deal, chips, a soft chime when it's your turn (handy with your
   phone face-down) and a fanfare at the end, all made in the browser. Mute it from the table menu.
+- **The table's look:** the host picks the card backs (nine designs: Classic, Crimson, Forest, Art
+  Deco, Lamplight, Tartan, Night sky, Ocean, Rose) and the table cloth (green baize, navy, burgundy,
+  plum, oak, charcoal) in the lobby or mid-game; every phone and the TV follow. All drawn in CSS.
 - **Pick your look:** each player chooses an emoji avatar and colour, and every seat is labelled
   *your left*, *across* or *your right*.
 - **Built for landscape phones:** fanned hand, tap or swipe up to play, haptics, and keeps the screen awake.
@@ -142,7 +145,7 @@ Adding a game is usually a single JSON file. See **[docs/ADDING_A_GAME.md](docs/
 
 1. ✅ Engine, Free Table, multiplayer, lobby, poker & trick-taking families, avatars
 2. ✅ Rummy family (Gin), ✅ Cribbage, ✅ Euchre, ✅ 500, ✅ Contract Bridge
-3. Polish: sounds, PWA offline install, offline QR pairing, custom card backs
+3. Polish: ✅ sounds, ✅ card backs and cloths (next: a back from your own photo), PWA offline install, offline QR pairing
 4. Remote play (TURN fallback), leaderboards, tournaments, host migration
 
 ## License

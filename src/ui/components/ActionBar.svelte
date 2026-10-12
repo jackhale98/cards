@@ -190,7 +190,7 @@
     background: linear-gradient(rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0.1) 70%);
   }
   .menu {
-    background: rgba(8, 26, 20, 0.96);
+    background: color-mix(in srgb, var(--felt-3) 96%, transparent);
     position: fixed;
     right: calc(12px + var(--safe-r));
     bottom: 12px;
@@ -238,7 +238,7 @@
     flex-direction: column;
     gap: 0.5rem;
     animation: pop 0.2s var(--ease-out);
-    background: rgba(8, 26, 20, 0.96);
+    background: color-mix(in srgb, var(--felt-3) 96%, transparent);
     max-height: calc(100dvh - 24px);
     overflow: auto;
   }

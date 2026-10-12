@@ -152,7 +152,7 @@
     text-transform: uppercase;
     white-space: nowrap;
     color: var(--ink-dim);
-    background: #0c2a21;
+    background: color-mix(in srgb, var(--felt-2) 55%, var(--felt-3));
     border: 1px solid var(--line);
   }
   .rel.now {

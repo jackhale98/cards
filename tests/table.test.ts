@@ -178,3 +178,14 @@ describe('splitting the table', () => {
     expect(clients[0].view!.lobby.night!.games).toHaveLength(2);
   });
 });
+
+describe('the table’s look', () => {
+  it('is kept in the lobby for everyone, and unknown ids fall back to the classic look', async () => {
+    const host = new Host(null, 'LOOK', { cid: 'h', name: 'Hana' });
+    host.setLook({ back: 'tartan', cloth: 'wood' });
+    expect(host.viewFor('h').lobby.look).toEqual({ back: 'tartan', cloth: 'wood' });
+    const { backOf, clothOf } = await import('../src/ui/looks');
+    expect(backOf('nope').id).toBe('classic');
+    expect(clothOf(undefined).id).toBe('green');
+  });
+});

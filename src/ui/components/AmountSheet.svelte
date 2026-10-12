@@ -119,7 +119,7 @@
     display: flex;
     flex-direction: column;
     gap: 0.4rem;
-    background: rgba(8, 26, 20, 0.97);
+    background: color-mix(in srgb, var(--felt-3) 97%, transparent);
     animation: pop 0.2s var(--ease-out);
     max-height: calc(100dvh - 12px);
     overflow: auto;
