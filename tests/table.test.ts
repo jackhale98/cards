@@ -61,7 +61,7 @@ describe('more people than the game seats', () => {
 
   it('seats everyone at the table; the latest to arrive sit out', () => {
     const { host } = table(['Ann', 'Ben', 'Cal', 'Dee', 'Eve']);
-    host.setGame('hearts');
+    host.setGame('bridge');
     expect(host.lobby.seats).toHaveLength(6);
     expect(host.lobby.seats.filter((s) => !s.out).map((s) => s.name)).toEqual(['Hana', 'Ann', 'Ben', 'Cal']);
     expect(host.canStart()).toBeNull();
@@ -69,7 +69,7 @@ describe('more people than the game seats', () => {
 
   it('a newcomer takes a bot’s place', () => {
     const { host, clients } = table(['Ann']);
-    host.setGame('hearts');
+    host.setGame('bridge');
     host.addBot();
     host.addBot();
     expect(host.lobby.seats.filter((s) => s.bot)).toHaveLength(2);
@@ -85,7 +85,7 @@ describe('more people than the game seats', () => {
   it('those sitting out watch, can’t act, and play the next game', () => {
     const { host, clients } = table(['Ann', 'Ben', 'Cal', 'Dee']);
     const [, , , dee] = clients;
-    host.setGame('hearts');
+    host.setGame('bridge');
     // the host picks who plays: Ann sits out instead of Dee
     host.setPlaying('ann', false);
     host.setPlaying('dee', true);
