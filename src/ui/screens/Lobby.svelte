@@ -1,7 +1,7 @@
 <script lang="ts">
   import { app, inviteUrl } from '../../app.svelte';
   import { CATEGORIES, categoryOf, GAME_LIST, getGame, GAMES, misfit, playersText, searchGames } from '../../games';
-  import type { GameModule } from '../../engine/types';
+  import type { GameInfo } from '../../games';
   import type { View } from '../../net/protocol';
   import AvatarBadge from '../components/AvatarBadge.svelte';
   import AvatarPicker from '../components/AvatarPicker.svelte';
@@ -134,7 +134,7 @@
   const changed = $derived((game.config.options ?? []).filter((o) => lobby.options[o.id] !== undefined && lobby.options[o.id] !== o.default).length);
 </script>
 
-{#snippet tile(g: GameModule)}
+{#snippet tile(g: GameInfo)}
   {@const why = misfit(g, people)}
   <button class="game" data-game={g.config.id} class:active={g.config.id === lobby.gameId} class:misfit={!!why} onclick={() => host?.setGame(g.config.id)}>
     <span class="gicon"><GameIcon id={g.config.id} icon={g.config.icon} size={40} /></span>

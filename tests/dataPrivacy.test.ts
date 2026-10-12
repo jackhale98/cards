@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildDeck } from '../src/engine/cards';
 import { canSee, redact } from '../src/engine/redact';
 import type { GameModule, GameState } from '../src/engine/types';
-import { GAME_LIST } from '../src/games';
+import { GAME_LIST } from './games';
 
 /**
  * `redact` hides cards in zones, but a game's `data` goes out as it is unless the family redacts

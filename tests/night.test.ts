@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { nightPoints, placesFromScores, standingsOf } from '../src/engine/state';
 import type { GameState } from '../src/engine/types';
-import { GAMES } from '../src/games';
+import { GAMES } from './games';
 import { Host } from '../src/net/host';
 import { nightTotals } from '../src/net/night';
 

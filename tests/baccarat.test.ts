@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { bankerDraws, baccaratTotal, type BaccaratData } from '../src/engine/families/baccarat';
 import type { GameModule, GameState } from '../src/engine/types';
-import { GAMES } from '../src/games';
+import { GAMES } from './games';
 
 const g = GAMES.baccarat as GameModule<BaccaratData>;
 const people = (n: number) => Array.from({ length: n }, (_, i) => ({ name: `P${i}` }));

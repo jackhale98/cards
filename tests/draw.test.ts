@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { PokerData } from '../src/engine/families/poker';
 import type { GameModule, GameState } from '../src/engine/types';
-import { GAMES } from '../src/games';
+import { GAMES } from './games';
 
 const g = GAMES['five-card-draw'] as GameModule<PokerData>;
 const people = (n: number) => Array.from({ length: n }, (_, i) => ({ name: `P${i}` }));

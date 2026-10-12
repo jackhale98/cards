@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { fits, type CornersData } from '../src/engine/families/corners';
 import type { GameModule, GameState } from '../src/engine/types';
-import { GAMES } from '../src/games';
+import { GAMES } from './games';
 
 const g = GAMES['kings-corners'] as GameModule<CornersData>;
 const people = (n: number) => Array.from({ length: n }, (_, i) => ({ name: `P${i}` }));

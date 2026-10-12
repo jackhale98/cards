@@ -1,5 +1,5 @@
 import { it } from 'vitest';
-import { GAME_LIST } from '../src/games';
+import { GAME_LIST } from './games';
 import type { GameModule, GameState } from '../src/engine/types';
 
 /**

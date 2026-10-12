@@ -1,6 +1,8 @@
 import type { Action } from './engine/types';
 import { newBackupKey, open as openBackup } from './net/backup';
+import { workerBrain, type Brain } from './net/brain';
 import { Client } from './net/client';
+import { loadRules } from './games';
 import { Host, type HostSnapshot } from './net/host';
 import { AVATAR_COLORS, AVATAR_EMOJI, cleanAvatar, makeRoomCode, type Avatar, type Night, type View } from './net/protocol';
 import type { MultiTransport, NetworkStatus } from './net/multiTransport';
@@ -135,6 +137,11 @@ interface SavedHost {
 }
 
 class App {
+  /** Where the host's bots think: a background worker, started on first use and kept. */
+  private get brain(): Brain {
+    return (this._brain ??= workerBrain());
+  }
+  private _brain: Brain | null = null;
   route = $state<Route>((takeInvite(), parseHash()));
   name = $state(store.get('cards.name') ?? '');
   avatar = $state.raw<Avatar>(loadAvatar());
@@ -346,11 +353,22 @@ class App {
     const backupKey = relay ? newBackupKey() : undefined;
     const takeoverToken = relay ? newBackupKey() : undefined;
     if (relay && backupKey) void relay.deposit(backupKey, takeoverToken);
+    // a game in progress needs its rules before the table can reopen
+    if (restore?.state) {
+      try {
+        await loadRules(restore.state.game);
+      } catch {
+        this.say('Couldn’t load the rules for this game — check your connection');
+        return;
+      }
+      if (this.currentCode !== code) return this.transport?.leave();
+    }
     const split = this.pendingSplit?.code === code ? this.pendingSplit : null;
     this.pendingSplit = null;
     const host = new Host(this.transport, code, { cid: this.cid, name: this.name || 'Host', avatar: this.avatar, key: seatKey() }, restore, {
       backupKey,
       takeoverToken,
+      brain: this.brain,
       takeover: how.takeover,
       night: split?.night,
       parent: split?.parent,

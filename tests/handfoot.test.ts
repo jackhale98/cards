@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { groupHF, kindOf, maxWilds, type HandFootData } from '../src/engine/families/handfoot';
 import { isHidden, redact } from '../src/engine/redact';
 import type { GameModule, GameState } from '../src/engine/types';
-import { GAMES } from '../src/games';
+import { GAMES } from './games';
 
 const g = GAMES['hand-and-foot'] as GameModule<HandFootData>;
 const people = (n: number) => Array.from({ length: n }, (_, i) => ({ name: `P${i}` }));

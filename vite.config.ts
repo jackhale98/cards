@@ -19,5 +19,7 @@ export default defineConfig({
   plugins: [svelte()],
   define: { __APP_VERSION__: JSON.stringify(version()) },
   build: { target: 'es2022' },
-  test: { include: ['tests/**/*.test.ts'], environment: 'node' },
+  // (the bots' worker loads each game's rules when needed, like the app: that takes ES modules)
+  worker: { format: 'es' },
+  test: { include: ['tests/**/*.test.ts'], environment: 'node', setupFiles: ['tests/setup.ts'] },
 });

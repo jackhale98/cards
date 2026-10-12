@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { cardPoints, groupMeld, minimumMeld, type CanastaData } from '../src/engine/families/canasta';
 import type { GameModule, GameState } from '../src/engine/types';
-import { GAMES } from '../src/games';
+import { GAMES } from './games';
 
 const g = GAMES['canasta'] as GameModule<CanastaData>;
 const bots = (n: number) => Array.from({ length: n }, (_, i) => ({ name: `P${i}`, bot: true }));

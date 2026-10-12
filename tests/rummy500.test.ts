@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { asMeld, canUse, findMelds, handValue, layoffOptions, meldOptions, meldValue, planLabel, type Rummy500Data } from '../src/engine/families/rummy500';
 import type { GameModule, GameState } from '../src/engine/types';
-import { GAMES } from '../src/games';
+import { GAMES } from './games';
 
 const g = GAMES['rummy-500'] as GameModule<Rummy500Data>;
 const bots = (n: number) => Array.from({ length: n }, (_, i) => ({ name: `P${i}`, bot: true }));

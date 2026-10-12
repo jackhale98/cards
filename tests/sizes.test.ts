@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { TrickData } from '../src/engine/families/trick';
 import type { GameModule, GameState } from '../src/engine/types';
-import { GAMES } from '../src/games';
+import { GAMES } from './games';
 
 /**
  * Games at the other table sizes pagat gives (game.json `byPlayers`): the deck, the deal and the

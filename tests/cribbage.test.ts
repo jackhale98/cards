@@ -59,7 +59,7 @@ describe('cribbage pegging', () => {
 
 import type { CribData } from '../src/engine/families/cribbage';
 import type { GameModule, GameState } from '../src/engine/types';
-import { GAMES } from '../src/games';
+import { GAMES } from './games';
 
 const crib = GAMES.cribbage as GameModule<CribData>;
 const bots = (n: number) => Array.from({ length: n }, (_, i) => ({ name: `P${i}`, bot: true }));

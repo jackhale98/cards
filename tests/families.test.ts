@@ -4,7 +4,7 @@ import type { TrickData } from '../src/engine/families/trick';
 import { bestWithHole } from '../src/engine/lib/pokerEval';
 import { seatRelation } from '../src/engine/state';
 import type { GameModule, GameState } from '../src/engine/types';
-import { GAMES } from '../src/games';
+import { GAMES } from './games';
 
 /** Bots play every seat; "next hand" is pressed whenever a round ends. */
 function playOut<D>(g: GameModule<D>, s: GameState<D>, onRound?: (s: GameState<D>) => void) {

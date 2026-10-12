@@ -3,7 +3,7 @@ import { handTotal, type BlackjackData } from '../src/engine/families/blackjack'
 import type { CheatData } from '../src/engine/families/cheat';
 import type { GoFishData } from '../src/engine/families/gofish';
 import type { GameModule, GameState } from '../src/engine/types';
-import { GAMES } from '../src/games';
+import { GAMES } from './games';
 
 const people = (n: number) => Array.from({ length: n }, (_, i) => ({ name: `P${i}` }));
 const bots = (n: number) => Array.from({ length: n }, (_, i) => ({ name: `B${i}`, bot: true }));

@@ -1,0 +1,9 @@
+dist
+node_modules
+pnpm-lock.yaml
+relay/node_modules
+relay/.wrangler
+test-results
+playwright-report
+.claude
+public

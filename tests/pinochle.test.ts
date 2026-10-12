@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { meldOf, type PinochleData } from '../src/engine/families/pinochle';
 import type { GameModule, GameState } from '../src/engine/types';
-import { GAMES } from '../src/games';
+import { GAMES } from './games';
 
 const g = GAMES.pinochle as GameModule<PinochleData>;
 const people = (n: number) => Array.from({ length: n }, (_, i) => ({ name: `P${i}` }));

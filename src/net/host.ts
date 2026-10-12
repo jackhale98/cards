@@ -3,7 +3,8 @@ import { randomSeed } from '../engine/rng';
 import { nightPoints, standingsOf } from '../engine/state';
 import { RuleError, type Action, type GameModule, type GameState } from '../engine/types';
 import { checkAction } from '../engine/validate';
-import { getGame, GAMES } from '../games';
+import { getGame, GAMES, loadRules, rulesFor } from '../games';
+import { inlineBrain, type Brain, type Pick } from './brain';
 import {
   AVATAR_COLORS,
   AVATAR_EMOJI,
@@ -40,7 +41,7 @@ export const IDENTITIES_PER_MINUTE = 3;
 export const TABLE_MAX = 16;
 
 /** The most players a game seats. */
-const seatsIn = (g: GameModule) => (g.config.players.counts ? Math.max(...g.config.players.counts) : g.config.players.max);
+const seatsIn = (g: { config: GameModule['config'] }) => (g.config.players.counts ? Math.max(...g.config.players.counts) : g.config.players.max);
 
 export interface HostSnapshot {
   lobby: Lobby;
@@ -57,6 +58,9 @@ export class Host {
   lobby: Lobby;
   state: GameState | null = null;
   private module: GameModule | null = null;
+  private readonly brain: Brain;
+  /** Counts requests to the brain: an answer to an older one (the table has moved on) is ignored. */
+  private thinking = 0;
   private history: GameState[] = [];
   /**
    * transport peer id → client id. Table screens are `screen:<cid>` and people the host won't seat
@@ -96,8 +100,14 @@ export class Host {
     host: { cid: string; name: string; avatar?: Avatar; key?: string },
     restore?: HostSnapshot,
     /** `takeover`: this device is a player taking over from a host that has gone. */
-    opts: { backupKey?: string; takeoverToken?: string; takeover?: boolean; night?: Night; parent?: string } = {},
+    /** `brain`: where bots think (by default right here; the app gives a background worker). */
+    opts: { backupKey?: string; takeoverToken?: string; takeover?: boolean; night?: Night; parent?: string; brain?: Brain } = {},
   ) {
+    this.brain = opts.brain ?? inlineBrain();
+    this.brain.onError = (e, game, phase) => {
+      console.error(e);
+      report('bot', e, { game, phase, action: 'think' });
+    };
     this.backupKey = opts.backupKey;
     this.takeoverToken = opts.takeoverToken;
     this.keys = { ...(restore?.keys ?? {}) };
@@ -119,7 +129,8 @@ export class Host {
       }
       this.lobby.seats.forEach((s) => (s.connected = !!s.bot || !!s.host));
       this.state = restore.state;
-      if (this.state) this.module = getGame(this.state.game);
+      // (the app loads a saved game's rules before reopening it: see loadRules)
+      if (this.state) this.module = rulesFor(this.state.game) ?? missing(this.state.game);
       // (a game saved before people could sit out: everyone at the table is in it)
       if (this.state && !this.lobby.playing) this.lobby.playing = this.lobby.seats.map((s) => s.id);
     } else {
@@ -145,6 +156,8 @@ export class Host {
       this.heartbeat = setInterval(() => this.beat(), HEARTBEAT_MS);
     }
     this.v = this.state?.v ?? 0;
+    // the game picked in the lobby: fetch its rules now, so dealing is instant
+    if (!this.state) void loadRules(this.lobby.gameId).catch(() => {});
   }
 
   get hostCid() {
@@ -430,23 +443,36 @@ export class Host {
       return;
     }
     if (!module.bot) return;
-    for (const p of s.players) {
-      if (!p.bot) continue;
-      const a = this.think(module, s, p.seat);
-      if (!a) continue;
-      this.timer = setTimeout(() => {
-        const err = this.applyAs(p.seat, a);
-        if (!err) return;
-        console.warn(`Bot ${p.name}: ${err}`, a);
-        // (a bot proposing a move the rules refuse is a bug in the bot)
-        report('bot', new Error(err), { game: module.config.id, phase: s.phase, action: a.type });
-        // never let a bot's mistake freeze the table: fall back to the most passive move on offer
-        const offered = module.actions(this.state!, p.seat);
-        const safe = ['check', 'call', 'pass', 'decline', 'go', 'fold'].map((t) => offered.find((o) => o.type === t)).find(Boolean);
-        if (safe && !safe.select && !safe.amount && !safe.choose) this.applyAs(p.seat, { type: safe.type });
-      }, 650 + Math.random() * 600);
-      return;
+    const seats = s.players.filter((p) => p.bot).map((p) => p.seat);
+    if (!seats.length) return;
+    // bots think (in the background, in the app), then move after a natural pause
+    const turn = ++this.thinking;
+    const asked = Date.now();
+    const pause = 650 + Math.random() * 600;
+    const then = (pick: Pick | null) => {
+      if (turn !== this.thinking || this.state !== s || !pick) return; // (the table moved on)
+      this.timer = setTimeout(() => this.botMove(module, pick), Math.max(0, pause - (Date.now() - asked)));
+    };
+    let pick: ReturnType<Brain['think']>;
+    try {
+      pick = this.brain.think(module.config.id, s, seats);
+    } catch (e) {
+      return this.brain.onError(e, module.config.id, s.phase);
     }
+    if (pick instanceof Promise) void pick.then(then, (e) => this.brain.onError(e, module.config.id, s.phase));
+    else then(pick);
+  }
+
+  private botMove(module: GameModule, { seat, action: a }: Pick) {
+    const err = this.applyAs(seat, a);
+    if (!err) return;
+    console.warn(`Bot ${seat}: ${err}`, a);
+    // (a bot proposing a move the rules refuse is a bug in the bot)
+    report('bot', new Error(err), { game: module.config.id, phase: this.state?.phase ?? '', action: a.type });
+    // never let a bot's mistake freeze the table: fall back to the most passive move on offer
+    const offered = module.actions(this.state!, seat);
+    const safe = ['check', 'call', 'pass', 'decline', 'go', 'fold'].map((t) => offered.find((o) => o.type === t)).find(Boolean);
+    if (safe && !safe.select && !safe.amount && !safe.choose) this.applyAs(seat, { type: safe.type });
   }
 
   /** Real-time games: each bot's planned move, its key (to tell when the plan changes) and its timer. */
@@ -526,6 +552,7 @@ export class Host {
   private clearTimers() {
     if (this.timer) clearTimeout(this.timer);
     this.timer = null;
+    this.thinking++;
     for (const plan of this.botPlans.values()) clearTimeout(plan.timer);
     this.botPlans.clear();
   }
@@ -535,6 +562,8 @@ export class Host {
   setGame(gameId: string) {
     if (this.lobby.started) return;
     const g = getGame(gameId);
+    // fetch its rules now, while people settle in, so dealing is instant
+    void loadRules(gameId).catch(() => {});
     this.lobby.gameId = gameId;
     this.lobby.options = defaultOptions(g);
     if (!g.bot) this.lobby.seats = this.lobby.seats.filter((s) => !s.bot);
@@ -707,7 +736,16 @@ export class Host {
 
   start() {
     if (this.canStart()) return;
-    this.module = getGame(this.lobby.gameId);
+    const module = rulesFor(this.lobby.gameId);
+    if (!module) {
+      // (rules still downloading: deal as soon as they're here)
+      void loadRules(this.lobby.gameId).then(
+        () => !this.lobby.started && this.start(),
+        () => this.onLocalError('Couldn’t load the rules for this game — check your connection and try again'),
+      );
+      return;
+    }
+    this.module = module;
     const players = this.players();
     this.lobby.playing = players.map((s) => s.id);
     this.lobby.started = true;
@@ -830,6 +868,10 @@ function cleanNightGame(x: unknown): NightGame | null {
   return { game: g.game.slice(0, 40), name: g.name.slice(0, 40), at: g.at, results };
 }
 
-export function defaultOptions(g: GameModule): Record<string, number | boolean> {
+function missing(id: string): never {
+  throw new Error(`The rules for ${id} aren't loaded (loadRules first)`);
+}
+
+export function defaultOptions(g: { config: GameModule['config'] }): Record<string, number | boolean> {
   return Object.fromEntries((g.config.options ?? []).map((o) => [o.id, o.default]));
 }

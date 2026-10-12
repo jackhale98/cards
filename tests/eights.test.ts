@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { eightsPoints, type EightsData } from '../src/engine/families/eights';
 import type { GameModule, GameState } from '../src/engine/types';
-import { GAMES } from '../src/games';
+import { GAMES } from './games';
 
 const g = GAMES['crazy-eights'] as GameModule<EightsData>;
 const people = (n: number) => Array.from({ length: n }, (_, i) => ({ name: `P${i}` }));

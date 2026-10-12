@@ -179,8 +179,9 @@ game's own rules (fix a seed, set cards straight into `s.zones[…]` for a scena
 
 1. `src/games/<id>/game.json` (copy the closest game; `$schema` gives autocomplete).
 2. Anything new in a family → its engine, `schemas/game.schema.json`, and the table above.
-3. A new family → `src/engine/families/<name>.ts`, registered in `families/index.ts` and given
-   a picker section in `BY_FAMILY`.
+3. A new family → `src/engine/families/<name>.ts`, registered in `families/index.ts` (a lazy
+   import), its traits (bots? bot strengths? real time?) in `families/traits.ts`, and a picker
+   section in `BY_FAMILY`. `tests/traits.test.ts` checks the traits against the engine.
 4. Optional: a picker drawing in `src/ui/components/GameIcon.svelte`.
 5. `tests/engine.test.ts`, `tests/picker.test.ts`, `tests/<id>.test.ts`; then `pnpm verify`.
 6. The game list in `README.md`.

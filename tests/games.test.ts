@@ -3,7 +3,7 @@ import type { Action, GameModule, GameState } from '../src/engine/types';
 import { buildDeck } from '../src/engine/cards';
 import type { TrickData } from '../src/engine/families/trick';
 import type { PokerData } from '../src/engine/families/poker';
-import { GAMES } from '../src/games';
+import { GAMES } from './games';
 
 const hearts = GAMES.hearts as GameModule<TrickData>;
 const holdem = GAMES.holdem as GameModule<PokerData>;

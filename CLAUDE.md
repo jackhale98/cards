@@ -28,12 +28,15 @@ src/engine/            pure TS: no DOM, no network, no UI
   cards.ts rng.ts      card ids ("7C", "10H", "XA" jokers), decks; seeded mulberry32 shuffle
   redact.ts            what each viewer may see: placeholders for unseen cards
   validate.ts          checkAction: an incoming action against the specs that were offered
-  families/            one engine per kind of game; index.ts maps rules.family → engine
+  families/            one engine per kind of game; index.ts loads them on demand (rules.family →
+                       engine), traits.ts says which have bots / real-time play without loading them
   lib/                 betting, pokerEval, trickTaking, passing, melds, cribbageScore
   bots/search.ts       Monte Carlo search bots any family can plug into
 src/games/<id>/game.json   a game = a family plus parameters (schemas/game.schema.json)
-src/games/index.ts     registry (import.meta.glob), picker sections, picker search
+src/games/index.ts     registry: game files load with the app (GameInfo), rules only when picked
+                       (loadRules / rulesFor); picker sections and search
 src/net/host.ts        the authoritative host: seats, actions, bots, views, backups
+src/net/brain.ts       where bots think: botWorker.ts (a Web Worker) in the app, inline in tests
 src/net/client.ts      a player's (or TV's) connection to the host
 src/net/protocol.ts    every message between devices
 src/net/*Transport.ts  relay (ours), trystero (public WebRTC networks), local, multi (several at once)
@@ -59,6 +62,8 @@ docs/ADDING_A_GAME.md  how to add a game: read it before touching families or ga
   a connection only with that seat's key, which a client sends only to the host. Clients accept
   host messages only from the host (`Client.isHost`: our relay vouches for it; elsewhere the first
   host found). Treat every message as hostile input: check types and sizes before use.
+- **Rules load lazily.** UI and lobby code use `getGame(id)` (config and traits only). Only the
+  host touches rules (`rulesFor`), after `loadRules`. Tests get every engine from `tests/games.ts`.
 - **Game state is plain JSON** (it's cloned, sent, persisted, sealed into backups). No classes,
   Maps or functions in `GameState`.
 - **Randomness that changes the game comes from the seeded RNG in the state** (`shuffle(arr, s)`),

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { PalaceData } from '../src/engine/families/palace';
 import { isHidden, redact } from '../src/engine/redact';
 import type { GameModule, GameState } from '../src/engine/types';
-import { GAMES } from '../src/games';
+import { GAMES } from './games';
 
 const g = GAMES.palace as GameModule<PalaceData>;
 const people = (n: number) => Array.from({ length: n }, (_, i) => ({ name: `P${i}` }));

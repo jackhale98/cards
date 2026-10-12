@@ -38,6 +38,8 @@ export const BOT_LEVELS: (SearchBudget | null)[] = [null, { samples: 24, ms: 40 
 export const botLevel = (options: Record<string, number | boolean>) => Math.max(0, Math.min(2, Number(options.botLevel ?? 0) || 0));
 export const botBudget = (options: Record<string, number | boolean>) => BOT_LEVELS[botLevel(options)] ?? null;
 
+const TESTING = import.meta.env?.MODE === 'test';
+
 export const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
 /** The best move by sampling, or null if there's nothing to decide. */
@@ -47,7 +49,10 @@ export function searchMove<D>(game: SearchGame<D>, s: GameState<D>, seat: number
   const total = moves.map(() => 0);
   let runs = 0;
   const stop = now() + budget.ms;
-  while (runs < budget.samples && (runs === 0 || now() < stop)) {
+  // (in tests, a set number of deals rather than a time limit, so a busy machine can't change the
+  // answer: about what a phone manages in that time)
+  const samples = TESTING ? Math.min(budget.samples, Math.ceil(budget.ms / 4)) : budget.samples;
+  while (runs < samples && (TESTING || runs === 0 || now() < stop)) {
     const deal = game.determinize(s, seat);
     moves.forEach((m, i) => {
       const sim = structuredClone(deal);
@@ -57,7 +62,7 @@ export function searchMove<D>(game: SearchGame<D>, s: GameState<D>, seat: number
       } catch (e) {
         // a playout the rules stopped (an imagined deal no real one could lead to): score it as it
         // stands. Anything else is a bug in a bot or the rules: loud in tests, shrugged off at a table.
-        if (!(e instanceof RuleError) && import.meta.env?.MODE === 'test') throw e;
+        if (!(e instanceof RuleError) && TESTING) throw e;
       }
       total[i] += game.score(s, sim, seat);
     });

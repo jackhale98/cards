@@ -5,6 +5,9 @@ import { defineConfig } from '@playwright/test';
  * anything off-screen or any error. They run against the dev server in local mode (`?net=local`:
  * tabs in one browser link up directly, no network needed).
  */
+// (PW_PORT: another port, e.g. to run two copies of the repo's tests side by side)
+const PORT = Number(process.env.PW_PORT ?? 4173);
+
 export default defineConfig({
   testDir: 'e2e',
   timeout: 60_000,
@@ -13,15 +16,15 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
   use: {
-    baseURL: 'http://localhost:4173',
+    baseURL: `http://localhost:${PORT}`,
     // a failing test leaves a screenshot of what it saw (uploaded by CI)
     screenshot: 'only-on-failure',
     // (a cloud container may provide its own Chromium build)
     launchOptions: process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHROMIUM } : undefined,
   },
   webServer: {
-    command: 'pnpm exec vite --port 4173 --strictPort',
-    url: 'http://localhost:4173',
+    command: `pnpm exec vite --port ${PORT} --strictPort`,
+    url: `http://localhost:${PORT}`,
     reuseExistingServer: !process.env.CI,
     timeout: 60_000,
   },

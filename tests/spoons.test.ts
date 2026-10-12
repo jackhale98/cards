@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GAMES } from '../src/games';
+import { GAMES } from './games';
 import type { GameModule, GameState } from '../src/engine/types';
 import type { SpoonsData } from '../src/engine/families/spoons';
 

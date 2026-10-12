@@ -3,7 +3,7 @@ import { parseCard } from '../src/engine/cards';
 import type { TrickData } from '../src/engine/families/trick';
 import { redact } from '../src/engine/redact';
 import type { GameModule, GameState } from '../src/engine/types';
-import { GAMES } from '../src/games';
+import { GAMES } from './games';
 
 const g = GAMES.whist as GameModule<TrickData>;
 const people = (n: number) => Array.from({ length: n }, (_, i) => ({ name: `P${i}` }));

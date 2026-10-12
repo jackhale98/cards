@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GAME_LIST, searchGames } from '../src/games';
+import { GAME_LIST, searchGames } from './games';
 
 const ids = (q: string) => searchGames(q).map((g) => g.config.id);
 

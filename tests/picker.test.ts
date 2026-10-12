@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { categoryOf, GAME_LIST, GAMES, misfit, playersText } from '../src/games';
+import { categoryOf, GAME_LIST, GAMES, misfit, playersText } from './games';
 
 describe('game picker', () => {
   it('sorts every game into a section', () => {

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildDeck, cardName, parseCard, rankLabel, SUIT_SYMBOL } from '../src/engine/cards';
 import { canSee, isHidden } from '../src/engine/redact';
 import { RuleError, type Action, type GameModule, type GameState } from '../src/engine/types';
-import { GAMES, GAME_LIST } from '../src/games';
+import { GAMES, GAME_LIST } from './games';
 import { Host } from '../src/net/host';
 
 const label = (id: string) => `${rankLabel(parseCard(id).rank)}${SUIT_SYMBOL[parseCard(id).suit]}`;

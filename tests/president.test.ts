@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { climbRank, titleFor, type ClimbingData } from '../src/engine/families/climbing';
 import type { GameModule, GameState } from '../src/engine/types';
-import { GAMES } from '../src/games';
+import { GAMES } from './games';
 
 const g = GAMES['president'] as GameModule<ClimbingData>;
 const bots = (n: number) => Array.from({ length: n }, (_, i) => ({ name: `P${i}`, bot: true }));

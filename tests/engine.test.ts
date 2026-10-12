@@ -1,10 +1,11 @@
 import type { GameConfig } from '../src/engine/types';
 import { moduleFor } from '../src/engine/families';
+import { freeFamily } from '../src/engine/families/free';
 import { describe, expect, it } from 'vitest';
 import { buildDeck, parseCard, sortCards } from '../src/engine/cards';
 import { redact, isHidden } from '../src/engine/redact';
 import { shuffle } from '../src/engine/rng';
-import { GAMES, GAME_LIST } from '../src/games';
+import { GAMES, GAME_LIST } from './games';
 
 describe('cards', () => {
   it('builds standard and custom decks', () => {
@@ -57,7 +58,7 @@ describe('registry', () => {
         { to: 'hand', count: 7 },
         { to: 'table', count: 1, faceUp: true },
       ],
-    } as GameConfig);
+    } as GameConfig, freeFamily);
     const s = g.setup([{ name: 'A' }, { name: 'B' }, { name: 'C' }], 1, {});
     expect(s.zones['hand:0'].cards).toHaveLength(7);
     expect(s.zones.table.cards).toHaveLength(1);

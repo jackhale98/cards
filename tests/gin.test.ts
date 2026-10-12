@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { RummyData } from '../src/engine/families/rummy';
 import type { GameModule, GameState } from '../src/engine/types';
-import { GAMES } from '../src/games';
+import { GAMES } from './games';
 
 const gin = GAMES['gin-rummy'] as GameModule<RummyData>;
 const h = (s: string) => s.split(' ').map((id) => ({ id }));

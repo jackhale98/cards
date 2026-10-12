@@ -4,7 +4,7 @@ import { bestHand } from '../src/engine/lib/pokerEval';
 import { parseCard } from '../src/engine/cards';
 import { isHidden, redact } from '../src/engine/redact';
 import type { GameModule, GameState } from '../src/engine/types';
-import { GAMES } from '../src/games';
+import { GAMES } from './games';
 
 const g = GAMES['seven-card-stud'] as GameModule<PokerData>;
 const people = (n: number) => Array.from({ length: n }, (_, i) => ({ name: `P${i}` }));

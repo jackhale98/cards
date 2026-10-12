@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { bridgeScore, type TrickData } from '../src/engine/families/trick';
 import type { GameModule, GameState } from '../src/engine/types';
-import { GAMES } from '../src/games';
+import { GAMES } from './games';
 
 const g = GAMES['bridge'] as GameModule<TrickData>;
 const bots = Array.from({ length: 4 }, (_, i) => ({ name: `P${i}`, bot: true }));
