@@ -100,6 +100,15 @@ describe('hand and foot (pagat)', () => {
     expect(s.data.result!.lines[1]).toMatch(/out 100/);
   });
 
+  it('a red 3 drawn as the last card can leave one card in the foot: discarding it ends the round', () => {
+    const s = rig(['AS']);
+    s.data.footTaken[0] = true;
+    s.zones.deck.cards = [];
+    g.apply(s, 0, { type: 'discard', cards: ['AS'] });
+    expect(s.phase).toBe('handOver');
+    expect(s.data.result!.lines[0]).toMatch(/stock has run out/);
+  });
+
   it('bots play whole four-round games (2 and 4 players)', () => {
     for (const n of [2, 4]) {
       const s = g.setup(bots(n), n, {});

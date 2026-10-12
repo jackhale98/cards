@@ -485,8 +485,12 @@ export function handFootFamily(config: GameConfig): GameModule<HandFootData> {
           const card = a.cards?.[0];
           const own = ids(hand(s, seat));
           assertRule(card && own.includes(card), 'Choose a card to discard');
-          if (own.length === 1 && d.footTaken[seat]) assertRule(sideCanGoOut(s, teamOf(s, seat)), 'You can’t go out yet: you need 2 clean, 2 dirty and 1 wild pile (and your partner in their foot)');
+          // a last card can only go if the side may go out — or the stock is gone (a red 3 drawn as the
+          // last card can leave a single card), when the round is over anyway
+          const stuck = own.length === 1 && d.footTaken[seat] && !sideCanGoOut(s, teamOf(s, seat));
+          if (stuck) assertRule(zone(s, 'deck').cards.length === 0, 'You can’t go out yet: you need 2 clean, 2 dirty and 1 wild pile (and your partner in their foot)');
           moveCards(s, `hand:${seat}`, 'discard', [card], { up: true });
+          if (stuck) return endRound(s, null);
           d.received[seat] = [];
           log(s, `${who} discards a ${isWild(card) ? 'wild card' : rankName(parseCard(card).rank)}`, seat, isWild(card) ? 'Wild' : rankName(parseCard(card).rank), undefined, { to: 'discard' });
           if (afterCardsLeft(s, seat)) return;
