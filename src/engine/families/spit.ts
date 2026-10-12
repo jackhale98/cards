@@ -305,7 +305,7 @@ export function spitFamily(config: GameConfig): GameModule<SpitData> {
       return null;
     },
 
-    botDelay(s, seat, a) {
+    botDelay(s, _seat, a) {
       const level = botLevel(s.options);
       const span = ([lo, hi]: readonly [number, number]) => lo + Math.random() * (hi - lo);
       if (a.type.startsWith('slap')) return span(([[800, 1300], [520, 850], [340, 560]] as const)[level]);

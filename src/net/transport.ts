@@ -14,6 +14,11 @@ export interface Transport {
   onPeerJoin: (peerId: string) => void;
   onPeerLeave: (peerId: string) => void;
   leave(): void;
+  /**
+   * Whether the network itself vouches that `peer` is the table's host (our relay does): true or
+   * false, or undefined when it can't tell (then the client trusts the first host it hears).
+   */
+  vouch?(peer: string): boolean | undefined;
 }
 
 /** `p2p`: our relay plus the public networks (normal); `relay` / `public`: only one kind (testing). */

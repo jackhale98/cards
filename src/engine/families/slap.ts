@@ -1,5 +1,5 @@
 import { parseCard } from '../cards';
-import { createState, deal, hand, ids, log, name, nextSeat, placesFromScores, resetDeck, zone } from '../state';
+import { createState, deal, hand, log, name, nextSeat, placesFromScores, resetDeck, zone } from '../state';
 import { shuffle } from '../rng';
 import { botLevel } from '../bots/search';
 import { assertRule, type Action, type ActionSpec, type CardRef, type GameConfig, type GameModule, type GameState } from '../types';
@@ -394,7 +394,7 @@ export function slapFamily(config: GameConfig): GameModule<SlapData> {
     },
 
     /** Reaction times: Easy is slow, Hard quicker than most people. */
-    botDelay(s, seat, a) {
+    botDelay(s, _seat, a) {
       const level = botLevel(s.options);
       if (a.type === 'slap') {
         const [lo, hi] = [

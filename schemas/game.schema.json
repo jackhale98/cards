@@ -530,7 +530,8 @@
                       ],
                       "properties": {
                         "every": {
-                          "type": "integer"
+                          "type": "integer",
+                          "minimum": 1
                         },
                         "penalty": {
                           "type": "number"

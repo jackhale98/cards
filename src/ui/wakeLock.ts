@@ -5,9 +5,13 @@
  */
 export function keepAwake(): () => void {
   let lock: { release?: () => Promise<void> } | null = null;
+  let done = false;
   const get = async () => {
     try {
-      lock = await (navigator as unknown as { wakeLock?: { request: (t: 'screen') => Promise<typeof lock> } }).wakeLock?.request('screen') ?? null;
+      const got = await (navigator as unknown as { wakeLock?: { request: (t: 'screen') => Promise<typeof lock> } }).wakeLock?.request('screen') ?? null;
+      // cleaned up while the request was pending: hand it straight back
+      if (done) void got?.release?.();
+      else lock = got;
     } catch {
       /* not supported, or refused (e.g. low battery) */
     }
@@ -16,6 +20,7 @@ export function keepAwake(): () => void {
   void get();
   document.addEventListener('visibilitychange', onVis);
   return () => {
+    done = true;
     document.removeEventListener('visibilitychange', onVis);
     void lock?.release?.();
   };

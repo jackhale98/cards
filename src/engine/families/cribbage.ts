@@ -3,7 +3,7 @@ import { nextRandom } from '../rng';
 import { describeShow, pegPoints, pipValue, scoreHand } from '../lib/cribbageScore';
 import { createState, cutForDeal, deal, hand, ids, log, moveCards, moveTop, name, nextSeat, placesFromScores, resetDeck, seatOrderFrom, sortHand, zone } from '../state';
 import { botBudget, dealUnseen, edge, fork, playOut, searchMove, shuffled, type SearchGame } from '../bots/search';
-import { assertRule, type Action, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
+import { assertRule, type Action, type GameConfig, type GameModule, type GameState } from '../types';
 
 /**
  * Cribbage family. Configured from `game.json`:

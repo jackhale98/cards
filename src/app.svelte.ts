@@ -51,6 +51,24 @@ function hostKey(fresh = false): string {
   }
 }
 
+/**
+ * Per-tab secret that holds our seat at a table (the client id is public; this is only ever sent
+ * to the host). Lives exactly as long as the client id.
+ */
+function seatKey(): string {
+  try {
+    let key = sessionStorage.getItem('cards.seatKey');
+    if (!key) {
+      key = newBackupKey();
+      sessionStorage.setItem('cards.seatKey', key);
+    }
+    return key;
+  } catch {
+    return fallbackKey;
+  }
+}
+const fallbackKey = newBackupKey();
+
 /** Per-tab client id: survives a reload (so you keep your seat) but differs between tabs. */
 function clientId(): string {
   try {
@@ -110,6 +128,8 @@ interface SavedHost {
   code: string;
   /** Tab that hosts it; other tabs on this device join as normal players. */
   cid: string;
+  /** That tab's seat key (to sit back down as a player if someone took over meanwhile). */
+  key?: string;
   snap: HostSnapshot;
   at: number;
 }
@@ -311,29 +331,35 @@ class App {
     // a table we were hosting that someone else now hosts (they took over while we were gone): join it
     // (the seat we hosted from: resuming in a new tab re-saves the table under this tab's id)
     const seatId = this.savedHost?.cid;
-    const onTaken = () => (how.resuming ? this.tableMoved(code, seatId) : this.codeTaken(code));
+    const seatKeyThen = this.savedHost?.key;
+    const onTaken = () => (how.resuming ? this.tableMoved(code, seatId, seatKeyThen) : this.codeTaken(code));
     const joined = await createTransport(this.net, code, 'host', { key: hostKey(), onTaken }).catch((e) => {
       console.warn('Network unavailable, hosting offline', e);
       return null;
     });
+    // the route may have changed while we were connecting (left straight away)
+    if (this.currentCode !== code) return joined?.transport.leave();
     this.transport = joined?.transport ?? null;
     this.addAll = joined?.addAll ?? null;
     // host handoff: players get sealed backups; the relay keeps the key
     const relay = this.transport?.network<RelayTransport>('relay');
     const backupKey = relay ? newBackupKey() : undefined;
-    if (relay && backupKey) relay.deposit(backupKey);
+    const takeoverToken = relay ? newBackupKey() : undefined;
+    if (relay && backupKey) void relay.deposit(backupKey, takeoverToken);
     const split = this.pendingSplit?.code === code ? this.pendingSplit : null;
     this.pendingSplit = null;
-    const host = new Host(this.transport, code, { cid: this.cid, name: this.name || 'Host', avatar: this.avatar }, restore, {
+    const host = new Host(this.transport, code, { cid: this.cid, name: this.name || 'Host', avatar: this.avatar, key: seatKey() }, restore, {
       backupKey,
+      takeoverToken,
       takeover: how.takeover,
       night: split?.night,
       parent: split?.parent,
     });
     host.onPings = (p) => (this.pings = p);
+    host.onLocalError = (m) => this.say(m);
     // clone so the UI gets fresh objects, exactly like a remote client would
     host.onLocalView = (v) => (this.view = structuredClone(v));
-    host.onPersist = (snap) => store.set('cards.host', JSON.stringify({ code, cid: this.cid, snap, at: Date.now() } satisfies SavedHost));
+    host.onPersist = (snap) => store.set('cards.host', JSON.stringify({ code, cid: this.cid, key: seatKey(), snap, at: Date.now() } satisfies SavedHost));
     this.host = host;
     this.isHost = true;
     this.connected = true;
@@ -356,7 +382,7 @@ class App {
     if (this.currentCode !== code) return joined.transport.leave();
     this.transport = joined.transport;
     this.addNext = joined.addNext;
-    const client = new Client(joined.transport, this.cid, this.name || 'Player', this.avatar, display);
+    const client = new Client(joined.transport, this.cid, this.name || 'Player', this.avatar, display, seatKey());
     client.onView = (v) => (this.view = v);
     client.onError = (m) => this.say(m);
     client.onPings = (p) => (this.pings = p);
@@ -409,7 +435,7 @@ class App {
   }
 
   /** The latest sealed backup of the table `code` this device holds. */
-  private savedBackup(code: string | null): { blob: string; v: number } | null {
+  private savedBackup(code: string | null): { blob: string; v: number; token?: string } | null {
     try {
       const b = JSON.parse(store.get('cards.backup') ?? 'null');
       return b && b.code === code && typeof b.blob === 'string' ? b : null;
@@ -430,12 +456,13 @@ class App {
     if (!code || !backup || !relay || this.isHost || this.takingOver) return;
     this.takingOver = true;
     try {
-      const res = await relay.takeover(hostKey(true));
+      const res = await relay.takeover(hostKey(true), backup.token);
       if (!res.key) {
         const why: Record<string, string> = {
           'host-here': 'The host is back — hang on, reconnecting',
           'too-soon': 'The host only just dropped — give it a few more seconds',
           'no-backup': 'Someone else is already taking over',
+          'not-a-player': 'Only players at this table can take it over',
           offline: 'Couldn’t reach the Lamplight relay — check your connection',
         };
         this.say(why[res.error ?? ''] ?? 'Couldn’t take over the table');
@@ -458,13 +485,14 @@ class App {
   }
 
   /** We came back to host a table that a player has taken over meanwhile: join it as a player. */
-  private tableMoved(code: string, seatId?: string) {
+  private tableMoved(code: string, seatId?: string, key?: string) {
     if (this.currentCode !== code || !this.isHost) return;
-    // our seat is under the id we hosted with (this may be a new tab, with a new one)
+    // our seat is under the id (and key) we hosted with (this may be a new tab, with new ones)
     if (seatId && seatId !== this.cid) {
       this.cid = seatId;
       try {
         sessionStorage.setItem('cards.cid', seatId);
+        if (key) sessionStorage.setItem('cards.seatKey', key);
       } catch {
         /* private mode */
       }

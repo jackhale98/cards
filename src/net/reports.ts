@@ -1,4 +1,4 @@
-import { RELAY_URL } from './relayTransport';
+import { RELAY_URL } from './relayUrl';
 
 /**
  * Anonymous error reports: when something breaks in the browser, or the host's rules engine hits

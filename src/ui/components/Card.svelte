@@ -29,6 +29,7 @@
   class:playable
   class:dim
   class:fresh
+  role="img"
   aria-label={info ? `${rank}${sym}` : 'card'}
 >
   {#if info && info.suit === 'X'}

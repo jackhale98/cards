@@ -1,45 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Client } from '../src/net/client';
 import { Host } from '../src/net/host';
-import type { Msg, View } from '../src/net/protocol';
-import type { Transport } from '../src/net/transport';
-
-/** In-memory room: delivers messages synchronously between transports, JSON-cloned like the wire. */
-class Bus {
-  members = new Map<string, MemTransport>();
-  join(t: MemTransport) {
-    const others = [...this.members.values()];
-    this.members.set(t.selfId, t);
-    for (const other of others) {
-      other.onPeerJoin(t.selfId);
-      t.onPeerJoin(other.selfId);
-    }
-  }
-  leave(t: MemTransport) {
-    this.members.delete(t.selfId);
-    for (const other of this.members.values()) other.onPeerLeave(t.selfId);
-  }
-}
-
-class MemTransport implements Transport {
-  kind = 'memory';
-  onMessage: Transport['onMessage'] = () => {};
-  onPeerJoin: Transport['onPeerJoin'] = () => {};
-  onPeerLeave: Transport['onPeerLeave'] = () => {};
-  sent: Msg[] = [];
-  constructor(
-    private bus: Bus,
-    readonly selfId: string,
-  ) {}
-  send(msg: Msg, to?: string) {
-    const wire = JSON.parse(JSON.stringify(msg));
-    this.sent.push(wire);
-    for (const m of this.bus.members.values()) if (m !== this && (!to || to === m.selfId)) m.onMessage(wire, this.selfId);
-  }
-  leave() {
-    this.bus.leave(this);
-  }
-}
+import type { View } from '../src/net/protocol';
+import { Bus, MemTransport } from './netHarness';
 
 describe('host ↔ clients', () => {
   beforeEach(() => vi.useFakeTimers());
@@ -181,13 +144,14 @@ describe('connection health', () => {
     const hm = mk(mqtt, 'h-m', 'mqtt');
     hostT.add(hn);
     hostT.add(hm);
-    const host = new Host(hostT, 'ABCD', { cid: 'h', name: 'H' });
+    const host = new Host(hostT, 'ABCD', { cid: 'h', name: 'H', key: 'hk' });
     nostr.join(hn);
     mqtt.join(hm);
     const guestT = new MultiTransport();
     const gn = mk(nostr, 'g-n', 'nostr');
     guestT.add(gn);
-    const guest = new Client(guestT, 'g', 'G', undefined);
+    // (the seat's key lets the second network's connection sit in the same seat)
+    const guest = new Client(guestT, 'g', 'G', undefined, false, 'gk');
     nostr.join(gn);
     expect(guest.connected).toBe(true);
     // the guest adds a backup network later: same seat, not a new player
@@ -195,9 +159,12 @@ describe('connection health', () => {
     guestT.add(gm);
     mqtt.join(gm);
     expect(host.lobby.seats.map((s) => s.id)).toEqual(['h', 'g']);
-    // losing one network keeps the seat connected via the other
+    // losing one network: the guest carries on over the other (its hello timer says hello again
+    // within a couple of seconds; nudged here), showing its key to the host there
     gn.leave();
-    expect(host.lobby.seats[1].connected).toBe(true);
+    guest.nudge();
+    expect(guest.connected).toBe(true);
+    expect(host.lobby.seats.map((s) => [s.id, s.connected])).toEqual([['h', true], ['g', true]]);
     expect(guest.view!.lobby.seats).toHaveLength(2);
     expect(hostT.status().networks.map((n) => n.kind)).toEqual(['nostr', 'mqtt']);
   });

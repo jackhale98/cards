@@ -85,6 +85,11 @@ export interface View {
   state: GameState | null;
   actions: ActionSpec[];
   status: GameStatus | null;
+  /**
+   * "Who's there?": the host sent this to a connection that hasn't yet shown the key to the seat
+   * it asked for. Not to be shown: the client answers with a hello carrying its key.
+   */
+  who?: true;
 }
 
 export type ClientMsg =
@@ -94,6 +99,11 @@ export type ClientMsg =
       name: string;
       avatar?: Avatar;
       display?: boolean;
+      /**
+       * The secret that holds this seat (only sent to the host, never broadcast): client ids are
+       * public, so anyone could ask for someone else's seat with one.
+       */
+      key?: string;
       /** Coming back from a table that split off (its code): its finished games, for tonight's tally. */
       from?: string;
       merge?: NightGame[];
@@ -109,7 +119,7 @@ export type HostMsg =
   /** Round-trip time (ms) from the host to each seated player, by seat index. */
   | { t: 'pings'; pings: (number | null)[] }
   /** The whole game, sealed with a key only the relay holds (see backup.ts), for host handoff. */
-  | { t: 'backup'; blob: string; v: number }
+  | { t: 'backup'; blob: string; v: number; token?: string }
   /**
    * Split the table: go to table `code` — as its host (`host`), taking tonight's tally along — or
    * head back to the table this one split off from (`back`).

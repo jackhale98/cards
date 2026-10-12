@@ -170,7 +170,8 @@
     inset: -4px;
     border-radius: 50%;
     border: 2px solid var(--c);
-    animation: pulse 1.4s ease-out infinite;
+    /* a few beats, then a steady ring: an endless pulse keeps the GPU awake all game */
+    animation: pulse 1.4s ease-out 4;
   }
   @keyframes pulse {
     from {

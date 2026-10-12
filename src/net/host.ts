@@ -2,6 +2,7 @@ import { redact, redactActions, resolveAction } from '../engine/redact';
 import { randomSeed } from '../engine/rng';
 import { nightPoints, standingsOf } from '../engine/state';
 import { RuleError, type Action, type GameModule, type GameState } from '../engine/types';
+import { checkAction } from '../engine/validate';
 import { getGame, GAMES } from '../games';
 import {
   AVATAR_COLORS,
@@ -22,7 +23,6 @@ import { seal } from './backup';
 import { report } from './reports';
 import type { Transport } from './transport';
 
-export const LOCAL = 'local';
 export const HEARTBEAT_MS = 3000;
 /** A peer silent for this long is treated as gone (it keeps its seat and can come back). */
 export const DEAD_AFTER_MS = 12000;
@@ -41,6 +41,8 @@ const seatsIn = (g: GameModule) => (g.config.players.counts ? Math.max(...g.conf
 export interface HostSnapshot {
   lobby: Lobby;
   state: GameState | null;
+  /** Each seat's key, by client id (see `hello`): kept with the game, never sent to players. */
+  keys?: Record<string, string>;
 }
 
 /**
@@ -52,8 +54,17 @@ export class Host {
   state: GameState | null = null;
   private module: GameModule | null = null;
   private history: GameState[] = [];
-  /** transport peer id → client id */
+  /**
+   * transport peer id → client id. Table screens are `screen:<cid>` and people the host won't seat
+   * under the id they asked for (no key, or the wrong one) watch as `watch:<peer>`, so neither can
+   * act for a seat.
+   */
   private peers = new Map<string, string>();
+  /**
+   * The secret holding each seat, by client id. Client ids are public (they're in every view), so
+   * a seat goes back to a connection only when it brings that seat's key (sent only to the host).
+   */
+  private keys: Record<string, string>;
   private displays = new Set<string>();
   /** Identifies this host instance in views (see View.hid). */
   private readonly hid = Math.random().toString(36).slice(2, 10);
@@ -70,18 +81,23 @@ export class Host {
   onPersist: (snap: HostSnapshot) => void = () => {};
   /** Host handoff: the key players' backups are sealed with (held by the relay), if any. */
   private readonly backupKey?: string;
+  /** Given to players with their backups: the relay lets only someone holding it take over. */
+  private readonly takeoverToken?: string;
   private backupTimer: ReturnType<typeof setTimeout> | null = null;
   private backedUp = -1;
 
   constructor(
     private transport: Transport | null,
     code: string,
-    host: { cid: string; name: string; avatar?: Avatar },
+    host: { cid: string; name: string; avatar?: Avatar; key?: string },
     restore?: HostSnapshot,
     /** `takeover`: this device is a player taking over from a host that has gone. */
-    opts: { backupKey?: string; takeover?: boolean; night?: Night; parent?: string } = {},
+    opts: { backupKey?: string; takeoverToken?: string; takeover?: boolean; night?: Night; parent?: string } = {},
   ) {
     this.backupKey = opts.backupKey;
+    this.takeoverToken = opts.takeoverToken;
+    this.keys = { ...(restore?.keys ?? {}) };
+    if (host.key) this.keys[host.cid] = host.key;
     if (restore) {
       this.lobby = restore.lobby;
       // (the table may have moved to a new code, if its old one turned out to be taken)
@@ -139,8 +155,13 @@ export class Host {
       return;
     }
     if (msg.t === 'hello') {
-      if (typeof msg.from === 'string' && Array.isArray(msg.merge)) this.mergeBack(msg.from, msg.merge);
-      return this.hello(peer, String(msg.cid), String(msg.name ?? 'Player'), cleanAvatar(msg.avatar), msg.display);
+      if (typeof msg.cid !== 'string' || !msg.cid || msg.cid.length > 64) return;
+      const key = typeof msg.key === 'string' && msg.key.length <= 128 ? msg.key : undefined;
+      this.hello(peer, msg.cid, String(msg.name ?? 'Player'), cleanAvatar(msg.avatar), !!msg.display, key);
+      // back from a split-off table: only someone now seated here brings its games back
+      if (typeof msg.from === 'string' && Array.isArray(msg.merge) && this.peers.get(peer) === msg.cid && this.lobby.seats.some((s) => s.id === msg.cid))
+        this.mergeBack(msg.from, msg.merge);
+      return;
     }
     if (msg.t === 'act') {
       const cid = this.peers.get(peer);
@@ -150,30 +171,55 @@ export class Host {
     }
   }
 
-  private hello(peer: string, cid: string, name: string, avatar: Avatar | undefined, display?: boolean) {
+  private hello(peer: string, cid: string, name: string, avatar: Avatar | undefined, display: boolean, key?: string) {
+    // one identity per connection: asking for another seat lets go of the one it had
+    const prev = this.peers.get(peer);
+    if (prev !== undefined && prev !== cid && prev !== `screen:${cid}`) this.peerLeft(peer);
     if (display) {
       this.displays.add(peer);
-      this.peers.set(peer, cid);
+      this.peers.set(peer, `screen:${cid}`);
       this.health.set(peer, { rtt: null, seen: Date.now() });
       return this.broadcast();
     }
+    const seat = this.lobby.seats.find((s) => s.id === cid);
+    if (seat && !this.mayHold(peer, cid, seat, key)) {
+      this.health.set(peer, { rtt: this.health.get(peer)?.rtt ?? null, seen: Date.now() });
+      // no key yet (a client says hello to everyone before it knows who the host is): ask for it
+      if (!key) return this.transport?.send({ t: 'view', view: { ...this.viewFor(null), who: true } }, peer);
+      // the wrong key: they can watch, but not as that seat
+      this.peers.set(peer, `watch:${peer}`);
+      return this.broadcast();
+    }
+    if (seat && key && !this.keys[cid]) this.keys[cid] = key;
     // a client may reach us on more than one network; keep them all, they're the same seat
     if (!this.peers.has(peer)) this.backedUp = -1; // (someone new: they need a backup too)
     this.peers.set(peer, cid);
     this.health.set(peer, { rtt: this.health.get(peer)?.rtt ?? null, seen: Date.now() });
-    const seat = this.lobby.seats.find((s) => s.id === cid);
     if (seat) {
       seat.connected = true;
       seat.avatar = avatar ?? seat.avatar;
       if (!this.lobby.started) seat.name = name.slice(0, 20);
     } else if (this.lobby.seats.length < TABLE_MAX || this.lobby.seats.some((s) => s.bot)) {
       if (this.lobby.seats.length >= TABLE_MAX) this.dropBot();
+      if (key) this.keys[cid] = key;
       // mid-game, newcomers watch and play from the next game; in the lobby they're in if there's room
       const late = this.lobby.started;
       this.lobby.seats.push({ id: cid, name: name.slice(0, 20), avatar, connected: true, ...(late ? { out: true } : {}) });
       if (!late) this.fit({ newcomer: cid });
     }
     this.broadcast();
+  }
+
+  /**
+   * May this connection sit in this seat? Never the host's own seat; otherwise with the seat's key,
+   * or, for a seat with no key yet, if this connection is the one that took it (or nobody holds it:
+   * a table saved before seats had keys).
+   */
+  private mayHold(peer: string, cid: string, seat: LobbySeat, key?: string): boolean {
+    if (seat.host || seat.bot) return false;
+    const known = this.keys[cid];
+    if (known) return key === known;
+    return this.peers.get(peer) === cid || ![...this.peers.values()].includes(cid);
   }
 
   /** Ping everyone; drop peers we haven't heard from in a while (faster than WebRTC notices). */
@@ -186,10 +232,17 @@ export class Host {
       }
       this.transport?.send({ t: 'ping', ts: performance.now() }, peer);
     }
+    // (everyone's phone hears about connections when they change, or every so often: not every beat)
     const pings = this.pings();
+    const moved = pings.length !== this.sentPings.length || pings.some((p, i) => (p == null) !== (this.sentPings[i] == null) || Math.abs((p ?? 0) - (this.sentPings[i] ?? 0)) > 25);
+    if (!moved && ++this.quietBeats < 5) return;
+    this.quietBeats = 0;
+    this.sentPings = pings;
     this.onPings(pings);
     this.transport?.send({ t: 'pings', pings });
   }
+  private sentPings: (number | null)[] = [];
+  private quietBeats = 0;
 
   /** Best round-trip time for each seat over any of its connections (host itself = 0). */
   pings(): (number | null)[] {
@@ -226,6 +279,9 @@ export class Host {
 
   /** Apply an action from a client id. Returns an error message if it was rejected. */
   act(cid: string, a: Action): string | null {
+    // (from the network: anything at all)
+    if (!a || typeof a !== 'object' || typeof a.type !== 'string') return 'That move isn’t available right now';
+    if (a.cards !== undefined && (!Array.isArray(a.cards) || a.cards.length > 60 || !a.cards.every((c) => typeof c === 'string'))) return 'That move isn’t available right now';
     if (a.type === SCREEN_SOUND) {
       if (!this.lobby.seats.some((s) => s.id === cid)) return 'You are not at the table';
       this.lobby.screenSound = a.amount !== 0;
@@ -251,15 +307,18 @@ export class Host {
       this.commit();
       return null;
     }
-    const allowed = module.actions(this.state!, seat).some((s) => s.type === a.type);
-    if (!allowed) return 'That move isn’t available right now';
+    // only what was offered, in the shape it was offered (a raise in range, cards you may pick…)
+    const checked = checkAction(a, module.actions(this.state!, seat));
+    if ('error' in checked) return checked.error;
+    const { action } = checked;
+    if (a.at !== undefined) action.at = a.at;
     const next = structuredClone(this.state!);
     try {
-      module.apply(next, seat, a);
+      module.apply(next, seat, action);
     } catch (e) {
       if (e instanceof RuleError) return e.message;
       console.error(e);
-      report('engine', e, { game: module.config.id, phase: this.state!.phase, action: a.type });
+      report('engine', e, { game: module.config.id, phase: this.state!.phase, action: action.type });
       return 'Something went wrong';
     }
     if (module.config.undo) {
@@ -315,18 +374,13 @@ export class Host {
     if (module.realtime) return this.pumpRealtime(s, module);
     const sys = module.system?.(s);
     if (sys) {
-      this.timer = setTimeout(() => {
-        const next = structuredClone(this.state!);
-        sys.run(next);
-        this.state = next;
-        this.commit();
-      }, sys.delay);
+      this.timer = setTimeout(() => this.runSystem(sys, module), sys.delay);
       return;
     }
     if (!module.bot) return;
     for (const p of s.players) {
       if (!p.bot) continue;
-      const a = module.bot(s, p.seat);
+      const a = this.think(module, s, p.seat);
       if (!a) continue;
       this.timer = setTimeout(() => {
         const err = this.applyAs(p.seat, a);
@@ -356,16 +410,12 @@ export class Host {
     if (sys)
       this.timer = setTimeout(() => {
         this.timer = null;
-        if (!this.state || this.module !== module) return;
-        const next = structuredClone(this.state);
-        sys.run(next);
-        this.state = next;
-        this.commit();
+        if (this.state && this.module === module) this.runSystem(sys, module);
       }, sys.delay);
     const keyOf = (a: Action) => JSON.stringify({ ...a, rt: undefined, at: undefined });
     for (const p of s.players) {
       if (!p.bot) continue;
-      const a = module.bot?.(s, p.seat) ?? null;
+      const a = this.think(module, s, p.seat);
       const plan = this.botPlans.get(p.seat);
       if (!a) {
         if (plan) clearTimeout(plan.timer);
@@ -380,7 +430,7 @@ export class Host {
         this.botPlans.delete(p.seat);
         if (!this.state || this.module !== module) return;
         // still what it means to do?
-        const again = module.bot?.(this.state, p.seat);
+        const again = this.think(module, this.state, p.seat);
         if (!again || keyOf(again) !== key) return this.pump();
         const err = this.applyAs(p.seat, { ...a, rt: delay, at: Date.now() });
         if (err) {
@@ -390,6 +440,35 @@ export class Host {
       }, delay);
       this.botPlans.set(p.seat, { key, timer });
     }
+  }
+
+  /** A bot's next move; a bot that throws is reported and sits this one out, not the whole table. */
+  private think(module: GameModule, s: GameState, seat: number): Action | null {
+    try {
+      return module.bot?.(s, seat) ?? null;
+    } catch (e) {
+      console.error(e);
+      report('bot', e, { game: module.config.id, phase: s.phase, action: 'think' });
+      return null;
+    }
+  }
+
+  /**
+   * An automatic step (collect a trick, deal the next hand…). If the rules throw, the table would
+   * freeze where it is: report it and leave the game as it was, so the host can still end it.
+   */
+  private runSystem(sys: { run: (s: GameState) => void }, module: GameModule) {
+    const next = structuredClone(this.state!);
+    try {
+      sys.run(next);
+    } catch (e) {
+      console.error(e);
+      report('engine', e, { game: module.config.id, phase: this.state!.phase, action: 'system' });
+      this.onLocalError('Something went wrong with the rules — you can end the game from the menu');
+      return;
+    }
+    this.state = next;
+    this.commit();
   }
 
   private clearTimers() {
@@ -500,15 +579,17 @@ export class Host {
   }
 
   /** Players back from a split-off table: add the games they finished there to tonight's tally. */
-  private mergeBack(from: string, games: NightGame[]) {
+  private mergeBack(from: string, games: unknown[]) {
+    // (only a table that split off from this one, once; and only well-formed games)
+    if (!this.lobby.splits?.some((x) => x.code === from)) return;
     const known = new Set((this.lobby.night?.games ?? []).map((g) => `${g.at}:${g.game}`));
-    const fresh = games.filter((g) => g && typeof g.at === 'number' && Array.isArray(g.results) && !known.has(`${g.at}:${g.game}`));
+    const fresh = games.slice(0, 100).map(cleanNightGame).filter((g): g is NightGame => !!g && !known.has(`${g.at}:${g.game}`));
     if (fresh.length) {
       this.lobby.night ??= { games: [] };
       this.lobby.night.games.push(...fresh);
       this.lobby.night.games.sort((a, b) => a.at - b.at);
     }
-    if (this.lobby.splits?.some((x) => x.code === from)) this.lobby.splits = this.lobby.splits.filter((x) => x.code !== from);
+    this.lobby.splits = this.lobby.splits.filter((x) => x.code !== from);
   }
 
   private sendTo(cid: string, msg: HostMsg) {
@@ -654,7 +735,7 @@ export class Host {
         this.transport.send({ t: 'view', view: this.viewFor(this.displays.has(peer) ? null : cid) }, peer);
       }
     }
-    this.onPersist({ lobby: this.lobby, state: this.state });
+    this.onPersist({ lobby: this.lobby, state: this.state, keys: this.keys });
     this.queueBackup();
   }
 
@@ -672,12 +753,28 @@ export class Host {
   private async sendBackup() {
     if (this.v === this.backedUp) return;
     const v = this.v;
-    const blob = await seal({ lobby: this.lobby, state: this.state }, this.backupKey!);
+    const blob = await seal({ lobby: this.lobby, state: this.state, keys: this.keys }, this.backupKey!);
     this.backedUp = v;
     // the players who could take over: seated people (not bots, not table screens)
     const players = new Set(this.lobby.seats.filter((x) => !x.bot && !x.host).map((x) => x.id));
-    for (const [peer, cid] of this.peers) if (players.has(cid) && !this.displays.has(peer)) this.transport?.send({ t: 'backup', blob, v }, peer);
+    for (const [peer, cid] of this.peers) if (players.has(cid) && !this.displays.has(peer)) this.transport?.send({ t: 'backup', blob, v, token: this.takeoverToken }, peer);
   }
+}
+
+/** A finished game from another device, checked field by field (it goes into everyone's tally). */
+function cleanNightGame(x: unknown): NightGame | null {
+  if (!x || typeof x !== 'object') return null;
+  const g = x as Record<string, unknown>;
+  if (typeof g.game !== 'string' || typeof g.name !== 'string' || typeof g.at !== 'number' || !Number.isFinite(g.at) || !Array.isArray(g.results)) return null;
+  const results: NightGame['results'] = [];
+  for (const r of g.results.slice(0, TABLE_MAX)) {
+    if (!r || typeof r !== 'object') return null;
+    const { id, name, place, points } = r as Record<string, unknown>;
+    if (typeof id !== 'string' || typeof name !== 'string' || typeof place !== 'number' || typeof points !== 'number') return null;
+    if (!Number.isFinite(place) || !Number.isFinite(points)) return null;
+    results.push({ id: id.slice(0, 64), name: name.slice(0, 20), place, points });
+  }
+  return { game: g.game.slice(0, 40), name: g.name.slice(0, 40), at: g.at, results };
 }
 
 export function defaultOptions(g: GameModule): Record<string, number | boolean> {

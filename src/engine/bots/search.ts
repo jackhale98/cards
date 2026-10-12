@@ -1,4 +1,4 @@
-import type { Action, GameState } from '../types';
+import { RuleError, type Action, type GameState } from '../types';
 
 /**
  * A general card-game bot: Monte Carlo sampling over the cards it can't see.
@@ -54,8 +54,10 @@ export function searchMove<D>(game: SearchGame<D>, s: GameState<D>, seat: number
       try {
         game.apply(sim, seat, m);
         game.rollout(sim);
-      } catch {
-        // a playout the rules stopped (an imagined deal no real one could lead to): score it as it stands
+      } catch (e) {
+        // a playout the rules stopped (an imagined deal no real one could lead to): score it as it
+        // stands. Anything else is a bug in a bot or the rules: loud in tests, shrugged off at a table.
+        if (!(e instanceof RuleError) && import.meta.env?.MODE === 'test') throw e;
       }
       total[i] += game.score(s, sim, seat);
     });

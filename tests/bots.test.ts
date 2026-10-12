@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { GAME_LIST } from '../src/games';
 import type { GameModule, GameState } from '../src/engine/types';
+import { checkAction } from '../src/engine/validate';
 
 /**
  * A bot that proposes a move the rules don't offer would freeze a real table (the host can only
@@ -25,10 +26,12 @@ function playDeal(g: GameModule, seed: number, n: number): string | null {
     if (seat < 0) return null; // the deal is over (or waits on a person)
     const a = g.bot!(s, seat)!;
     const offered = g.actions(s, seat);
-    if (!offered.some((o) => o.type === a.type))
-      return `seed ${seed}: ${JSON.stringify(a)} not offered in ${s.phase} (offered ${offered.map((o) => o.type).join(', ')})`;
+    // (the host checks every move against what was offered, bots' too)
+    const checked = checkAction(a, offered);
+    if ('error' in checked)
+      return `seed ${seed}: ${JSON.stringify(a)} not offered in ${s.phase}: ${checked.error} (offered ${JSON.stringify(offered.filter((o) => o.type === a.type)).slice(0, 300)})`;
     try {
-      g.apply(s, seat, a);
+      g.apply(s, seat, checked.action);
     } catch (e) {
       return `seed ${seed}: ${JSON.stringify(a)} rejected in ${s.phase}: ${(e as Error).message}`;
     }

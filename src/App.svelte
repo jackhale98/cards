@@ -21,7 +21,11 @@
 
   // seconds spent looking for the table, for progress and troubleshooting hints
   let now = $state(Date.now());
+  // (only while looking: no timer ticking all game)
+  const looking = $derived(!!app.joinStarted && !view);
   $effect(() => {
+    if (!looking) return;
+    now = Date.now();
     const t = setInterval(() => (now = Date.now()), 1000);
     return () => clearInterval(t);
   });

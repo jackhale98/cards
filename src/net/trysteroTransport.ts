@@ -7,7 +7,6 @@ const APP_ID = 'cards-local-table-v1';
 /** Public signalling networks Trystero can use to introduce devices, in order of preference. */
 export type Strategy = 'nostr' | 'mqtt' | 'torrent';
 export const STRATEGIES: Strategy[] = ['nostr', 'mqtt', 'torrent'];
-export const STRATEGY_LABEL: Record<Strategy, string> = { nostr: 'Nostr relays', mqtt: 'MQTT brokers', torrent: 'WebTorrent trackers' };
 
 interface StrategyModule {
   joinRoom: (config: { appId: string; relayConfig?: { redundancy?: number } }, room: string) => Room;

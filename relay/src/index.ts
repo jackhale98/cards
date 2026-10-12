@@ -4,18 +4,23 @@ import { DurableObject } from 'cloudflare:workers';
  * Lamplight connection relay.
  *
  * Every table gets one Durable Object ("room"), found by name from the table code. Devices open a
- * WebSocket to `/room/<name>?peer=<id>`; the room tells each device who else is there and passes
- * small JSON envelopes between them:
+ * WebSocket to `/room/<name>?peer=<id>&secret=<secret>`; the room tells each device who else is
+ * there and passes small JSON envelopes between them:
  *
  *   device → relay   { "to": "<peer>"?, "d": <game message> }      (no `to` = everyone else)
  *                    { "to": "<peer>",  "s": <WebRTC signal> }
- *                    { "k": "deposit", "key": "<backup key>" }       (host only, see below)
- *                    { "k": "takeover", "host": "<new host key>" }
- *   relay → device   { "t": "welcome", "peers": ["<peer>", …] }    (on connect)
+ *                    { "k": "deposit", "key": "<backup key>", "gate": "<sha-256 of the takeover token>"? }
+ *                                                                   (host only, see below)
+ *                    { "k": "takeover", "host": "<new host key>", "token": "<takeover token>"? }
+ *   relay → device   { "t": "welcome", "v": 2, "peers": ["<peer>", …], "host": "<peer>"? }   (on connect)
  *                    { "t": "taken" }                               (then closed: see below)
  *                    { "t": "join" | "leave", "peer": "<peer>" }
- *                    { "t": "msg", "from": "<peer>", "d" | "s": … }
+ *                    { "t": "msg", "from": "<peer>", "h": 1?, "d" | "s": … }
  *                    { "t": "takeover", "key": "<backup key>" } | { "t": "takeover", "error": "…" }
+ *
+ * Who's who can't be faked: a peer id belongs to the socket that first used it with its secret (a
+ * reconnect must bring the same secret to replace it), `from` is filled in here, and `h: 1` marks
+ * messages from the host's socket, so devices know which peer really is the host.
  *
  * Devices use the signals to set up a direct WebRTC link and stop sending game traffic through
  * here once it's open; the relay only carries the game when a direct link can't be made.
@@ -31,6 +36,8 @@ import { DurableObject } from 'cloudflare:workers';
  * key here (so the relay never sees a card, and no player can open a backup while the host is
  * around). Once the host has been gone for TAKEOVER_AFTER_MS, the first device to ask for a
  * takeover gets the key and the host's claim on the code, opens its backup and hosts from there.
+ * Only players can: the host also leaves a hash of a token it gives the players with their
+ * backups, and a takeover must bring the token.
  */
 
 interface Env {
@@ -53,10 +60,17 @@ const TAKEOVER_AFTER_MS = 20_000;
 /** A host socket that hasn't sent its heartbeat for this long counts as gone (a phone asleep). */
 const HOST_SILENT_MS = 40_000;
 const BACKUP_KEY = /^[A-Za-z0-9_-]{16,64}$/;
+const SECRET = /^[A-Za-z0-9_-]{8,64}$/;
+const GATE = /^[0-9a-f]{64}$/;
 /** An unused room forgets everything after this. */
 const FORGET_MS = 24 * 3600_000;
 /** Messages a device may send per second before extras are dropped. */
 const RATE = 120;
+/** Bytes a device may send per second before extras are dropped (a few full views of a big game). */
+const BYTE_RATE = 1024 * 1024;
+
+const sha256 = async (text: string) =>
+  [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)))].map((b) => b.toString(16).padStart(2, '0')).join('');
 
 function originAllowed(origin: string | null, allowed: string): boolean {
   if (!origin) return true; // not a browser (curl, tests)
@@ -90,6 +104,8 @@ export default {
     if (!originAllowed(req.headers.get('Origin'), env.ALLOWED_ORIGINS ?? ''))
       return new Response('Origin not allowed', { status: 403 });
     if (!PEER_ID.test(url.searchParams.get('peer') ?? '')) return new Response('Bad peer id', { status: 400 });
+    const secret = url.searchParams.get('secret');
+    if (secret !== null && !SECRET.test(secret)) return new Response('Bad secret', { status: 400 });
     const host = url.searchParams.get('host');
     if (host !== null && !HOST_KEY.test(host)) return new Response('Bad host key', { status: 400 });
     return env.ROOMS.get(env.ROOMS.idFromName(m[1])).fetch(req);
@@ -98,11 +114,14 @@ export default {
 
 interface Attachment {
   peer: string;
+  /** Proves a reconnect is the same device (only it can replace this socket). */
+  secret?: string;
   /** The host's claim key, on the host's socket. */
   host?: string;
   /** Rate limiting: the current one-second window and messages sent in it. */
   window: number;
   count: number;
+  bytes?: number;
   /** Hosting: when we last heard the host's heartbeat (its deposit, repeated), and the key it left. */
   alive?: number;
   escrow?: string;
@@ -142,6 +161,10 @@ export class Room extends DurableObject<Env> {
     const url = new URL(req.url);
     const peer = url.searchParams.get('peer')!;
     const host = url.searchParams.get('host') ?? undefined;
+    const secret = url.searchParams.get('secret') ?? undefined;
+    // a peer id is taken: only the device that holds it (its secret) may reconnect under it
+    const old = this.ctx.getWebSockets(peer);
+    if (old.some((ws) => (ws.deserializeAttachment() as Attachment).secret !== secret)) return new Response('Peer id in use', { status: 409 });
     const [client, server] = Object.values(new WebSocketPair());
     if (host) {
       // one host per code: a different host is told the code is taken
@@ -158,14 +181,22 @@ export class Room extends DurableObject<Env> {
       }
       await this.ctx.storage.put('host', { key: host, seen: Date.now() });
     }
-    // a device reconnecting (same peer id) replaces its old socket
-    const old = this.ctx.getWebSockets(peer);
+    // a device reconnecting (same peer id and secret) replaces its old socket
     if (!old.length && this.peers().length >= MAX_PEERS) return new Response('Table is full', { status: 503 });
     this.ctx.acceptWebSocket(server, [peer]);
-    server.serializeAttachment({ peer, host, window: 0, count: 0 } satisfies Attachment);
+    server.serializeAttachment({ peer, secret, host, window: 0, count: 0 } satisfies Attachment);
     await this.ctx.storage.setAlarm(Date.now() + FORGET_MS);
     for (const ws of old) ws.close(4000, 'Replaced by a new connection');
-    server.send(JSON.stringify({ t: 'welcome', peers: this.peers(server).filter((p) => p !== peer) }));
+    const hostPeer = this.open().find((ws) => ws !== server && (ws.deserializeAttachment() as Attachment).host);
+    server.send(
+      JSON.stringify({
+        t: 'welcome',
+        // (protocol version: 2 adds peer secrets, host marks and takeover tokens)
+        v: 2,
+        peers: this.peers(server).filter((p) => p !== peer),
+        ...(hostPeer ? { host: this.peerOf(hostPeer) } : {}),
+      }),
+    );
     if (!old.length) this.broadcast(JSON.stringify({ t: 'join', peer }), server);
     return new Response(null, { status: 101, webSocket: client });
   }
@@ -177,18 +208,21 @@ export class Room extends DurableObject<Env> {
     if (att.window !== now) {
       att.window = now;
       att.count = 0;
+      att.bytes = 0;
     }
-    if (++att.count > RATE) return;
+    att.bytes = (att.bytes ?? 0) + data.length;
+    if (++att.count > RATE || att.bytes > BYTE_RATE) return ws.serializeAttachment(att);
     ws.serializeAttachment(att);
-    let env: { to?: unknown; d?: unknown; s?: unknown; k?: unknown; key?: unknown; host?: unknown };
+    let env: { to?: unknown; d?: unknown; s?: unknown; k?: unknown; key?: unknown; host?: unknown; gate?: unknown; token?: unknown };
     try {
       env = JSON.parse(data);
     } catch {
       return;
     }
-    if (env.k === 'deposit') return this.deposit(ws, att, env.key);
-    if (env.k === 'takeover') return this.takeover(ws, env.host);
+    if (env.k === 'deposit') return this.deposit(ws, att, env.key, env.gate);
+    if (env.k === 'takeover') return this.takeover(ws, env.host, env.token);
     const out: Record<string, unknown> = { t: 'msg', from: att.peer };
+    if (att.host) out.h = 1;
     if (env.s !== undefined) out.s = env.s;
     else out.d = env.d;
     const text = JSON.stringify(out);
@@ -201,20 +235,22 @@ export class Room extends DurableObject<Env> {
    * The host leaves the key to its backups with us, and repeats it every so often as a heartbeat
    * (a phone asleep can leave its socket looking open long after it stopped answering).
    */
-  private async deposit(ws: WebSocket, att: Attachment, key: unknown) {
+  private async deposit(ws: WebSocket, att: Attachment, key: unknown, gate: unknown) {
     if (!att.host || typeof key !== 'string' || !BACKUP_KEY.test(key)) return;
     att.alive = Date.now();
     if (att.escrow !== key) {
       const claim = await this.ctx.storage.get<{ key: string; seen: number }>('host');
       if (claim?.key !== att.host) return;
       await this.ctx.storage.put('escrow', key);
+      if (typeof gate === 'string' && GATE.test(gate)) await this.ctx.storage.put('gate', gate);
+      else await this.ctx.storage.delete('gate');
       att.escrow = key;
     }
     ws.serializeAttachment(att);
   }
 
   /** A player asks to take over a table whose host has gone: hand over the key and the code. */
-  private async takeover(ws: WebSocket, host: unknown) {
+  private async takeover(ws: WebSocket, host: unknown, token: unknown) {
     const reply = (m: { key?: string; error?: string }) => ws.send(JSON.stringify({ t: 'takeover', ...m }));
     if (typeof host !== 'string' || !HOST_KEY.test(host)) return reply({ error: 'bad-request' });
     const hostHere = this.open().some((s) => {
@@ -226,8 +262,12 @@ export class Room extends DurableObject<Env> {
     if (hostHere) return reply({ error: 'host-here' });
     if (!key) return reply({ error: 'no-backup' });
     if (claim && Date.now() - claim.seen < TAKEOVER_AFTER_MS) return reply({ error: 'too-soon' });
+    // only a player at the table (who was given the token with their backups) may take over
+    const gate = await this.ctx.storage.get<string>('gate');
+    if (gate && (typeof token !== 'string' || token.length > 128 || (await sha256(token)) !== gate)) return reply({ error: 'not-a-player' });
     // one takeover per backup key: whoever asks second is told someone beat them to it
     await this.ctx.storage.delete('escrow');
+    await this.ctx.storage.delete('gate');
     await this.ctx.storage.put('host', { key: host, seen: Date.now() });
     reply({ key });
   }
@@ -284,6 +324,31 @@ export interface ErrorReport {
 
 const clip = (x: unknown, n: number) => (typeof x === 'string' ? x : '').slice(0, n);
 
+/** Reports per address per minute (kept per Worker instance: a speed bump, not a wall). */
+const REPORTS_PER_MINUTE = 20;
+const reportCounts = new Map<string, { minute: number; n: number }>();
+function tooMany(req: Request): boolean {
+  const ip = req.headers.get('CF-Connecting-IP') ?? 'unknown';
+  const minute = Math.floor(Date.now() / 60_000);
+  const c = reportCounts.get(ip);
+  if (!c || c.minute !== minute) {
+    if (reportCounts.size > 10_000) reportCounts.clear();
+    reportCounts.set(ip, { minute, n: 1 });
+    return false;
+  }
+  return ++c.n > REPORTS_PER_MINUTE;
+}
+
+/** Compare secrets without leaking how much of them matched through timing. */
+function sameSecret(a: string, b: string): boolean {
+  const x = new TextEncoder().encode(a);
+  const y = new TextEncoder().encode(b);
+  if (x.length !== y.length) return false;
+  let diff = 0;
+  for (let i = 0; i < x.length; i++) diff |= x[i] ^ y[i];
+  return diff === 0;
+}
+
 async function receiveReport(req: Request, env: Env): Promise<Response> {
   const origin = req.headers.get('Origin');
   const cors = {
@@ -294,6 +359,7 @@ async function receiveReport(req: Request, env: Env): Promise<Response> {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
   if (req.method !== 'POST') return new Response('POST a report', { status: 405, headers: cors });
   if (!originAllowed(origin, env.ALLOWED_ORIGINS ?? '')) return new Response('Origin not allowed', { status: 403, headers: cors });
+  if (tooMany(req)) return new Response('Slow down', { status: 429, headers: cors });
   const text = await req.text();
   if (text.length > 8192) return new Response('Too long', { status: 413, headers: cors });
   let body: Record<string, unknown>;
@@ -319,7 +385,7 @@ async function receiveReport(req: Request, env: Env): Promise<Response> {
 
 async function showReports(url: URL, env: Env): Promise<Response> {
   const key = url.searchParams.get('key') ?? '';
-  if (!env.REPORTS_KEY || key !== env.REPORTS_KEY) return new Response('Not found', { status: 404 });
+  if (!env.REPORTS_KEY || !sameSecret(key, env.REPORTS_KEY)) return new Response('Not found', { status: 404 });
   const rows = await env.REPORTS.get(env.REPORTS.idFromName('all')).list();
   const esc = (s: unknown) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
   const when = (ms: number) => new Date(ms).toISOString().replace('T', ' ').slice(0, 16);

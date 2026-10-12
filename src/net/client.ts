@@ -1,5 +1,5 @@
 import type { Action } from '../engine/types';
-import type { Avatar, HostMsg, Night, View } from './protocol';
+import { isValidCode, type Avatar, type HostMsg, type Night, type View } from './protocol';
 import type { Transport } from './transport';
 
 /** No word from the host (which pings every 3s) for this long means we've lost it. */
@@ -18,8 +18,8 @@ export class Client {
   /** When we last heard anything from the host. */
   lastHeard = 0;
   /** The host's latest sealed backup of the game (only the relay can unlock it; see backup.ts). */
-  backup: { blob: string; v: number } | null = null;
-  onBackup: (b: { blob: string; v: number }) => void = () => {};
+  backup: { blob: string; v: number; token?: string } | null = null;
+  onBackup: (b: { blob: string; v: number; token?: string }) => void = () => {};
   /** The host is splitting the table (or sending a split-off table back): go to this one. */
   onMove: (m: { code: string; host?: boolean; night?: Night; parent?: string; back?: boolean }) => void = () => {};
   /** Back from a table that split off: its code and finished games, sent with each hello. */
@@ -33,6 +33,8 @@ export class Client {
     private name: string,
     private avatar: Avatar | undefined,
     private display = false,
+    /** The secret that holds our seat: only ever sent to the host. */
+    private key = '',
   ) {
     transport.onPeerJoin = (peer) => this.hello(peer);
     transport.onPeerLeave = (peer) => {
@@ -42,26 +44,37 @@ export class Client {
       const msg = raw as HostMsg;
       if (msg.t === 'ping') {
         this.transport.send({ t: 'pong', ts: msg.ts }, from);
-        this.heard();
+        if (this.isHost(from)) this.heard();
         return;
       }
+      // everything else only counts from the host: other players can message us too
+      if (!this.isHost(from)) return;
       if (msg.t === 'backup') {
         if (from !== this.hostPeer || typeof msg.blob !== 'string') return;
-        this.backup = { blob: msg.blob, v: msg.v };
+        this.backup = { blob: msg.blob, v: msg.v, ...(typeof msg.token === 'string' ? { token: msg.token } : {}) };
         this.onBackup(this.backup);
         return;
       }
       if (msg.t === 'move') {
-        if (from !== this.hostPeer || typeof msg.code !== 'string') return;
+        if (from !== this.hostPeer || typeof msg.code !== 'string' || !isValidCode(msg.code)) return;
         this.onMove(msg);
         return;
       }
       if (msg.t === 'pings') {
+        if (from !== this.hostPeer || !Array.isArray(msg.pings)) return;
         this.heard();
         this.onPings(msg.pings);
         return;
       }
       if (msg.t === 'view') {
+        if (!msg.view || typeof msg.view !== 'object') return;
+        const fresh = from !== this.hostPeer;
+        // the host asks who we are (we came in without showing our seat's key): tell it
+        if (msg.view.who) {
+          this.hostPeer = from;
+          if (this.key) this.hello(from);
+          return;
+        }
         // the same host can reach us on several networks: take each version once, newest only
         // (a restarted host has a new id and starts counting again)
         const same = this.view && msg.view.hid === this.view.hid;
@@ -73,8 +86,10 @@ export class Client {
         this.heard();
         this.view = msg.view;
         this.onView(msg.view);
+        // a host we've only just found: show it our key, so it gives us our seat
+        if (fresh) this.hello(from);
       } else if (msg.t === 'err') {
-        this.onError(msg.msg);
+        if (from === this.hostPeer) this.onError(String(msg.msg));
       }
     };
     // keep saying hello until a host answers (covers missed join events), and notice a host
@@ -83,6 +98,16 @@ export class Client {
       if (this.connected && Date.now() - this.lastHeard > SILENT_AFTER_MS) this.setConnected(false);
       if (!this.connected) this.hello();
     }, 2000);
+  }
+
+  /**
+   * Whether a message from `from` may be from the host. Our relay vouches for who the host is;
+   * on networks that can't, we keep to the host we found first, unless it has gone quiet.
+   */
+  private isHost(from: string): boolean {
+    const vouched = this.transport.vouch?.(from);
+    if (vouched !== undefined) return vouched;
+    return !this.hostPeer || from === this.hostPeer || !this.connected;
   }
 
   private heard() {
@@ -101,9 +126,11 @@ export class Client {
     this.onConnection(c);
   }
 
+  /** Say hello: to everyone while we look for the host, with our seat's key only to the host. */
   private hello(peer?: string) {
     const back = this.returning ? { from: this.returning.from, merge: this.returning.night.games } : {};
-    this.transport.send({ t: 'hello', cid: this.cid, name: this.name, avatar: this.avatar, display: this.display, ...back }, peer);
+    const key = this.key && peer && peer === this.hostPeer ? { key: this.key } : {};
+    this.transport.send({ t: 'hello', cid: this.cid, name: this.name, avatar: this.avatar, display: this.display, ...key, ...back }, peer);
   }
 
   /** Change name/avatar; the host applies it to your seat. */

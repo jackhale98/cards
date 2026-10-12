@@ -1,5 +1,6 @@
 // Smoke test for the relay protocol. Run `npx wrangler dev` here, then `node smoke.mjs`
 // (or `node smoke.mjs wss://relay.lamplight.cards` against the deployed relay).
+import { createHash } from 'node:crypto';
 const base = (process.argv[2] ?? 'ws://127.0.0.1:8787').replace(/\/$/, '');
 const room = `smoke-${Math.random().toString(36).slice(2, 8)}`;
 let failed = 0;
@@ -8,9 +9,9 @@ const check = (ok, what) => {
   if (!ok) failed++;
 };
 
-function connect(peer, headers, host, at = room) {
+function connect(peer, headers, host, at = room, secret) {
   return new Promise((resolve, reject) => {
-    const ws = new WebSocket(`${base}/room/${at}?peer=${peer}${host ? `&host=${host}` : ''}`, headers ? { headers } : undefined);
+    const ws = new WebSocket(`${base}/room/${at}?peer=${peer}${host ? `&host=${host}` : ''}${secret ? `&secret=${secret}` : ''}`, headers ? { headers } : undefined);
     const inbox = [];
     ws.onmessage = (e) => inbox.push(e.data === 'pong' ? 'pong' : JSON.parse(e.data));
     ws.onopen = () => resolve({ ws, inbox });
@@ -109,13 +110,14 @@ g.ws.close();
 // host handoff: the key to the players' backups is released once the host has gone
 const hand = `${room}-handoff`;
 const backupKey = 'b'.repeat(43);
+const token = 'players-only-token';
 const hh = await connect('hhost1', undefined, 'handoff-host-key', hand);
-hh.ws.send(JSON.stringify({ k: 'deposit', key: backupKey }));
+hh.ws.send(JSON.stringify({ k: 'deposit', key: backupKey, gate: createHash('sha256').update(token).digest('hex') }));
 const p1 = await connect('player1', undefined, undefined, hand);
 const p2 = await connect('player2', undefined, undefined, hand);
 await wait(200);
-const ask = async (box, host) => {
-  box.ws.send(JSON.stringify({ k: 'takeover', host }));
+const ask = async (box, host, tok = token) => {
+  box.ws.send(JSON.stringify({ k: 'takeover', host, token: tok }));
   await wait(250);
   return take(box, (m) => m.t === 'takeover');
 };
@@ -125,6 +127,7 @@ await wait(250);
 check((await ask(p1, 'taker-key-0001'))?.error === 'too-soon', 'no takeover the moment the host leaves');
 console.log('  (waiting 21s for the takeover window…)');
 await wait(21_000);
+check((await ask(p1, 'taker-key-0001', 'a-guess'))?.error === 'not-a-player', 'a device without the players’ token is refused');
 check((await ask(p1, 'taker-key-0001'))?.key === backupKey, 'after a while, a player gets the backup key');
 check((await ask(p2, 'taker-key-0002'))?.error === 'no-backup', 'only one player gets it');
 const back = await connect('hhost2', undefined, 'handoff-host-key', hand);
@@ -134,5 +137,32 @@ const nh = await connect('nhost1', undefined, 'taker-key-0001', hand);
 await wait(250);
 check(!!take(nh, (m) => m.t === 'welcome'), 'the player who took over hosts the code');
 for (const x of [p1, p2, nh]) x.ws.close();
+
+// who's who: peer ids belong to their secret, and the host's messages are marked
+const who = `${room}-who`;
+const wh = await connect('whost1', undefined, 'who-host-key-1', who, 'host-secret-1');
+const wg = await connect('wguest', undefined, undefined, who, 'guest-secret');
+await wait(200);
+const welcome = take(wg, (m) => m.t === 'welcome');
+check(welcome?.v === 2 && welcome?.host === 'whost1', 'the welcome names the host');
+let stolen = false;
+try {
+  const thief = await connect('whost1', undefined, undefined, who, 'not-the-secret');
+  await wait(200);
+  stolen = thief.ws.readyState === WebSocket.OPEN;
+  thief.ws.close();
+} catch {
+  /* refused */
+}
+check(!stolen && wh.ws.readyState === WebSocket.OPEN, "a device can't take over someone else's peer id");
+wh.ws.send(JSON.stringify({ d: { from: 'host' } }));
+wg.ws.send(JSON.stringify({ to: 'whost1', d: { from: 'guest' } }));
+await wait(200);
+check(take(wg, (m) => m.t === 'msg')?.h === 1, "the host's messages are marked");
+check(take(wh, (m) => m.t === 'msg')?.h === undefined, "a guest's are not");
+const wh2 = await connect('whost1', undefined, 'who-host-key-1', who, 'host-secret-1');
+await wait(250);
+check(wh.ws.readyState !== WebSocket.OPEN && wh2.ws.readyState === WebSocket.OPEN, 'with its secret, a device reconnects under its id');
+for (const x of [wg, wh2]) x.ws.close();
 console.log(failed ? `${failed} failed` : 'all good');
 process.exit(failed ? 1 : 0);

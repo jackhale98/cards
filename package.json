@@ -3,16 +3,23 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Local multiplayer card table \u2014 your phone is your hand.",
+  "description": "Local multiplayer card table — your phone is your hand.",
   "license": "AGPL-3.0-only",
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "test": "vitest run",
+    "test:quick": "vitest run --exclude tests/search.test.ts --exclude tests/bots.test.ts",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "verify": "pnpm check && pnpm test && pnpm build && pnpm -C relay check",
+    "verify:all": "pnpm verify && pnpm test:e2e"
   },
   "dependencies": {
     "@trystero-p2p/mqtt": "0.26.0",

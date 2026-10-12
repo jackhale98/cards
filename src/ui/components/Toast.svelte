@@ -12,11 +12,14 @@
   });
 </script>
 
-{#if app.toast}
-  {#key app.toast.id}
-    <div class="toast" role="status"><SuitText text={app.toast.text} /></div>
-  {/key}
-{/if}
+<!-- (one live region that stays put, so screen readers announce what appears in it) -->
+<div class="live" role="status">
+  {#if app.toast}
+    {#key app.toast.id}
+      <div class="toast"><SuitText text={app.toast.text} /></div>
+    {/key}
+  {/if}
+</div>
 
 <style>
   .toast {

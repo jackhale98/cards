@@ -5,7 +5,7 @@
   --felt-3: #071a14;
   --ink: #f3efe6;
   --ink-dim: rgba(243, 239, 230, 0.62);
-  --ink-faint: rgba(243, 239, 230, 0.35);
+  --ink-faint: rgba(243, 239, 230, 0.5);
   --gold: #e9c46a;
   --gold-deep: #c99a2e;
   --danger: #e76f51;
@@ -169,6 +169,8 @@ a.btn {
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
+    /* one run, not a flicker every frame for the endless ones (spinners, turn ring) */
+    animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
 }

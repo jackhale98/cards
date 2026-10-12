@@ -55,7 +55,7 @@ export function redact<D>(module: GameModule<D>, s: GameState<D>, viewer: number
  */
 export function redactActions(s: GameState<any>, viewer: number, specs: ActionSpec[]): ActionSpec[] {
   const alias = new Map<string, string>();
-  for (const [id, z] of Object.entries(s.zones))
+  for (const z of Object.values(s.zones))
     z.cards.forEach((c, i) => {
       if (!canSee(z, c, viewer)) alias.set(c.id, aliasOf(z, c, i));
     });

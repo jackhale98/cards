@@ -111,10 +111,14 @@ another player's hidden cards, so nobody can peek with dev tools.
 pnpm install
 pnpm dev          # http://localhost:5173
 pnpm test         # engine, rules, networking and schema tests
+pnpm test:quick   # the same without the slow bot-strength and bot-legality suites
 pnpm test:e2e     # every game dealt in a real browser at phone, laptop and TV sizes
 pnpm check        # type check
 pnpm build        # static site in dist/
+pnpm verify       # all of the above but e2e, plus the relay's type check (verify:all adds e2e)
 ```
+
+Working on the code with an AI agent? [CLAUDE.md](CLAUDE.md) is the map and the rules to keep.
 
 **Testing multiplayer on one computer:** add `?net=local` to the URL to connect browser tabs
 through a `BroadcastChannel` instead of WebRTC (`http://localhost:5173/?net=local`). Host in one
@@ -141,21 +145,29 @@ the page doesn't exist.
 
 The relay deploys separately from `relay/` (`npx wrangler deploy`, or connect the repo in
 Cloudflare with root directory `relay`). Test it locally with `npx wrangler dev` in `relay/`,
-`node smoke.mjs`, and the app at `?relay=ws://127.0.0.1:8787` (`&net=relay` to skip the public
+`node smoke.mjs`, and the app at `?relay=ws://127.0.0.1:8787` (honoured only on localhost or a dev server) (`&net=relay` to skip the public
 networks).
 
 ## Project layout
 
 ```
 src/
-  engine/     pure TypeScript: cards, seeded RNG, zones, redaction
-    families/ family engines: free, trick-taking, poker, rummy, cribbage (configured by game.json)
-    lib/      betting (side pots), pokerEval, trickTaking, passing, melds, cribbageScore
-  games/      one folder per game: game.json (+ optional rules.ts escape hatch)
-  net/      transports (WebRTC / local), authoritative Host, Client, protocol
-  ui/       Svelte 5 components and screens
-schemas/    JSON schema for game.json
-tests/      Vitest suites
+  engine/       pure TypeScript, no DOM or network: cards, seeded RNG, zones, redaction,
+                validate (actions checked against what was offered)
+    families/   one engine per kind of game (trick-taking, poker, rummy, canasta, cribbage,
+                slap, spit, spoons… see docs/ADDING_A_GAME.md), configured by game.json
+    lib/        betting (side pots), pokerEval, trickTaking, passing, melds, cribbageScore
+    bots/       search: Monte Carlo sampling bots any family can use
+  games/        one folder per game: game.json (+ optional rules.ts escape hatch); index.ts
+                is the registry, picker sections and search
+  net/          host (authoritative), client, protocol; transports (relay, public WebRTC
+                networks, local, multi); backup (host handoff), night (game-night tally),
+                cast and tvPair (TV), reports (anonymous error reports)
+  ui/           Svelte 5 screens and components, motion, sound, looks
+  app.svelte.ts app state and routing
+relay/          Cloudflare Worker + Durable Objects: the connection relay and error reports
+schemas/        JSON schema for game.json
+tests/          Vitest suites       e2e/   Playwright browser tests
 ```
 
 Adding a game is usually a single JSON file. See **[docs/ADDING_A_GAME.md](docs/ADDING_A_GAME.md)**.
@@ -165,7 +177,7 @@ Adding a game is usually a single JSON file. See **[docs/ADDING_A_GAME.md](docs/
 1. ✅ Engine, Free Table, multiplayer, lobby, poker & trick-taking families, avatars
 2. ✅ Rummy family (Gin), ✅ Cribbage, ✅ Euchre, ✅ 500, ✅ Contract Bridge
 3. Polish: ✅ sounds, ✅ card backs and cloths (next: a back from your own photo), PWA offline install, offline QR pairing
-4. Remote play (TURN fallback), leaderboards, tournaments, host migration
+4. ✅ Remote play through the relay, ✅ host handoff; next: leaderboards, tournaments
 
 ## License
 

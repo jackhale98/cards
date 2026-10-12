@@ -38,14 +38,35 @@ function audio(): AudioContext | null {
     ctx = new C();
   }
   if (ctx.state === 'suspended') void ctx.resume();
+  rest();
   return ctx;
 }
 
+// a running AudioContext keeps the phone's audio hardware awake: let it sleep when the table is
+// quiet or hidden, and wake it on the next touch (some browsers only resume from a gesture)
+let restTimer: ReturnType<typeof setTimeout> | undefined;
+function rest(after = 20_000) {
+  clearTimeout(restTimer);
+  restTimer = setTimeout(() => {
+    if (ctx?.state !== 'running') return;
+    void ctx.suspend();
+    listen();
+  }, after);
+}
+
 // browsers only start audio from a user gesture: wake it on the first touch
-if (typeof window !== 'undefined') {
-  const unlock = () => audio();
+function listen() {
+  const unlock = () => {
+    if (!muted) audio();
+  };
   window.addEventListener('pointerdown', unlock, { once: true, capture: true });
   window.addEventListener('keydown', unlock, { once: true, capture: true });
+}
+if (typeof window !== 'undefined') {
+  listen();
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) rest(0);
+  });
 }
 
 function noiseBuffer(c: AudioContext) {
@@ -93,7 +114,13 @@ export function play(sound: Sound) {
   // (dev builds: tests can listen in)
   if (import.meta.env.DEV) (window as unknown as { __sounds?: Sound[] }).__sounds?.push(sound);
   const c = audio();
-  if (!c || c.state !== 'running') return;
+  if (!c) return;
+  // asleep: play once it has woken (audio() asked it to)
+  if (c.state === 'suspended') void c.resume().then(() => c.state === 'running' && render(c, sound), () => {});
+  else if (c.state === 'running') render(c, sound);
+}
+
+function render(c: AudioContext, sound: Sound) {
   const t = c.currentTime + 0.01;
   // (never a pile-up: two sounds within 40ms collapse into one)
   if (sound !== 'turn' && t - lastAt < 0.04) return;

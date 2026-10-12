@@ -64,7 +64,8 @@
   onpointermove={move}
   onpointerup={up}
   onpointercancel={() => (drag = null)}
-  role="list"
+  role="group"
+  aria-label="Your hand"
 >
   {#each cards as c, i (c.id)}
     {@const p = layout[i] ?? { x: 0, rot: 0, y: 0 }}
@@ -76,9 +77,13 @@
       style:transform="translateY({p.y + (drag?.id === c.id ? drag.dy : 0)}px) rotate({p.rot}deg)"
       style:z-index={i + 1}
       onpointerdown={(e) => down(e, c.id)}
+      onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), ontap(c.id))}
       in:receive={{ key: c.id }}
       out:send={{ key: c.id }}
-      role="listitem"
+      role="button"
+      tabindex="0"
+      aria-pressed={selected.includes(c.id)}
+      aria-disabled={!can}
     >
       <Card
         id={c.id}

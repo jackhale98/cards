@@ -46,6 +46,11 @@ export class MultiTransport implements Transport {
     };
   }
 
+  vouch(peer: string): boolean | undefined {
+    const sep = peer.indexOf(':');
+    return this.subs.get(peer.slice(0, sep))?.vouch?.(peer.slice(sep + 1));
+  }
+
   /** One of the networks, by kind (e.g. the relay, for host handoff). */
   network<T extends Transport>(kind: string): T | undefined {
     return this.subs.get(kind) as T | undefined;

@@ -1,6 +1,6 @@
 import { parseCard, rankLabel, SUIT_NAME, SUIT_SYMBOL, type Suit } from '../cards';
 import { createState, deal, hand, ids, log, moveCards, name, nextSeat, placesFromScores, resetDeck, zone } from '../state';
-import { assertRule, type Action, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
+import { assertRule, type Action, type GameConfig, type GameModule, type GameState } from '../types';
 
 /**
  * Partnership auction Pinochle, single deck (pagat.com/marriage/pinmain.html). Configured from

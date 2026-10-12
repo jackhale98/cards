@@ -20,6 +20,7 @@ src/games/my-game/
 | `climbing`     | President (style `president`): beat the last play or pass, first out wins | `src/engine/families/climbing.ts` |
 | `cribbage`     | Cribbage for 2–4 (4 = partners), to 121 or 61 | `src/engine/families/cribbage.ts` |
 | `blackjack`    | Blackjack against the house (the host's phone deals) | `src/engine/families/blackjack.ts` |
+| `baccarat`     | Punto Banco against the house: bet on Player, Banker or Tie | `src/engine/families/baccarat.ts` |
 | `cheat`        | Cheat / Bullshit / I Doubt It | `src/engine/families/cheat.ts` |
 | `gofish`       | Go Fish | `src/engine/families/gofish.ts` |
 | `eights`       | Crazy Eights: match rank or suit, eights call a suit, optional Q/A/2 specials | `src/engine/families/eights.ts` |
@@ -35,7 +36,7 @@ src/games/my-game/
 autocomplete and validation as you type (each file points at it with `$schema`). `pnpm test`
 also validates every game file.
 
-**Picker section.** Games are grouped in the lobby by kind (Poker, Trick-taking, Rummy, Shedding, More), chosen from the rules family; set `"category"` in `game.json` to put a game somewhere else.
+**Picker section.** Games are grouped in the lobby by kind (`CATEGORIES` in `src/games/index.ts`: Poker, Casino, Trick-taking, Rummy, Shedding, Family, Speed, More), chosen from the rules family (`BY_FAMILY`, same file); set `"category"` in `game.json` to put a game somewhere else. `"aliases"` (other names people know it by) help the picker's search find it.
 
 **Picker icon.** Each built-in game has a small drawing in `src/ui/components/GameIcon.svelte`
 that shows what the game is about (Hold'em's hole cards and a chip, Cribbage's pegboard…).
@@ -159,8 +160,30 @@ Shared building blocks live in `src/engine/lib/`: `betting` (blinds, raises, sid
 
 ## Testing
 
-`tests/families.test.ts` plays whole games with bots for each config-only game. Copy one of
-those tests for your game, then run `pnpm test`.
+Several suites pick up a new game by themselves:
+
+- `tests/schema.test.ts`: the game file matches the schema.
+- `tests/bots.test.ts`: bots play hundreds of deals, every move one the rules offered (checked
+  exactly as the host checks people's moves, `src/engine/validate.ts`).
+- `tests/privacy.test.ts` and `tests/dataPrivacy.test.ts`: no log line, action or `data` sent to
+  a player names a card hidden from them. A family keeping private cards in `data` needs
+  `redactData`.
+- `e2e/layout.spec.ts`: the game is dealt in a real browser at phone, laptop and TV sizes.
+
+Two lists name every game and need the new one added: `tests/engine.test.ts` (all ids) and
+`tests/picker.test.ts` (ids per picker section). Then add `tests/<id>.test.ts` with the
+game's own rules (fix a seed, set cards straight into `s.zones[…]` for a scenario, expect a
+`RuleError` for a move the rules refuse), and run `pnpm verify`.
+
+### Checklist
+
+1. `src/games/<id>/game.json` (copy the closest game; `$schema` gives autocomplete).
+2. Anything new in a family → its engine, `schemas/game.schema.json`, and the table above.
+3. A new family → `src/engine/families/<name>.ts`, registered in `families/index.ts` and given
+   a picker section in `BY_FAMILY`.
+4. Optional: a picker drawing in `src/ui/components/GameIcon.svelte`.
+5. `tests/engine.test.ts`, `tests/picker.test.ts`, `tests/<id>.test.ts`; then `pnpm verify`.
+6. The game list in `README.md`.
 
 ## Game night standings
 

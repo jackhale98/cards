@@ -187,7 +187,23 @@
   let sheet = $state<'menu' | 'scores' | 'tv' | 'look' | null>(null);
   let bannerHidden = $state<number | null>(null);
   const showBanner = $derived(!!status.banner && bannerHidden !== s.v);
-  let portraitOk = $state(false);
+  // (remembered for the visit, so a new table doesn't ask again)
+  const remembered = (key: string) => {
+    try {
+      return sessionStorage.getItem(key) === '1';
+    } catch {
+      return false;
+    }
+  };
+  const remember = (key: string) => {
+    try {
+      sessionStorage.setItem(key, '1');
+    } catch {
+      /* private mode: just this table */
+    }
+    return true;
+  };
+  let portraitOk = $state(remembered('cards.portraitOk'));
   let fullscreen = $state(!!document.fullscreenElement);
 
   async function toggleFullscreen() {
@@ -513,7 +529,7 @@
   <div class="rotate">
     <div class="phone"></div>
     <p>Turn your phone sideways for the best view</p>
-    <button class="btn quiet" onclick={() => (portraitOk = true)}>Continue anyway</button>
+    <button class="btn quiet" onclick={() => (portraitOk = remember('cards.portraitOk'))}>Continue anyway</button>
   </div>
 {/if}
 
@@ -920,6 +936,12 @@
     width: 32px;
     height: 32px;
   }
+  /* (a 44px target around the small ×) */
+  .close::after {
+    content: '';
+    position: absolute;
+    inset: -6px;
+  }
   @keyframes rise {
     from {
       opacity: 0;
@@ -999,15 +1021,14 @@
       gap: 1rem;
       text-align: center;
       padding: 2rem;
-      background: rgba(5, 18, 14, 0.94);
-      backdrop-filter: blur(10px);
+      background: rgba(5, 18, 14, 0.96);
     }
     .phone {
       width: 44px;
       height: 78px;
       border: 3px solid var(--ink);
       border-radius: 10px;
-      animation: turn 2s var(--ease-out) infinite;
+      animation: turn 2s var(--ease-out) 3;
     }
   }
   @keyframes turn {

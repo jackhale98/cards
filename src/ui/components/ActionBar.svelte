@@ -187,9 +187,16 @@
     opacity: 0.8;
   }
   .clear {
+    position: relative;
     min-height: 34px;
     font-size: 0.8rem !important;
     color: var(--ink-dim);
+  }
+  /* (a 44px tall target without making the bar taller) */
+  .clear::after {
+    content: '';
+    position: absolute;
+    inset: -5px 0;
   }
   .more {
     letter-spacing: 0.15em;

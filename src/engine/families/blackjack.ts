@@ -75,7 +75,7 @@ export function blackjackFamily(config: GameConfig): GameModule<BlackjackData> {
   const decks = (s: S) => Number(s.options.decks ?? 2);
   const rounds = (s: S) => Number(s.options.rounds ?? 10);
   const minBet = (s: S) => Number(s.options.minBet ?? R.minBet);
-  const maxBet = (s: S) => R.maxBet;
+  const maxBet = (_s: S) => R.maxBet;
   const dealerCards = (s: S) => ids(zone(s, 'dealer'));
   const inRound = (s: S, seat: number) => (s.data.hands[seat]?.length ?? 0) > 0;
 

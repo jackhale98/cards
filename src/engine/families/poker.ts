@@ -529,6 +529,11 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
       };
     },
 
+    // draw poker: the cards thrown away go face down (kept only to reshuffle a short stock)
+    redactData(s) {
+      return s.data.discards ? { ...s.data, discards: [] } : s.data;
+    },
+
     bot(s, seat) {
       if (s.phase === 'draw' && s.turn === seat) {
         const cards = botDiscards(s, seat);
@@ -592,7 +597,7 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
       return {
         headline,
         pot: bet.potTotal(d.b) + (d.carry ?? 0),
-        seats: s.players.map((p, i) => ({
+        seats: s.players.map((_p, i) => ({
           out: d.b.out[i] || d.b.folded[i],
           badge: d.b.out[i] ? 'Out' : d.b.folded[i] ? 'Folded' : (d.acted?.[i] ?? (d.b.allIn[i] ? 'All in' : d.b.bets[i] ? `Bet ${d.b.bets[i]}` : undefined)),
           tag: i === d.button ? 'D' : undefined,

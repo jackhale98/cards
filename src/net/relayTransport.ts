@@ -1,11 +1,9 @@
 import type { Msg } from './protocol';
 import type { Transport } from './transport';
+import { RELAY_URL } from './relayUrl';
 
-/** Our own relay (a Cloudflare Worker, see `relay/`). `?relay=ws://…` overrides it for testing. */
-export const RELAY_URL: string =
-  (typeof location !== 'undefined' ? new URLSearchParams(location.search).get('relay') : null) ??
-  (import.meta.env.VITE_RELAY_URL as string | undefined) ??
-  'wss://relay.lamplight.cards';
+export { RELAY_URL };
+
 const ROOM_PREFIX = 'lamplight-v1-';
 const ICE_SERVERS: RTCIceServer[] = [{ urls: 'stun:stun.cloudflare.com:3478' }];
 const KEEPALIVE_MS = 25_000;
@@ -20,10 +18,10 @@ const QUEUE_LIMIT = 200;
 const LINK_AFTER = 3;
 
 type FromRelay =
-  | { t: 'welcome'; peers: string[] }
+  | { t: 'welcome'; v?: number; peers: string[]; host?: string }
   | { t: 'taken' }
   | { t: 'join' | 'leave'; peer: string }
-  | { t: 'msg'; from: string; d?: Msg; s?: Signal }
+  | { t: 'msg'; from: string; h?: 1; d?: Msg; s?: Signal }
   | { t: 'takeover'; key?: string; error?: string };
 type Signal = { sdp: RTCSessionDescriptionInit } | { ice: RTCIceCandidateInit };
 
@@ -33,6 +31,9 @@ interface Link {
   /** ICE candidates that arrived before the remote description. */
   early: RTCIceCandidateInit[];
 }
+
+const sha256 = async (text: string) =>
+  [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)))].map((b) => b.toString(16).padStart(2, '0')).join('');
 
 const randomId = () => Array.from(crypto.getRandomValues(new Uint8Array(9)), (b) => (b % 36).toString(36)).join('');
 
@@ -46,6 +47,12 @@ const randomId = () => Array.from(crypto.getRandomValues(new Uint8Array(9)), (b)
 export class RelayTransport implements Transport {
   readonly kind = 'relay';
   readonly selfId = randomId();
+  /** Proves to the relay that a reconnect under our id is really us. */
+  private readonly secret = randomId() + randomId();
+  /** The peer the relay says is the host (it marks messages from the host's socket). */
+  private hostPeer: string | null = null;
+  /** The relay marks the host's messages (protocol 2 on): until it says so, we can't tell. */
+  private marks = false;
   onMessage: Transport['onMessage'] = () => {};
   onPeerJoin: Transport['onPeerJoin'] = () => {};
   onPeerLeave: Transport['onPeerLeave'] = () => {};
@@ -70,6 +77,8 @@ export class RelayTransport implements Transport {
   onTaken: () => void = () => {};
   /** Hosting: the key to our backups, left with the relay (again after every reconnect). */
   private backupKey: string | null = null;
+  /** Hosting: hash of the token players need to take over (see deposit). */
+  private gate: string | null = null;
   private takeoverReply: ((r: { key?: string; error?: string }) => void) | null = null;
 
   constructor(
@@ -87,11 +96,11 @@ export class RelayTransport implements Transport {
   private connect() {
     if (this.closed) return;
     const host = this.hostKey ? `&host=${encodeURIComponent(this.hostKey)}` : '';
-    const ws = new WebSocket(`${this.url.replace(/\/$/, '')}/room/${ROOM_PREFIX}${this.code}?peer=${this.selfId}${host}`);
+    const ws = new WebSocket(`${this.url.replace(/\/$/, '')}/room/${ROOM_PREFIX}${this.code}?peer=${this.selfId}&secret=${this.secret}${host}`);
     this.ws = ws;
     ws.onopen = () => {
       this.retries = 0;
-      if (this.backupKey) ws.send(JSON.stringify({ k: 'deposit', key: this.backupKey }));
+      if (this.backupKey) ws.send(this.depositText());
       for (const text of this.queue.splice(0)) ws.send(text);
       this.keepalive = setInterval(() => ws.readyState === WebSocket.OPEN && ws.send('ping'), KEEPALIVE_MS);
       this.startHeartbeat();
@@ -134,12 +143,17 @@ export class RelayTransport implements Transport {
     } else if (m.t === 'taken') {
       this.leave();
       this.onTaken();
-    } else if (m.t === 'welcome') for (const p of m.peers) this.arrived(p);
+    } else if (m.t === 'welcome') {
+      this.marks = (m.v ?? 1) >= 2;
+      if (m.host) this.hostPeer = m.host;
+      for (const p of m.peers) this.arrived(p);
+    }
     else if (m.t === 'join') this.arrived(m.peer);
     else if (m.t === 'leave') {
       this.present.delete(m.peer);
       this.update(m.peer);
     } else if (m.t === 'msg') {
+      if (m.h) this.hostPeer = m.from;
       if (m.s) void this.signal(m.from, m.s);
       else if (m.d) {
         this.counted(m.from);
@@ -282,18 +296,34 @@ export class RelayTransport implements Transport {
     this.toRelay({ to, d: msg });
   }
 
-  /** Hosting: leave the key to our backups with the relay (see backup.ts). */
-  deposit(key: string) {
+  /**
+   * Hosting: leave the key to our backups with the relay (see backup.ts), and the hash of `gate`,
+   * the token players get with their backups (only they may take over).
+   */
+  async deposit(key: string, token?: string) {
     this.backupKey = key;
-    if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify({ k: 'deposit', key }));
+    this.gate = token ? await sha256(token) : null;
+    if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(this.depositText());
     this.startHeartbeat();
+  }
+
+  private depositText() {
+    return JSON.stringify({ k: 'deposit', key: this.backupKey, ...(this.gate ? { gate: this.gate } : {}) });
+  }
+
+  /**
+   * Whether `peer` is the table's host, as the relay vouches (it marks the host's messages). Over
+   * a direct link the peer is the one the relay introduced, so the same answer holds.
+   */
+  vouch(peer: string): boolean | undefined {
+    return this.marks ? peer === this.hostPeer : undefined;
   }
 
   /** Hosting: repeat the deposit as a heartbeat, so the relay can tell we're really still here. */
   private startHeartbeat() {
     if (!this.backupKey || this.heartbeat || this.ws?.readyState !== WebSocket.OPEN) return;
     const ws = this.ws;
-    this.heartbeat = setInterval(() => ws.readyState === WebSocket.OPEN && ws.send(JSON.stringify({ k: 'deposit', key: this.backupKey })), HOST_HEARTBEAT_MS);
+    this.heartbeat = setInterval(() => ws.readyState === WebSocket.OPEN && ws.send(this.depositText()), HOST_HEARTBEAT_MS);
   }
 
   /**
@@ -302,7 +332,7 @@ export class RelayTransport implements Transport {
    * `too-soon` (it only just left), `no-backup` (none left, or someone else took over first),
    * `offline` (no answer from the relay).
    */
-  takeover(newHostKey: string): Promise<{ key?: string; error?: string }> {
+  takeover(newHostKey: string, token?: string): Promise<{ key?: string; error?: string }> {
     return new Promise((resolve) => {
       if (this.ws?.readyState !== WebSocket.OPEN) return resolve({ error: 'offline' });
       const timer = setTimeout(() => {
@@ -313,7 +343,7 @@ export class RelayTransport implements Transport {
         clearTimeout(timer);
         resolve(r);
       };
-      this.ws.send(JSON.stringify({ k: 'takeover', host: newHostKey }));
+      this.ws.send(JSON.stringify({ k: 'takeover', host: newHostKey, ...(token ? { token } : {}) }));
     });
   }
 

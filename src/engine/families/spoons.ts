@@ -235,7 +235,7 @@ export function spoonsFamily(config: GameConfig): GameModule<SpoonsData> {
       return null;
     },
 
-    botDelay(s, seat, a) {
+    botDelay(s, _seat, a) {
       const level = botLevel(s.options);
       const span = ([lo, hi]: readonly [number, number]) => lo + Math.random() * (hi - lo);
       if (a.type === 'spoon') {

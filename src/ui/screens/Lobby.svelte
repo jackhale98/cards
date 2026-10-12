@@ -26,9 +26,11 @@
   let qr = $state('');
   $effect(() => {
     const url = joinUrl;
-    import('qrcode').then((QR) =>
-      QR.toDataURL(url, { margin: 1, width: 360, color: { dark: '#0b2a21', light: '#fbf8f1' } }).then((d) => (qr = d)),
-    );
+    import('qrcode')
+      .then((QR) => QR.toDataURL(url, { margin: 1, width: 360, color: { dark: '#0b2a21', light: '#fbf8f1' } }))
+      .then((d) => (qr = d))
+      // (no QR code is fine: the code and link are right there)
+      .catch(() => {});
   });
 
   // the host's phone keeps the table alive: don't let it sleep while friends are joining
@@ -97,7 +99,8 @@
   }
   /**
    * A line too long for its space glides along by itself: a pause at the start, slowly across to
-   * the end, a pause, and back. How far it goes (and so how long it takes) is measured here.
+   * the end, a pause, and back. How far it goes (and so how long it takes) is measured here. It
+   * rests after a few passes (battery); a tap plays it again.
    */
   function marquee(el: HTMLElement) {
     const run = el.firstElementChild as HTMLElement;
@@ -114,11 +117,18 @@
       // the glide out takes half the cycle
       el.style.setProperty('--cycle', `${Math.max(6, (over / SPEED) * 2).toFixed(1)}s`);
     };
+    const replay = () => run.getAnimations?.().forEach((a) => (a.cancel(), a.play()));
     update();
     const ro = new ResizeObserver(update);
     ro.observe(el);
     ro.observe(run);
-    return { destroy: () => ro.disconnect() };
+    el.addEventListener('pointerdown', replay);
+    return {
+      destroy: () => {
+        ro.disconnect();
+        el.removeEventListener('pointerdown', replay);
+      },
+    };
   }
   /** How many options differ from the game's defaults. */
   const changed = $derived((game.config.options ?? []).filter((o) => lobby.options[o.id] !== undefined && lobby.options[o.id] !== o.default).length);
@@ -786,9 +796,7 @@
     padding: 0.5rem 0.6rem 0.5rem 0.8rem;
     border-radius: 20px;
     background: rgba(8, 26, 20, 0.82);
-    background: color-mix(in srgb, var(--felt-3) 82%, transparent);
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
+    background: color-mix(in srgb, var(--felt-3) 92%, transparent);
     border: 1px solid var(--line);
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
   }
@@ -822,7 +830,8 @@
     margin-left: -0.5rem;
   }
   .dealbar .what > .line:global(.moving) .run {
-    animation: glide var(--cycle) ease-in-out infinite;
+    /* a few passes then rest (battery); tapping the line plays it again */
+    animation: glide var(--cycle) ease-in-out 3;
   }
   @keyframes glide {
     0%,
