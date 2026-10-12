@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { app } from '../../app.svelte';
+  import { app, inviteUrl } from '../../app.svelte';
   import { CATEGORIES, categoryOf, GAME_LIST, getGame, GAMES, misfit, playersText } from '../../games';
   import type { GameModule } from '../../engine/types';
   import type { View } from '../../net/protocol';
@@ -19,7 +19,7 @@
   const game = $derived(getGame(lobby.gameId));
   const host = $derived(view && app.host);
   const startError = $derived(view && host ? host.canStart() : null);
-  const joinUrl = $derived(`${location.origin}${location.pathname}${location.search}#/join/${lobby.code}`);
+  const joinUrl = $derived(inviteUrl(lobby.code));
 
   let qr = $state('');
   $effect(() => {
@@ -58,6 +58,9 @@
   }
   let picking = $state(false);
   let tv = $state(false);
+  let settings = $state(false);
+  /** How many options differ from the game's defaults. */
+  const changed = $derived((game.config.options ?? []).filter((o) => lobby.options[o.id] !== undefined && lobby.options[o.id] !== o.default).length);
 </script>
 
 {#snippet tile(g: GameModule)}
@@ -70,6 +73,39 @@
     </span>
   </button>
 {/snippet}
+
+{#snippet optionList()}
+  <div class="options">
+    {#each game.config.options as o (o.id)}
+      <label class="opt">
+        <span>{o.label}</span>
+        {#if o.choices}
+          <span class="seg">
+            {#each o.choices as c, i (c)}
+              <button class:on={Number(lobby.options[o.id]) === i} disabled={!host} onclick={() => host?.setOption(o.id, i)}>{c}</button>
+            {/each}
+          </span>
+        {:else if o.type === 'number'}
+          <span class="stepper">
+            <button disabled={!host} onclick={() => host?.setOption(o.id, Math.max(o.min ?? 0, Number(lobby.options[o.id]) - (o.step ?? 1)))}>−</button>
+            <b>{lobby.options[o.id]}</b>
+            <button disabled={!host} onclick={() => host?.setOption(o.id, Math.min(o.max ?? 1e9, Number(lobby.options[o.id]) + (o.step ?? 1)))}>+</button>
+          </span>
+        {:else}
+          <input type="checkbox" disabled={!host} checked={!!lobby.options[o.id]} onchange={(e) => host?.setOption(o.id, e.currentTarget.checked)} />
+        {/if}
+      </label>
+    {/each}
+  </div>
+{/snippet}
+
+{#if settings}
+  <Sheet title={game.config.name} onclose={() => (settings = false)}>
+    <p class="small">{game.config.tagline}</p>
+    {#if game.config.options?.length}{@render optionList()}{/if}
+    {#if !host}<p class="small">The host chooses the settings.</p>{/if}
+  </Sheet>
+{/if}
 
 {#if tv}
   <TvSheet table={lobby.code} onclose={() => (tv = false)} />
@@ -157,48 +193,26 @@
           <div class="games">{#each sec.games as g (g.config.id)}{@render tile(g)}{/each}</div>
         {/each}
       {/if}
-      <div class="chosen">
-        <span class="gicon big"><GameIcon id={game.config.id} icon={game.config.icon} size={52} /></span>
-        <div>
-          <b>{game.config.name}</b>
-          <p class="small">{game.config.tagline}</p>
-        </div>
-      </div>
-      {#if game.config.options?.length}
-        <div class="options">
-          {#each game.config.options as o (o.id)}
-            <label class="opt">
-              <span>{o.label}</span>
-              {#if o.choices}
-                <span class="seg">
-                  {#each o.choices as c, i (c)}
-                    <button class:on={Number(lobby.options[o.id]) === i} disabled={!host} onclick={() => host?.setOption(o.id, i)}>{c}</button>
-                  {/each}
-                </span>
-              {:else if o.type === 'number'}
-                <span class="stepper">
-                  <button disabled={!host} onclick={() => host?.setOption(o.id, Math.max(o.min ?? 0, Number(lobby.options[o.id]) - (o.step ?? 1)))}>−</button>
-                  <b>{lobby.options[o.id]}</b>
-                  <button disabled={!host} onclick={() => host?.setOption(o.id, Math.min(o.max ?? 1e9, Number(lobby.options[o.id]) + (o.step ?? 1)))}>+</button>
-                </span>
-              {:else}
-                <input type="checkbox" disabled={!host} checked={!!lobby.options[o.id]} onchange={(e) => host?.setOption(o.id, e.currentTarget.checked)} />
-              {/if}
-            </label>
-          {/each}
-        </div>
-      {/if}
-    </div>
-
-    <div class="start">
-      {#if host}
-        <button class="btn primary big" disabled={!!startError} onclick={deal}>Deal {game.config.name}</button>
-        {#if startError}<span class="small">{startError}{game.bot ? ' — add bots to fill seats' : ''}</span>{/if}
-      {:else}
-        <span class="waiting"><span class="spinner"></span> Waiting for the host to deal…</span>
-      {/if}
     </div>
   </section>
+
+  <!-- always on screen: what's chosen, its settings and the deal, however far down the picker you are -->
+  <div class="dealbar">
+    <span class="gicon"><GameIcon id={game.config.id} icon={game.config.icon} size={34} /></span>
+    <div class="what">
+      <b>{game.config.name}</b>
+      {#if host && startError}<span class="small warn-text">{startError}{game.bot ? ' — add bots to fill seats' : ''}</span>
+      {:else}<span class="small">{changed ? `${changed} setting${changed > 1 ? 's' : ''} changed` : game.config.tagline}</span>{/if}
+    </div>
+    {#if game.config.options?.length}
+      <button class="btn" onclick={() => (settings = true)} aria-label="Settings">⚙ <span class="long">Settings</span></button>
+    {/if}
+    {#if host}
+      <button class="btn primary big" disabled={!!startError} onclick={deal}>Deal <span class="long">{game.config.name}</span></button>
+    {:else}
+      <span class="waiting"><span class="spinner"></span> Waiting for the host…</span>
+    {/if}
+  </div>
 </div>
 
 <style>
@@ -434,10 +448,6 @@
     display: block;
     margin-bottom: 0.15rem;
   }
-  .gicon.big {
-    flex: none;
-    margin-bottom: 0;
-  }
   .gname {
     font-weight: 700;
   }
@@ -445,21 +455,16 @@
     font-size: 0.7rem;
     color: var(--ink-dim);
   }
-  .chosen {
-    display: flex;
-    gap: 0.6rem;
-    align-items: center;
-    margin-top: 0.3rem;
-  }
   .options {
     display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem 1.2rem;
+    flex-direction: column;
+    gap: 0.6rem;
     margin-top: 0.7rem;
   }
   .opt {
     display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: 0.6rem;
     font-size: 0.85rem;
     color: var(--ink-dim);
@@ -504,12 +509,50 @@
     color: var(--ink);
     font-variant-numeric: tabular-nums;
   }
-  .start {
+  .dealbar {
+    grid-column: 1 / -1;
+    min-width: 0;
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
     display: flex;
     align-items: center;
-    gap: 1rem;
-    flex-wrap: wrap;
-    padding-bottom: 0.5rem;
+    gap: 0.7rem;
+    padding: 0.5rem 0.6rem 0.5rem 0.8rem;
+    border-radius: 20px;
+    background: color-mix(in srgb, var(--felt-3) 82%, transparent);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid var(--line);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  }
+  .dealbar .btn {
+    flex: none;
+    white-space: nowrap;
+  }
+  .dealbar .what {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .dealbar .what > * {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .dealbar .gicon {
+    flex: none;
+    margin-bottom: 0;
+  }
+  .warn-text {
+    color: var(--gold);
+  }
+  @media (max-width: 560px) {
+    .dealbar .gicon,
+    .dealbar .long {
+      display: none;
+    }
   }
   .btn.big {
     font-size: 1.05rem;

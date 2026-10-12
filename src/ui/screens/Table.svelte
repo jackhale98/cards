@@ -1,7 +1,7 @@
 <script lang="ts">
   import { bugReportLink } from '../contact';
   import SuitText from '../components/SuitText.svelte';
-  import { app } from '../../app.svelte';
+  import { app, inviteUrl } from '../../app.svelte';
   import type { ActionSpec } from '../../engine/types';
   import { getGame } from '../../games';
   import type { View } from '../../net/protocol';
@@ -465,7 +465,7 @@
         </button>
       {/if}
       {#if !display}<button class="btn" onclick={() => (sheet = 'tv')}>Show on a TV</button>{/if}
-      <button class="btn" onclick={() => { navigator.clipboard?.writeText(`${location.origin}${location.pathname}#/join/${view.lobby.code}`); app.say('Invite link copied'); }}>Copy invite link</button>
+      <button class="btn" onclick={() => { navigator.clipboard?.writeText(inviteUrl(view.lobby.code)); app.say('Invite link copied'); }}>Copy invite link</button>
       {#if app.isHost}
         <button class="btn" onclick={() => { app.host?.endGame(); sheet = null; }}>Back to lobby</button>
       {/if}

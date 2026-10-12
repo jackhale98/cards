@@ -65,6 +65,27 @@ function clientId(): string {
   }
 }
 
+/**
+ * The link friends are sent: the code rides in the query (`?join=CODE`), which survives being
+ * pasted into any app; some drop everything after a `#`. Other query flags (`net=…`) are kept.
+ */
+export function inviteUrl(code: string): string {
+  const q = new URLSearchParams(location.search);
+  q.delete('join');
+  q.set('join', code);
+  return `${location.origin}${location.pathname}?${q}`;
+}
+
+/** Arrived by an invite (`?join=CODE`): turn it into the join route, so the code doesn't linger in the address. */
+function takeInvite() {
+  const q = new URLSearchParams(location.search);
+  const code = q.get('join');
+  if (!code) return;
+  q.delete('join');
+  const rest = q.toString();
+  history.replaceState(null, '', `${location.pathname}${rest ? `?${rest}` : ''}#/join/${code}`);
+}
+
 export function parseHash(hash = location.hash): Route {
   const [, kind, code] = hash.replace(/^#\/?/, '/').split('/');
   if (kind === 'room' && code) return { name: 'room', code: code.toUpperCase() };
@@ -94,7 +115,7 @@ interface SavedHost {
 }
 
 class App {
-  route = $state<Route>(parseHash());
+  route = $state<Route>((takeInvite(), parseHash()));
   name = $state(store.get('cards.name') ?? '');
   avatar = $state.raw<Avatar>(loadAvatar());
   view = $state.raw<View | null>(null);

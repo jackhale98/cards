@@ -27,7 +27,8 @@
 </script>
 
 {#if route.name === 'home'}
-  <Home code={route.code} />
+  <!-- (a new invite while the home screen is open fills in its code) -->
+  {#key route.code}<Home code={route.code} />{/key}
 {:else if route.name === 'tv'}
   <TvScreen />
 {:else if !view}
