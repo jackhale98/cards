@@ -160,4 +160,14 @@ Adding a game is usually a single JSON file. See **[docs/ADDING_A_GAME.md](docs/
 
 ## License
 
-MIT
+Copyright © 2026 Jack Hale.
+
+Lamplight is free software: you can redistribute it and/or modify it under the terms of the
+**GNU Affero General Public License, version 3** ([LICENSE](LICENSE)). In short: use it, change it
+and share it, but if you distribute a modified version or run one as a service, you must make your
+source code available under the same license.
+
+The name "Lamplight", its logo and icon, and lamplight.cards are trademarks and aren't covered by the
+license: forks need their own name and icon. See [TRADEMARKS.md](TRADEMARKS.md).
+
+(Versions published before this change were released under the MIT license.)
