@@ -47,6 +47,8 @@ From the lobby (**📺 TV**) or the table menu (**Show on a TV**):
   `/?cast=1` as a Cast receiver and is told the table code over a custom channel. The receiver is
   published in the Google Cast console (App ID `221DFB34`, built into `src/net/cast.ts`); how it was
   set up, and how to test a change on your own receiver, is in [docs/CHROMECAST.md](docs/CHROMECAST.md).
+- **TV sound:** the table screen plays the table's sounds; anyone at the table can mute it from their
+  phone's table menu (**TV sound**), since a Chromecast has no menu of its own.
 - **Apple TV:** websites can't send their own picture to an Apple TV, so use Screen Mirroring from a
   spare iPad or phone that has the table open as the table display (not your own phone — it would
   show your hand).

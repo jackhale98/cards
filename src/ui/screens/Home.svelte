@@ -55,29 +55,40 @@
       <h4>Playing together</h4>
       <ol>
         <li><b>One person starts a table</b> and picks the game. Their phone runs the game, so it's best plugged in.</li>
-        <li><b>Everyone else joins</b> by scanning the QR code, typing the five-letter table code, or tapping the invite link.</li>
-        <li><b>Your phone is your hand.</b> Turn it sideways: your cards are at the bottom, the table in the middle. Empty seats can be filled with bots.</li>
-        <li>Got a tablet, laptop or TV? Make it the <b>table display</b> for everyone to watch, and phones show a bigger hand.</li>
+        <li><b>Everyone else joins</b> by scanning the QR code, typing the five-letter table code, or tapping the invite link (it works from anywhere, not just the same room).</li>
+        <li><b>Your phone is your hand.</b> Turn it sideways: your cards at the bottom, the table in the middle. Each phone only ever gets its own cards.</li>
+        <li><b>Short of players?</b> Bots fill empty seats, Easy, Normal or Hard.</li>
       </ol>
-      <h4>Local first</h4>
-      <p>
-        Lamplight is made for friends around the same table. The game runs on the host's phone, and phones
-        talk to each other directly, so on the same WiFi your game stays in the room. Each phone only ever
-        gets its own cards.
-      </p>
-      <p>
-        Our small relay just introduces the devices (and passes messages along only when a network won't
-        let them connect directly). It never sees a card. There are no accounts, no ads and nothing to install.
-      </p>
-      <h4>Far apart?</h4>
-      <p>Send the invite link — it works over the internet too.</p>
+
+      <h4>Game night</h4>
+      <ul>
+        <li>Every finished game adds to the evening's <b>scoreboard</b>: 3, 2 and 1 points for the podium, and partners share.</li>
+        <li><b>More people than the game seats?</b> Everyone still gets a seat at the table. The host taps <b>In / Out</b> to choose who plays; the rest watch, and whoever sat out plays next.</li>
+        <li><b>Split the table</b> to run two games at once: the host picks a group and whose phone hosts their new table. They take the scoreboard with them, and <b>Everyone back</b> brings them home with their games added.</li>
+      </ul>
+
+      <h4>On a TV or a big screen</h4>
+      <ul>
+        <li><b>Chromecast or Google TV:</b> tap <b>📺 TV</b> in the lobby (or <b>Show on a TV</b> in the table menu), then <b>Cast</b>. Cast from Chrome or Edge on any device at the table — a player's Android phone, or a laptop.</li>
+        <li><b>Any TV with a web browser:</b> open <b>lamplight.cards/tv</b> on it, and type the code it shows into <b>Show on a TV</b> on a phone.</li>
+        <li><b>A laptop or tablet in the middle:</b> open the site and choose <b>Use this device as the table display</b>. A laptop doing this can cast it on to the TV too.</li>
+        <li>With a table screen on, phones switch to a bigger hand. Mute the TV from any phone's table menu (<b>TV sound</b>).</li>
+        <li><b>Apple TV:</b> use Screen Mirroring from a spare iPad or phone showing the table display — not your own phone, or everyone sees your hand.</li>
+      </ul>
+
+      <h4>Make it yours</h4>
+      <ul>
+        <li>Tap your avatar to pick an emoji and colour.</li>
+        <li>The host chooses the <b>card backs and table cloth</b> for everyone (🎴 in the lobby, or the table menu mid-game).</li>
+      </ul>
+
       <h4>Good to know</h4>
       <ul>
-        <li>Refresh or lose signal and you keep your seat; the host can resume the table later.</li>
-        <li>Rules follow <a href="https://www.pagat.com" target="_blank" rel="noreferrer">pagat.com</a>; each game's rules are in its menu.</li>
-        <li>Finished games add up to a <b>game night</b> scoreboard for the evening.</li>
+        <li>Refresh or lose signal and you keep your seat. If the host's phone drops out, any player can <b>take over hosting</b> and the game carries on.</li>
+        <li>Rules follow <a href="https://www.pagat.com" target="_blank" rel="noreferrer">pagat.com</a>; each game's rules are in its table menu.</li>
+        <li>No accounts, no ads, nothing to install.</li>
         <li>Found a bug, or want a game we don't have? Write to <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>.</li>
-        <li>Lamplight is free, with no ads and no accounts. If it makes your game nights better, you can <a href={SUPPORT_URL} target="_blank" rel="noreferrer">buy us a beer on Ko-fi</a> 🍺</li>
+        <li>Lamplight is free. If it makes your game nights better, you can <a href={SUPPORT_URL} target="_blank" rel="noreferrer">buy us a beer on Ko-fi</a> 🍺</li>
       </ul>
     </div>
   </Sheet>
@@ -184,7 +195,6 @@
   .about h4:first-child {
     margin-top: 0.2rem;
   }
-  .about p,
   .about li {
     margin: 0 0 0.45rem;
     line-height: 1.45;

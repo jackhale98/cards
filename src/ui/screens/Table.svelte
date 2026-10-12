@@ -17,7 +17,8 @@
   import { nightTotals } from '../../net/night';
   import { seatRelation } from '../../engine/state';
   import { flight, haptic, play, snapshot } from '../motion';
-  import { play as sound, setSound, soundOn, type Sound } from '../sound';
+  import { play as playSound, setSound, soundOn, type Sound } from '../sound';
+  import { SCREEN_SOUND } from '../../net/host';
   import { seatColor } from '../seatColors';
   import { keepAwake } from '../wakeLock';
   import TvSheet from '../components/TvSheet.svelte';
@@ -184,6 +185,9 @@
 
   // ---- sounds: each new move on the table (on the big screen, when there is one), and the end
   let soundsOn = $state(soundOn());
+  // a table screen stays quiet when someone at the table has muted it (a Chromecast has no menu)
+  const sound = (x: Sound) => (display && view.lobby.screenSound === false ? undefined : playSound(x));
+  const screenSoundOn = $derived(view.lobby.screenSound !== false);
   let heard = -1;
   function soundFor(e: { text: string; fromZone?: string; toZone?: string }): Sound | null {
     const t = e.text.toLowerCase();
@@ -474,7 +478,10 @@
   <Sheet title="Table {view.lobby.code}" onclose={() => (sheet = null)}>
     <div class="menu-list">
       <button class="btn" onclick={toggleFullscreen}>{fullscreen ? 'Exit full screen' : 'Full screen'}</button>
-      <button class="btn" onclick={() => { soundsOn = !soundsOn; setSound(soundsOn); }}>{soundsOn ? 'Sound: on' : 'Sound: off'}</button>
+      <button class="btn" onclick={() => { soundsOn = !soundsOn; setSound(soundsOn); }}>{display ? (soundsOn ? 'Sound here: on' : 'Sound here: off') : soundsOn ? 'Sound: on' : 'Sound: off'}</button>
+      {#if view.lobby.displays && !display}
+        <button class="btn" onclick={() => app.act({ type: SCREEN_SOUND, amount: screenSoundOn ? 0 : 1 })}>{screenSoundOn ? 'TV sound: on' : 'TV sound: off'}</button>
+      {/if}
       {#if view.lobby.displays && !display}
         <button class="btn" onclick={() => { app.setHandMode(!app.handMode); sheet = null; }}>
           {app.handMode ? 'Show whole table' : 'Just my hand'}

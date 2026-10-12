@@ -68,6 +68,8 @@ export interface Lobby {
   parent?: string;
   /** Tables that split off from this one and haven't come back yet. */
   splits?: SplitTable[];
+  /** Sound on the table screens (TV, Chromecast): off when someone at the table mutes it. */
+  screenSound?: boolean;
   /** The table's card back and cloth, chosen by the host (ids from ui/looks.ts). */
   look?: { back: string; cloth: string };
 }

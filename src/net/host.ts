@@ -26,6 +26,8 @@ export const HEARTBEAT_MS = 3000;
 /** A peer silent for this long is treated as gone (it keeps its seat and can come back). */
 export const DEAD_AFTER_MS = 12000;
 const UNDO = '__undo';
+/** Anyone at the table can mute (amount 0) or unmute the table screens: a Chromecast has no menu of its own. */
+export const SCREEN_SOUND = '__screenSound';
 /** Host handoff: players get a fresh sealed backup at most this often. */
 export const BACKUP_EVERY_MS = 2000;
 const BOT_NAMES = ['Ada', 'Bix', 'Cleo', 'Dash', 'Echo', 'Fizz', 'Gus', 'Hux', 'Ivy'];
@@ -223,6 +225,12 @@ export class Host {
 
   /** Apply an action from a client id. Returns an error message if it was rejected. */
   act(cid: string, a: Action): string | null {
+    if (a.type === SCREEN_SOUND) {
+      if (!this.lobby.seats.some((s) => s.id === cid)) return 'You are not at the table';
+      this.lobby.screenSound = a.amount !== 0;
+      this.broadcast();
+      return null;
+    }
     const seat = this.gameSeat(cid);
     if (!this.state || !this.module || seat < 0) return this.state ? 'You’re sitting this one out' : 'You are not seated';
     // face-down cards are referred to by placeholder ids; map them back to real cards

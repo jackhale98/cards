@@ -189,3 +189,23 @@ describe('the table’s look', () => {
     expect(clothOf(undefined).id).toBe('green');
   });
 });
+
+describe('TV sound', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it('anyone at the table can mute the table screens (a Chromecast has no menu of its own)', async () => {
+    const { SCREEN_SOUND } = await import('../src/net/host');
+    const { host, clients } = table(['Ann']);
+    expect(host.lobby.screenSound).toBeUndefined(); // (on)
+    host.setGame('gin-rummy');
+    host.start();
+    expect(host.act('ann', { type: SCREEN_SOUND, amount: 0 })).toBeNull();
+    expect(clients[0].view!.lobby.screenSound).toBe(false);
+    expect(host.act('ann', { type: SCREEN_SOUND, amount: 1 })).toBeNull();
+    expect(host.lobby.screenSound).toBe(true);
+    // someone who isn't at the table can't
+    expect(host.act('stranger', { type: SCREEN_SOUND, amount: 0 })).toMatch(/not at the table/);
+    expect(host.lobby.screenSound).toBe(true);
+  });
+});
