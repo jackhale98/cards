@@ -526,7 +526,9 @@
     text-transform: uppercase;
     color: var(--gold);
     font-weight: 600;
-    scroll-margin-top: 0.8rem;
+    /* jumping to a section lands it a quarter of the way down: clear of a phone's status bar or
+       notch, with the section's games below it still above the deal bar */
+    scroll-margin-top: calc(var(--safe-t) + 25vh);
   }
   .game.misfit:not(.active) {
     opacity: 0.45;

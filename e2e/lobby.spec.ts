@@ -34,3 +34,24 @@ for (const size of [
     await page.locator('.table').waitFor();
   });
 }
+
+for (const size of [
+  { name: 'phone', width: 852, height: 393 },
+  { name: 'portrait phone', width: 390, height: 844 },
+]) {
+  test(`jumping to a kind of game lands it clear of the top of the screen (${size.name})`, async ({ page }) => {
+    await page.setViewportSize(size);
+    await page.goto('/?net=local');
+    await page.fill('input[aria-label="Your name"]', 'Tester');
+    await page.click('text=Start a table');
+    await page.waitForURL(/#\/room\//);
+    await page.click('.cat:has-text("Rummy")');
+    const sec = page.locator('.sec', { hasText: 'Rummy' });
+    // lands in the upper middle of the screen (smooth scrolling: wait for it to get there)
+    const y = async () => (await sec.boundingBox())!.y;
+    await expect.poll(async () => { const v = await y(); return v > size.height * 0.15 && v < size.height * 0.5; }, { timeout: 4000 }).toBe(true);
+    const bar = (await page.locator('.dealbar').boundingBox())!.y;
+    // and its first games show above the deal bar
+    expect((await page.locator('[data-game="canasta"]').boundingBox())!.y).toBeLessThan(bar);
+  });
+}
