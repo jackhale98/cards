@@ -40,7 +40,7 @@ export function trickBots(T: TrickCtx) {
     const d = s.data;
     if (R.scoring.type === 'penalty') return false;
     if (isMisere(s)) return false; // the contractor ducks; defenders keep low to make them win one
-    if (R.scoring.type === 'tricks' || R.scoring.type === 'euchre' || R.scoring.type === 'auction' || R.scoring.type === 'bridge') return true;
+    if (R.scoring.type === 'tricks' || R.scoring.type === 'whist' || R.scoring.type === 'euchre' || R.scoring.type === 'auction' || R.scoring.type === 'bridge') return true;
     if (d.bids[seat] === 0 && nilAllowed) return false;
     if (R.scoring.type === 'exact') return d.tricks[seat] < (d.bids[seat] ?? 0);
     const team = teamsFor(s.players.length)[teamOf(s, seat)];

@@ -1,0 +1,35 @@
+{
+  "$schema": "../../../schemas/game.schema.json",
+  "id": "whist",
+  "name": "Whist",
+  "tagline": "The classic partnership trick game: the dealer's last card names trumps.",
+  "icon": "♧",
+  "players": { "min": 4, "max": 4, "recommended": 4 },
+  "bots": true,
+  "deck": {},
+  "zones": [
+    { "id": "deck", "visibility": "none", "layout": "stack", "area": "none" },
+    { "id": "hand", "perPlayer": true, "visibility": "owner", "layout": "fan", "area": "hand" },
+    { "id": "trick", "label": "Trick", "visibility": "all", "layout": "trick", "area": "center" },
+    { "id": "taken", "perPlayer": true, "visibility": "none", "layout": "stack", "area": "none" }
+  ],
+  "rules": {
+    "family": "trick-taking",
+    "lead": "leftOfDealer",
+    "trump": "lastCard",
+    "teams": [[0, 2], [1, 3]],
+    "scoring": { "type": "whist" },
+    "end": { "target": 5 }
+  },
+  "options": [
+    { "id": "target", "label": "Play to", "type": "number", "default": 5, "min": 5, "max": 10, "step": 1 },
+    { "id": "honours", "label": "Score honours", "type": "boolean", "default": false }
+  ],
+  "rulesSummary": [
+    "Four players, partners sitting across. All 52 cards are dealt, 13 each.",
+    "The dealer's last card is turned face up: its suit is trumps. The dealer picks it up on playing to the first trick.",
+    "The player left of the dealer leads. Follow suit if you can; otherwise play anything, trump or not. The highest trump wins, or else the highest card of the suit led.",
+    "The side that takes more tricks scores 1 point for each trick over six. First side to 5 wins (7 or 10 for a longer game).",
+    "Option, honours: the side dealt all four of A K Q J of trumps scores 4, three of them 2 — but not a side already one point from winning."
+  ]
+}

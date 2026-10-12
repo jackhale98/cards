@@ -365,7 +365,8 @@
                 "D",
                 "C",
                 "turnUp",
-                "chosen"
+                "chosen",
+                "lastCard"
               ],
               "description": "\"chosen\" = decided by the bidding (euchre, 500)."
             },
@@ -542,6 +543,19 @@
                   "properties": {
                     "type": {
                       "const": "tricks"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "required": [
+                    "type"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Whist: one point a trick over six for the side taking more; honours scored with the `honours` option.",
+                  "properties": {
+                    "type": {
+                      "const": "whist"
                     }
                   }
                 },

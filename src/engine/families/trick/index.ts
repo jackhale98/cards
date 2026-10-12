@@ -35,8 +35,12 @@ export interface TrickRules {
   maxHand?: number;
   passing?: { count: number; cycle: PassDirection[] };
   lead?: 'twoOfClubs' | 'leftOfDealer' | 'maker';
-  /** `chosen` = trumps are decided by the bidding (euchre, 500). */
-  trump?: 'none' | Suit | 'turnUp' | 'chosen';
+  /**
+   * `chosen` = trumps are decided by the bidding (euchre, 500); `turnUp` = a card turned up from the
+   * stock (Oh Hell); `lastCard` = the dealer's own last card, shown until they play to the first
+   * trick (Whist).
+   */
+  trump?: 'none' | Suit | 'turnUp' | 'chosen' | 'lastCard';
   breaks?: Suit;
   noPointsFirstTrick?: boolean;
   teams?: number[][];
@@ -56,6 +60,8 @@ export interface TrickRules {
     | { type: 'contract'; bags?: { every: number; penalty: number }; nil?: number }
     | { type: 'exact'; bonus: number }
     | { type: 'tricks' }
+    /** Whist: the side taking more tricks scores one a trick over six (`honours` option: A K Q J of trumps). */
+    | { type: 'whist' }
     | { type: 'euchre' }
     | { type: 'auction'; perTrick: number; slam?: number }
     | { type: 'bridge' };
@@ -117,6 +123,10 @@ export interface TrickData {
   /** 500: the suit called when a suitless joker is led, and the suits led so far this hand. */
   jokerLed?: Suit | null;
   ledSuits?: string[];
+  /** Whist: the dealer's turned-up last card (showing until they play to the first trick). */
+  trumpCard?: string | null;
+  /** Whist honours: the side dealt three or four of A K Q J of trumps, and how many. */
+  honours?: { team: number; count: number } | null;
   /** Spades: blind nil bidders this hand, and who still has to decide (before looking). */
   blind?: boolean[];
   blindToAsk?: number[];
@@ -170,7 +180,7 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
     resetDeck(s, config);
     d.handSize = sizeForRound(s, d.round);
     deal(s, [{ to: 'hand', count: d.handSize }]);
-    d.trump = R.trump && R.trump !== 'none' && R.trump !== 'turnUp' && R.trump !== 'chosen' ? R.trump : null;
+    d.trump = R.trump && R.trump !== 'none' && R.trump !== 'turnUp' && R.trump !== 'chosen' && R.trump !== 'lastCard' ? R.trump : null;
     d.maker = null;
     d.sittingOut = null;
     d.contract = null;
@@ -201,6 +211,22 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
     if (euchreBids && zone(s, 'deck').cards.length) {
       moveTop(s, 'deck', 'upcard', 1, { up: true });
       d.upcard = zone(s, 'upcard').cards[0].id;
+    }
+    d.trumpCard = null;
+    d.honours = null;
+    if (R.trump === 'lastCard') {
+      // the last card dealt (the dealer's) is turned up for trumps; it stays in the dealer's hand
+      const last = hand(s, s.dealer).cards.at(-1)!;
+      last.up = true;
+      d.trumpCard = last.id;
+      d.trump = parseCard(last.id).suit as Suit;
+      log(s, `${name(s, s.dealer)} turns up the ${cardName(last.id)}: ${SUIT_NAME[d.trump].toLowerCase()} are trumps`, s.dealer, SUIT_SYMBOL[d.trump]);
+      // honours: who was dealt the top four trumps
+      const top = [14, 13, 12, 11];
+      teamsFor(n).forEach((t, ti) => {
+        const count = t.flatMap((i) => ids(hand(s, i))).filter((c) => parseCard(c).suit === d.trump && top.includes(parseCard(c).rank)).length;
+        if (count >= 3) d.honours = { team: ti, count };
+      });
     }
     if (R.trump === 'turnUp' && zone(s, 'deck').cards.length) {
       moveTop(s, 'deck', 'trump', 1, { up: true });
@@ -515,6 +541,19 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
       });
     } else if (sc.type === 'tricks') {
       teams.forEach((t, ti) => (deltas[ti] = t.reduce((n, i) => n + d.tricks[i], 0)));
+    } else if (sc.type === 'whist') {
+      // the side with more tricks scores one for each over six (the "book")
+      const won = teams.map((t) => t.reduce((n, i) => n + d.tricks[i], 0));
+      const best = won.indexOf(Math.max(...won));
+      deltas[best] = won[best] - 6;
+      lines.push(`${teamName(s, best)} take ${won[best]} tricks: ${won[best] - 6} over the book`);
+      // honours (an option): 4 for all of A K Q J of trumps, 2 for three — not for a side already at 4
+      const h = d.honours;
+      if (s.options.honours && h && d.scores[h.team] < target(s) - 1) {
+        const pts = h.count === 4 ? 4 : 2;
+        deltas[h.team] += pts;
+        lines.push(`${teamName(s, h.team)} held ${h.count} honours: +${pts}`);
+      }
     } else if (sc.type === 'exact') {
       teams.forEach((t, ti) => {
         // a point a trick plus the bonus for an exact bid (or, with `exactOnly`, nothing for a miss)
@@ -941,6 +980,12 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
             if (led && led !== 'X' && suitOf(s, card) !== led && !voids[turn].includes(led)) voids[turn] = [...voids[turn], led];
           }
           moveCards(s, sourceZone(s, turn), 'trick', [card], { by: turn, up: true });
+          // Whist: the dealer takes the turned-up trump back into hand on playing to the first trick
+          if (d.trumpCard && turn === s.dealer) {
+            const shown = hand(s, s.dealer).cards.find((c) => c.id === d.trumpCard);
+            if (shown) shown.up = false;
+            d.trumpCard = null;
+          }
           d.received[turn] = [];
           log(s, `${name(s, seat)} plays the ${cardName(card)}${turn !== seat ? ' from dummy' : ''}`, seat, `${rankLabel(parseCard(card).rank)}${SUIT_SYMBOL[parseCard(card).suit]}`);
           if (bridgeBids && !d.dummyUp) {

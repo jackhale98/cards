@@ -40,7 +40,7 @@ describe('rng', () => {
 
 describe('registry', () => {
   it('loads every game folder, including config-only games', () => {
-    expect(Object.keys(GAMES).sort()).toEqual(['blackjack', 'bridge', 'canasta', 'cheat', 'crazy-eights', 'cribbage', 'euchre', 'five-card-draw', 'five-hundred', 'freetable', 'gin-rummy', 'go-fish', 'hand-and-foot', 'hearts', 'holdem', 'kings-corners', 'oh-hell', 'omaha', 'palace', 'pinochle', 'president', 'rummy-500', 'spades']);
+    expect(Object.keys(GAMES).sort()).toEqual(['blackjack', 'bridge', 'canasta', 'cheat', 'crazy-eights', 'cribbage', 'euchre', 'five-card-draw', 'five-hundred', 'freetable', 'gin-rummy', 'go-fish', 'hand-and-foot', 'hearts', 'holdem', 'kings-corners', 'oh-hell', 'omaha', 'palace', 'pinochle', 'president', 'rummy-500', 'spades', 'whist']);
     for (const g of GAME_LIST) {
       expect(g.config.players.min).toBeLessThanOrEqual(g.config.players.max);
       expect(g.config.zones.some((z) => z.id === 'deck')).toBe(true);
@@ -74,8 +74,11 @@ describe('redaction', () => {
       const json = JSON.stringify(v.zones);
       for (const [id, z] of Object.entries(s.zones)) {
         if (id.startsWith('hand:') && id !== 'hand:0') {
-          for (const c of z.cards) expect(json).not.toContain(`"${c.id}"`);
-          expect(v.zones[id].cards.every((c) => isHidden(c.id))).toBe(true);
+          // (except cards the rules show face up to everyone: Whist's turned-up trump, stud's up cards)
+          const secret = z.cards.filter((c) => !c.up);
+          for (const c of secret) expect(json).not.toContain(`"${c.id}"`);
+          expect(v.zones[id].cards.filter((c) => !c.up).every((c) => isHidden(c.id))).toBe(true);
+          expect(v.zones[id].cards.filter((c) => isHidden(c.id))).toHaveLength(secret.length);
         }
       }
       expect(v.zones.deck.cards.every((c) => isHidden(c.id))).toBe(true);
