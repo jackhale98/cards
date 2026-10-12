@@ -8,3 +8,6 @@ playwright-report
 # browser test output
 /test-results/
 /playwright-report/
+
+# agent workspaces
+.claude/worktrees/
