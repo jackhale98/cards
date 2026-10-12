@@ -842,8 +842,8 @@
     z-index: 5;
     background: rgba(8, 26, 20, 0.94);
     background: color-mix(in srgb, var(--felt-3) 94%, transparent);
-    top: 50%;
-    left: 50%;
+    top: calc(50% + (var(--safe-t) - var(--safe-b)) / 2);
+    left: calc(50% + (var(--safe-l) - var(--safe-r)) / 2);
     transform: translate(-50%, -50%);
     padding: 0.9rem 1.4rem;
     text-align: center;

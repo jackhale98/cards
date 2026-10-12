@@ -199,14 +199,14 @@
     background: color-mix(in srgb, var(--felt-3) 96%, transparent);
     position: fixed;
     right: calc(12px + var(--safe-r));
-    bottom: 12px;
+    bottom: calc(12px + var(--safe-b));
     z-index: 41;
     display: flex;
     flex-direction: column;
     padding: 0.4rem;
     min-width: 13rem;
-    max-height: calc(100vh - 24px);
-    max-height: calc(100dvh - 24px);
+    max-height: calc(100vh - 24px - var(--safe-t) - var(--safe-b));
+    max-height: calc(100dvh - 24px - var(--safe-t) - var(--safe-b));
     overflow: auto;
     animation: pop 0.18s var(--ease-out);
   }
