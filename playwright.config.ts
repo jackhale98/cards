@@ -1,5 +1,8 @@
 import { defineConfig } from '@playwright/test';
 
+// (PW_PORT lets two checkouts run their browser tests side by side without sharing a server)
+const PORT = Number(process.env.PW_PORT ?? 4173);
+
 /**
  * Browser tests (`pnpm test:e2e`): every game dealt at phone, laptop and TV sizes, checked for
  * anything off-screen or any error. They run against the dev server in local mode (`?net=local`:
@@ -13,15 +16,15 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
   use: {
-    baseURL: 'http://localhost:4173',
+    baseURL: `http://localhost:${PORT}`,
     // a failing test leaves a screenshot of what it saw (uploaded by CI)
     screenshot: 'only-on-failure',
     // (a cloud container may provide its own Chromium build)
     launchOptions: process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHROMIUM } : undefined,
   },
   webServer: {
-    command: 'pnpm exec vite --port 4173 --strictPort',
-    url: 'http://localhost:4173',
+    command: `pnpm exec vite --port ${PORT} --strictPort`,
+    url: `http://localhost:${PORT}`,
     reuseExistingServer: !process.env.CI,
     timeout: 60_000,
   },

@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readdirSync, readFileSync } from 'node:fs';
+import { cardsLanded, playOn } from './wait';
 
 /**
  * Deal every game at the sizes people really use — phones in landscape, a laptop, and a TV as the
@@ -86,10 +87,10 @@ for (const g of GAMES) {
       await page.setViewportSize(size);
       const errors = watch(page);
       await deal(page, g);
-      await page.waitForTimeout(1500);
+      await playOn(page);
       await checkLayout(page, { seatsMayScroll: true });
       // and again once the bots have played on a little
-      await page.waitForTimeout(4000);
+      await playOn(page, { moves: 4 });
       await checkLayout(page, { seatsMayScroll: true });
       expect(errors).toEqual([]);
     });
@@ -104,7 +105,7 @@ for (const g of GAMES) {
     errors.push(...watch(tv));
     await tv.goto(`/?net=local#/display/${code}`);
     await tv.locator('.table.display').waitFor();
-    await tv.waitForTimeout(2500);
+    await playOn(tv);
     await checkLayout(tv, { seatsMayScroll: false });
     expect(errors).toEqual([]);
   });
@@ -130,7 +131,7 @@ for (const [id, seats] of SIZES) {
     await page.setViewportSize(PHONES[0]);
     const errors = watch(page);
     await deal(page, g, seats);
-    await page.waitForTimeout(1500);
+    await playOn(page);
     await checkLayout(page, { seatsMayScroll: true });
     expect(errors).toEqual([]);
   });
@@ -143,7 +144,7 @@ for (const [id, seats] of SIZES) {
     errors.push(...watch(tv));
     await tv.goto(`/?net=local#/display/${code}`);
     await tv.locator('.table.display').waitFor();
-    await tv.waitForTimeout(2500);
+    await playOn(tv);
     await checkLayout(tv, { seatsMayScroll: false });
     expect(errors).toEqual([]);
   });
@@ -171,8 +172,9 @@ for (const [id, piles] of SPEED) {
     // through a few moves (bots turning cards, slapping), the piles never leave the phone
     for (let i = 0; i < 4; i++) {
       for (const z of piles) await expect(page.locator(`main [data-zone="${z}"]`)).toBeVisible();
-      await page.waitForTimeout(700);
+      await playOn(page, { moves: 1, quietMs: 700, land: false });
     }
+    await cardsLanded(page);
     await checkLayout(page, { seatsMayScroll: true });
     expect(errors).toEqual([]);
   });
