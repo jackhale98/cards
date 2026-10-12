@@ -827,8 +827,10 @@
     color: var(--gold);
     font-weight: 600;
   }
+  /* over the whole screen, not just the middle of the table: on a short screen (a phone in full
+     screen with the browser's bars, or a small one) the middle can be only a sliver tall */
   .banner {
-    position: absolute;
+    position: fixed;
     z-index: 5;
     background: rgba(8, 26, 20, 0.94);
     background: color-mix(in srgb, var(--felt-3) 94%, transparent);
@@ -839,7 +841,8 @@
     text-align: center;
     min-width: 16rem;
     max-width: 92%;
-    max-height: 100%;
+    max-height: calc(100vh - 16px - var(--safe-t) - var(--safe-b));
+    max-height: calc(100dvh - 16px - var(--safe-t) - var(--safe-b));
     overflow: auto;
     animation: rise 0.35s var(--ease-spring);
   }
