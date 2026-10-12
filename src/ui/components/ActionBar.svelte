@@ -161,6 +161,11 @@
     height: 100%;
     overflow-y: auto;
     scrollbar-width: none;
+    /* a scrolling box clips what's outside it, the primary button's soft glow included: room
+       for the glow inside, taken back outside so the buttons stay where they were */
+    /* (only 8px on the right: the table's edge is close there) */
+    padding: 10px 8px 22px 14px;
+    margin: -10px -8px -22px -14px;
   }
   .bar .btn {
     flex-direction: column;
