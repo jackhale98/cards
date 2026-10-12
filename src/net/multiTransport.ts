@@ -46,6 +46,11 @@ export class MultiTransport implements Transport {
     };
   }
 
+  /** One of the networks, by kind (e.g. the relay, for host handoff). */
+  network<T extends Transport>(kind: string): T | undefined {
+    return this.subs.get(kind) as T | undefined;
+  }
+
   get networks(): string[] {
     return [...this.subs.keys()];
   }

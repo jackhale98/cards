@@ -105,5 +105,34 @@ const h3 = await connect('host04', undefined, 'key-two-5678', table);
 await wait(250);
 check(!!take(h3, (m) => m.t === 'taken'), 'a recently gone host keeps its code for a while');
 g.ws.close();
+
+// host handoff: the key to the players' backups is released once the host has gone
+const hand = `${room}-handoff`;
+const backupKey = 'b'.repeat(43);
+const hh = await connect('hhost1', undefined, 'handoff-host-key', hand);
+hh.ws.send(JSON.stringify({ k: 'deposit', key: backupKey }));
+const p1 = await connect('player1', undefined, undefined, hand);
+const p2 = await connect('player2', undefined, undefined, hand);
+await wait(200);
+const ask = async (box, host) => {
+  box.ws.send(JSON.stringify({ k: 'takeover', host }));
+  await wait(250);
+  return take(box, (m) => m.t === 'takeover');
+};
+check((await ask(p1, 'taker-key-0001'))?.error === 'host-here', 'no takeover while the host is here');
+hh.ws.close();
+await wait(250);
+check((await ask(p1, 'taker-key-0001'))?.error === 'too-soon', 'no takeover the moment the host leaves');
+console.log('  (waiting 21s for the takeover window…)');
+await wait(21_000);
+check((await ask(p1, 'taker-key-0001'))?.key === backupKey, 'after a while, a player gets the backup key');
+check((await ask(p2, 'taker-key-0002'))?.error === 'no-backup', 'only one player gets it');
+const back = await connect('hhost2', undefined, 'handoff-host-key', hand);
+await wait(250);
+check(!!take(back, (m) => m.t === 'taken'), 'the old host coming back is told the table has moved');
+const nh = await connect('nhost1', undefined, 'taker-key-0001', hand);
+await wait(250);
+check(!!take(nh, (m) => m.t === 'welcome'), 'the player who took over hosts the code');
+for (const x of [p1, p2, nh]) x.ws.close();
 console.log(failed ? `${failed} failed` : 'all good');
 process.exit(failed ? 1 : 0);

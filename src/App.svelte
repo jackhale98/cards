@@ -60,7 +60,14 @@
 {/if}
 
 {#if view && !app.isHost && !app.connected}
-  <div class="reconnect">Reconnecting…</div>
+  {#if app.canTakeOver}
+    <div class="reconnect takeover">
+      <span>The host's phone has dropped out.</span>
+      <button class="btn primary" disabled={app.takingOver} onclick={() => app.takeOver()}>{app.takingOver ? 'Taking over…' : 'Take over hosting'}</button>
+    </div>
+  {:else}
+    <div class="reconnect">Reconnecting…</div>
+  {/if}
 {/if}
 
 <Toast />
@@ -128,5 +135,17 @@
     color: #2a1d05;
     font-weight: 600;
     font-size: 0.85rem;
+  }
+  .reconnect.takeover {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    padding: 0.35rem 0.4rem 0.35rem 1rem;
+    max-width: calc(100vw - 24px);
+  }
+  .reconnect.takeover .btn {
+    padding: 0.35rem 0.9rem;
+    font-size: 0.85rem;
+    white-space: nowrap;
   }
 </style>

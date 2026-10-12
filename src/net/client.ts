@@ -17,6 +17,9 @@ export class Client {
   onPings: (pings: (number | null)[]) => void = () => {};
   /** When we last heard anything from the host. */
   lastHeard = 0;
+  /** The host's latest sealed backup of the game (only the relay can unlock it; see backup.ts). */
+  backup: { blob: string; v: number } | null = null;
+  onBackup: (b: { blob: string; v: number }) => void = () => {};
   private seq = 0;
   private helloTimer: ReturnType<typeof setInterval>;
 
@@ -36,6 +39,12 @@ export class Client {
       if (msg.t === 'ping') {
         this.transport.send({ t: 'pong', ts: msg.ts }, from);
         this.heard();
+        return;
+      }
+      if (msg.t === 'backup') {
+        if (from !== this.hostPeer || typeof msg.blob !== 'string') return;
+        this.backup = { blob: msg.blob, v: msg.v };
+        this.onBackup(this.backup);
         return;
       }
       if (msg.t === 'pings') {

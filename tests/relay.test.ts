@@ -5,6 +5,9 @@ import { RelayTransport } from '../src/net/relayTransport';
 class FakeRelay {
   sockets = new Set<FakeSocket>();
   up = true;
+  /** Host handoff, per room: the host's claim and the key it left (as relay/src/index.ts). */
+  claims = new Map<string, { key: string; seen: number }>();
+  escrow = new Map<string, string>();
   /** Open sockets at the same table as `s` (not `s` itself). */
   mates(s: FakeSocket) {
     return [...this.sockets].filter((o) => o !== s && o.room === s.room && o.readyState === 1);
@@ -19,6 +22,15 @@ class FakeRelay {
         s.drop();
       });
     }
+    const claim = s.host ? this.claims.get(s.room) : undefined;
+    if (s.host && claim && claim.key !== s.host && Date.now() - claim.seen < 30 * 60_000) {
+      return queueMicrotask(() => {
+        s.readyState = 1;
+        s.deliver({ t: 'taken' });
+        s.drop();
+      });
+    }
+    if (s.host) this.claims.set(s.room, { key: s.host, seen: Date.now() });
     this.sockets.add(s);
     queueMicrotask(() => {
       s.readyState = 1;
@@ -30,11 +42,28 @@ class FakeRelay {
   receive(from: FakeSocket, text: string) {
     if (text === 'ping') return from.deliver('pong');
     const env = JSON.parse(text);
+    if (env.k === 'deposit') {
+      if (from.host && this.claims.get(from.room)?.key === from.host) this.escrow.set(from.room, env.key);
+      from.alive = Date.now();
+      return;
+    }
+    if (env.k === 'takeover') {
+      const hostHere = this.mates(from).some((o) => o.host && Date.now() - (o.alive ?? 0) < 40_000);
+      const key = this.escrow.get(from.room);
+      const claim = this.claims.get(from.room);
+      if (hostHere) return from.deliver({ t: 'takeover', error: 'host-here' });
+      if (!key) return from.deliver({ t: 'takeover', error: 'no-backup' });
+      if (claim && Date.now() - claim.seen < 20_000) return from.deliver({ t: 'takeover', error: 'too-soon' });
+      this.escrow.delete(from.room);
+      this.claims.set(from.room, { key: env.host, seen: Date.now() });
+      return from.deliver({ t: 'takeover', key });
+    }
     const out = { t: 'msg', from: from.peer, ...(env.s ? { s: env.s } : { d: env.d }) };
     for (const o of this.mates(from)) if (!env.to || o.peer === env.to) o.deliver(out);
   }
   close(s: FakeSocket) {
     if (!this.sockets.has(s)) return;
+    if (s.host && this.claims.get(s.room)?.key === s.host) this.claims.set(s.room, { key: s.host, seen: Date.now() });
     for (const o of this.mates(s)) o.deliver({ t: 'leave', peer: s.peer });
     this.sockets.delete(s);
   }
@@ -53,6 +82,7 @@ class FakeSocket {
   peer: string;
   room: string;
   host: string | null;
+  alive?: number;
   onopen?: () => void;
   onmessage?: (e: { data: string }) => void;
   onclose?: () => void;
@@ -191,5 +221,57 @@ describe('one host per table code', () => {
     expect(seen).toEqual([first.selfId]);
     first.leave();
     guest.leave();
+  });
+});
+
+describe('host handoff through the relay', () => {
+  it('releases the backup key only once the host has been gone a while, to one device', async () => {
+    const host = new RelayTransport('HNDFF', 'ws://relay.test', { hostKey: 'old-host-key' });
+    host.deposit('k'.repeat(43));
+    const a = new RelayTransport('HNDFF', 'ws://relay.test');
+    const b = new RelayTransport('HNDFF', 'ws://relay.test');
+    await flush();
+    // the host is here: no takeover
+    expect(await a.takeover('new-host-key-a')).toEqual({ t: 'takeover', error: 'host-here' });
+    host.leave();
+    await flush();
+    // it only just left
+    expect(await a.takeover('new-host-key-a')).toEqual({ t: 'takeover', error: 'too-soon' });
+    await vi.advanceTimersByTimeAsync(21_000);
+    expect(await a.takeover('new-host-key-a')).toEqual({ t: 'takeover', key: 'k'.repeat(43) });
+    // someone else asking second gets nothing
+    expect(await b.takeover('new-host-key-b')).toEqual({ t: 'takeover', error: 'no-backup' });
+    // the code now belongs to the new host; the old one coming back is turned away
+    const back = new RelayTransport('HNDFF', 'ws://relay.test', { hostKey: 'old-host-key' });
+    let taken = 0;
+    back.onTaken = () => taken++;
+    await flush();
+    expect(taken).toBe(1);
+    const fresh = new RelayTransport('HNDFF', 'ws://relay.test', { hostKey: 'new-host-key-a' });
+    let refused = 0;
+    fresh.onTaken = () => refused++;
+    await flush();
+    expect(refused).toBe(0);
+    for (const t of [a, b, fresh]) t.leave();
+  });
+
+  it('a host whose phone fell asleep (socket open, no heartbeat) counts as gone', async () => {
+    const host = new RelayTransport('SLEEP', 'ws://relay.test', { hostKey: 'sleepy-host-key' });
+    host.deposit('z'.repeat(43));
+    const a = new RelayTransport('SLEEP', 'ws://relay.test');
+    await flush();
+    // heartbeats keep it present
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(await a.takeover('taker-host-key')).toEqual({ t: 'takeover', error: 'host-here' });
+    // the phone sleeps: its socket stays open but its timers stop
+    vi.spyOn(FakeSocket.prototype, 'send').mockImplementation(function (this: FakeSocket, text: string) {
+      if (this.host === 'sleepy-host-key') return;
+      if (this.readyState === 1) relay.receive(this, text);
+    });
+    await vi.advanceTimersByTimeAsync(45_000);
+    expect((await a.takeover('taker-host-key')).key).toBe('z'.repeat(43));
+    vi.restoreAllMocks();
+    host.leave();
+    a.leave();
   });
 });

@@ -78,7 +78,9 @@ export type HostMsg =
   /** Heartbeat; clients answer with a pong carrying the same timestamp. */
   | { t: 'ping'; ts: number }
   /** Round-trip time (ms) from the host to each seated player, by seat index. */
-  | { t: 'pings'; pings: (number | null)[] };
+  | { t: 'pings'; pings: (number | null)[] }
+  /** The whole game, sealed with a key only the relay holds (see backup.ts), for host handoff. */
+  | { t: 'backup'; blob: string; v: number };
 
 export type Msg = ClientMsg | HostMsg;
 

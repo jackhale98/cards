@@ -1,12 +1,16 @@
 import type { Action } from './engine/types';
+import { newBackupKey, open as openBackup } from './net/backup';
 import { Client } from './net/client';
 import { Host, type HostSnapshot } from './net/host';
 import { AVATAR_COLORS, AVATAR_EMOJI, cleanAvatar, makeRoomCode, type Avatar, type View } from './net/protocol';
 import type { MultiTransport, NetworkStatus } from './net/multiTransport';
+import type { RelayTransport } from './net/relayTransport';
 import { createTransport, FALLBACK_AFTER_MS, RELAY_GRACE_MS, type TransportKind } from './net/transport';
 
 /** A guest that has lost the host for this long rebuilds its connection from scratch. */
 const REJOIN_AFTER_MS = 8000;
+/** A host gone this long can be taken over by a player (the relay itself waits 20s). */
+export const TAKEOVER_OFFER_MS = 25_000;
 
 export type Route =
   | { name: 'home'; code?: string }
@@ -34,9 +38,9 @@ const store = {
 };
 
 /** Per-tab secret that claims a table code on the relay while this tab hosts it (kept across reloads). */
-function hostKey(): string {
+function hostKey(fresh = false): string {
   try {
-    let key = sessionStorage.getItem('cards.hostKey');
+    let key = fresh ? null : sessionStorage.getItem('cards.hostKey');
     if (!key) {
       key = crypto.randomUUID();
       sessionStorage.setItem('cards.hostKey', key);
@@ -105,7 +109,7 @@ class App {
   handMode = $state(store.get('cards.handMode') !== 'off');
   /** When this device started trying to join the current table (for the "Finding table" screen). */
   joinStarted = $state(0);
-  readonly cid = clientId();
+  cid = clientId();
   readonly net: TransportKind = (['local', 'relay', 'public'] as const).find((k) => k === new URLSearchParams(location.search).get('net')) ?? 'p2p';
 
   host: Host | null = null;
@@ -116,6 +120,11 @@ class App {
   private addAll: (() => Promise<void>) | null = null;
   private watch: ReturnType<typeof setInterval> | null = null;
   private lostSince = 0;
+  /** The host has been gone a while and we hold a backup: offer to take over the table. */
+  canTakeOver = $state(false);
+  /** When we lost the host (kept through reconnect attempts, unlike lostSince). */
+  private hostGoneSince = 0;
+  takingOver = $state(false);
 
   constructor() {
     addEventListener('hashchange', () => {
@@ -188,8 +197,8 @@ class App {
     const resume = saved?.code === r.code ? saved.snap : undefined;
     if (r.name === 'room' && this.pendingHostCode === r.code) {
       this.pendingHostCode = null;
-      await this.startHost(r.code, resume);
-    } else if (r.name === 'room' && resume && saved?.cid === this.cid) await this.startHost(r.code, resume);
+      await this.startHost(r.code, resume, { resuming: !!resume });
+    } else if (r.name === 'room' && resume && saved?.cid === this.cid) await this.startHost(r.code, resume, { resuming: true });
     else await this.startClient(r.code, r.name === 'display');
   }
 
@@ -224,14 +233,22 @@ class App {
     this.go(`/room/${code}`);
   }
 
-  private async startHost(code: string, restore?: HostSnapshot) {
-    const joined = await createTransport(this.net, code, 'host', { key: hostKey(), onTaken: () => this.codeTaken(code) }).catch((e) => {
+  private async startHost(code: string, restore?: HostSnapshot, how: { resuming?: boolean; takeover?: boolean } = {}) {
+    // a table we were hosting that someone else now hosts (they took over while we were gone): join it
+    // (the seat we hosted from: resuming in a new tab re-saves the table under this tab's id)
+    const seatId = this.savedHost?.cid;
+    const onTaken = () => (how.resuming ? this.tableMoved(code, seatId) : this.codeTaken(code));
+    const joined = await createTransport(this.net, code, 'host', { key: hostKey(), onTaken }).catch((e) => {
       console.warn('Network unavailable, hosting offline', e);
       return null;
     });
     this.transport = joined?.transport ?? null;
     this.addAll = joined?.addAll ?? null;
-    const host = new Host(this.transport, code, { cid: this.cid, name: this.name || 'Host', avatar: this.avatar }, restore);
+    // host handoff: players get sealed backups; the relay keeps the key
+    const relay = this.transport?.network<RelayTransport>('relay');
+    const backupKey = relay ? newBackupKey() : undefined;
+    if (relay && backupKey) relay.deposit(backupKey);
+    const host = new Host(this.transport, code, { cid: this.cid, name: this.name || 'Host', avatar: this.avatar }, restore, { backupKey, takeover: how.takeover });
     host.onPings = (p) => (this.pings = p);
     // clone so the UI gets fresh objects, exactly like a remote client would
     host.onLocalView = (v) => (this.view = structuredClone(v));
@@ -261,7 +278,12 @@ class App {
     client.onConnection = (c) => {
       this.connected = c;
       this.lostSince = c ? 0 : Date.now();
+      if (c) {
+        this.canTakeOver = false;
+        this.hostGoneSince = 0;
+      } else this.hostGoneSince ||= Date.now();
     };
+    client.onBackup = (b) => store.set('cards.backup', JSON.stringify({ code, ...b }));
     this.client = client;
     this.startWatching();
   }
@@ -295,7 +317,77 @@ class App {
         void this.addNext();
       }
       if (this.view && this.lostSince && Date.now() - this.lostSince > REJOIN_AFTER_MS) void this.rejoin();
+      this.canTakeOver = !!this.view && this.view.you >= 0 && !!this.hostGoneSince && Date.now() - this.hostGoneSince > TAKEOVER_OFFER_MS && !!this.savedBackup(this.currentCode);
     }, 2000);
+  }
+
+  /** The latest sealed backup of the table `code` this device holds. */
+  private savedBackup(code: string | null): { blob: string; v: number } | null {
+    try {
+      const b = JSON.parse(store.get('cards.backup') ?? 'null');
+      return b && b.code === code && typeof b.blob === 'string' ? b : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * The host has gone: take over its table. The relay hands us the key to the backup we hold (and
+   * the table's code) once the host has been away a while; we open it and host from there, with
+   * everyone keeping their seats. Bots keep playing; the old host can rejoin as a player.
+   */
+  async takeOver() {
+    const code = this.currentCode;
+    const backup = this.savedBackup(code);
+    const relay = this.transport?.network<RelayTransport>('relay');
+    if (!code || !backup || !relay || this.isHost || this.takingOver) return;
+    this.takingOver = true;
+    try {
+      const res = await relay.takeover(hostKey(true));
+      if (!res.key) {
+        const why: Record<string, string> = {
+          'host-here': 'The host is back — hang on, reconnecting',
+          'too-soon': 'The host only just dropped — give it a few more seconds',
+          'no-backup': 'Someone else is already taking over',
+          offline: 'Couldn’t reach the Lamplight relay — check your connection',
+        };
+        this.say(why[res.error ?? ''] ?? 'Couldn’t take over the table');
+        return;
+      }
+      const snap = await openBackup(backup.blob, res.key);
+      this.client?.close();
+      this.client = null;
+      this.transport = null;
+      this.canTakeOver = false;
+      store.set('cards.backup', null);
+      await this.startHost(code, snap, { takeover: true });
+      this.say('You’re hosting the table now');
+    } catch (e) {
+      console.warn('Takeover failed', e);
+      this.say('Couldn’t open the backup of this table');
+    } finally {
+      this.takingOver = false;
+    }
+  }
+
+  /** We came back to host a table that a player has taken over meanwhile: join it as a player. */
+  private tableMoved(code: string, seatId?: string) {
+    if (this.currentCode !== code || !this.isHost) return;
+    // our seat is under the id we hosted with (this may be a new tab, with a new one)
+    if (seatId && seatId !== this.cid) {
+      this.cid = seatId;
+      try {
+        sessionStorage.setItem('cards.cid', seatId);
+      } catch {
+        /* private mode */
+      }
+    }
+    store.set('cards.host', null);
+    this.host?.close();
+    this.host = null;
+    this.transport = null;
+    this.say('Someone took over hosting while you were away — you’re back in your seat');
+    void this.startClient(code, false);
   }
 
   /** Tear down and rebuild the connection to the current table, keeping what's on screen. */
@@ -336,6 +428,8 @@ class App {
     this.view = null;
     this.isHost = false;
     this.currentCode = null;
+    this.hostGoneSince = 0;
+    this.canTakeOver = false;
   }
 }
 

@@ -56,7 +56,7 @@ game itself runs on the host's phone. Devices find each other through the **Lamp
    helps them find each other). Game messages go over the direct link whenever it's open, so on
    the same WiFi your game stays in the room.
 3. If a network won't allow direct links (some hotel and guest WiFi), the relay passes the
-   messages along instead. It stores nothing, and an idle table costs nothing (WebSocket
+   messages along instead. It never sees a card, and an idle table costs nothing (WebSocket
    hibernation).
 
 As a backup, three public signalling networks via [Trystero](https://github.com/dmotz/trystero)
@@ -68,6 +68,14 @@ networks at once; each view carries the host's id and version, so duplicates are
 The host pings every player every 3 seconds: everyone sees each player's latency, a phone that
 goes to sleep is noticed within seconds (it keeps its seat), and a guest that loses the host
 rebuilds its connection automatically.
+
+**If the host's phone dies**, the game isn't lost. Every few seconds the host sends each seated
+player an encrypted backup of the whole game, and leaves only the key with the relay, so no phone
+can read anyone else's cards. Once the host has been gone for 20 seconds (and stopped sending its
+heartbeat), players see **Take over hosting**: the first to tap it gets the key from the relay,
+opens its backup and hosts from exactly where the game was. Everyone keeps their seat, bots carry
+on, and when the old host comes back it rejoins as a player in its own seat (`src/net/backup.ts`,
+`takeover` in `relay/src/index.ts`).
 
 The host's device runs the rules and is the single source of truth. Every other device sends
 *intents* ("play the 7♣") and gets back a **personalised view**. Your device never receives

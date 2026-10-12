@@ -9,20 +9,28 @@ import { DurableObject } from 'cloudflare:workers';
  *
  *   device → relay   { "to": "<peer>"?, "d": <game message> }      (no `to` = everyone else)
  *                    { "to": "<peer>",  "s": <WebRTC signal> }
+ *                    { "k": "deposit", "key": "<backup key>" }       (host only, see below)
+ *                    { "k": "takeover", "host": "<new host key>" }
  *   relay → device   { "t": "welcome", "peers": ["<peer>", …] }    (on connect)
  *                    { "t": "taken" }                               (then closed: see below)
  *                    { "t": "join" | "leave", "peer": "<peer>" }
  *                    { "t": "msg", "from": "<peer>", "d" | "s": … }
+ *                    { "t": "takeover", "key": "<backup key>" } | { "t": "takeover", "error": "…" }
  *
  * Devices use the signals to set up a direct WebRTC link and stop sending game traffic through
  * here once it's open; the relay only carries the game when a direct link can't be made.
- * Nothing is stored. The room uses WebSocket hibernation, so an idle table costs nothing, and a
+ * The room uses WebSocket hibernation, so an idle table costs nothing, and a
  * plain "ping" text frame is answered with "pong" without waking it.
  *
  * The host connects with `&host=<secret>`, which claims the table code. Another host (a different
  * secret) on the same code gets `taken` and is closed, so it can pick a new code: the claim holds
  * while its host is connected and for a while after (a refresh, a phone asleep). A room nobody has
  * used for a day forgets its claim.
+ *
+ * Host handoff: the host sends every player an encrypted backup of the game, and deposits only the
+ * key here (so the relay never sees a card, and no player can open a backup while the host is
+ * around). Once the host has been gone for TAKEOVER_AFTER_MS, the first device to ask for a
+ * takeover gets the key and the host's claim on the code, opens its backup and hosts from there.
  */
 
 interface Env {
@@ -37,6 +45,11 @@ const PEER_ID = /^[A-Za-z0-9_-]{4,40}$/;
 const HOST_KEY = /^[A-Za-z0-9_-]{8,64}$/;
 /** How long a host's claim on its code outlasts its connection. */
 const HOST_GRACE_MS = 30 * 60_000;
+/** How long the host must have been gone before another device may take over its table. */
+const TAKEOVER_AFTER_MS = 20_000;
+/** A host socket that hasn't sent its heartbeat for this long counts as gone (a phone asleep). */
+const HOST_SILENT_MS = 40_000;
+const BACKUP_KEY = /^[A-Za-z0-9_-]{16,64}$/;
 /** An unused room forgets everything after this. */
 const FORGET_MS = 24 * 3600_000;
 /** Messages a device may send per second before extras are dropped. */
@@ -85,6 +98,9 @@ interface Attachment {
   /** Rate limiting: the current one-second window and messages sent in it. */
   window: number;
   count: number;
+  /** Hosting: when we last heard the host's heartbeat (its deposit, repeated), and the key it left. */
+  alive?: number;
+  escrow?: string;
 }
 
 export class Room extends DurableObject<Env> {
@@ -159,12 +175,14 @@ export class Room extends DurableObject<Env> {
     }
     if (++att.count > RATE) return;
     ws.serializeAttachment(att);
-    let env: { to?: unknown; d?: unknown; s?: unknown };
+    let env: { to?: unknown; d?: unknown; s?: unknown; k?: unknown; key?: unknown; host?: unknown };
     try {
       env = JSON.parse(data);
     } catch {
       return;
     }
+    if (env.k === 'deposit') return this.deposit(ws, att, env.key);
+    if (env.k === 'takeover') return this.takeover(ws, env.host);
     const out: Record<string, unknown> = { t: 'msg', from: att.peer };
     if (env.s !== undefined) out.s = env.s;
     else out.d = env.d;
@@ -172,6 +190,41 @@ export class Room extends DurableObject<Env> {
     if (typeof env.to === 'string') {
       for (const target of this.ctx.getWebSockets(env.to)) if (target.readyState === WebSocket.OPEN) target.send(text);
     } else this.broadcast(text, ws);
+  }
+
+  /**
+   * The host leaves the key to its backups with us, and repeats it every so often as a heartbeat
+   * (a phone asleep can leave its socket looking open long after it stopped answering).
+   */
+  private async deposit(ws: WebSocket, att: Attachment, key: unknown) {
+    if (!att.host || typeof key !== 'string' || !BACKUP_KEY.test(key)) return;
+    att.alive = Date.now();
+    if (att.escrow !== key) {
+      const claim = await this.ctx.storage.get<{ key: string; seen: number }>('host');
+      if (claim?.key !== att.host) return;
+      await this.ctx.storage.put('escrow', key);
+      att.escrow = key;
+    }
+    ws.serializeAttachment(att);
+  }
+
+  /** A player asks to take over a table whose host has gone: hand over the key and the code. */
+  private async takeover(ws: WebSocket, host: unknown) {
+    const reply = (m: { key?: string; error?: string }) => ws.send(JSON.stringify({ t: 'takeover', ...m }));
+    if (typeof host !== 'string' || !HOST_KEY.test(host)) return reply({ error: 'bad-request' });
+    const hostHere = this.open().some((s) => {
+      const a = s.deserializeAttachment() as Attachment;
+      return a.host && (a.alive == null || Date.now() - a.alive < HOST_SILENT_MS);
+    });
+    const claim = await this.ctx.storage.get<{ key: string; seen: number }>('host');
+    const key = await this.ctx.storage.get<string>('escrow');
+    if (hostHere) return reply({ error: 'host-here' });
+    if (!key) return reply({ error: 'no-backup' });
+    if (claim && Date.now() - claim.seen < TAKEOVER_AFTER_MS) return reply({ error: 'too-soon' });
+    // one takeover per backup key: whoever asks second is told someone beat them to it
+    await this.ctx.storage.delete('escrow');
+    await this.ctx.storage.put('host', { key: host, seen: Date.now() });
+    reply({ key });
   }
 
   async webSocketClose(ws: WebSocket, code: number) {

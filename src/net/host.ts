@@ -4,6 +4,7 @@ import { nightPoints, standingsOf } from '../engine/state';
 import { RuleError, type Action, type GameModule, type GameState } from '../engine/types';
 import { getGame, GAMES } from '../games';
 import { AVATAR_COLORS, AVATAR_EMOJI, cleanAvatar, type Avatar, type ClientMsg, type Lobby, type LobbySeat, type Msg, type View } from './protocol';
+import { seal } from './backup';
 import type { Transport } from './transport';
 
 export const LOCAL = 'local';
@@ -11,6 +12,8 @@ export const HEARTBEAT_MS = 3000;
 /** A peer silent for this long is treated as gone (it keeps its seat and can come back). */
 export const DEAD_AFTER_MS = 12000;
 const UNDO = '__undo';
+/** Host handoff: players get a fresh sealed backup at most this often. */
+export const BACKUP_EVERY_MS = 2000;
 const BOT_NAMES = ['Ada', 'Bix', 'Cleo', 'Dash', 'Echo', 'Fizz', 'Gus', 'Hux', 'Ivy'];
 
 export interface HostSnapshot {
@@ -43,24 +46,36 @@ export class Host {
   onLocalError: (msg: string) => void = () => {};
   /** Called after every change with a serialisable snapshot (for resume-after-refresh). */
   onPersist: (snap: HostSnapshot) => void = () => {};
+  /** Host handoff: the key players' backups are sealed with (held by the relay), if any. */
+  private readonly backupKey?: string;
+  private backupTimer: ReturnType<typeof setTimeout> | null = null;
+  private backedUp = -1;
 
   constructor(
     private transport: Transport | null,
     code: string,
     host: { cid: string; name: string; avatar?: Avatar },
     restore?: HostSnapshot,
+    /** `takeover`: this device is a player taking over from a host that has gone. */
+    opts: { backupKey?: string; takeover?: boolean } = {},
   ) {
+    this.backupKey = opts.backupKey;
     if (restore) {
       this.lobby = restore.lobby;
       // (the table may have moved to a new code, if its old one turned out to be taken)
       this.lobby.code = code;
-      this.lobby.seats.forEach((s) => (s.connected = !!s.bot || !!s.host));
-      // the host may be resuming from a new browser session with a new client id
       const hostSeat = this.lobby.seats.find((s) => s.host);
-      if (hostSeat) {
+      const mine = this.lobby.seats.find((s) => s.id === host.cid);
+      if (opts.takeover && mine && hostSeat !== mine) {
+        // the old host keeps their seat as a player (they can rejoin it), and we host from ours
+        if (hostSeat) hostSeat.host = false;
+        mine.host = true;
+      } else if (hostSeat) {
+        // the host may be resuming from a new browser session with a new client id
         hostSeat.id = host.cid;
         hostSeat.avatar = host.avatar ?? hostSeat.avatar;
       }
+      this.lobby.seats.forEach((s) => (s.connected = !!s.bot || !!s.host));
       this.state = restore.state;
       if (this.state) this.module = getGame(this.state.game);
     } else {
@@ -113,6 +128,7 @@ export class Host {
       return this.broadcast();
     }
     // a client may reach us on more than one network; keep them all, they're the same seat
+    if (!this.peers.has(peer)) this.backedUp = -1; // (someone new: they need a backup too)
     this.peers.set(peer, cid);
     this.health.set(peer, { rtt: this.health.get(peer)?.rtt ?? null, seen: Date.now() });
     const seat = this.lobby.seats.find((s) => s.id === cid);
@@ -382,6 +398,7 @@ export class Host {
 
   close() {
     if (this.timer) clearTimeout(this.timer);
+    if (this.backupTimer) clearTimeout(this.backupTimer);
     if (this.heartbeat) clearInterval(this.heartbeat);
     this.transport?.leave();
   }
@@ -421,6 +438,28 @@ export class Host {
       }
     }
     this.onPersist({ lobby: this.lobby, state: this.state });
+    this.queueBackup();
+  }
+
+  // ---- host handoff -----------------------------------------------------------------------
+
+  /** Send seated players a sealed backup of the game soon (at most every BACKUP_EVERY_MS). */
+  private queueBackup() {
+    if (!this.transport || !this.backupKey || this.backupTimer) return;
+    this.backupTimer = setTimeout(() => {
+      this.backupTimer = null;
+      void this.sendBackup();
+    }, BACKUP_EVERY_MS);
+  }
+
+  private async sendBackup() {
+    if (this.v === this.backedUp) return;
+    const v = this.v;
+    const blob = await seal({ lobby: this.lobby, state: this.state }, this.backupKey!);
+    this.backedUp = v;
+    // the players who could take over: seated people (not bots, not table screens)
+    const players = new Set(this.lobby.seats.filter((x) => !x.bot && !x.host).map((x) => x.id));
+    for (const [peer, cid] of this.peers) if (players.has(cid) && !this.displays.has(peer)) this.transport?.send({ t: 'backup', blob, v }, peer);
   }
 }
 

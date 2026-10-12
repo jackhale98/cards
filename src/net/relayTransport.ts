@@ -9,6 +9,8 @@ export const RELAY_URL: string =
 const ROOM_PREFIX = 'lamplight-v1-';
 const ICE_SERVERS: RTCIceServer[] = [{ urls: 'stun:stun.cloudflare.com:3478' }];
 const KEEPALIVE_MS = 25_000;
+/** Hosting: how often we remind the relay we're here (it lets players take over after 40s silent). */
+const HOST_HEARTBEAT_MS = 15_000;
 const QUEUE_LIMIT = 200;
 /**
  * Messages exchanged through the relay with a peer before a direct link is worth setting up.
@@ -21,7 +23,8 @@ type FromRelay =
   | { t: 'welcome'; peers: string[] }
   | { t: 'taken' }
   | { t: 'join' | 'leave'; peer: string }
-  | { t: 'msg'; from: string; d?: Msg; s?: Signal };
+  | { t: 'msg'; from: string; d?: Msg; s?: Signal }
+  | { t: 'takeover'; key?: string; error?: string };
 type Signal = { sdp: RTCSessionDescriptionInit } | { ice: RTCIceCandidateInit };
 
 interface Link {
@@ -58,12 +61,16 @@ export class RelayTransport implements Transport {
   private closed = false;
   private retries = 0;
   private keepalive: ReturnType<typeof setInterval> | null = null;
+  private heartbeat: ReturnType<typeof setInterval> | null = null;
   private readonly direct: boolean;
 
   /** Hosting: our secret claim on the table code (the relay turns away a different host). */
   private readonly hostKey?: string;
   /** Another host already holds this code: we've stopped, and the owner should pick a new one. */
   onTaken: () => void = () => {};
+  /** Hosting: the key to our backups, left with the relay (again after every reconnect). */
+  private backupKey: string | null = null;
+  private takeoverReply: ((r: { key?: string; error?: string }) => void) | null = null;
 
   constructor(
     private code: string,
@@ -84,8 +91,10 @@ export class RelayTransport implements Transport {
     this.ws = ws;
     ws.onopen = () => {
       this.retries = 0;
+      if (this.backupKey) ws.send(JSON.stringify({ k: 'deposit', key: this.backupKey }));
       for (const text of this.queue.splice(0)) ws.send(text);
       this.keepalive = setInterval(() => ws.readyState === WebSocket.OPEN && ws.send('ping'), KEEPALIVE_MS);
+      this.startHeartbeat();
     };
     ws.onmessage = (e) => {
       if (e.data === 'pong') return;
@@ -99,6 +108,8 @@ export class RelayTransport implements Transport {
       if (this.ws !== ws) return;
       this.ws = null;
       if (this.keepalive) clearInterval(this.keepalive);
+      if (this.heartbeat) clearInterval(this.heartbeat);
+      this.heartbeat = null;
       // everyone we only reached through the relay is gone for now
       for (const peer of [...this.present]) {
         this.present.delete(peer);
@@ -117,7 +128,10 @@ export class RelayTransport implements Transport {
   }
 
   private fromRelay(m: FromRelay) {
-    if (m.t === 'taken') {
+    if (m.t === 'takeover') {
+      this.takeoverReply?.(m);
+      this.takeoverReply = null;
+    } else if (m.t === 'taken') {
       this.leave();
       this.onTaken();
     } else if (m.t === 'welcome') for (const p of m.peers) this.arrived(p);
@@ -268,6 +282,41 @@ export class RelayTransport implements Transport {
     this.toRelay({ to, d: msg });
   }
 
+  /** Hosting: leave the key to our backups with the relay (see backup.ts). */
+  deposit(key: string) {
+    this.backupKey = key;
+    if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify({ k: 'deposit', key }));
+    this.startHeartbeat();
+  }
+
+  /** Hosting: repeat the deposit as a heartbeat, so the relay can tell we're really still here. */
+  private startHeartbeat() {
+    if (!this.backupKey || this.heartbeat || this.ws?.readyState !== WebSocket.OPEN) return;
+    const ws = this.ws;
+    this.heartbeat = setInterval(() => ws.readyState === WebSocket.OPEN && ws.send(JSON.stringify({ k: 'deposit', key: this.backupKey })), HOST_HEARTBEAT_MS);
+  }
+
+  /**
+   * Ask to take over this table from a host that has gone: on success the relay gives us the key
+   * to the backups and moves the table's code to `newHostKey`. Errors: `host-here` (it's back),
+   * `too-soon` (it only just left), `no-backup` (none left, or someone else took over first),
+   * `offline` (no answer from the relay).
+   */
+  takeover(newHostKey: string): Promise<{ key?: string; error?: string }> {
+    return new Promise((resolve) => {
+      if (this.ws?.readyState !== WebSocket.OPEN) return resolve({ error: 'offline' });
+      const timer = setTimeout(() => {
+        this.takeoverReply = null;
+        resolve({ error: 'offline' });
+      }, 8000);
+      this.takeoverReply = (r) => {
+        clearTimeout(timer);
+        resolve(r);
+      };
+      this.ws.send(JSON.stringify({ k: 'takeover', host: newHostKey }));
+    });
+  }
+
   /** The relay counts as one "relay"; `direct` is how many devices we reach without it. */
   relays(): { up: number; total: number; direct: number } {
     return {
@@ -280,6 +329,7 @@ export class RelayTransport implements Transport {
   leave() {
     this.closed = true;
     if (this.keepalive) clearInterval(this.keepalive);
+    if (this.heartbeat) clearInterval(this.heartbeat);
     for (const peer of [...this.links.keys()]) this.dropLink(peer);
     this.ws?.close();
     this.ws = null;
