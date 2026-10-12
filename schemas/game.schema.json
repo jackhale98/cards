@@ -924,6 +924,22 @@
               "const": "palace"
             }
           }
+        },
+        {
+          "required": [
+            "family"
+          ],
+          "additionalProperties": false,
+          "description": "Kings Corners: build down in alternating colours on eight piles around the stock.",
+          "properties": {
+            "family": {
+              "const": "corners"
+            },
+            "end": {
+              "type": "object",
+              "properties": { "target": { "type": "number" } }
+            }
+          }
         }
       ]
     },

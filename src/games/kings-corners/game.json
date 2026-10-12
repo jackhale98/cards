@@ -1,0 +1,34 @@
+{
+  "$schema": "../../../schemas/game.schema.json",
+  "id": "kings-corners",
+  "name": "Kings Corners",
+  "tagline": "Solitaire for everyone: build down in red and black, kings in the corners, first out wins.",
+  "icon": "♚",
+  "players": { "min": 2, "max": 6, "recommended": 4 },
+  "bots": true,
+  "deck": {},
+  "zones": [
+    { "id": "deck", "label": "Stock", "visibility": "none", "layout": "stack", "area": "center", "scale": 0.7 },
+    { "id": "north", "label": "North", "visibility": "all", "layout": "stack", "area": "center", "scale": 0.7 },
+    { "id": "east", "label": "East", "visibility": "all", "layout": "stack", "area": "center", "scale": 0.7 },
+    { "id": "south", "label": "South", "visibility": "all", "layout": "stack", "area": "center", "scale": 0.7 },
+    { "id": "west", "label": "West", "visibility": "all", "layout": "stack", "area": "center", "scale": 0.7 },
+    { "id": "northEast", "label": "NE", "visibility": "all", "layout": "stack", "area": "center", "scale": 0.7 },
+    { "id": "southEast", "label": "SE", "visibility": "all", "layout": "stack", "area": "center", "scale": 0.7 },
+    { "id": "southWest", "label": "SW", "visibility": "all", "layout": "stack", "area": "center", "scale": 0.7 },
+    { "id": "northWest", "label": "NW", "visibility": "all", "layout": "stack", "area": "center", "scale": 0.7 },
+    { "id": "hand", "perPlayer": true, "visibility": "owner", "layout": "fan", "area": "hand" }
+  ],
+  "rules": { "family": "corners", "end": { "target": 25 } },
+  "options": [
+    { "id": "target", "label": "Play to", "type": "number", "default": 25, "min": 10, "max": 100, "step": 5 }
+  ],
+  "rulesSummary": [
+    "Seven cards each. Four cards turned up around the stock start the North, East, South and West piles.",
+    "On your turn make as many plays as you like, then draw a card to end your turn.",
+    "Play a card onto a pile if it's one lower and the other colour (a red 6 on a black 7). Aces are low: nothing goes on an ace.",
+    "Kings go into the empty corners to start new piles. Any card can fill an empty North, East, South or West space.",
+    "Move a whole pile onto another when its bottom card fits on that pile's top card. Select a card, then tap the pile it goes on.",
+    "Play your last card to win the hand. Others score a penalty: 10 for each king left, 1 for any other card. Lowest total wins when someone reaches the target."
+  ]
+}

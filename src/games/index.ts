@@ -38,6 +38,7 @@ const BY_FAMILY: Record<string, string> = {
   cheat: 'Shedding',
   palace: 'Shedding',
   gofish: 'Family',
+  corners: 'Family',
   blackjack: 'Casino',
 };
 export function categoryOf(g: GameModule): string {

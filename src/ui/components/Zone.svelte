@@ -17,8 +17,10 @@
     /** Tap on an empty spot / the stack itself (e.g. draw from the deck). */
     onzone?: () => void;
     zoneActive?: boolean;
+    /** The selected card(s) can be put here: a tap places them (rather than selecting the top card). */
+    place?: boolean;
   }
-  let { zone, cw, you, players, selected, selectable, ontap, onzone, zoneActive = false }: Props = $props();
+  let { zone, cw, you, players, selected, selectable, ontap, onzone, zoneActive = false, place = false }: Props = $props();
 
   /** Trick cards sit between the centre and the seat that played them. */
   function trickPos(by: number | undefined) {
@@ -33,7 +35,7 @@
   {#if zone.label && zone.layout !== 'trick'}<div class="label eyebrow" data-flip><SuitText text={zone.label} />{#if zone.layout === 'stack'} · {zone.cards.length}{/if}</div>{/if}
 
   {#if zone.layout === 'stack'}
-    <button class="stack" data-flip class:active={zoneActive} onclick={() => (top && selectable?.has(top.id) ? ontap(top.id) : onzone?.())} disabled={!zoneActive && !(top && selectable?.has(top.id))}>
+    <button class="stack" data-flip class:active={zoneActive} onclick={() => (!place && top && selectable?.has(top.id) ? ontap(top.id) : onzone?.())} disabled={!zoneActive && !(top && selectable?.has(top.id))}>
       {#if zone.cards.length > 1}<div class="under"><Card id="?u" /></div>{/if}
       {#if zone.cards.length > 8}<div class="under two"><Card id="?u2" /></div>{/if}
       {#if top && isHidden(top.id)}

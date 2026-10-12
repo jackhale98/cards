@@ -9,7 +9,7 @@ describe('game picker', () => {
     expect(by('Rummy')).toEqual(['canasta', 'gin-rummy', 'rummy-500']);
     expect(by('Shedding')).toEqual(['cheat', 'crazy-eights', 'palace', 'president']);
     expect(by('Casino')).toEqual(['blackjack']);
-    expect(by('Family')).toEqual(['go-fish']);
+    expect(by('Family')).toEqual(['go-fish', 'kings-corners']);
     expect(by('More')).toEqual(['cribbage', 'freetable']);
   });
 

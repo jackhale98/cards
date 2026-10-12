@@ -112,7 +112,13 @@
   }
 
   /** Actions triggered by tapping a pile (draw from the deck, take the discard…). */
-  const zoneAction = (zoneId: string) => view.actions.find((a) => a.zone === zoneId && !a.select);
+  /** Tapping a pile: its action (draw, take…), or, with cards selected, putting them there (Kings Corners). */
+  const zoneAction = (zoneId: string) =>
+    view.actions.find(
+      (a) =>
+        a.zone === zoneId &&
+        (!a.select || (selected.length >= a.select.min && selected.length <= a.select.max && selected.every((c) => a.select!.cards.includes(c)))),
+    );
   /** In hand mode only piles you can use right now stay on the phone (e.g. the deck to draw from, a bridge dummy). */
   const usable = (z: (typeof allCenterZones)[number]) => !!zoneAction(z.id) || z.cards.some((c) => selectable?.has(c.id));
   const centerZones = $derived(handMode ? allCenterZones.filter(usable) : allCenterZones);
@@ -337,6 +343,7 @@
           {selectable}
           ontap={tap}
           zoneActive={!!zoneAction(z.id)}
+          place={!!zoneAction(z.id)?.select}
           onzone={zoneAction(z.id) ? () => run(zoneAction(z.id)!) : undefined}
         />
         </div>
@@ -363,6 +370,7 @@
               {selectable}
               ontap={tap}
               zoneActive={!!zoneAction(z.id)}
+              place={!!zoneAction(z.id)?.select}
               onzone={zoneAction(z.id) ? () => run(zoneAction(z.id)!) : undefined}
             />
           {/each}
