@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { bugReportLink } from '../contact';
   import SuitText from '../components/SuitText.svelte';
   import { app } from '../../app.svelte';
   import type { ActionSpec } from '../../engine/types';
@@ -468,6 +469,7 @@
       {#if app.isHost}
         <button class="btn" onclick={() => { app.host?.endGame(); sheet = null; }}>Back to lobby</button>
       {/if}
+      <a class="btn" href={bugReportLink({ game: game.config.name, table: view.lobby.code })}>Report a problem</a>
       <button class="btn danger" onclick={() => { app.leave(); app.go('/'); }}>{app.isHost ? 'Close table' : 'Leave table'}</button>
     </div>
     {#if game.config.rulesSummary}

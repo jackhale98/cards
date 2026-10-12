@@ -92,6 +92,11 @@ input {
   color: inherit;
 }
 
+/* a link dressed as a button (mail links in menus) reads like the rest */
+a.btn {
+  color: var(--ink);
+  text-decoration: none;
+}
 .btn {
   --b: var(--glass-hi);
   display: inline-flex;

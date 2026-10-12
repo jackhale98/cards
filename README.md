@@ -47,6 +47,12 @@ From the lobby (**📺 TV**) or the table menu (**Show on a TV**):
   spare iPad or phone that has the table open as the table display (not your own phone — it would
   show your hand).
 
+## Contact
+
+Found a bug, or want a game we don't have yet? Email **[contact@lamplight.cards](mailto:contact@lamplight.cards)**
+(the site has "Report a bug" and "Request a game" links on the home screen, and "Report a problem" in
+the table menu, which fills in the game and table for you).
+
 ## How the connection works
 
 The site is static files (Cloudflare Pages, [lamplight.cards](https://lamplight.cards)); the

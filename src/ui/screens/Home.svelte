@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { bugReportLink, CONTACT_EMAIL, gameRequestLink } from '../contact';
   import { untrack } from 'svelte';
   import { app } from '../../app.svelte';
   import { CODE_LENGTH, isValidCode, normaliseCode } from '../../net/protocol';
@@ -66,7 +67,7 @@
       </p>
       <p>
         Our small relay just introduces the devices (and passes messages along only when a network won't
-        let them connect directly). It stores nothing. There are no accounts, no ads and nothing to install.
+        let them connect directly). It never sees a card. There are no accounts, no ads and nothing to install.
       </p>
       <h4>Far apart?</h4>
       <p>Send the invite link — it works over the internet too.</p>
@@ -75,6 +76,7 @@
         <li>Refresh or lose signal and you keep your seat; the host can resume the table later.</li>
         <li>Rules follow <a href="https://www.pagat.com" target="_blank" rel="noreferrer">pagat.com</a>; each game's rules are in its menu.</li>
         <li>Finished games add up to a <b>game night</b> scoreboard for the evening.</li>
+        <li>Found a bug, or want a game we don't have? Write to <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>.</li>
       </ul>
     </div>
   </Sheet>
@@ -151,6 +153,8 @@
   <footer>
     Devices link directly whenever they can, so on the same WiFi your game stays in the room. No accounts, no app store.
     · <a href="https://github.com/jackhale98/cards" target="_blank" rel="noreferrer">Open source</a>
+    · <a href={bugReportLink()}>Report a bug</a>
+    · <a href={gameRequestLink()}>Request a game</a>
   </footer>
 </div>
 
