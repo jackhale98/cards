@@ -1,6 +1,6 @@
 <script lang="ts">
   import { app } from '../../app.svelte';
-  import { castAvailable, castTable } from '../../net/cast';
+  import { CastError, castAvailable, castTable } from '../../net/cast';
   import { CODE_LENGTH, normaliseCode } from '../../net/protocol';
   import { sendToTv } from '../../net/tvPair';
   import Sheet from './Sheet.svelte';
@@ -23,13 +23,18 @@
       onclose();
     } else app.say(`No TV answered with code ${code} — check it's showing on the TV`);
   }
+  let casting = $state(false);
   async function cast() {
+    casting = true;
     try {
       await castTable(table);
-      app.say('Casting the table');
+      app.say('The TV is showing the table');
       onclose();
-    } catch {
-      /* cancelled */
+    } catch (e) {
+      // (closing Chrome's TV picker isn't an error)
+      if (!(e instanceof CastError && e.code === 'cancel')) app.say(e instanceof Error ? e.message : 'Casting didn’t work');
+    } finally {
+      casting = false;
     }
   }
 </script>
@@ -37,7 +42,7 @@
 <Sheet title="Show on a TV" {onclose}>
   <div class="tvsheet">
     {#if canCast}
-      <button class="btn primary wide" onclick={cast}>Cast to a Chromecast or Google TV</button>
+      <button class="btn primary wide" onclick={cast} disabled={casting}>{casting ? 'Starting Lamplight on the TV…' : 'Cast to a Chromecast or Google TV'}</button>
       <div class="or"><span>or any TV with a web browser</span></div>
     {/if}
     <ol>
