@@ -36,6 +36,20 @@ export function rankLabel(rank: number): string {
   return rankChar(rank);
 }
 
+/** A card as printed in its corner: "10♥", "Q♠" (a joker: "JK★"). */
+export function cardLabel(id: string): string {
+  const c = parseCard(id);
+  return `${rankLabel(c.rank)}${SUIT_SYMBOL[c.suit]}`;
+}
+
+/** As `cardLabel`, but a joker reads "Joker" (for games where it's a card with a part to play: 500, Rummy 500). */
+export const cardOrJokerLabel = (id: string) => (parseCard(id).suit === 'X' ? 'Joker' : cardLabel(id));
+
+/** Ranks as words, for talking about them ("a seven", "two jacks"). */
+export const RANK_WORDS: Record<number, string> = { 14: 'ace', 2: 'two', 3: 'three', 4: 'four', 5: 'five', 6: 'six', 7: 'seven', 8: 'eight', 9: 'nine', 10: 'ten', 11: 'jack', 12: 'queen', 13: 'king' };
+/** A rank as a plural word: "sevens", "sixes". */
+export const rankPlural = (r: number) => (r === 6 ? 'sixes' : `${RANK_WORDS[r]}s`);
+
 export function cardId(rank: number, suit: Suit): string {
   return rankChar(rank) + suit;
 }

@@ -2,6 +2,7 @@ import { cardName, parseCard } from '../cards';
 import { createState, hand, log, name, resetDeck, zone } from '../state';
 import { shuffle } from '../rng';
 import { botLevel } from '../bots/search';
+import { msUntil, REACTION_WINDOW, span } from '../lib/realtime';
 import { assertRule, type Action, type ActionSpec, type CardRef, type GameConfig, type GameModule, type GameState } from '../types';
 
 /**
@@ -42,7 +43,6 @@ export interface SpitData {
 type S = GameState<SpitData>;
 
 const CENTRES = ['left', 'right'] as const;
-const SLAP_WINDOW = 350;
 
 const rankOf = (id: string) => parseCard(id).rank;
 /** One up or one down, with ace and king next to each other. */
@@ -253,7 +253,7 @@ export function spitFamily(config: GameConfig): GameModule<SpitData> {
       if (s.phase === 'slap') {
         assertRule(a.type === 'slap0' || a.type === 'slap1', 'Slap a pile!');
         assertRule(!d.slaps.some((x) => x.seat === seat), 'You already slapped');
-        if (!d.slaps.length) d.judgeAt = (a.at ?? 0) + SLAP_WINDOW;
+        if (!d.slaps.length) d.judgeAt = (a.at ?? 0) + REACTION_WINDOW;
         d.slaps.push({ seat, rt: Math.max(0, a.rt ?? 0), pile: a.type === 'slap0' ? 0 : 1 });
         return;
       }
@@ -281,7 +281,7 @@ export function spitFamily(config: GameConfig): GameModule<SpitData> {
     },
 
     system(s) {
-      if (s.phase === 'slap' && s.data.slaps.length) return { delay: Math.max(0, s.data.judgeAt - Date.now()), run: judge };
+      if (s.phase === 'slap' && s.data.slaps.length) return { delay: msUntil(s.data.judgeAt), run: judge };
       return null;
     },
 
@@ -307,7 +307,6 @@ export function spitFamily(config: GameConfig): GameModule<SpitData> {
 
     botDelay(s, _seat, a) {
       const level = botLevel(s.options);
-      const span = ([lo, hi]: readonly [number, number]) => lo + Math.random() * (hi - lo);
       if (a.type.startsWith('slap')) return span(([[800, 1300], [520, 850], [340, 560]] as const)[level]);
       if (a.type === 'spit') return span([500, 1100]);
       return span(([[1500, 2600], [950, 1600], [600, 1000]] as const)[level]);

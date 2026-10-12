@@ -1,4 +1,4 @@
-import { parseCard } from '../cards';
+import { parseCard, RANK_WORDS, rankPlural } from '../cards';
 import { createState, deal, hand, ids, log, moveCards, moveTop, name, nextSeat, placesFromScores, resetDeck, sortHand, zone } from '../state';
 import { botLevel } from '../bots/search';
 import { assertRule, type Action, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
@@ -30,8 +30,6 @@ export interface GoFishData {
 
 type S = GameState<GoFishData>;
 
-const NAMES: Record<number, string> = { 14: 'ace', 2: 'two', 3: 'three', 4: 'four', 5: 'five', 6: 'six', 7: 'seven', 8: 'eight', 9: 'nine', 10: 'ten', 11: 'jack', 12: 'queen', 13: 'king' };
-const plural = (r: number) => (r === 6 ? 'sixes' : `${NAMES[r]}s`);
 const rankOf = (id: string) => parseCard(id).rank;
 
 export function goFishFamily(config: GameConfig): GameModule<GoFishData> {
@@ -66,7 +64,7 @@ export function goFishFamily(config: GameConfig): GameModule<GoFishData> {
         moveCards(s, `hand:${seat}`, `books:${seat}`, four, { up: true, group: d.books[seat] });
         d.books[seat]++;
         d.known[seat] = d.known[seat].filter((x) => x !== r);
-        log(s, `${name(s, seat)} completes a book of ${plural(r)}!`, seat, `Book of ${plural(r)}`);
+        log(s, `${name(s, seat)} completes a book of ${rankPlural(r)}!`, seat, `Book of ${rankPlural(r)}`);
       }
     }
   }
@@ -182,7 +180,7 @@ export function goFishFamily(config: GameConfig): GameModule<GoFishData> {
         moveCards(s, `hand:${target}`, `hand:${seat}`, theirs);
         sortHand(s, seat);
         d.last = { asker: seat, target, rank, got: theirs.length };
-        log(s, `${name(s, seat)} asks ${name(s, target)} for ${plural(rank)} — gets ${theirs.length}`, seat, `+${theirs.length} ${theirs.length === 1 ? NAMES[rank] : plural(rank)}`, target);
+        log(s, `${name(s, seat)} asks ${name(s, target)} for ${rankPlural(rank)} — gets ${theirs.length}`, seat, `+${theirs.length} ${theirs.length === 1 ? RANK_WORDS[rank] : rankPlural(rank)}`, target);
         // the asker now surely has that rank (unless it makes a book)
         if (!d.known[seat].includes(rank)) d.known[seat].push(rank);
         layBooks(s, seat);
@@ -192,7 +190,7 @@ export function goFishFamily(config: GameConfig): GameModule<GoFishData> {
         if (!hand(s, seat).cards.length) passTurn(s, seat);
         return; // ask again
       }
-      log(s, `${name(s, seat)} asks ${name(s, target)} for ${plural(rank)} — “Go fish!”`, target, 'Go fish!', seat);
+      log(s, `${name(s, seat)} asks ${name(s, target)} for ${rankPlural(rank)} — “Go fish!”`, target, 'Go fish!', seat);
       if (!d.known[seat].includes(rank)) d.known[seat].push(rank);
       if (!zone(s, 'deck').cards.length) {
         // (long game, empty stock) nothing to fish: the turn passes
@@ -206,7 +204,7 @@ export function goFishFamily(config: GameConfig): GameModule<GoFishData> {
       sortHand(s, seat);
       const lucky = rankOf(drawn) === rank;
       d.last = { asker: seat, target, rank, got: 0, fished: lucky ? 'lucky' : 'miss' };
-      if (lucky) log(s, `${name(s, seat)} fishes the ${NAMES[rank]} they wanted and goes again!`, seat, 'Lucky fish!');
+      if (lucky) log(s, `${name(s, seat)} fishes the ${RANK_WORDS[rank]} they wanted and goes again!`, seat, 'Lucky fish!');
       layBooks(s, seat);
       refill(s, seat);
       if (checkEnd(s)) return;
@@ -229,7 +227,7 @@ export function goFishFamily(config: GameConfig): GameModule<GoFishData> {
         const l = d.last;
         const lastText = l
           ? l.got
-            ? `${name(s, l.asker)} got ${l.got} ${l.got === 1 ? NAMES[l.rank] : plural(l.rank)} from ${name(s, l.target)}`
+            ? `${name(s, l.asker)} got ${l.got} ${l.got === 1 ? RANK_WORDS[l.rank] : rankPlural(l.rank)} from ${name(s, l.target)}`
             : `${name(s, l.target)}: “Go fish!”${l.fished === 'lucky' ? ' — and the fish was lucky' : ''}`
           : '';
         const turnText = s.turn === viewer ? 'Your turn: pick a card, then who to ask' : `${name(s, s.turn!)} is asking`;

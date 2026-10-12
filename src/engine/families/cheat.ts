@@ -1,4 +1,4 @@
-import { parseCard } from '../cards';
+import { parseCard, RANK_WORDS, rankPlural } from '../cards';
 import { createState, deal, hand, ids, log, moveCards, name, nextSeat, placesFromScores, resetDeck, sortHand, zone } from '../state';
 import { botLevel } from '../bots/search';
 import { assertRule, type Action, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
@@ -35,11 +35,9 @@ type S = GameState<CheatData>;
 /** Ranks in calling order: A, 2 … K. */
 const SEQ = [14, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
 const after = (rank: number) => SEQ[(SEQ.indexOf(rank) + 1) % SEQ.length];
-const NAMES: Record<number, string> = { 14: 'ace', 2: 'two', 3: 'three', 4: 'four', 5: 'five', 6: 'six', 7: 'seven', 8: 'eight', 9: 'nine', 10: 'ten', 11: 'jack', 12: 'queen', 13: 'king' };
-const plural = (r: number) => (r === 6 ? 'sixes' : `${NAMES[r]}s`);
 const COUNT = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight'];
 /** "two sevens", "one ace". */
-const said = (count: number, rank: number) => `${COUNT[count] ?? count} ${count === 1 ? NAMES[rank] : plural(rank)}`;
+const said = (count: number, rank: number) => `${COUNT[count] ?? count} ${count === 1 ? RANK_WORDS[rank] : rankPlural(rank)}`;
 
 export function cheatFamily(config: GameConfig): GameModule<CheatData> {
   const decks = (s: S) => (s.players.length >= 7 ? 2 : 1);
@@ -191,7 +189,7 @@ export function cheatFamily(config: GameConfig): GameModule<CheatData> {
       if (d.last && d.last.seat !== seat) out.push({ type: 'cheat', label: `Cheat! (${name(s, d.last.seat)})`, style: 'danger' });
       if (s.turn === seat) {
         const own = ids(hand(s, seat));
-        out.unshift({ type: 'play', label: `Play as ${plural(d.rank)}`, style: 'primary', select: { min: 1, max: Math.min(maxPlay(s), own.length), cards: own } });
+        out.unshift({ type: 'play', label: `Play as ${rankPlural(d.rank)}`, style: 'primary', select: { min: 1, max: Math.min(maxPlay(s), own.length), cards: own } });
         if (d.last && !hand(s, d.last.seat).cards.length) out.push({ type: 'accept', label: `Let ${name(s, d.last.seat)} win` });
       }
       return out;
@@ -252,7 +250,7 @@ export function cheatFamily(config: GameConfig): GameModule<CheatData> {
         const shown = d.reveal
           ? `${name(s, d.reveal.player)} ${d.reveal.lied ? 'was lying' : 'told the truth'} — ${name(s, d.reveal.lied ? d.reveal.player : d.reveal.caller)} takes the pile`
           : '';
-        const turnText = s.turn === viewer ? `Your turn: play ${plural(d.rank)}` : `${name(s, s.turn!)} plays ${plural(d.rank)}`;
+        const turnText = s.turn === viewer ? `Your turn: play ${rankPlural(d.rank)}` : `${name(s, s.turn!)} plays ${rankPlural(d.rank)}`;
         headline = [shown || lastText, turnText].filter(Boolean).join(' · ');
       } else headline = d.result?.lines[0] ?? '';
       return {

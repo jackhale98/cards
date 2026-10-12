@@ -1,4 +1,4 @@
-import { parseCard, rankLabel, SUIT_SYMBOL } from '../cards';
+import { cardLabel, parseCard, rankLabel } from '../cards';
 import { createState, hand, ids, log, moveCards, moveTop, name, nextSeat, resetDeck, sortHand, zone } from '../state';
 import { assertRule, type Action, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
 
@@ -33,7 +33,6 @@ export interface PalaceData {
 type S = GameState<PalaceData>;
 
 const rankOf = (id: string) => parseCard(id).rank;
-const label = (id: string) => `${rankLabel(rankOf(id))}${SUIT_SYMBOL[parseCard(id).suit]}`;
 const plural = (n: number, r: number) => (n === 1 ? `a ${rankLabel(r)}` : `${['', '', 'two', 'three', 'four'][n] ?? n} ${rankLabel(r)}s`);
 /** 2 and 10 are wild: they go on anything. */
 const wild = (r: number) => r === 2 || r === 10;
@@ -259,7 +258,7 @@ export function palaceFamily(config: GameConfig): GameModule<PalaceData> {
         moveCards(s, `hand:${seat}`, upZ(seat), [h], { up: true });
         moveCards(s, upZ(seat), `hand:${seat}`, [u]);
         sortHand(s, seat);
-        log(s, `${who} swaps the ${label(u)} into hand for the ${label(h)}`, seat, 'Swap');
+        log(s, `${who} swaps the ${cardLabel(u)} into hand for the ${cardLabel(h)}`, seat, 'Swap');
         return;
       }
       assertRule(s.phase === 'play' && s.turn === seat, 'Not your turn');
@@ -275,7 +274,7 @@ export function palaceFamily(config: GameConfig): GameModule<PalaceData> {
           assertRule(canGoOn(s, r), `Play a ${rankLabel(toBeat(s))} or higher, a 2 or a 10 — or pick up`);
           moveCards(s, src === 'hand' ? `hand:${seat}` : upZ(seat), 'pile', cards, { up: true, by: seat });
           d.last = `${who} played ${plural(cards.length, r)}`;
-          log(s, `${who} plays ${plural(cards.length, r)}`, seat, cards.length === 1 ? label(cards[0]) : `${cards.length}× ${rankLabel(r)}`, undefined, { to: 'pile' });
+          log(s, `${who} plays ${plural(cards.length, r)}`, seat, cards.length === 1 ? cardLabel(cards[0]) : `${cards.length}× ${rankLabel(r)}`, undefined, { to: 'pile' });
           return afterPlay(s, seat);
         }
         case 'pickup': {
@@ -296,9 +295,9 @@ export function palaceFamily(config: GameConfig): GameModule<PalaceData> {
           // judged against what was on top before it
           const beat = toBeat(s);
           moveCards(s, downZ(seat), 'pile', [c], { up: true, by: seat });
-          log(s, `${who} turns over the ${label(c)}`, seat, label(c), undefined, { to: 'pile' });
-          if (!wild(rankOf(c)) && rankOf(c) < beat) return pickUp(s, seat, `turns over the ${label(c)}, which doesn’t go,`);
-          d.last = `${who} turned over the ${label(c)}`;
+          log(s, `${who} turns over the ${cardLabel(c)}`, seat, cardLabel(c), undefined, { to: 'pile' });
+          if (!wild(rankOf(c)) && rankOf(c) < beat) return pickUp(s, seat, `turns over the ${cardLabel(c)}, which doesn’t go,`);
+          d.last = `${who} turned over the ${cardLabel(c)}`;
           return afterPlay(s, seat);
         }
       }

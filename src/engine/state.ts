@@ -161,6 +161,11 @@ export function log(
   if (s.log.length > 40) s.log.splice(0, s.log.length - 40);
 }
 
+/** Turn every hand face up (a hand is over: everyone sees what was left). */
+export function showHands(s: GameState<any>) {
+  for (const z of Object.values(s.zones)) if (z.id.startsWith('hand:')) for (const c of z.cards) c.up = true;
+}
+
 export const name = (s: GameState<any>, seat: number) => s.players[seat]?.name ?? `Seat ${seat + 1}`;
 
 export type Relation = 'left' | 'right' | 'across';

@@ -1,5 +1,11 @@
 import type { Action, ActionSpec, CardRef, GameModule, GameState, ZoneState } from './types';
 
+/**
+ * Per-seat private lists (such as the cards each player just received): the viewer keeps their own,
+ * everyone else's read as empty.
+ */
+export const ownOnly = <T>(lists: T[][], viewer: number): T[][] => lists.map((r, i) => (i === viewer ? r : []));
+
 /** A card the viewer may not see. Ids are positional so they never leak identity. */
 export const HIDDEN = '?';
 export const isHidden = (id: string) => id.startsWith(HIDDEN);

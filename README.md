@@ -156,7 +156,7 @@ src/
                 validate (actions checked against what was offered)
     families/   one engine per kind of game (trick-taking, poker, rummy, canasta, cribbage,
                 slap, spit, spoons… see docs/ADDING_A_GAME.md), configured by game.json
-    lib/        betting (side pots), pokerEval, trickTaking, passing, melds, cribbageScore
+    lib/        betting (side pots), pokerEval, trickTaking, passing, melds, cribbageScore, teams, realtime, canastaCards
     bots/       search: Monte Carlo sampling bots any family can use
   games/        one folder per game: game.json (+ optional rules.ts escape hatch); index.ts
                 is the registry, picker sections and search

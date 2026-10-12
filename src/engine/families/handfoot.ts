@@ -1,7 +1,9 @@
 import { parseCard, rankLabel } from '../cards';
-import { createState, hand, ids, log, moveCards, moveTop, name, nextSeat, placesFromScores, resetDeck, zone } from '../state';
+import { createState, hand, ids, log, moveCards, moveTop, name, nextSeat, placesFromScores, resetDeck, showHands, zone } from '../state';
 import { assertRule, type Action, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
-import { cardPoints, isBlackThree, isRedThree, isWild } from './canasta';
+import { cardPoints, groupByRank, isBlackThree, isRedThree, isWild } from '../lib/canastaCards';
+import { ownOnly } from '../redact';
+import { sideName } from '../lib/teams';
 
 /**
  * Hand and Foot (pagat.com/rummy/handfoot.html, the basic partnership game). Two to six players:
@@ -68,8 +70,7 @@ export function groupHF(cards: string[], incomplete: Map<number, string[]>): Map
   const naturals = cards.filter((c) => !isWild(c));
   if (!naturals.length) return wilds.length ? new Map([[0, wilds]]) : null;
   if (naturals.some((c) => isRedThree(c) || isBlackThree(c))) return null;
-  const groups = new Map<number, string[]>();
-  for (const c of naturals) groups.set(parseCard(c).rank, [...(groups.get(parseCard(c).rank) ?? []), c]);
+  const groups = groupByRank(naturals);
   const size = (r: number) => (incomplete.get(r)?.length ?? 0) + groups.get(r)!.length;
   const wildsIn = (r: number) => (incomplete.get(r) ?? []).concat(groups.get(r)!).filter(isWild).length;
   for (const w of wilds) {
@@ -89,7 +90,7 @@ export function handFootFamily(config: GameConfig): GameModule<HandFootData> {
   const teams = (s: S) => [...Array(teamCount(s.players.length)).keys()];
   const teamOf = (s: S, seat: number) => (partners(s.players.length) ? seat % 2 : seat);
   const teamSeats = (s: S, team: number) => s.players.map((p) => p.seat).filter((i) => teamOf(s, i) === team);
-  const teamName = (s: S, team: number) => teamSeats(s, team).map((i) => name(s, i)).join(' & ');
+  const teamName = (s: S, team: number) => sideName(s, teamSeats(s, team));
   const teamMelds = (s: S, team: number) => s.data.melds.filter((m) => m.team === team);
   const incompleteOf = (s: S, team: number) => new Map(teamMelds(s, team).filter((m) => !isPile(m)).map((m) => [m.rank, m.cards]));
   const piles = (s: S, team: number) => {
@@ -286,7 +287,7 @@ export function handFootFamily(config: GameConfig): GameModule<HandFootData> {
       const parts = [`melds ${meldPts}`, bonus && `piles ${bonus}`, reds && `red 3s ${reds}`, out && `out ${out}`, heldPts && `held −${heldPts}`].filter(Boolean);
       lines.push(`${teamName(s, t)}: ${parts.join(', ')} = ${total >= 0 ? '+' : ''}${total} → ${d.scores[t]}`);
     }
-    for (const z of Object.values(s.zones)) if (z.id.startsWith('hand:')) for (const c of z.cards) c.up = true;
+    showHands(s);
     d.result = { lines };
     s.turn = null;
     log(s, lines[0], outSeat ?? undefined, outSeat != null ? 'Out!' : undefined);
@@ -309,8 +310,7 @@ export function handFootFamily(config: GameConfig): GameModule<HandFootData> {
     const own = ids(hand(s, seat));
     const inc = incompleteOf(s, team);
     const naturals = own.filter((c) => !isWild(c) && !isRedThree(c) && !isBlackThree(c));
-    const byRank = new Map<number, string[]>();
-    for (const c of naturals) byRank.set(parseCard(c).rank, [...(byRank.get(parseCard(c).rank) ?? []), c]);
+    const byRank = groupByRank(naturals);
     const tries: { cards: string[]; target?: number }[] = [];
     const all: string[] = [];
     for (const [r, cs] of byRank) {
@@ -508,7 +508,7 @@ export function handFootFamily(config: GameConfig): GameModule<HandFootData> {
     },
 
     redactData(s, viewer) {
-      return { ...s.data, received: s.data.received.map((r, i) => (i === viewer ? r : [])) };
+      return { ...s.data, received: ownOnly(s.data.received, viewer) };
     },
 
     bot(s, seat) {

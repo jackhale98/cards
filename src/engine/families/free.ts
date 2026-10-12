@@ -1,12 +1,7 @@
-import { buildDeck, cardName, parseCard, rankLabel, sortCards, SUIT_SYMBOL } from '../cards';
+import { buildDeck, cardLabel, cardName, sortCards } from '../cards';
 import { shuffle } from '../rng';
 import { createState, deal, findCard, hand, ids, log, moveCards, moveTop, name, seatOrderFrom, seatRelation, zone } from '../state';
 import { assertRule, type ActionSpec, type CardRef, type GameConfig, type GameModule, type GameState } from '../types';
-
-const cardLabel = (id: string) => {
-  const c = parseCard(id);
-  return `${rankLabel(c.rank)}${SUIT_SYMBOL[c.suit]}`;
-};
 
 /** Keep each meld group together and in rank order. */
 function sortGroups(s: GameState<any>, zoneId: string) {

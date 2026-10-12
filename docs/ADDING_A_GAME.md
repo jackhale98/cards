@@ -13,7 +13,7 @@ src/games/my-game/
 | family         | games it can express today | engine |
 |----------------|----------------------------|--------|
 | `free`         | anything (rules not enforced). Optional zones add moves: `discard` (discard face up/down, take the top discard) and a per-player `melds` zone (lay down melds, add to anyone's) | `src/engine/families/free.ts` |
-| `trick-taking` | Hearts, Spades, Oh Hell, Euchre, 500, Contract Bridge, Whist… | `src/engine/families/trick/` (rules in `index.ts`, bots in `bots.ts`, 500 and bridge contracts in `contracts.ts`) |
+| `trick-taking` | Hearts, Spades, Oh Hell, Euchre, 500, Contract Bridge, Whist… | `src/engine/families/trick/` (one file per stage: `deal`, `bidding`, `play`, `scoring`, `actions`, `status`; bots in `bots.ts`, 500 and bridge contracts in `contracts.ts`; the map is at the top of `index.ts`) |
 | `poker`        | Texas Hold'em, Omaha, Pineapple-style variants (blinds and a board), Five Card Draw (`draw`: antes and one draw) | `src/engine/families/poker.ts` |
 | `rummy`        | Gin Rummy (style `gin`), Rummy 500 (style `500`) | `src/engine/families/rummy.ts`, `rummy500.ts` |
 | `canasta`      | Classic Canasta, partnerships or head to head | `src/engine/families/canasta.ts` |
@@ -155,8 +155,11 @@ rejects any action it didn't offer, and `assertRule(cond, 'message')` inside `ap
 message to the player. State must be plain JSON; shuffle with the seeded RNG.
 
 Shared building blocks live in `src/engine/lib/`: `betting` (blinds, raises, side pots),
-`pokerEval` (hand ranking, Omaha rule), `trickTaking` (follow suit, trick winner) and
-`passing`.
+`pokerEval` (hand ranking, Omaha rule), `trickTaking` (follow suit, trick winner), `passing`,
+`teams` (partnerships and side names), `realtime` (reaction windows and bot reaction times for
+the speed games) and `canastaCards` (wild cards, threes and card values). Card labels ("10♥") and
+rank words ("sixes") are in `src/engine/cards.ts`; `showHands` is in `state.ts` and `ownOnly`
+(redacting per-seat private lists) in `redact.ts`.
 
 ## Testing
 

@@ -1,8 +1,9 @@
-import { buildDeck, cardName, parseCard, rankLabel, SUIT_SYMBOL } from '../cards';
+import { buildDeck, cardLabel, cardName, parseCard } from '../cards';
 import { bestMelds, deadwoodValue, meldOrder } from '../lib/melds';
 import { createState, cutForDeal, hand, ids, log, moveCards, moveTop, name, placesFromScores, resetDeck, zone } from '../state';
 import { botLevel } from '../bots/search';
 import { assertRule, type Action, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
+import { ownOnly } from '../redact';
 
 /**
  * Rummy family, draw-and-discard style (Gin Rummy). Configured from `game.json`:
@@ -48,11 +49,6 @@ export interface RummyData {
 }
 
 type S = GameState<RummyData>;
-
-const label = (id: string) => {
-  const c = parseCard(id);
-  return `${rankLabel(c.rank)}${SUIT_SYMBOL[c.suit]}`;
-};
 
 export function rummyFamily(config: GameConfig): GameModule<RummyData> {
   const R = config.rules as unknown as RummyRules;
@@ -104,7 +100,7 @@ export function rummyFamily(config: GameConfig): GameModule<RummyData> {
     d.result = null;
     s.phase = 'firstPick';
     s.turn = first;
-    log(s, `Hand ${d.handNo}: ${name(s, s.dealer)} deals, ${label(topDiscard(s)!)} turned up`, undefined, undefined, undefined, { from: 'deck' });
+    log(s, `Hand ${d.handNo}: ${name(s, s.dealer)} deals, ${cardLabel(topDiscard(s)!)} turned up`, undefined, undefined, undefined, { from: 'deck' });
   }
 
   function takeDiscard(s: S, seat: number) {
@@ -114,7 +110,7 @@ export function rummyFamily(config: GameConfig): GameModule<RummyData> {
     s.data.received[seat] = [card];
     (s.data.pickedUp ??= [[], []])[seat].push(card);
     arrange(s, seat);
-    log(s, `${name(s, seat)} takes the ${cardName(card)} from the discard pile`, seat, `Took ${label(card)}`, undefined, { from: 'discard' });
+    log(s, `${name(s, seat)} takes the ${cardName(card)} from the discard pile`, seat, `Took ${cardLabel(card)}`, undefined, { from: 'discard' });
     s.phase = 'discard';
   }
 
@@ -203,7 +199,7 @@ export function rummyFamily(config: GameConfig): GameModule<RummyData> {
       points = kd - dd + B.undercut;
       lines.push(`${name(s, defender)} undercuts ${name(s, knocker)}! +${B.undercut} bonus`);
     }
-    if (laid.length) lines.push(`${name(s, defender)} lays off ${laid.map(label).join(' ')}`);
+    if (laid.length) lines.push(`${name(s, defender)} lays off ${laid.map(cardLabel).join(' ')}`);
     lines.push(`${name(s, knocker)} ${kd} deadwood · ${name(s, defender)} ${dd} deadwood`);
     lines.push(`${name(s, winner)} scores ${points}`);
     d.scores[winner] += points;
@@ -217,7 +213,7 @@ export function rummyFamily(config: GameConfig): GameModule<RummyData> {
       zone(s, showZone(seat)).label = `${name(s, seat)} · ${text}`;
     };
     reveal(knocker, k.melds, k.deadwood, kind === 'knock' ? `knocked, ${kd} deadwood` : 'gin');
-    reveal(defender, [...def.melds, laid], defDead, `${dd} deadwood${laid.length ? `, laid off ${laid.map(label).join(' ')}` : ''}`);
+    reveal(defender, [...def.melds, laid], defDead, `${dd} deadwood${laid.length ? `, laid off ${laid.map(cardLabel).join(' ')}` : ''}`);
 
     const headline = `${lines[0]} · ${name(s, winner)} +${points}`;
     log(s, headline, knocker, kind === 'knock' ? `Knock (${kd})` : kind === 'gin' ? 'Gin!' : 'Big gin!');
@@ -262,12 +258,12 @@ export function rummyFamily(config: GameConfig): GameModule<RummyData> {
       if (s.turn !== seat) return [];
       if (s.phase === 'firstPick')
         return [
-          { type: 'take', label: `Take ${top ? label(top) : ''}`, style: 'primary', zone: 'discard' },
+          { type: 'take', label: `Take ${top ? cardLabel(top) : ''}`, style: 'primary', zone: 'discard' },
           { type: 'pass', label: 'Pass' },
         ];
       if (s.phase === 'draw') {
         const out: ActionSpec[] = [{ type: 'draw', label: 'Draw stock', style: 'primary', zone: 'deck' }];
-        if (!d.mustDrawStock && top) out.push({ type: 'take', label: `Take ${label(top)}`, zone: 'discard' });
+        if (!d.mustDrawStock && top) out.push({ type: 'take', label: `Take ${cardLabel(top)}`, zone: 'discard' });
         return out;
       }
       if (s.phase === 'discard') {
@@ -340,7 +336,7 @@ export function rummyFamily(config: GameConfig): GameModule<RummyData> {
           d.justTook = null;
           d.received[seat] = [];
           if (a.type !== 'discard') return endHand(s, seat, opt.points === 0 ? 'gin' : 'knock');
-          log(s, `${who} discards the ${cardName(card)}`, seat, label(card), undefined, { to: 'discard' });
+          log(s, `${who} discards the ${cardName(card)}`, seat, cardLabel(card), undefined, { to: 'discard' });
           if (zone(s, 'deck').cards.length <= 2) {
             d.result = { headline: 'The stock ran out — no score this hand', lines: ['Nobody knocked before the stock ran low.'] };
             log(s, d.result.headline);
@@ -361,7 +357,7 @@ export function rummyFamily(config: GameConfig): GameModule<RummyData> {
     },
 
     redactData(s, viewer) {
-      return { ...s.data, received: s.data.received.map((r, i) => (i === viewer ? r : [])) };
+      return { ...s.data, received: ownOnly(s.data.received, viewer) };
     },
 
     bot(s, seat) {
@@ -377,7 +373,7 @@ export function rummyFamily(config: GameConfig): GameModule<RummyData> {
       const top = topDiscard(s);
       const turnName = s.turn != null ? name(s, s.turn) : '';
       let headline = '';
-      if (s.phase === 'firstPick') headline = s.turn === viewer ? `Take the ${top ? label(top) : 'upcard'} or pass` : `${turnName} is deciding on the upcard`;
+      if (s.phase === 'firstPick') headline = s.turn === viewer ? `Take the ${top ? cardLabel(top) : 'upcard'} or pass` : `${turnName} is deciding on the upcard`;
       else if (s.phase === 'draw') headline = s.turn === viewer ? (d.mustDrawStock ? 'Draw from the stock' : 'Draw from the stock or take the discard') : `${turnName} to draw`;
       else if (s.phase === 'discard') headline = s.turn === viewer ? 'Discard a card — or knock' : `${turnName} to discard`;
       else headline = d.result?.headline ?? '';

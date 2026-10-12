@@ -1,4 +1,4 @@
-import { cardName, parseCard, rankLabel, SUIT_NAME, SUIT_SYMBOL, type Suit } from '../cards';
+import { cardLabel, cardName, parseCard, rankLabel, SUIT_NAME, SUIT_SYMBOL, type Suit } from '../cards';
 import { shuffle } from '../rng';
 import { createState, hand, ids, log, moveCards, moveTop, name, placesFromScores, resetDeck, sortHand, zone } from '../state';
 import { botBudget, dealUnseen, edge, fork, playOut, searchMove, type SearchGame } from '../bots/search';
@@ -176,7 +176,7 @@ export function eightsFamily(config: GameConfig): GameModule<EightsData> {
     moveCards(s, `hand:${seat}`, PILE, [card], { up: true, by: seat });
     const r = rankOf(card);
     d.suit = r === 8 ? named! : (parseCard(card).suit as Suit);
-    log(s, `${name(s, seat)} plays the ${cardName(card)}${r === 8 ? ` and calls ${SUIT_NAME[named!].toLowerCase()}` : ''}`, seat, r === 8 ? `8 → ${SUIT_SYMBOL[named!]}` : `${rankLabel(r)}${SUIT_SYMBOL[parseCard(card).suit]}`, undefined, { to: PILE });
+    log(s, `${name(s, seat)} plays the ${cardName(card)}${r === 8 ? ` and calls ${SUIT_NAME[named!].toLowerCase()}` : ''}`, seat, r === 8 ? `8 → ${SUIT_SYMBOL[named!]}` : cardLabel(card), undefined, { to: PILE });
     const left = hand(s, seat).cards.length;
     // going out ends the hand at once, whatever the card
     if (!left) return endHand(s, seat);
