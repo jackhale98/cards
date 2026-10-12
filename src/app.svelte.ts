@@ -2,7 +2,7 @@ import type { Action } from './engine/types';
 import { newBackupKey, open as openBackup } from './net/backup';
 import { Client } from './net/client';
 import { Host, type HostSnapshot } from './net/host';
-import { AVATAR_COLORS, AVATAR_EMOJI, cleanAvatar, makeRoomCode, type Avatar, type View } from './net/protocol';
+import { AVATAR_COLORS, AVATAR_EMOJI, cleanAvatar, makeRoomCode, type Avatar, type Night, type View } from './net/protocol';
 import type { MultiTransport, NetworkStatus } from './net/multiTransport';
 import type { RelayTransport } from './net/relayTransport';
 import { createTransport, FALLBACK_AFTER_MS, RELAY_GRACE_MS, type TransportKind } from './net/transport';
@@ -225,6 +225,45 @@ class App {
 
   /** Code of a room this device just created (so sync() hosts it rather than joining). */
   private pendingHostCode: string | null = null;
+  /** Hosting a table split off from another: tonight's tally so far, and where it came from. */
+  private pendingSplit: { code: string; night?: Night; parent?: string } | null = null;
+  /** Heading back to the table we split off from (`to`), with the games we played meanwhile. */
+  private returning: { to: string; from: string; night: Night } | null = null;
+
+  /**
+   * The host split the table (or our split-off table is heading back): go to the other table, as
+   * its host if we were picked to host it.
+   */
+  private moveTable(m: { code: string; host?: boolean; night?: Night; parent?: string; back?: boolean }) {
+    const from = this.currentCode;
+    if (!from || m.code === from) return;
+    if (m.back && m.night) this.returning = { to: m.code, from, night: m.night };
+    if (m.host) {
+      store.set('cards.host', null);
+      this.pendingHostCode = m.code;
+      this.pendingSplit = { code: m.code, night: m.night, parent: m.parent };
+      this.say(`You're hosting a new table, ${m.code} — your group is on its way`);
+    } else this.say(m.back ? `Back to table ${m.code}` : `Moving to table ${m.code}`);
+    this.go(`/room/${m.code}`);
+  }
+
+  /** Our split-off table heads back to the table it came from (host only): everyone, us included. */
+  goBack() {
+    const parent = this.view?.lobby.parent;
+    const from = this.currentCode;
+    if (!this.host || !parent || !from) return;
+    this.host.goBack();
+    this.returning = { to: parent, from, night: this.view?.lobby.night ?? { games: [] } };
+    store.set('cards.host', null);
+    // (a moment for the message to reach everyone before this table closes)
+    setTimeout(() => this.go(`/room/${parent}`), 400);
+  }
+
+  /** Split the table (host only): these people go to a new table that `newHost` hosts. */
+  split(ids: string[], newHost: string) {
+    const code = this.host?.split(ids, newHost);
+    if (code) this.say(`${ids.length} ${ids.length === 1 ? 'player is' : 'players are'} off to table ${code}`);
+  }
 
   createRoom() {
     store.set('cards.host', null);
@@ -269,7 +308,14 @@ class App {
     const relay = this.transport?.network<RelayTransport>('relay');
     const backupKey = relay ? newBackupKey() : undefined;
     if (relay && backupKey) relay.deposit(backupKey);
-    const host = new Host(this.transport, code, { cid: this.cid, name: this.name || 'Host', avatar: this.avatar }, restore, { backupKey, takeover: how.takeover });
+    const split = this.pendingSplit?.code === code ? this.pendingSplit : null;
+    this.pendingSplit = null;
+    const host = new Host(this.transport, code, { cid: this.cid, name: this.name || 'Host', avatar: this.avatar }, restore, {
+      backupKey,
+      takeover: how.takeover,
+      night: split?.night,
+      parent: split?.parent,
+    });
     host.onPings = (p) => (this.pings = p);
     // clone so the UI gets fresh objects, exactly like a remote client would
     host.onLocalView = (v) => (this.view = structuredClone(v));
@@ -305,6 +351,8 @@ class App {
       } else this.hostGoneSince ||= Date.now();
     };
     client.onBackup = (b) => store.set('cards.backup', JSON.stringify({ code, ...b }));
+    client.onMove = (m) => this.moveTable(m);
+    if (this.returning?.to === code) client.returning = this.returning;
     this.client = client;
     this.startWatching();
   }

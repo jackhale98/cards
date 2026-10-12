@@ -27,8 +27,11 @@ export class LocalTransport implements Transport {
     queueMicrotask(() => this.post({ k: 'here', from: this.selfId }));
   }
 
+  private closed = false;
+
   private post(e: Envelope) {
-    this.ch.postMessage(e);
+    // (moving to another table closes this one, possibly while a message is still being handled)
+    if (!this.closed) this.ch.postMessage(e);
   }
 
   private receive(e: Envelope) {
@@ -52,6 +55,7 @@ export class LocalTransport implements Transport {
 
   leave() {
     this.post({ k: 'gone', from: this.selfId });
+    this.closed = true;
     this.ch.close();
   }
 }

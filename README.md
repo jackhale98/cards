@@ -26,6 +26,10 @@ the middle of the table. It needs no accounts or app store, and there's no serve
 - **Table display:** put a tablet or laptop in the middle as the shared board (`Use this device as the table display`). While one is connected, phones switch to *hand mode*: a bigger hand and your own info, with only the piles you can tap right now (switch back from the menu).
 - **Friends far away:** the invite link works over the internet too (through the Lamplight relay), so someone in another city can join the table live.
 - **Game night:** every finished game adds to a running scoreboard for the evening (3 / 2 / 1 points for the podium, partners share), shown in the lobby, on the game-over screen and in the scores sheet. The host can start a new night.
+- **Big groups:** everyone who joins gets a seat at the table, even past what the game seats. The
+  host taps **In / Out** to choose who plays; the rest watch, and whoever sat out plays the next game.
+  **Split the table** sends a group off to a table of their own (one of their phones hosts it) with
+  tonight's scoreboard, and **Everyone back** brings them home with their games added to the tally.
 - **Resilient:** a refreshed phone keeps its seat, and a refreshed host resumes the game.
 
 ## Showing the table on a TV

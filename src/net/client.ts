@@ -1,5 +1,5 @@
 import type { Action } from '../engine/types';
-import type { Avatar, HostMsg, View } from './protocol';
+import type { Avatar, HostMsg, Night, View } from './protocol';
 import type { Transport } from './transport';
 
 /** No word from the host (which pings every 3s) for this long means we've lost it. */
@@ -20,6 +20,10 @@ export class Client {
   /** The host's latest sealed backup of the game (only the relay can unlock it; see backup.ts). */
   backup: { blob: string; v: number } | null = null;
   onBackup: (b: { blob: string; v: number }) => void = () => {};
+  /** The host is splitting the table (or sending a split-off table back): go to this one. */
+  onMove: (m: { code: string; host?: boolean; night?: Night; parent?: string; back?: boolean }) => void = () => {};
+  /** Back from a table that split off: its code and finished games, sent with each hello. */
+  returning: { from: string; night: Night } | null = null;
   private seq = 0;
   private helloTimer: ReturnType<typeof setInterval>;
 
@@ -45,6 +49,11 @@ export class Client {
         if (from !== this.hostPeer || typeof msg.blob !== 'string') return;
         this.backup = { blob: msg.blob, v: msg.v };
         this.onBackup(this.backup);
+        return;
+      }
+      if (msg.t === 'move') {
+        if (from !== this.hostPeer || typeof msg.code !== 'string') return;
+        this.onMove(msg);
         return;
       }
       if (msg.t === 'pings') {
@@ -93,7 +102,8 @@ export class Client {
   }
 
   private hello(peer?: string) {
-    this.transport.send({ t: 'hello', cid: this.cid, name: this.name, avatar: this.avatar, display: this.display }, peer);
+    const back = this.returning ? { from: this.returning.from, merge: this.returning.night.games } : {};
+    this.transport.send({ t: 'hello', cid: this.cid, name: this.name, avatar: this.avatar, display: this.display, ...back }, peer);
   }
 
   /** Change name/avatar; the host applies it to your seat. */

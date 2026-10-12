@@ -59,6 +59,29 @@
   let picking = $state(false);
   let tv = $state(false);
   let settings = $state(false);
+  // who plays: the table can hold more people than the game seats
+  const seatsMax = $derived(game.config.players.counts ? Math.max(...game.config.players.counts) : game.config.players.max);
+  const playing = $derived(lobby.seats.filter((s) => !s.out).length);
+  const sittingOut = $derived(lobby.seats.filter((s) => s.out).length);
+  // splitting the table: anyone here but the host and bots can go
+  const splittable = $derived(lobby.seats.filter((s) => !s.host && !s.bot && s.connected));
+  let splitting = $state(false);
+  let going = $state<string[]>([]);
+  let newHost = $state('');
+  function openSplit() {
+    going = [];
+    newHost = '';
+    splitting = true;
+  }
+  function toggleGoing(id: string) {
+    going = going.includes(id) ? going.filter((x) => x !== id) : [...going, id];
+    if (!going.includes(newHost)) newHost = going[0] ?? '';
+  }
+  function doSplit() {
+    if (!going.length || !newHost) return;
+    app.split(going, newHost);
+    splitting = false;
+  }
   /** How many options differ from the game's defaults. */
   const changed = $derived((game.config.options ?? []).filter((o) => lobby.options[o.id] !== undefined && lobby.options[o.id] !== o.default).length);
 </script>
@@ -69,7 +92,7 @@
     <span class="gicon"><GameIcon id={g.config.id} icon={g.config.icon} size={40} /></span>
     <span class="gname">{g.config.name}</span>
     <span class="gmeta">
-      {#if why}<span class="warn">{why} players</span>{:else}{playersText(g)} players{g.config.chips ? ' · chips' : ''}{g.bot ? ' · bots' : ''}{/if}
+      {#if why}<span class="warn">{why} players{why.startsWith('up to') ? ' · rest sit out' : ''}</span>{:else}{playersText(g)} players{g.config.chips ? ' · chips' : ''}{g.bot ? ' · bots' : ''}{/if}
     </span>
   </button>
 {/snippet}
@@ -107,6 +130,25 @@
   </Sheet>
 {/if}
 
+{#if splitting}
+  <Sheet title="Split the table" onclose={() => (splitting = false)}>
+    <p class="small">Pick who moves to a new table of their own, and whose phone hosts it. Tonight's scoreboard goes with them, and their games join this table's tally when they come back.</p>
+    <ul class="pick">
+      {#each splittable as s (s.id)}
+        <li>
+          <label class="pick-who"><input type="checkbox" checked={going.includes(s.id)} onchange={() => toggleGoing(s.id)} /><AvatarBadge avatar={s.avatar} name={s.name} seat={0} size={26} />{s.name}</label>
+          {#if going.includes(s.id)}
+            <label class="pick-host"><input type="radio" name="newhost" checked={newHost === s.id} onchange={() => (newHost = s.id)} />hosts</label>
+          {/if}
+        </li>
+      {/each}
+    </ul>
+    <button class="btn primary" disabled={!going.length || !newHost} onclick={doSplit}>
+      {going.length ? `Move ${going.length} to a new table` : 'Pick who moves'}
+    </button>
+  </Sheet>
+{/if}
+
 {#if tv}
   <TvSheet table={lobby.code} onclose={() => (tv = false)} />
 {/if}
@@ -135,14 +177,14 @@
   <section class="setup">
     <div class="block">
       <div class="head">
-        <div class="eyebrow">Players · {lobby.seats.length}/{game.config.players.max}</div>
-        {#if host && game.bot && lobby.seats.length < game.config.players.max}
+        <div class="eyebrow">Playing · {playing}/{seatsMax}{sittingOut ? ` · ${sittingOut} sitting out` : ''}</div>
+        {#if host && game.bot && playing < seatsMax}
           <button class="btn small-btn" onclick={() => host.addBot()}>+ Add bot</button>
         {/if}
       </div>
-      <ul class="players">
+      <ul class="players" style:--row={host ? '16rem' : null}>
         {#each lobby.seats as seat, i (seat.id)}
-          <li class:me={i === mySeat} class:offline={!seat.connected}>
+          <li class:me={i === mySeat} class:offline={!seat.connected} class:out={seat.out}>
             {#if i === mySeat}
               <button class="me-av" onclick={() => (picking = true)} aria-label="Change your avatar">
                 <AvatarBadge avatar={seat.avatar} name={seat.name} seat={i} size={32} />
@@ -155,8 +197,15 @@
               {#if seat.host}<em>host</em>{/if}
               {#if seat.bot}<em>bot</em>{/if}
               {#if i === mySeat}<em class="you">you</em>{/if}
+              {#if seat.out && !host}<em>sitting out</em>{/if}
             </span>
             {#if !seat.bot && !seat.host}<PingDot ms={app.pings[i]} label />{/if}
+            {#if host && !seat.bot && (seat.out || lobby.seats.length > 1)}
+              <!-- who plays this game: tap to sit someone out, or bring them in -->
+              <button class="inout" class:on={!seat.out} onclick={() => host.setPlaying(seat.id, !!seat.out)} aria-label={seat.out ? `Deal ${seat.name} in` : `Sit ${seat.name} out`}>
+                {seat.out ? 'Out' : 'In'}
+              </button>
+            {/if}
             {#if host}
               <span class="ctl">
                 <button onclick={() => host.moveSeat(seat.id, -1)} disabled={i === 0} aria-label="Move up">↑</button>
@@ -167,7 +216,20 @@
           </li>
         {/each}
       </ul>
+      {#if sittingOut && host}<p class="small">More people than {game.config.name} seats: whoever sits out plays the next game. Tap In / Out to choose.</p>{/if}
       {#if lobby.spectators}<p class="small">+ {lobby.spectators} watching</p>{/if}
+      {#if host && splittable.length >= 1}
+        <button class="btn small-btn split-btn" onclick={openSplit}>⑂ Split the table</button>
+      {/if}
+      {#if lobby.splits?.length}
+        <p class="small">Also playing tonight: {#each lobby.splits as x, k (x.code)}{k ? ' · ' : ''}table <b>{x.code}</b> ({x.names.join(', ')}){/each}</p>
+      {/if}
+      {#if lobby.parent}
+        <p class="small">
+          Split off from table <b>{lobby.parent}</b>.
+          {#if host}<button class="btn small-btn" onclick={() => app.goBack()}>Everyone back to {lobby.parent}</button>{:else}The host can bring everyone back, games and all.{/if}
+        </p>
+      {/if}
       {#if lobby.displays}<p class="small">📺 Table screen connected — phones will show just your hand</p>{/if}
     </div>
 
@@ -180,6 +242,12 @@
 
     <div class="block">
       <div class="eyebrow">Game</div>
+      {#if !host}
+        <div class="chosen">
+          <span class="gicon"><GameIcon id={game.config.id} icon={game.config.icon} size={44} /></span>
+          <div><b>{game.config.name}</b><p class="small">{game.config.tagline}</p></div>
+        </div>
+      {/if}
       {#if host}
         <nav class="cats" aria-label="Kinds of game">
           {#each sections as sec (sec.name)}<button class="cat" onclick={() => jump(sec.name)}>{sec.name}</button>{/each}
@@ -311,7 +379,8 @@
     margin: 0;
     padding: 0;
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+    /* (the host's rows carry In/Out and seat controls: give names room) */
+    grid-template-columns: repeat(auto-fill, minmax(var(--row, 13rem), 1fr));
     gap: 0.4rem;
   }
   .players li {
@@ -370,8 +439,57 @@
   .ctl {
     display: flex;
   }
+  .players li.out {
+    background: rgba(0, 0, 0, 0.06);
+  }
+  .players li.out .pname {
+    color: var(--ink-dim);
+  }
+  .inout {
+    flex: none;
+    min-width: 2.6rem;
+    height: 26px;
+    padding: 0 0.5rem;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--ink-dim);
+  }
+  .inout.on {
+    background: var(--gold);
+    border-color: var(--gold);
+    color: #1a1408;
+  }
+  .split-btn {
+    margin-top: 0.5rem;
+  }
+  .pick {
+    list-style: none;
+    margin: 0.6rem 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+  .pick li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+  }
+  .pick-who,
+  .pick-host {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .pick-host {
+    font-size: 0.8rem;
+    color: var(--ink-dim);
+  }
   .ctl button {
-    width: 30px;
+    width: 28px;
     height: 30px;
     border-radius: 8px;
     color: var(--ink-dim);
@@ -454,6 +572,19 @@
   .gmeta {
     font-size: 0.7rem;
     color: var(--ink-dim);
+  }
+  .chosen {
+    display: flex;
+    gap: 0.6rem;
+    align-items: center;
+    margin-top: 0.3rem;
+  }
+  .chosen .gicon {
+    flex: none;
+    margin: 0;
+  }
+  .chosen p {
+    margin: 0;
   }
   .options {
     display: flex;

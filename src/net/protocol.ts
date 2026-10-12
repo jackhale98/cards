@@ -26,6 +26,16 @@ export interface LobbySeat {
   bot?: boolean;
   host?: boolean;
   connected: boolean;
+  /** Sitting out the next game (more people at the table than it seats); they watch instead. */
+  out?: boolean;
+  /** Games this person has sat out tonight: whoever has sat out most plays next. */
+  sat?: number;
+}
+
+/** Another table that split off from this one tonight. */
+export interface SplitTable {
+  code: string;
+  names: string[];
 }
 
 /** One finished game in tonight's tally. */
@@ -52,6 +62,12 @@ export interface Lobby {
   displays?: number;
   started: boolean;
   night?: Night;
+  /** Seat ids in the game being played, in game-seat order (people sitting out aren't in it). */
+  playing?: string[];
+  /** The table this one split off from (its players can head back there). */
+  parent?: string;
+  /** Tables that split off from this one and haven't come back yet. */
+  splits?: SplitTable[];
 }
 
 /** Everything a device needs to render: personalised and redacted by the host. */
@@ -68,7 +84,16 @@ export interface View {
 }
 
 export type ClientMsg =
-  | { t: 'hello'; cid: string; name: string; avatar?: Avatar; display?: boolean }
+  | {
+      t: 'hello';
+      cid: string;
+      name: string;
+      avatar?: Avatar;
+      display?: boolean;
+      /** Coming back from a table that split off (its code): its finished games, for tonight's tally. */
+      from?: string;
+      merge?: NightGame[];
+    }
   | { t: 'act'; a: Action; seq: number }
   | { t: 'pong'; ts: number };
 
@@ -80,7 +105,12 @@ export type HostMsg =
   /** Round-trip time (ms) from the host to each seated player, by seat index. */
   | { t: 'pings'; pings: (number | null)[] }
   /** The whole game, sealed with a key only the relay holds (see backup.ts), for host handoff. */
-  | { t: 'backup'; blob: string; v: number };
+  | { t: 'backup'; blob: string; v: number }
+  /**
+   * Split the table: go to table `code` — as its host (`host`), taking tonight's tally along — or
+   * head back to the table this one split off from (`back`).
+   */
+  | { t: 'move'; code: string; host?: boolean; night?: Night; parent?: string; back?: boolean };
 
 export type Msg = ClientMsg | HostMsg;
 

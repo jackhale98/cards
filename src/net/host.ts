@@ -3,7 +3,21 @@ import { randomSeed } from '../engine/rng';
 import { nightPoints, standingsOf } from '../engine/state';
 import { RuleError, type Action, type GameModule, type GameState } from '../engine/types';
 import { getGame, GAMES } from '../games';
-import { AVATAR_COLORS, AVATAR_EMOJI, cleanAvatar, type Avatar, type ClientMsg, type Lobby, type LobbySeat, type Msg, type View } from './protocol';
+import {
+  AVATAR_COLORS,
+  AVATAR_EMOJI,
+  cleanAvatar,
+  makeRoomCode,
+  type Avatar,
+  type ClientMsg,
+  type HostMsg,
+  type Lobby,
+  type LobbySeat,
+  type Msg,
+  type Night,
+  type NightGame,
+  type View,
+} from './protocol';
 import { seal } from './backup';
 import type { Transport } from './transport';
 
@@ -15,6 +29,11 @@ const UNDO = '__undo';
 /** Host handoff: players get a fresh sealed backup at most this often. */
 export const BACKUP_EVERY_MS = 2000;
 const BOT_NAMES = ['Ada', 'Bix', 'Cleo', 'Dash', 'Echo', 'Fizz', 'Gus', 'Hux', 'Ivy'];
+/** Most people at one table (more than any game seats: the rest sit out and rotate in). */
+export const TABLE_MAX = 16;
+
+/** The most players a game seats. */
+const seatsIn = (g: GameModule) => (g.config.players.counts ? Math.max(...g.config.players.counts) : g.config.players.max);
 
 export interface HostSnapshot {
   lobby: Lobby;
@@ -57,7 +76,7 @@ export class Host {
     host: { cid: string; name: string; avatar?: Avatar },
     restore?: HostSnapshot,
     /** `takeover`: this device is a player taking over from a host that has gone. */
-    opts: { backupKey?: string; takeover?: boolean } = {},
+    opts: { backupKey?: string; takeover?: boolean; night?: Night; parent?: string } = {},
   ) {
     this.backupKey = opts.backupKey;
     if (restore) {
@@ -78,6 +97,8 @@ export class Host {
       this.lobby.seats.forEach((s) => (s.connected = !!s.bot || !!s.host));
       this.state = restore.state;
       if (this.state) this.module = getGame(this.state.game);
+      // (a game saved before people could sit out: everyone at the table is in it)
+      if (this.state && !this.lobby.playing) this.lobby.playing = this.lobby.seats.map((s) => s.id);
     } else {
       this.lobby = {
         code,
@@ -86,6 +107,9 @@ export class Host {
         seats: [{ id: host.cid, name: host.name, avatar: host.avatar, host: true, connected: true }],
         spectators: 0,
         started: false,
+        // a table split off from another carries tonight's tally so far
+        ...(opts.night ? { night: structuredClone(opts.night) } : {}),
+        ...(opts.parent ? { parent: opts.parent } : {}),
       };
     }
     if (transport) {
@@ -111,7 +135,10 @@ export class Host {
       if (h && typeof msg.ts === 'number') h.rtt = Math.max(0, Math.round(performance.now() - msg.ts));
       return;
     }
-    if (msg.t === 'hello') return this.hello(peer, String(msg.cid), String(msg.name ?? 'Player'), cleanAvatar(msg.avatar), msg.display);
+    if (msg.t === 'hello') {
+      if (typeof msg.from === 'string' && Array.isArray(msg.merge)) this.mergeBack(msg.from, msg.merge);
+      return this.hello(peer, String(msg.cid), String(msg.name ?? 'Player'), cleanAvatar(msg.avatar), msg.display);
+    }
     if (msg.t === 'act') {
       const cid = this.peers.get(peer);
       if (!cid) return;
@@ -136,14 +163,12 @@ export class Host {
       seat.connected = true;
       seat.avatar = avatar ?? seat.avatar;
       if (!this.lobby.started) seat.name = name.slice(0, 20);
-    } else if (!this.lobby.started) {
-      const max = this.module?.config.players.max ?? getGame(this.lobby.gameId).config.players.max;
-      // a human takes the place of a bot if the table is full
-      if (this.lobby.seats.length >= max) {
-        const bot = this.lobby.seats.findIndex((s) => s.bot);
-        if (bot >= 0) this.lobby.seats.splice(bot, 1);
-      }
-      if (this.lobby.seats.length < max) this.lobby.seats.push({ id: cid, name: name.slice(0, 20), avatar, connected: true });
+    } else if (this.lobby.seats.length < TABLE_MAX || this.lobby.seats.some((s) => s.bot)) {
+      if (this.lobby.seats.length >= TABLE_MAX) this.dropBot();
+      // mid-game, newcomers watch and play from the next game; in the lobby they're in if there's room
+      const late = this.lobby.started;
+      this.lobby.seats.push({ id: cid, name: name.slice(0, 20), avatar, connected: true, ...(late ? { out: true } : {}) });
+      if (!late) this.fit({ newcomer: cid });
     }
     this.broadcast();
   }
@@ -185,8 +210,11 @@ export class Host {
     const seat = this.lobby.seats.find((s) => s.id === cid);
     if (seat && ![...this.peers.values()].includes(seat.id)) {
       seat.connected = false;
-      // before the game starts, leaving frees the seat
-      if (!this.lobby.started) this.lobby.seats = this.lobby.seats.filter((s) => s !== seat);
+      // before the game starts, leaving frees the seat (and maybe a place for someone sitting out)
+      if (!this.lobby.started) {
+        this.lobby.seats = this.lobby.seats.filter((s) => s !== seat);
+        this.fit();
+      }
     }
     this.broadcast();
   }
@@ -195,8 +223,8 @@ export class Host {
 
   /** Apply an action from a client id. Returns an error message if it was rejected. */
   act(cid: string, a: Action): string | null {
-    const seat = this.lobby.seats.findIndex((s) => s.id === cid);
-    if (!this.state || !this.module || seat < 0) return 'You are not seated';
+    const seat = this.gameSeat(cid);
+    if (!this.state || !this.module || seat < 0) return this.state ? 'You’re sitting this one out' : 'You are not seated';
     // face-down cards are referred to by placeholder ids; map them back to real cards
     const resolved = resolveAction(this.state, seat, a);
     if (!resolved) return 'The table changed — try again';
@@ -255,7 +283,7 @@ export class Host {
       game: m.config.id,
       name: m.config.name,
       at: Date.now(),
-      results: this.lobby.seats.map((seat, i) => ({ id: seat.id, name: seat.name, place: places[i], points: nightPoints(places[i], places) })),
+      results: this.players().map((seat, i) => ({ id: seat.id, name: seat.name, place: places[i], points: nightPoints(places[i], places) })),
     });
   }
 
@@ -307,13 +335,113 @@ export class Host {
     const g = getGame(gameId);
     this.lobby.gameId = gameId;
     this.lobby.options = defaultOptions(g);
-    // trim bots that no longer fit
-    while (this.lobby.seats.length > g.config.players.max && this.lobby.seats.some((s) => s.bot)) {
-      const i = this.lobby.seats.map((s) => !!s.bot).lastIndexOf(true);
-      this.lobby.seats.splice(i, 1);
-    }
     if (!g.bot) this.lobby.seats = this.lobby.seats.filter((s) => !s.bot);
+    this.fit();
     this.broadcast();
+  }
+
+  // ---- who plays ----------------------------------------------------------------------------
+
+  /** The seats in the game being played (or about to be dealt), in seat order. */
+  players(): LobbySeat[] {
+    if (this.state && this.lobby.playing) return this.lobby.playing.map((id) => this.lobby.seats.find((s) => s.id === id) ?? { id, name: '?', connected: false });
+    return this.lobby.seats.filter((s) => !s.out);
+  }
+
+  /** A client's seat in the game (-1: not playing). */
+  private gameSeat(cid: string | null): number {
+    if (!cid) return -1;
+    if (this.state && this.lobby.playing) return this.lobby.playing.indexOf(cid);
+    return this.lobby.seats.findIndex((s) => s.id === cid);
+  }
+
+  private dropBot() {
+    const i = this.lobby.seats.map((s) => !!s.bot).lastIndexOf(true);
+    if (i >= 0) this.lobby.seats.splice(i, 1);
+  }
+
+  /**
+   * Keep the players to what the game seats: bots go first, then whoever has sat out least
+   * (latest to join among equals) sits out; when there's room, whoever has sat out most comes in.
+   * A newcomer takes a bot's place, or sits out if the game is full of people.
+   */
+  private fit(opts: { newcomer?: string } = {}) {
+    const max = seatsIn(getGame(this.lobby.gameId));
+    const seats = this.lobby.seats;
+    const playing = () => seats.filter((s) => !s.out);
+    while (playing().length > max && seats.some((s) => s.bot)) this.dropBot();
+    const order = (s: LobbySeat) => (s.sat ?? 0) * 100 - seats.indexOf(s) / 100;
+    // the newcomer waits their turn rather than bumping someone already in
+    if (opts.newcomer && playing().length > max) {
+      const me = seats.find((s) => s.id === opts.newcomer);
+      if (me) me.out = true;
+    }
+    while (playing().length > max) {
+      const bump = playing().filter((s) => !s.host || playing().length === 1).sort((a, b) => order(a) - order(b))[0];
+      if (!bump) break;
+      bump.out = true;
+    }
+    while (playing().length < max) {
+      const next = seats.filter((s) => s.out && s.connected).sort((a, b) => order(b) - order(a))[0];
+      if (!next) break;
+      next.out = false;
+    }
+  }
+
+  /** The host picks who plays this game. */
+  setPlaying(id: string, playing: boolean) {
+    if (this.lobby.started) return;
+    const seat = this.lobby.seats.find((s) => s.id === id);
+    if (!seat) return;
+    seat.out = !playing;
+    // someone coming in bumps a bot rather than leaving the table over-full
+    const max = seatsIn(getGame(this.lobby.gameId));
+    if (playing && this.lobby.seats.filter((s) => !s.out).length > max) this.dropBot();
+    this.broadcast();
+  }
+
+  // ---- splitting the table -----------------------------------------------------------------
+
+  /**
+   * Send some of the people here off to a table of their own: `newHost` hosts it (with tonight's
+   * tally so far) and the others join them. Their finished games come back into this table's
+   * tally when they head back (see mergeBack).
+   */
+  split(ids: string[], newHost: string): string | null {
+    if (this.lobby.started) return null;
+    const going = this.lobby.seats.filter((s) => ids.includes(s.id) && !s.bot && !s.host && s.connected);
+    if (!going.some((s) => s.id === newHost)) return null;
+    const code = makeRoomCode();
+    const night = this.lobby.night ?? { games: [] };
+    for (const s of going) this.sendTo(s.id, { t: 'move', code, host: s.id === newHost, night: s.id === newHost ? night : undefined, parent: this.lobby.code });
+    this.lobby.seats = this.lobby.seats.filter((s) => !going.includes(s));
+    this.lobby.splits = [...(this.lobby.splits ?? []), { code, names: going.map((s) => s.name) }];
+    this.fit();
+    this.broadcast();
+    return code;
+  }
+
+  /** This table split off from another: everyone heads back there, taking tonight's games along. */
+  goBack() {
+    const parent = this.lobby.parent;
+    if (!parent || this.lobby.started) return;
+    for (const s of this.lobby.seats) if (!s.bot && !s.host) this.sendTo(s.id, { t: 'move', code: parent, back: true, night: this.lobby.night });
+  }
+
+  /** Players back from a split-off table: add the games they finished there to tonight's tally. */
+  private mergeBack(from: string, games: NightGame[]) {
+    const known = new Set((this.lobby.night?.games ?? []).map((g) => `${g.at}:${g.game}`));
+    const fresh = games.filter((g) => g && typeof g.at === 'number' && Array.isArray(g.results) && !known.has(`${g.at}:${g.game}`));
+    if (fresh.length) {
+      this.lobby.night ??= { games: [] };
+      this.lobby.night.games.push(...fresh);
+      this.lobby.night.games.sort((a, b) => a.at - b.at);
+    }
+    if (this.lobby.splits?.some((x) => x.code === from)) this.lobby.splits = this.lobby.splits.filter((x) => x.code !== from);
+  }
+
+  private sendTo(cid: string, msg: HostMsg) {
+    for (const [peer, c] of this.peers) if (c === cid) this.transport?.send(msg, peer);
   }
 
   setOption(id: string, value: number | boolean) {
@@ -323,7 +451,7 @@ export class Host {
 
   addBot() {
     const g = getGame(this.lobby.gameId);
-    if (!g.bot || this.lobby.seats.length >= g.config.players.max) return;
+    if (!g.bot || this.players().length >= seatsIn(g) || this.lobby.seats.length >= TABLE_MAX) return;
     const used = new Set(this.lobby.seats.map((s) => s.name));
     const name = BOT_NAMES.find((n) => !used.has(n)) ?? `Bot ${this.lobby.seats.length}`;
     const n = this.lobby.seats.length;
@@ -336,6 +464,7 @@ export class Host {
     if (this.lobby.started) return;
     this.lobby.seats = this.lobby.seats.filter((s) => s.id !== id || s.host);
     for (const [p, c] of this.peers) if (c === id) this.peers.delete(p);
+    this.fit();
     this.broadcast();
   }
 
@@ -358,9 +487,9 @@ export class Host {
 
   canStart(): string | null {
     const g = getGame(this.lobby.gameId);
-    const n = this.lobby.seats.length;
+    const n = this.players().length;
     if (n < g.config.players.min) return `${g.config.name} needs at least ${g.config.players.min} players`;
-    if (n > g.config.players.max) return `${g.config.name} allows at most ${g.config.players.max} players`;
+    if (n > g.config.players.max) return `${g.config.name} seats ${g.config.players.max} — choose who sits out`;
     const counts = g.config.players.counts;
     if (counts && !counts.includes(n)) return `${g.config.name} is for ${counts.join(' or ')} players`;
     return null;
@@ -369,10 +498,12 @@ export class Host {
   start() {
     if (this.canStart()) return;
     this.module = getGame(this.lobby.gameId);
+    const players = this.players();
+    this.lobby.playing = players.map((s) => s.id);
     this.lobby.started = true;
     this.history = [];
     this.state = this.module.setup(
-      this.lobby.seats.map((s) => ({ name: s.name, bot: s.bot })),
+      players.map((s) => ({ name: s.name, bot: s.bot })),
       randomSeed(),
       { ...this.lobby.options },
     );
@@ -387,6 +518,14 @@ export class Host {
     this.module = null;
     this.history = [];
     this.lobby.seats = this.lobby.seats.filter((s) => s.connected || s.host);
+    // whoever sat out that game gets priority for the next one
+    const played = new Set(this.lobby.playing ?? []);
+    for (const s of this.lobby.seats) {
+      if (!played.has(s.id) && !s.bot) s.sat = (s.sat ?? 0) + 1;
+      s.out = false;
+    }
+    this.lobby.playing = undefined;
+    this.fit();
     this.broadcast();
   }
 
@@ -406,7 +545,7 @@ export class Host {
   // ---- outgoing ---------------------------------------------------------------------------
 
   viewFor(cid: string | null): View {
-    const seat = cid ? this.lobby.seats.findIndex((s) => s.id === cid) : -1;
+    const seat = this.gameSeat(cid);
     const s = this.state;
     const m = this.module;
     const view: View = {
@@ -425,6 +564,7 @@ export class Host {
 
   broadcast() {
     this.v++;
+    // (people sitting out are at the table: not counted as watching)
     const seated = new Set(this.lobby.seats.map((s) => s.id));
     // a device can reach us on several networks: count devices (client ids), not connections
     const screens = new Set([...this.displays].map((p) => this.peers.get(p)));

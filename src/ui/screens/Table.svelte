@@ -275,6 +275,16 @@
     return () => cancelAnimationFrame(frame);
   });
 
+  /** The table seat (name, avatar, connection) of each player in the game, by game seat. */
+  const lobbySeat = (seat: number) => {
+    const id = view.lobby.playing?.[seat];
+    return id ? view.lobby.seats.find((x) => x.id === id) : view.lobby.seats[seat];
+  };
+  /** Round-trip times come by table seat. */
+  const pingOf = (seat: number) => {
+    const at = view.lobby.seats.indexOf(lobbySeat(seat)!);
+    return at >= 0 ? app.pings[at] : null;
+  };
   const me = $derived(you >= 0 ? s.players[you] : null);
   /** Game night standings, shown when a game ends. */
   const tonight = $derived(nightTotals(view.lobby.night));
@@ -298,13 +308,13 @@
           info={status.seats[seat]}
           cards={seatZone(seat)}
           turn={s.turn === seat}
-          connected={view.lobby.seats[seat]?.connected ?? true}
+          connected={lobbySeat(seat)?.connected ?? true}
           {showChips}
           compact={others.length > 4 || (others.length >= 3 && vw < 940 && !display)}
-          avatar={view.lobby.seats[seat]?.avatar}
+          avatar={lobbySeat(seat)?.avatar}
           relation={display ? null : seatRelation(you, seat, n)}
           said={saidBy(seat)}
-          ping={view.lobby.seats[seat]?.host ? null : app.pings[seat]}
+          ping={lobbySeat(seat)?.host ? null : pingOf(seat)}
           scale={tvRem / 16}
           turnLabel={display}
         />
@@ -320,13 +330,13 @@
   <!-- tapping empty felt clears the selection (a touch shortcut; the Clear button is the accessible path) -->
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
   <main onclick={(e) => !(e.target as Element).closest('button, .card') && (selected = [])}>
-    {#if status.track && !handMode}<Track track={status.track} avatars={view.lobby.seats.map((x) => x.avatar)} />{/if}
+    {#if status.track && !handMode}<Track track={status.track} avatars={s.players.map((_, i) => lobbySeat(i)?.avatar)} />{/if}
     {#if status.headline}<div class="headline" class:mine={actor === you && you >= 0}><SuitText text={status.headline} /></div>{/if}
     {#if lastMove}
       {#key lastMove.t}
         <div class="last" aria-live="polite">
           {#if lastMove.seat != null}
-            <AvatarBadge avatar={view.lobby.seats[lastMove.seat]?.avatar} name={s.players[lastMove.seat]?.name ?? ''} seat={lastMove.seat} size={16} />
+            <AvatarBadge avatar={lobbySeat(lastMove.seat)?.avatar} name={s.players[lastMove.seat]?.name ?? ''} seat={lastMove.seat} size={16} />
           {/if}
           <span><SuitText text={lastMove.text} /></span>
         </div>
@@ -400,7 +410,7 @@
       <div class="me">
         {#if me}
           <div class="me-name">
-            <AvatarBadge avatar={view.lobby.seats[you]?.avatar} name={me.name} seat={you} size={24} />{me.name}
+            <AvatarBadge avatar={lobbySeat(you)?.avatar} name={me.name} seat={you} size={24} />{me.name}
             {#if myInfo?.tag}<span class="mytag">{myInfo.tag}</span>{/if}
           </div>
           <div class="me-sub">
@@ -409,7 +419,8 @@
           </div>
           {#if status.hint}<div class="hint"><SuitText text={status.hint} /></div>{/if}
         {:else}
-          <div class="me-sub">Watching</div>
+          <!-- (at the table but not in this game: you're in the next one) -->
+          <div class="me-sub">{view.lobby.seats.some((x) => x.id === app.cid) ? 'Sitting this one out — you’re in the next game' : 'Watching'}</div>
         {/if}
       </div>
       <!-- bigger fanned cards tip further past the ends: keep them clear of the buttons -->
@@ -434,7 +445,7 @@
         onclear={() => (selected = [])}
         seatInfo={(seat) => ({
           name: s.players[seat]?.name ?? '',
-          avatar: view.lobby.seats[seat]?.avatar,
+          avatar: lobbySeat(seat)?.avatar,
           relation: seatRelation(you, seat, n),
         })}
       />
