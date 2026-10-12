@@ -129,3 +129,54 @@ describe('spades for three (pagat)', () => {
     expect(s.phase).toBe('gameOver');
   }, 120000);
 });
+
+describe('500 for three (pagat)', () => {
+  const five = GAMES['five-hundred'] as GameModule<TrickData>;
+
+  it('33 cards (7s to aces and the joker): 10 each and a kitty of 3; everyone scores alone', () => {
+    const s = five.setup(bots(3), 1, {});
+    const cards = allCards(s);
+    expect(cards).toHaveLength(33);
+    expect(cards.filter((c) => c.startsWith('X'))).toHaveLength(1);
+    expect(cards.some((c) => /^[2-6]/.test(c))).toBe(false);
+    for (let i = 0; i < 3; i++) expect(ids(s, `hand:${i}`)).toHaveLength(10);
+    expect(s.data.scores).toHaveLength(3);
+  });
+
+  it('the contractor plays alone; each opponent scores 10 a trick for themselves', () => {
+    for (let seed = 1; seed < 30; seed++) {
+      const s = five.setup(bots(3), seed, {});
+      simulate(five, s, 60000, 'roundOver');
+      const maker = s.data.maker;
+      if (maker == null || s.data.contract?.misere) continue;
+      for (let i = 0; i < 3; i++) if (i !== maker) expect(s.data.scores[i]).toBe(s.data.tricks[i] * 10);
+      expect(s.data.sittingOut).toBeNull();
+      return;
+    }
+    throw new Error('no ordinary contract in 30 deals');
+  });
+
+  it('misère with three: the contractor plays alone and both others play (nobody sits out)', () => {
+    const s = five.setup(bots(3), 4, {});
+    // seven spades (misère can only be bid over a seven), then misère
+    five.apply(s, s.turn!, { type: 'bid500', amount: 5 });
+    const second = s.turn!;
+    five.apply(s, second, { type: 'misere' });
+    while (s.phase === 'auction') five.apply(s, s.turn!, { type: 'decline' });
+    expect(s.data.maker).toBe(second);
+    expect(s.data.contract!.misere).toBe('closed');
+    expect(s.data.sittingOut).toBeNull();
+    simulate(five, s, 60000, 'roundOver');
+    // all three played every trick (a misère stops once its bidder takes one)
+    const left = [0, 1, 2].map((i) => ids(s, `hand:${i}`).length);
+    expect(new Set(left).size).toBe(1);
+  });
+
+  it('bots play whole games at three', () => {
+    for (const seed of [5, 6]) {
+      const s = five.setup(bots(3), seed, {});
+      simulate(five, s, 200000);
+      expect(s.phase).toBe('gameOver');
+    }
+  }, 180000);
+});

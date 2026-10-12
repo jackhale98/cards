@@ -4,7 +4,7 @@
   "name": "500",
   "tagline": "Bid your tricks against the Avondale table. The joker is the boss.",
   "icon": "★",
-  "players": { "min": 4, "max": 4, "recommended": 4 },
+  "players": { "min": 3, "max": 4, "recommended": 4 },
   "bots": true,
   "deck": { "ranks": [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14], "exclude": ["4S", "4C"], "jokers": 1 },
   "zones": [
@@ -28,6 +28,12 @@
     "scoring": { "type": "auction", "perTrick": 10, "slam": 250 },
     "end": { "target": 500, "loseAt": -500 }
   },
+  "byPlayers": {
+    "3": {
+      "deck": { "ranks": [7, 8, 9, 10, 11, 12, 13, 14], "exclude": [], "jokers": 1 },
+      "rules": { "teams": [[0], [1], [2]] }
+    }
+  },
   "options": [
     { "id": "target", "label": "Play to", "type": "number", "default": 500, "min": 250, "max": 1000, "step": 50 },
     { "id": "bidToWin", "label": "Only win by making a bid", "type": "boolean", "default": true }
@@ -39,6 +45,7 @@
     "In no trumps the joker has no suit: it wins any trick, can only be played when you can't follow suit, and can be led by calling a suit not yet led (others must follow it). A contractor holding it may instead make it the top card of a suit before the first lead.",
     "Misère (250, only over a seven): take no tricks at all, playing alone with no trumps. Open misère (500, any time): the same, with your hand face up after the first trick. A contractor holding the joker gives it a suit; a defender who can't follow suit must play it.",
     "Make it and score the bid (all 10 tricks is at least 250); fail and lose it. Opponents score 10 per trick (nothing against misère).",
-    "Win by reaching 500 with a bid you make — points on defence alone don't win. Fall to −500 and you lose."
+    "Win by reaching 500 with a bid you make — points on defence alone don't win. Fall to −500 and you lose.",
+    "Three players: 33 cards (7s to aces and the joker), 10 each and a kitty of 3. The highest bidder plays alone against the other two, who play together; everyone keeps their own score, and each opponent scores 10 for every trick they take."
   ]
 }

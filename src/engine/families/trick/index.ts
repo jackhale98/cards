@@ -157,6 +157,8 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
   };
   const totalPoints = buildDeck(config.deck).reduce((n, c) => n + pointsOf(c), 0);
   const teamsFor = (n: number) => R.teams?.filter((t) => t.every((s) => s < n)).length ? R.teams! : Array.from({ length: n }, (_, i) => [i]);
+  /** A seat's partners (none when everyone plays for themselves). */
+  const partnersOf = (s: S, seat: number) => (teamsFor(s.players.length).find((t) => t.includes(seat)) ?? [seat]).filter((x) => x !== seat);
   const teamOf = (s: S, seat: number) => teamsFor(s.players.length).findIndex((t) => t.includes(seat));
   const teamName = (s: S, team: number) => teamsFor(s.players.length)[team].map((i) => name(s, i)).join(' & ');
   const lowWins = !!R.end.lowWins;
@@ -257,7 +259,8 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
     if (nilAllowed && s.options.blindNil) {
       // blind nil: players whose side is 100 or more behind decide before looking at their cards
       const best = Math.max(...d.scores);
-      const behind = (i: number) => d.scores[teamOf(s, i)] <= best - 100;
+      // (the blind bidder swaps cards with their partner: only with partners)
+      const behind = (i: number) => d.scores[teamOf(s, i)] <= best - 100 && partnersOf(s, i).length === 1;
       d.blindToAsk = Array.from({ length: n }, (_, k) => (s.dealer + 1 + k) % n).filter(behind);
       for (const i of d.blindToAsk) for (const c of hand(s, i).cards) c.blind = true;
     }
@@ -339,7 +342,7 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
     const d = s.data;
     d.trump = suit;
     d.maker = seat;
-    if (alone) d.sittingOut = (seat + 2) % s.players.length;
+    if (alone) d.sittingOut = partnersOf(s, seat)[0] ?? null;
     log(s, `${name(s, seat)} ${pickUp ? (seat === s.dealer ? 'picks it up' : 'orders it up') : `names ${SUIT_SYMBOL[suit]}`}${alone ? ' and goes alone' : ''}`, seat, `${SUIT_SYMBOL[suit]}${alone ? ' alone' : ''}`);
     if (pickUp && d.sittingOut !== s.dealer) {
       moveCards(s, 'upcard', `hand:${s.dealer}`, ids(zone(s, 'upcard')));
@@ -357,7 +360,7 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
     d.maker = seat;
     d.trump = d.contract!.suit === 'NT' ? null : d.contract!.suit;
     // misère is played alone: partner's cards stay face down
-    if (d.contract!.misere) d.sittingOut = (seat + 2) % s.players.length;
+    if (d.contract!.misere) d.sittingOut = partnersOf(s, seat)[0] ?? null;
     log(s, `${name(s, seat)} wins the bid: ${contractLabel(d.contract!)} (${d.contract!.value})`, seat, contractLabel(d.contract!));
     moveCards(s, 'deck', `hand:${seat}`, ids(zone(s, 'deck')));
     sortHand(s, seat, { trump: d.trump });
@@ -1057,7 +1060,7 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
         case 'look': {
           assertRule(s.phase === 'blind' && s.turn === seat, 'Not your turn');
           if (a.type === 'look') return lookAtCards(s, seat);
-          const partner = (seat + 2) % s.players.length;
+          const partner = partnersOf(s, seat)[0];
           d.blind![seat] = true;
           d.bids[seat] = 0;
           log(s, `${who} bids blind nil!`, seat, 'Blind nil');
