@@ -28,6 +28,8 @@ function seatsFor(g: GameJson): number {
 const PHONES = [
   { name: 'phone', width: 852, height: 393 },
   { name: 'small phone', width: 667, height: 375 },
+  // (a phone in landscape with the browser's bars showing, not full screen)
+  { name: 'phone with browser bars', width: 800, height: 300 },
   { name: 'laptop', width: 1280, height: 720 },
 ];
 
@@ -73,6 +75,17 @@ async function checkLayout(page: Page, opts: { seatsMayScroll: boolean }) {
     document.querySelectorAll('.zones > .zone-slot, .zones > .pot').forEach((el) => inside('pile', el));
     for (const sel of ['.headline', '.zones', 'footer .me', '.hand-wrap', 'aside', '.seats']) document.querySelectorAll(sel).forEach((el) => inside(sel, el));
     document.querySelectorAll('aside button').forEach((el) => inside('action button', el));
+    // the cards in the middle stay in the middle: clear of your hand below and the headline above
+    const footer = document.querySelector('.table:not(.display) footer')?.getBoundingClientRect();
+    const head = document.querySelector('.table:not(.display) main .headline')?.getBoundingClientRect();
+    document.querySelectorAll('.table:not(.display) main .zones .card').forEach((el) => {
+      const r = el.getBoundingClientRect();
+      if (!r.width || !r.height) return;
+      if (footer && footer.height && r.bottom > footer.top + 2 && r.top < footer.bottom)
+        out.push(`a card in the middle reaches into the hand: its bottom ${Math.round(r.bottom)}, the hand's top ${Math.round(footer.top)}`);
+      if (head && head.height && r.top < head.bottom - 2 && r.bottom > head.top)
+        out.push(`a card in the middle reaches up over the headline: its top ${Math.round(r.top)}, the headline's bottom ${Math.round(head.bottom)}`);
+    });
     // seats on a row that scrolls may sit out of view; on a table display every seat must show
     if (!seatsMayScroll) document.querySelectorAll('.seat-slot').forEach((el) => inside('seat', el));
     return out;
@@ -173,6 +186,30 @@ for (const [id, piles] of SPEED) {
       for (const z of piles) await expect(page.locator(`main [data-zone="${z}"]`)).toBeVisible();
       await playOn(page, { moves: 1, quietMs: 700, land: false });
     }
+    await cardsLanded(page);
+    await checkLayout(page, { seatsMayScroll: true });
+    expect(errors).toEqual([]);
+  });
+}
+
+/** Slap games on a short screen: the pile in the middle, once cards are on it, stays clear of your own. */
+for (const id of ['egyptian-rat-screw', 'slapjack']) {
+  const g = GAMES.find((x) => x.id === id)!;
+  test(`${g.name} with cards on the pile, on a phone with browser bars`, async ({ page }) => {
+    await page.setViewportSize({ width: 800, height: 300 });
+    const errors = watch(page);
+    await deal(page, g);
+    const turn = page.locator('aside button:has-text("Turn over")');
+    // turn cards over until a few are on the pile (the bots turn theirs between)
+    await expect
+      .poll(
+        async () => {
+          if (await turn.isEnabled().catch(() => false)) await turn.click().catch(() => {});
+          return page.locator('main [data-zone="pile"] .card').count();
+        },
+        { timeout: 20_000 },
+      )
+      .toBeGreaterThanOrEqual(2);
     await cardsLanded(page);
     await checkLayout(page, { seatsMayScroll: true });
     expect(errors).toEqual([]);

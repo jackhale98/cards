@@ -42,14 +42,43 @@
    * yours (a bigger hand, your info and actions) plus any pile you can tap right now.
    */
   const handMode = $derived(!display && you >= 0 && !!view.lobby.displays && app.handMode);
+  /**
+   * A face-down pile of your own instead of a hand (slap games): you only tap it, so it can be
+   * small, and the pile in the middle (what you're watching, and slapping) gets the room.
+   */
+  const pileOnly = $derived(you >= 0 && s.zones[`hand:${you}`]?.layout === 'stack');
+  // the heights of what sits above the cards (measured: a headline can take two lines)
+  const LAST_H = 26;
+  let headerH = $state(0);
+  let headH = $state(0);
+  let trackH = $state(0);
+  /**
+   * The table's height shared out between the cards in the middle and your hand, from what's left
+   * once the seats, the score track and the headline have theirs. On a short screen (a phone with
+   * the browser's bars showing) both shrink together, so neither runs into the other. (Worked out
+   * from the screen, not from the sizes they end up, so the layout can't chase itself.)
+   */
+  const cardSizes = $derived.by(() => {
+    const wantCenter = Math.min(pileOnly ? 120 : 92, vh * (status.track ? 0.13 : pileOnly ? 0.24 : 0.15), vw * (pileOnly ? 0.12 : 0.09));
+    const wantHand = handMode
+      ? // (hand mode: the middle is a pile or two at most, so the hand is bigger)
+        Math.min(168, vh * (centerZones.length ? 0.27 : 0.34), vw * 0.15)
+      : Math.min(112, vh * (pileOnly ? 0.14 : 0.2), vw * 0.11);
+    if (display || !headerH) return { center: wantCenter, hand: wantHand, lastFits: true };
+    const above = (status.track && !handMode ? trackH + 6 : 0) + (status.headline ? headH + 6 : 0);
+    // (the table's padding and gaps, the middle's labels, and the hand's own: about 70px, the rest is cards;
+    // a pile is about 1.6 card widths tall with its label, a fanned hand 1.45 with its arc)
+    let room = vh - headerH - above - 70;
+    // the last move under the headline only when there's room for it: the cards come first
+    const lastFits = room - LAST_H >= 1.6 * 36 + 1.45 * 48;
+    if (lastFits) room -= LAST_H;
+    // (hand mode's middle is empty but for a pile you can tap)
+    const need = (centerZones.length ? 1.6 * wantCenter : 0) + 1.45 * wantHand;
+    const k = need > room ? Math.max(0, room) / need : 1;
+    return { center: wantCenter * k, hand: wantHand * k, lastFits };
+  });
   // a score track takes some height, so table cards get a little smaller with one
-  const centerCw = $derived(
-    Math.round(
-      display
-        ? Math.max(60, Math.min(300, vh * (status.track ? 0.18 : 0.22), vw * 0.1))
-        : Math.max(40, Math.min(92, vh * (status.track ? 0.13 : 0.15), vw * 0.09)),
-    ),
-  );
+  const centerCw = $derived(Math.round(display ? Math.max(60, Math.min(300, vh * (status.track ? 0.18 : 0.22), vw * 0.1)) : Math.max(34, cardSizes.center)));
 
   /** Opponents in turn order starting to your left. */
   const others = $derived.by(() => {
@@ -177,14 +206,7 @@
     const keep = (pct: number, size = 0) => `clamp(${size / 2 + 8}px, ${pct}%, calc(100% - ${size / 2 + 8}px))`;
     return { left: keep(50 + Math.cos(a) * 40, slotW[seat]), top: keep(50 + Math.sin(a) * 39, slotH[seat]) };
   }
-  const handCw = $derived(
-    Math.round(
-      handMode
-        ? // a pile left on the phone (deck to draw from…) needs some of the height
-          Math.max(64, Math.min(168, vh * (centerZones.length ? 0.27 : 0.34), vw * 0.15))
-        : Math.max(52, Math.min(112, vh * 0.2, vw * 0.11)),
-    ),
-  );
+  const handCw = $derived(Math.round(Math.max(handMode ? 56 : pileOnly ? 36 : 44, cardSizes.hand)));
 
   // ---- chrome -----------------------------------------------------------------------------
   let sheet = $state<'menu' | 'scores' | 'tv' | 'look' | null>(null);
@@ -346,7 +368,7 @@
 
 <div class="table" class:display class:handmode={handMode} bind:this={tableEl}>
   <!-- top: menu + opponents + scores -->
-  <header>
+  <header bind:clientHeight={headerH}>
     <button class="icon" onclick={() => (sheet = 'menu')} aria-label="Menu">
       <svg viewBox="0 0 24 24" width="20" height="20"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
     </button>
@@ -390,9 +412,11 @@
   <!-- tapping empty felt clears the selection (a touch shortcut; the Clear button is the accessible path) -->
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
   <main onclick={(e) => !(e.target as Element).closest('button, .card') && (selected = [])}>
-    {#if status.track && !handMode}<Track track={status.track} avatars={s.players.map((_, i) => lobbySeat(i)?.avatar)} />{/if}
-    {#if status.headline}<div class="headline" class:mine={actor === you && you >= 0}><SuitText text={status.headline} /></div>{/if}
-    {#if lastMove}
+    {#if status.track && !handMode}<div class="track-wrap" bind:clientHeight={trackH}>
+        <Track track={status.track} avatars={s.players.map((_, i) => lobbySeat(i)?.avatar)} />
+      </div>{/if}
+    {#if status.headline}<div class="headline" class:mine={actor === you && you >= 0} bind:clientHeight={headH}><SuitText text={status.headline} /></div>{/if}
+    {#if lastMove && cardSizes.lastFits}
       {#key lastMove.t}
         <div class="last" aria-live="polite">
           {#if lastMove.seat != null}
@@ -683,7 +707,8 @@
     display: grid;
     /* (minmax: a long row of cards scrolls inside the middle instead of widening the screen) */
     grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-rows: auto 1fr auto;
+    /* (minmax: the middle's cards fit its room rather than pushing the rows apart) */
+    grid-template-rows: auto minmax(0, 1fr) auto;
     grid-template-areas:
       'top top'
       'center actions'
@@ -892,6 +917,13 @@
   /* never squash the headline or last move when the middle is short of room */
   .headline,
   .last {
+    flex-shrink: 0;
+  }
+  /* (the score track keeps its own width: the wrapper is only there to measure it) */
+  .track-wrap {
+    align-self: stretch;
+    display: flex;
+    justify-content: center;
     flex-shrink: 0;
   }
   .zones {
