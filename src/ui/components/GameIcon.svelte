@@ -41,6 +41,10 @@
     'hand-and-foot',
     'kings-corners',
     'palace',
+    'slapjack',
+    'spit',
+    'spoons',
+    'egyptian-rat-screw',
   ]);
 
   // Suit shapes in a 100-unit box centred on the origin.
@@ -377,6 +381,70 @@
           {@render suit(k as Suit, -5, -5, 10, fill as string)}
         </g>
       {/each}
+    {:else if id === 'slapjack'}
+      <!-- a jack turns up on the pile, and a hand comes down on it -->
+      <g transform="translate(26 40) rotate(-12)">{@render cardBack()}</g>
+      <g transform="translate(28 38) rotate(4)">{@render court('J', 'H', RED)}</g>
+      <g stroke="#e9c46a" stroke-width="1.4" stroke-linecap="round">
+        <path d="M52,40 L58,42" /><path d="M50,46 L55,51" /><path d="M44,49 L45,56" />
+      </g>
+      <g transform="translate(41 23) rotate(220)">
+        <g transform="translate(1 1.5)" fill="#000" opacity="0.3">
+          <rect x="-8" y="-5" width="16" height="15" rx="5" />
+          {#each [-7.6, -3.8, 0, 3.8] as x (x)}<rect {x} y="-15" width="3.6" height="12" rx="1.8" />{/each}
+        </g>
+        <g fill="#f3dcb6" stroke="#a87b1c" stroke-width="0.7">
+          {#each [-7.6, -3.8, 0, 3.8] as x (x)}<rect {x} y={x === -7.6 || x === 3.8 ? -13 : -15} width="3.6" height="12" rx="1.8" />{/each}
+          <rect x="-8" y="-5" width="16" height="15" rx="5" />
+          <rect x="6" y="-2" width="3.8" height="9" rx="1.9" transform="rotate(-35 8 2)" />
+        </g>
+      </g>
+    {:else if id === 'spit'}
+      <!-- both players slapping cards onto the middle piles at once -->
+      <g transform="translate(24 36)">{@render smallFace(19)}{@render suit('H', -5, -5, 10, RED)}</g>
+      <g transform="translate(41 36)">{@render smallFace(19)}{@render suit('S', -5, -5, 10, INK)}</g>
+      <g transform="translate(14 17) rotate(-24)"
+        >{@render smallFace(15)}<text x="0" y="3.5" font-size="9" font-weight="700" text-anchor="middle" fill={RED} font-family={SERIF}>6</text></g
+      >
+      <g transform="translate(51 17) rotate(24)"
+        >{@render smallFace(15)}<text x="0" y="3.5" font-size="9" font-weight="700" text-anchor="middle" fill={INK} font-family={SERIF}>4</text></g
+      >
+      <g stroke="#e9c46a" stroke-width="1.3" stroke-linecap="round" opacity="0.9">
+        <path d="M4,30 L9,27" /><path d="M3,24 L7,22" /><path d="M60,30 L55,27" /><path d="M61,24 L57,22" />
+      </g>
+    {:else if id === 'spoons'}
+      <!-- four of a kind in hand, and a spoon to grab -->
+      {#each [-24, -8, 8, 24] as a, i (a)}
+        <g transform="translate(22 62) rotate({a}) translate(0 -24)">
+          {@render smallFace(17)}
+          <text x="-4.6" y="-3" font-size="7.5" font-weight="700" text-anchor="middle" fill={i % 2 ? RED : INK} font-family={SERIF}>Q</text>
+          {@render suit((['S', 'H', 'C', 'D'] as Suit[])[i], -6.6, -1.6, 4, i % 2 ? RED : INK)}
+        </g>
+      {/each}
+      <g transform="translate(46 30) rotate(30)">
+        <g transform="translate(1 1.5)" fill="#000" opacity="0.3">
+          <ellipse cx="0" cy="-15" rx="6.5" ry="9" /><rect x="-1.8" y="-7" width="3.6" height="28" rx="1.8" />
+        </g>
+        <rect x="-1.8" y="-7" width="3.6" height="28" rx="1.8" fill="#c7cfd6" stroke="#7d8790" stroke-width="0.7" />
+        <ellipse cx="0" cy="-15" rx="6.5" ry="9" fill="#dfe5ea" stroke="#7d8790" stroke-width="0.7" />
+        <ellipse cx="-1.6" cy="-17" rx="2.2" ry="4" fill="#fff" opacity="0.6" />
+      </g>
+    {:else if id === 'egyptian-rat-screw'}
+      <!-- doubles on the pile, and the rat peeking out from behind them -->
+      <g transform="translate(33 18)">
+        <path d="M9,6 C16,6 18,0 15,-4" fill="none" stroke="#c98f8f" stroke-width="1.4" stroke-linecap="round" />
+        <circle cx="-7" cy="-6" r="4.4" fill="#8a8f98" /><circle cx="-7" cy="-6" r="2.4" fill="#e8a7a7" />
+        <circle cx="5" cy="-6" r="4.4" fill="#8a8f98" /><circle cx="5" cy="-6" r="2.4" fill="#e8a7a7" />
+        <ellipse cx="-1" cy="2" rx="9.5" ry="8" fill="#9aa0a8" />
+        <path d="M-6,5 L-1,13 L4,5Z" fill="#9aa0a8" />
+        <circle cx="-1" cy="13" r="1.6" fill="#e8a7a7" />
+        <circle cx="-4.6" cy="1" r="1.3" fill={INK} /><circle cx="2.6" cy="1" r="1.3" fill={INK} />
+        <g stroke="#5d626a" stroke-width="0.5" stroke-linecap="round">
+          <path d="M-3,10 L-11,8" /><path d="M-3,11 L-11,12" /><path d="M1,10 L9,8" /><path d="M1,11 L9,12" />
+        </g>
+      </g>
+      <g transform="translate(25 40) rotate(-10)">{@render card()}{@render corner('9', 'S', INK)}{@render suit('S', -4, -2, 11, INK)}</g>
+      <g transform="translate(38 41) rotate(8)">{@render card()}{@render corner('9', 'H', RED)}{@render suit('H', -4, -2, 11, RED)}</g>
     {:else if id === 'crazy-eights'}
       <g transform="translate(32 32) rotate(-6)">
         {@render face(-15, -21.4, 32)}
