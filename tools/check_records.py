@@ -156,14 +156,30 @@ def _start(board, contract):
 
 # ---- poker ------------------------------------------------------------------------------
 
-def settle(state) -> None:
+def alone(state) -> bool:
+    """Only one player left in the hand with chips to bet (everyone else folded or all in)."""
+    return sum(1 for i, live in enumerate(state.statuses) if live and state.stacks[i] > 0) <= 1
+
+
+def settle(state, next_action: str | None = None) -> None:
     """What the dealer does between written actions: burn a card before each street, and turn
-    the hands over at a showdown (PokerKit decides who shows, and in what order)."""
+    the hands over at a showdown (PokerKit decides who shows, and in what order).
+
+    Before the next street (or the end), a check with nothing to call: when everyone else is all
+    in and a player has already matched them, we move straight on, where PokerKit still asks
+    that player to check. It changes nothing, so it's made here rather than written."""
     while True:
         if state.can_burn_card():
             state.burn_card("??")
         elif state.can_show_or_muck_hole_cards():
             state.show_or_muck_hole_cards(True)
+        elif (
+            (next_action is None or next_action.startswith("d db"))
+            and state.can_check_or_call()
+            and not state.checking_or_calling_amount
+            and alone(state)
+        ):
+            state.check_or_call()
         else:
             return
 
@@ -194,7 +210,7 @@ def check_poker(folder: str) -> dict:
                 # (showing at a showdown: see settle)
                 if " sm " in action:
                     continue
-                settle(state)
+                settle(state, action)
                 try:
                     parse_action(state, action, hh.parse_value)
                 except Exception as e:  # noqa: BLE001
