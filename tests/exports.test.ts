@@ -3,6 +3,10 @@ import { Client } from '../src/net/client';
 import { bidOf } from '../src/engine/families/trick/contracts';
 import { recordFormats } from '../src/net/exports/formats';
 import { callText } from '../src/net/exports/pbn';
+import { phh } from '../src/net/exports/phh';
+import { EVERYONE, type HandFormat } from '../src/net/exports/types';
+import { GameRecord } from '../src/net/gameRecord';
+import { familyRules } from '../src/engine/types';
 import { Host } from '../src/net/host';
 import { getGame } from '../src/games';
 import { GAMES } from './games';
@@ -203,6 +207,46 @@ describe('saving a game in its standard record', () => {
       expect(watched.every((h) => h.hero_player_id === undefined)).toBe(true);
       expect(JSON.stringify(watched)).not.toContain('Dealt Cards');
       host.close();
+    });
+
+    it('as PHH (for checking with PokerKit), names positions and hides other hole cards from a player', () => {
+      const g = GAMES.holdem;
+      const s0 = g.setup(
+        ['Ann', 'Bo', 'Cy'].map((name) => ({ name, bot: true })),
+        7,
+        {},
+      );
+      const record = new GameRecord({ phh: phh(familyRules(g.config, 'poker')) as HandFormat<unknown> });
+      let s = s0;
+      record.note(s, false, () => []);
+      for (let i = 0; i < 200 && !['handOver', 'gameOver'].includes(s.phase); i++) {
+        const sys = g.system?.(s);
+        const next = structuredClone(s);
+        if (sys) {
+          sys.run(next);
+          s = next;
+          record.note(s, false, () => []);
+          continue;
+        }
+        const seat = s.turn!;
+        const action = g.bot!(s, seat)!;
+        g.apply(next, seat, action);
+        s = next;
+        record.note(s, ['handOver', 'gameOver'].includes(s.phase), () => [], { seat, action });
+      }
+      const meta = { names: ['Ann', 'Bo', 'Cy'], table: 'T' };
+      const all = record.write('phh', EVERYONE, meta)!;
+      const mine = record.write('phh', 0, meta)!;
+      // three-handed: the small blind first, the button last
+      const d = s0.data as { button: number };
+      const players = JSON.parse(/^players = (.*)$/m.exec(all)![1]) as string[];
+      expect(players[2]).toBe(meta.names[d.button]);
+      expect(all).toMatch(/^blinds_or_straddles = \[5, 10, 0\]$/m);
+      const dealt = (text: string) => [...text.matchAll(/"d dh p(\d) (\S+)"/g)].map((m) => [players[Number(m[1]) - 1], m[2]]);
+      expect(dealt(all).every(([, c]) => /^([AKQJT2-9][shdc]){2}$/.test(c))).toBe(true);
+      // a player's own copy: their cards, the others' unknown
+      for (const [who, cards] of dealt(mine)) expect(cards === '????').toBe(who !== 'Ann');
+      expect(record.write('pbn', 0, meta)).toBeNull();
     });
 
     it('reaches a player over the network', () => {

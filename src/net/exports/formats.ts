@@ -9,6 +9,8 @@ import type { GameConfig } from '../../engine/types';
  * Decided from the game file alone, so the table's menu knows without loading any rules.
  */
 export type ExportFormat = 'csv' | 'pbn' | 'ohh';
+/** Every record a game can keep: the ones players save, and PHH (poker, for checking with PokerKit: see tools/). */
+export type RecordFormat = ExportFormat | 'phh';
 
 export const EXPORT_LABEL: Record<ExportFormat, string> = {
   csv: 'Save this game (spreadsheet)',

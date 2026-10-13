@@ -11,3 +11,4 @@ playwright-report
 
 # agent workspaces
 .claude/worktrees/
+records/

@@ -19,6 +19,7 @@ pnpm exec vitest run tests/hearts.test.ts -t "moon"   # one file / one test
 pnpm test:e2e            # Playwright against a dev server on :4173 (PW_CHROMIUM=<path> to reuse a browser),
                          # plus e2e/csp.spec.ts on a production build with the real headers (:4174)
 pnpm -C relay check      # the relay's type check
+pnpm records             # bots play bridge and Hold'em into records/; then python tools/check_records.py records
 pnpm verify              # check + lint + format:check + test + build + relay check: run before you commit
 pnpm verify:all          # verify + e2e
 ```
@@ -51,8 +52,11 @@ src/net/backup.ts      sealed backups for host handoff;  night.ts game-night tal
 src/net/gameRecord.ts  the whole game move by move, saved as CSV (each player gets only their own cards)
 src/net/exports/       the standard records a game can also be saved as: PBN (bridge), Open Hand History
                        (Hold'em, Omaha); formats.ts says which game gets which
+                       (and PHH, poker for PokerKit: written only for checking, see tools/)
 src/ui/screens/        Home, Lobby, Table, TvScreen;  src/ui/components/  the pieces
 src/app.svelte.ts      app state, routing, starting a host or client
+tools/                 Python checks with other people's programs: endplay (bridge, double dummy) and
+                       PokerKit replay the bots' games (pnpm records); README.md reads the strength report
 relay/src/index.ts     Worker + Durable Object per table: signalling, fallback relay, takeover, reports
 tests/                 vitest (tests/netHarness.ts: an in-memory network)    e2e/  Playwright
 docs/ADDING_A_GAME.md  how to add a game: read it before touching families or game.json

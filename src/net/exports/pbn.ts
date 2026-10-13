@@ -1,6 +1,6 @@
 import type { BridgeContract, Call } from '../../engine/families/trick/contracts';
 import type { TrickData } from '../../engine/families/trick/types';
-import type { HandFormat } from './types';
+import { EVERYONE, type HandFormat } from './types';
 
 /**
  * Portable Bridge Notation (PBN 2.1, export format), the standard record of bridge deals that
@@ -91,7 +91,7 @@ export const pbn: HandFormat<PbnHand> = {
   write(hands, seat, meta) {
     const games = hands.map((h) => {
       const played = (s: number) => h.plays.filter((p) => p.seat === s).length;
-      const known = (s: number) => s === seat || (h.contract && s === h.dummy) || played(s) === h.dealt[s].length;
+      const known = (s: number) => seat === EVERYONE || s === seat || (h.contract && s === h.dummy) || played(s) === h.dealt[s].length;
       const deal = [0, 1, 2, 3].map((i) => (h.dealer + i) % 4).map((s) => (known(s) ? handText(h.dealt[s]) : '-'));
       const vul = h.vul[0] && h.vul[1] ? 'All' : h.vul[0] ? 'NS' : h.vul[1] ? 'EW' : 'None';
       const date = `${h.at.getFullYear()}.${String(h.at.getMonth() + 1).padStart(2, '0')}.${String(h.at.getDate()).padStart(2, '0')}`;

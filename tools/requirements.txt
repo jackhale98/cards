@@ -1,0 +1,2 @@
+endplay==0.5.12
+pokerkit==0.7.7

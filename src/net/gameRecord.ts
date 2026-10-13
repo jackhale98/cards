@@ -1,7 +1,7 @@
 import { parseCard, rankLabel, SUIT_NAME } from '../engine/cards';
 import type { Action, GameState, LogEntry } from '../engine/types';
 import type { HandFormat, RecordMeta } from './exports/types';
-import type { ExportFormat } from './exports/formats';
+import type { RecordFormat } from './exports/formats';
 
 /**
  * The record of a whole game, for saving as a spreadsheet: every hand's moves (the table's log,
@@ -23,15 +23,15 @@ export class GameRecord {
   readonly hands: RecordedHand[] = [];
   private open: RecordedHand | null = null;
   /** The game's standard record formats (PBN, OHH), each following the hands its own way. */
-  private formats: { id: ExportFormat; format: HandFormat<unknown>; hands: unknown[] }[];
+  private formats: { id: RecordFormat; format: HandFormat<unknown>; hands: unknown[] }[];
   private prev: GameState | null = null;
 
-  constructor(formats: Partial<Record<ExportFormat, HandFormat<unknown>>> = {}) {
-    this.formats = Object.entries(formats).map(([id, format]) => ({ id: id as ExportFormat, format: format!, hands: [] }));
+  constructor(formats: Partial<Record<RecordFormat, HandFormat<unknown>>> = {}) {
+    this.formats = Object.entries(formats).map(([id, format]) => ({ id: id as RecordFormat, format: format!, hands: [] }));
   }
 
   /** The game in one of its standard formats, for the player in `seat` (null: not this game's). */
-  write(id: ExportFormat, seat: number, meta: RecordMeta): string | null {
+  write(id: RecordFormat, seat: number, meta: RecordMeta): string | null {
     const f = this.formats.find((x) => x.id === id);
     return f ? f.format.write(f.hands, seat, meta) : null;
   }
