@@ -89,6 +89,7 @@ describe('game night', () => {
     for (let i = 0; i < 8; i++) host.addBot();
     expect(host.lobby.seats).toHaveLength(9);
     host.setOption('botLevel', 0); // quick bots: this plays a whole game
+    host.setOption('stack', 200); // (short stacks: Easy bots play their hands out, so deep ones last long)
     host.start();
     for (let i = 0; i < 40000 && host.state!.phase !== 'gameOver'; i++) {
       const s = host.state! as GameState<any>;

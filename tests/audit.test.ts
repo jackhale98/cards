@@ -10,7 +10,9 @@ import type { GameModule, GameState } from '../src/engine/types';
 const people = (n: number) => Array.from({ length: n }, (_, i) => ({ name: `P${i}` }));
 const bots = (n: number) => Array.from({ length: n }, (_, i) => ({ name: `B${i}`, bot: true }));
 // quick bots (Easy): the search bots have their own tests
-const defaults = (g: GameModule<any>) => ({ ...Object.fromEntries((g.config.options ?? []).map((o) => [o.id, o.default])), botLevel: 0 });
+// (no bot level: the bots play their rules of thumb straight, which is what these tests check;
+// a table set to Easy would slip now and then)
+const defaults = (g: GameModule<any>) => Object.fromEntries((g.config.options ?? []).filter((o) => o.id !== 'botLevel').map((o) => [o.id, o.default]));
 const cardsOf = (s: GameState<any>, z: string) => s.zones[z].cards.map((c) => c.id);
 
 /** Play a game with bots (system steps included) until `until` holds or the game ends. */
