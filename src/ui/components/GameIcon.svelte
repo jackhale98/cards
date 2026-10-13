@@ -382,23 +382,17 @@
         </g>
       {/each}
     {:else if id === 'slapjack'}
-      <!-- a jack turns up on the pile, and a hand comes down on it -->
-      <g transform="translate(26 40) rotate(-12)">{@render cardBack()}</g>
-      <g transform="translate(28 38) rotate(4)">{@render court('J', 'H', RED)}</g>
-      <g stroke="#e9c46a" stroke-width="1.4" stroke-linecap="round">
-        <path d="M52,40 L58,42" /><path d="M50,46 L55,51" /><path d="M44,49 L45,56" />
-      </g>
-      <g transform="translate(41 23) rotate(220)">
-        <g transform="translate(1 1.5)" fill="#000" opacity="0.3">
-          <rect x="-8" y="-5" width="16" height="15" rx="5" />
-          {#each [-7.6, -3.8, 0, 3.8] as x (x)}<rect {x} y="-15" width="3.6" height="12" rx="1.8" />{/each}
-        </g>
-        <g fill="#f3dcb6" stroke="#a87b1c" stroke-width="0.7">
-          {#each [-7.6, -3.8, 0, 3.8] as x (x)}<rect {x} y={x === -7.6 || x === 3.8 ? -13 : -15} width="3.6" height="12" rx="1.8" />{/each}
-          <rect x="-8" y="-5" width="16" height="15" rx="5" />
-          <rect x="6" y="-2" width="3.8" height="9" rx="1.9" transform="rotate(-35 8 2)" />
-        </g>
-      </g>
+      <!-- a jack turns up on the pile, and the slap lands: a comic burst behind it -->
+      <polygon
+        points="35.5,4.2 40.2,12.6 49.5,9.8 47.0,21.3 58.7,21.7 53.8,29.9 60.8,36.5 49.6,40.1 55.2,50.5 45.5,50.3 43.3,59.7 34.6,51.8 28.5,61.8 23.8,53.4 14.5,56.2 17.0,44.7 5.3,44.3 10.2,36.1 3.2,29.5 14.4,25.9 8.8,15.5 18.5,15.7 20.7,6.3 29.4,14.2"
+        fill="#e9c46a"
+      />
+      <polygon
+        points="34.7,11.2 37.6,19.1 45.2,15.4 43.8,23.8 52.3,24.4 46.9,30.9 53.8,35.7 45.9,38.6 49.6,46.2 41.2,44.8 40.6,53.3 34.1,47.9 29.3,54.8 26.4,46.9 18.8,50.6 20.2,42.2 11.7,41.6 17.1,35.1 10.2,30.3 18.1,27.4 14.4,19.8 22.8,21.2 23.4,12.7 29.9,18.1"
+        fill="#f6dc8c"
+      />
+      <g transform="translate(30 36) rotate(-14)">{@render cardBack()}</g>
+      <g transform="translate(33 33) rotate(6)">{@render court('J', 'H', RED)}</g>
     {:else if id === 'spit'}
       <!-- both players slapping cards onto the middle piles at once -->
       <g transform="translate(24 36)">{@render smallFace(19)}{@render suit('H', -5, -5, 10, RED)}</g>
