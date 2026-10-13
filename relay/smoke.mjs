@@ -22,52 +22,56 @@ function connect(peer, headers, host, at = room, secret) {
   });
 }
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-const take = (box, pred) => {
-  const i = box.inbox.findIndex(pred);
-  return i < 0 ? null : box.inbox.splice(i, 1)[0];
+// the first message `pred` matches, waiting up to 3s for it (a cold local relay can be slow to answer)
+const take = async (box, pred, ms = 3000) => {
+  for (const until = Date.now() + ms; ; await wait(20)) {
+    const i = box.inbox.findIndex(pred);
+    if (i >= 0) return box.inbox.splice(i, 1)[0];
+    if (Date.now() > until) return null;
+  }
 };
 
 const a = await connect('alice1');
 await wait(150);
-check(take(a, (m) => m.t === 'welcome')?.peers.length === 0, 'first device is welcomed to an empty room');
+check((await take(a, (m) => m.t === 'welcome'))?.peers.length === 0, 'first device is welcomed to an empty room');
 const b = await connect('bobby1');
 await wait(150);
-check(JSON.stringify(take(b, (m) => m.t === 'welcome')?.peers) === '["alice1"]', 'second device sees the first');
-check(take(a, (m) => m.t === 'join')?.peer === 'bobby1', 'first device hears the join');
+check(JSON.stringify((await take(b, (m) => m.t === 'welcome'))?.peers) === '["alice1"]', 'second device sees the first');
+check((await take(a, (m) => m.t === 'join'))?.peer === 'bobby1', 'first device hears the join');
 const c = await connect('carol1');
 await wait(150);
-take(a, (m) => m.t === 'join');
-take(b, (m) => m.t === 'join');
+await take(a, (m) => m.t === 'join');
+await take(b, (m) => m.t === 'join');
 
 a.ws.send(JSON.stringify({ to: 'bobby1', d: { hello: 1 } }));
 await wait(150);
-check(take(b, (m) => m.t === 'msg')?.d.hello === 1, 'direct message reaches its target');
+check((await take(b, (m) => m.t === 'msg'))?.d.hello === 1, 'direct message reaches its target');
 check(!c.inbox.some((m) => m.t === 'msg'), '…and nobody else');
 
 a.ws.send(JSON.stringify({ d: { all: 1 } }));
 await wait(150);
-check(!!take(b, (m) => m.t === 'msg' && m.d.all) && !!take(c, (m) => m.t === 'msg' && m.d.all), 'broadcast reaches everyone else');
+check(!!(await take(b, (m) => m.t === 'msg' && m.d.all)) && !!(await take(c, (m) => m.t === 'msg' && m.d.all)), 'broadcast reaches everyone else');
 check(!a.inbox.some((m) => m.t === 'msg'), '…but not the sender');
 
 b.ws.send(JSON.stringify({ to: 'alice1', s: { sdp: 'x' } }));
 await wait(150);
-const sig = take(a, (m) => m.t === 'msg');
+const sig = await take(a, (m) => m.t === 'msg');
 check(sig?.s?.sdp === 'x' && sig.from === 'bobby1', 'WebRTC signals are relayed with the sender');
 
 a.ws.send('ping');
 await wait(150);
-check(a.inbox.includes('pong'), 'keep-alive ping gets a pong');
+check(!!(await take(a, (m) => m === 'pong')), 'keep-alive ping gets a pong');
 
 // bob reconnects with the same id: no leave/join noise, old socket closed
 const b2 = await connect('bobby1');
 await wait(250);
 check(b.ws.readyState === WebSocket.CLOSED || b.ws.readyState === WebSocket.CLOSING, 'a reconnect replaces the old socket');
 check(!a.inbox.some((m) => m.t === 'leave' || m.t === 'join'), '…without announcing a leave or join');
-check(JSON.stringify(take(b2, (m) => m.t === 'welcome')?.peers.sort()) === '["alice1","carol1"]', '…and gets the current peers');
+check(JSON.stringify((await take(b2, (m) => m.t === 'welcome'))?.peers.sort()) === '["alice1","carol1"]', '…and gets the current peers');
 
 c.ws.close();
 await wait(250);
-check(take(a, (m) => m.t === 'leave')?.peer === 'carol1', 'closing announces a leave');
+check((await take(a, (m) => m.t === 'leave'))?.peer === 'carol1', 'closing announces a leave');
 
 let refused = false;
 try {
@@ -88,23 +92,23 @@ b2.ws.close();
 const table = `${room}-hosted`;
 const h1 = await connect('host01', undefined, 'key-one-1234', table);
 await wait(150);
-check(!!take(h1, (m) => m.t === 'welcome'), 'a host claims a free code');
+check(!!(await take(h1, (m) => m.t === 'welcome')), 'a host claims a free code');
 const h2 = await connect('host02', undefined, 'key-two-5678', table);
 await wait(250);
-check(!!take(h2, (m) => m.t === 'taken') && h2.ws.readyState !== WebSocket.OPEN, 'a second host on the same code is told it is taken');
+check(!!(await take(h2, (m) => m.t === 'taken')) && h2.ws.readyState !== WebSocket.OPEN, 'a second host on the same code is told it is taken');
 const g = await connect('guest1', undefined, undefined, table);
 await wait(150);
-check(JSON.stringify(take(g, (m) => m.t === 'welcome')?.peers) === '["host01"]', 'guests still join the first host');
+check(JSON.stringify((await take(g, (m) => m.t === 'welcome'))?.peers) === '["host01"]', 'guests still join the first host');
 h1.ws.close();
 await wait(250);
 const h1b = await connect('host03', undefined, 'key-one-1234', table);
 await wait(150);
-check(!!take(h1b, (m) => m.t === 'welcome'), 'the same host reconnects after a refresh');
+check(!!(await take(h1b, (m) => m.t === 'welcome')), 'the same host reconnects after a refresh');
 h1b.ws.close();
 await wait(250);
 const h3 = await connect('host04', undefined, 'key-two-5678', table);
 await wait(250);
-check(!!take(h3, (m) => m.t === 'taken'), 'a recently gone host keeps its code for a while');
+check(!!(await take(h3, (m) => m.t === 'taken')), 'a recently gone host keeps its code for a while');
 g.ws.close();
 
 // host handoff: the key to the players' backups is released once the host has gone
@@ -119,7 +123,7 @@ await wait(200);
 const ask = async (box, host, tok = token) => {
   box.ws.send(JSON.stringify({ k: 'takeover', host, token: tok }));
   await wait(250);
-  return take(box, (m) => m.t === 'takeover');
+  return await take(box, (m) => m.t === 'takeover');
 };
 check((await ask(p1, 'taker-key-0001'))?.error === 'host-here', 'no takeover while the host is here');
 hh.ws.close();
@@ -132,10 +136,10 @@ check((await ask(p1, 'taker-key-0001'))?.key === backupKey, 'after a while, a pl
 check((await ask(p2, 'taker-key-0002'))?.error === 'no-backup', 'only one player gets it');
 const back = await connect('hhost2', undefined, 'handoff-host-key', hand);
 await wait(250);
-check(!!take(back, (m) => m.t === 'taken'), 'the old host coming back is told the table has moved');
+check(!!(await take(back, (m) => m.t === 'taken')), 'the old host coming back is told the table has moved');
 const nh = await connect('nhost1', undefined, 'taker-key-0001', hand);
 await wait(250);
-check(!!take(nh, (m) => m.t === 'welcome'), 'the player who took over hosts the code');
+check(!!(await take(nh, (m) => m.t === 'welcome')), 'the player who took over hosts the code');
 for (const x of [p1, p2, nh]) x.ws.close();
 
 // who's who: peer ids belong to their secret, and the host's messages are marked
@@ -143,7 +147,7 @@ const who = `${room}-who`;
 const wh = await connect('whost1', undefined, 'who-host-key-1', who, 'host-secret-1');
 const wg = await connect('wguest', undefined, undefined, who, 'guest-secret');
 await wait(200);
-const welcome = take(wg, (m) => m.t === 'welcome');
+const welcome = await take(wg, (m) => m.t === 'welcome');
 check(welcome?.v === 2 && welcome?.host === 'whost1', 'the welcome names the host');
 let stolen = false;
 try {
@@ -158,8 +162,8 @@ check(!stolen && wh.ws.readyState === WebSocket.OPEN, "a device can't take over 
 wh.ws.send(JSON.stringify({ d: { from: 'host' } }));
 wg.ws.send(JSON.stringify({ to: 'whost1', d: { from: 'guest' } }));
 await wait(200);
-check(take(wg, (m) => m.t === 'msg')?.h === 1, "the host's messages are marked");
-check(take(wh, (m) => m.t === 'msg')?.h === undefined, "a guest's are not");
+check((await take(wg, (m) => m.t === 'msg'))?.h === 1, "the host's messages are marked");
+check((await take(wh, (m) => m.t === 'msg'))?.h === undefined, "a guest's are not");
 const wh2 = await connect('whost1', undefined, 'who-host-key-1', who, 'host-secret-1');
 await wait(250);
 check(wh.ws.readyState !== WebSocket.OPEN && wh2.ws.readyState === WebSocket.OPEN, 'with its secret, a device reconnects under its id');
