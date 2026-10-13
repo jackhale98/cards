@@ -144,6 +144,9 @@
     background: var(--card-face);
     color: #10231c;
     --suit-red: var(--card-red);
+    --suit-red4: var(--card-red);
+    --suit-blue: var(--card-blue);
+    --suit-green: var(--card-green);
     font-weight: 700;
     font-size: 0.78rem;
     white-space: nowrap;

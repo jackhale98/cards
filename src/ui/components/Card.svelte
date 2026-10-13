@@ -21,7 +21,18 @@
   const court = $derived(info && info.rank >= 11 && info.rank <= 13);
 </script>
 
-<div class="card" class:back={hidden} class:red class:selected class:playable class:dim class:fresh role="img" aria-label={info ? `${rank}${sym}` : 'card'}>
+<div
+  class="card"
+  data-suit={info?.suit}
+  class:back={hidden}
+  class:red
+  class:selected
+  class:playable
+  class:dim
+  class:fresh
+  role="img"
+  aria-label={info ? `${rank}${sym}` : 'card'}
+>
   {#if info && info.suit === 'X'}
     <div class="joker"><span>★</span><small>JOKER</small></div>
   {:else if info}
@@ -85,6 +96,13 @@
   }
   .red {
     color: var(--card-red);
+  }
+  /* four-colour suits (a choice in the menu): diamonds blue, clubs green */
+  :global(.four-colour) .card[data-suit='D'] {
+    color: var(--card-blue);
+  }
+  :global(.four-colour) .card[data-suit='C'] {
+    color: var(--card-green);
   }
   .corner {
     position: absolute;

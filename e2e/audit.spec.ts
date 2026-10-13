@@ -239,6 +239,19 @@ async function check(page: Page): Promise<string[]> {
         );
     });
 
+    // 6. the buttons run down beside your hand only when they don't fit beside the middle (and not
+    // in a replay or hand mode, which always have them there): otherwise your hand loses its width
+    const table = document.querySelector('.table:not(.display):not(.handmode)');
+    const mainEl = table?.querySelector('main');
+    if (table?.classList.contains('tall-actions') && mainEl && !table.querySelector('.replay')) {
+      const btns = [...table.querySelectorAll('aside > .bar > .btn, aside > .replay-quick')].filter(shown);
+      const used = btns.reduce((h, b) => h + b.getBoundingClientRect().height + 7, 0);
+      if (btns.length && used < mainEl.getBoundingClientRect().height - 8)
+        out.push(
+          `buttons beside your hand though they'd fit beside the middle (${btns.length} buttons, ${Math.round(used)}px in ${Math.round(mainEl.getBoundingClientRect().height)}px)`,
+        );
+    }
+
     if (document.documentElement.scrollWidth > W + 1) out.push(`page wider than the screen: ${document.documentElement.scrollWidth}px`);
     return [...new Set(out)];
   });

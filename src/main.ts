@@ -1,6 +1,7 @@
 import { mount } from 'svelte';
 import App from './App.svelte';
 import { watchErrors } from './net/reports';
+import { applyFourColour } from './ui/suits';
 import './theme/tokens.css';
 
 // anonymous reports of anything that breaks (the real site only; see net/reports.ts)
@@ -19,5 +20,8 @@ window.addEventListener('vite:preloadError', (e) => {
   e.preventDefault();
   location.reload();
 });
+
+// four-colour suits, if this device chose them
+applyFourColour();
 
 mount(App, { target: document.getElementById('app')! });

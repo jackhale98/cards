@@ -19,6 +19,7 @@
   import { seatRelation } from '../../engine/state';
   import { flight, haptic, play, snapshot } from '../motion';
   import { play as playSound, setSound, soundOn, type Sound } from '../sound';
+  import { fourColourOn, setFourColour } from '../suits';
   import { SCREEN_SOUND } from '../../net/host';
   import { seatColor } from '../seatColors';
   import { keepAwake } from '../wakeLock';
@@ -51,6 +52,7 @@
   const LAST_H = 26;
   let headerH = $state(0);
   let mainW = $state(0);
+  let mainH = $state(0);
   /**
    * A phone on its side: height is what's short, so whose turn it is and the last move go in the
    * column on the left, and the race to the target (cribbage) in the one on the right.
@@ -107,7 +109,14 @@
       room += LAST_H;
       while (k < 1 && need(k + 0.02) <= room) k += 0.02;
     }
-    return { center: wantCenter * k, hand: wantHand * k, lastFits };
+    // room left over once everything fits (a small middle, a short hand): most of it to your hand,
+    // up to a ceiling (some margin kept: the middle's height is an estimate)
+    let hand = wantHand * k;
+    if (k >= 1 && wantHand && !handMode) {
+      const spare = room - need(1);
+      if (spare > 0) hand = Math.min(Math.max(hand, Math.min(160, vh * 0.3, vw * 0.15)), hand + (0.8 * spare) / 1.45);
+    }
+    return { center: wantCenter * k, hand, lastFits };
   });
   /**
    * Whether the middle's cards fit across side by side (a Hold'em board on a tablet): then a row
@@ -339,6 +348,33 @@
    */
   const playFrom = $derived(display || you < 0 ? null : (centerZones.find((z) => z.faceUpHand && z.cards.some((c) => selectable?.has(c.id))) ?? null));
   const fanCards = $derived(playFrom ? playFrom.cards : myHand);
+  /**
+   * The buttons sit beside the middle, so your hand has the whole width; when there are more of
+   * them than fit there (poker's fold, call, raise, all in on a phone) they run down beside your
+   * hand as well. (Counted, not measured: where they go mustn't change how many fit.)
+   */
+  const tallActions = $derived.by(() => {
+    if (!mainH) return false;
+    const shown = view.actions.filter((a) => !a.menu).length;
+    const buttons = Math.min(shown, 4) + (view.actions.some((a) => a.menu) || shown > 4 ? 1 : 0);
+    const extra = (status.track ? 64 : 0) + (view.handDone ? 48 : 0);
+    return buttons * 52 + extra > mainH;
+  });
+  /**
+   * …and once they've needed to in this part of the game (bridge's auction, say) on this screen,
+   * they stay there till it moves on: the hand doesn't slide about from one turn to the next as
+   * the buttons come and go, and is back to the full width for the play.
+   */
+  let tallFor = $state('');
+  const tallKey = $derived(`${s.game}|${s.phase}|${vw}x${vh}`);
+  // (only once they've not fitted for a moment: not for a frame mid-change between stages)
+  $effect(() => {
+    if (!tallActions || tallFor === tallKey) return;
+    const key = tallKey;
+    const t = setTimeout(() => (tallFor = key), 400);
+    return () => clearTimeout(t);
+  });
+  const actionsBesideHand = $derived(tallActions || tallFor === tallKey);
   /** Your hand is empty (all laid down at a hand's end, say): the middle gets its room. */
   const handEmpty = $derived(!display && myHandZone?.layout !== 'stack' && !fanCards.length);
   const stripZones = $derived.by(() => {
@@ -417,6 +453,7 @@
 
   // ---- sounds: each new move on the table (on the big screen, when there is one), and the end
   let soundsOn = $state(soundOn());
+  let fourColour = $state(fourColourOn());
   // a table screen stays quiet when someone at the table has muted it (a Chromecast has no menu)
   const sound = (x: Sound) => (replay || (display && view.lobby.screenSound === false) ? undefined : playSound(x));
   const screenSoundOn = $derived(view.lobby.screenSound !== false);
@@ -544,7 +581,7 @@
   {/if}
 {/snippet}
 
-<div class="table" class:display class:handmode={handMode} bind:this={tableEl}>
+<div class="table" class:display class:handmode={handMode} class:tall-actions={!!replay || actionsBesideHand} bind:this={tableEl}>
   <!-- top: menu + opponents + scores -->
   <header bind:clientHeight={headerH}>
     <button class="icon" onclick={() => (sheet = 'menu')} aria-label="Menu">
@@ -589,7 +626,7 @@
   <!-- centre: shared zones, pot, headline -->
   <!-- tapping empty felt clears the selection (a touch shortcut; the Clear button is the accessible path) -->
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
-  <main bind:clientWidth={mainW} onclick={(e) => !(e.target as Element).closest('button, .card') && (selected = [])}>
+  <main bind:clientWidth={mainW} bind:clientHeight={mainH} onclick={(e) => !(e.target as Element).closest('button, .card') && (selected = [])}>
     {#if status.track && display}<div class="track-wrap">
         <Track track={status.track} avatars={s.players.map((_, i) => lobbySeat(i)?.avatar)} />
       </div>{/if}
@@ -793,6 +830,15 @@
           setSound(soundsOn);
         }}>{display ? (soundsOn ? 'Sound here: on' : 'Sound here: off') : soundsOn ? 'Sound: on' : 'Sound: off'}</button
       >
+      {#if !display}
+        <button
+          class="btn"
+          onclick={() => {
+            fourColour = !fourColour;
+            setFourColour(fourColour);
+          }}>{fourColour ? 'Four-colour suits: on' : 'Four-colour suits: off'}</button
+        >
+      {/if}
       {#if view.lobby.displays && !display}
         <button class="btn" onclick={() => app.act({ type: SCREEN_SOUND, amount: screenSoundOn ? 0 : 1 })}
           >{screenSoundOn ? 'TV sound: on' : 'TV sound: off'}</button
@@ -928,13 +974,23 @@
     grid-template-areas:
       'top top top'
       'me center actions'
-      'hand hand actions';
+      'hand hand hand';
     padding: calc(6px + var(--safe-t)) calc(10px + var(--safe-r)) calc(4px + var(--safe-b)) calc(10px + var(--safe-l));
     gap: 4px 10px;
     /* clip, not hidden: nothing (a focused button, a card scrolled into view) can shift the table sideways */
     overflow: clip;
   }
   /* hand mode: the middle shrinks to the headline (and any pile you can tap); the hand grows */
+  /* the buttons beside the middle (mirroring you on the left), so your hand has the whole width;
+     but down beside the hand too when they don't fit there, in a replay (its controls are tall,
+     and there's nothing to play) and in hand mode (the middle is only a line tall) */
+  .table.tall-actions,
+  .table.handmode {
+    grid-template-areas:
+      'top top top'
+      'me center actions'
+      'hand hand actions';
+  }
   .table.handmode {
     grid-template-rows: auto auto 1fr;
   }
@@ -1126,6 +1182,9 @@
   }
   .headline.mine {
     --suit-red: #a8121e;
+    --suit-red4: #b54a2b;
+    --suit-blue: #07078f;
+    --suit-green: #197674;
     background: var(--gold);
     color: #2a1d05;
     box-shadow: 0 0 24px rgba(233, 196, 106, 0.45);

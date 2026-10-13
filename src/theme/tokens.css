@@ -21,6 +21,9 @@
   --card-edge: #e7e0d0;
   --card-red: #c8323c;
   --card-black: #1b1d22;
+  /* four-colour suits (a choice in the menu): see .four-colour below */
+  --card-blue: #0424e0;
+  --card-green: #1b9f8c;
   /* the card back: set from ui/backArt.ts by applyLook(); a flat colour until then */
   --back-a: #1f3356;
   --back-art: none;
@@ -181,4 +184,25 @@ a.btn {
 }
 .btn.primary {
   --suit-red: #a8121e;
+  --suit-red4: #b54a2b;
+  --suit-blue: #07078f;
+  --suit-green: #197674;
+}
+/*
+ * Four-colour suits (a choice in the menu): ♠ black, ♥ red, ♦ blue, ♣ teal-green. Chosen so every
+ * pair stays far apart (at least ~30 ΔE) for red-weak, green-weak and blue-weak eyes as well as
+ * typical ones, and they step in lightness too (black, blue, red, teal), so they part even in grey.
+ * Separate shades for a white card, the dark felt and gold, each at least 3:1 against it.
+ */
+.four-colour {
+  --card-red: #cb070a;
+}
+.four-colour .suit-red {
+  color: var(--suit-red4, #e16d86);
+}
+.four-colour .suit-d {
+  color: var(--suit-blue, #5f92dc);
+}
+.four-colour .suit-c {
+  color: var(--suit-green, #3af87a);
 }
