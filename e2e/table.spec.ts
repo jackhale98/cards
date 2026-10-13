@@ -59,3 +59,28 @@ test('more people than a game seats: choose who plays, then split the table and 
   await expect(host.locator('.players li')).toHaveCount(5);
   await expect(host.locator('p.small', { hasText: 'Also playing tonight' })).toHaveCount(0);
 });
+
+test("the table's menu fits a phone: no label runs past its button, and saving offers each format", async ({ context }) => {
+  const host = await phone(context, 'Hana');
+  await host.locator('[data-game="bridge"]').first().click();
+  for (let i = 0; i < 3; i++) await host.click('text=+ Add bot');
+  await host.click('button:has-text("Deal Contract Bridge")');
+  await host.locator('.table').waitFor();
+  await host.click('button[aria-label="Menu"]');
+  await host.locator('.menu-list').waitFor();
+  const spilled = await host
+    .locator('.menu-list > .btn')
+    .evaluateAll((els) => els.filter((el) => el.scrollWidth > el.clientWidth + 1).map((el) => el.textContent?.trim()));
+  expect(spilled).toEqual([]);
+  await host.click('text=Save this game');
+  await expect(host.locator('.btn.save')).toHaveCount(2);
+  await expect(host.locator('.btn.save').nth(1)).toContainText('PBN');
+  // (the first deal is still being bid: a PBN holds finished deals only)
+  await host.click('.btn.save:has-text("PBN")');
+  await expect(host.getByText('Nothing to save yet')).toBeVisible();
+  // the spreadsheet has the game so far
+  await host.click('button[aria-label="Menu"]');
+  await host.click('text=Save this game');
+  const [download] = await Promise.all([host.waitForEvent('download'), host.click('.btn.save:has-text("Spreadsheet")')]);
+  expect(download.suggestedFilename()).toMatch(/^lamplight-bridge-\d{4}-\d{2}-\d{2}\.csv$/);
+});

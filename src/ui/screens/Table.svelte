@@ -22,7 +22,7 @@
   import { SCREEN_SOUND } from '../../net/host';
   import { seatColor } from '../seatColors';
   import { keepAwake } from '../wakeLock';
-  import { EXPORT_LABEL, recordFormats } from '../../net/exports/formats';
+  import { EXPORT_ABOUT, EXPORT_FILE, EXPORT_LABEL, recordFormats } from '../../net/exports/formats';
   import TvSheet from '../components/TvSheet.svelte';
 
   /** `replay`: a moment of a finished hand is on screen (the table shows it, quietly). */
@@ -209,7 +209,7 @@
   const handCw = $derived(Math.round(Math.max(handMode ? 56 : pileOnly ? 36 : 44, cardSizes.hand)));
 
   // ---- chrome -----------------------------------------------------------------------------
-  let sheet = $state<'menu' | 'scores' | 'tv' | 'look' | null>(null);
+  let sheet = $state<'menu' | 'scores' | 'tv' | 'look' | 'save' | null>(null);
   let bannerHidden = $state<number | null>(null);
   const showBanner = $derived(!!status.banner && bannerHidden !== s.v);
   // (remembered for the visit, so a new table doesn't ask again)
@@ -613,17 +613,7 @@
           }}>Replay the last hand</button
         >
       {/if}
-      {#if !display && !game.realtime}
-        {#each ['csv' as const, ...recordFormats(game.config)] as format (format)}
-          <button
-            class="btn"
-            onclick={() => {
-              app.exportGame(format);
-              sheet = null;
-            }}>{EXPORT_LABEL[format]}</button
-          >
-        {/each}
-      {/if}
+      {#if !display && !game.realtime}<button class="btn" onclick={() => (sheet = 'save')}>Save this game</button>{/if}
       {#if !display}<button class="btn" onclick={() => (sheet = 'tv')}>Show on a TV</button>{/if}
       {#if app.isHost}<button class="btn" onclick={() => (sheet = 'look')}>Card backs & cloth</button>{/if}
       <button
@@ -657,6 +647,25 @@
         {#each game.config.rulesSummary as r, k (k)}<li>{r}</li>{/each}
       </ul>
     {/if}
+  </Sheet>
+{:else if sheet === 'save'}
+  <Sheet title="Save this game" onclose={() => (sheet = null)}>
+    <!-- the spreadsheet for every game; bridge and poker have their own standard records too -->
+    <div class="save-list">
+      {#each ['csv' as const, ...recordFormats(game.config)] as format (format)}
+        <button
+          class="btn save"
+          onclick={() => {
+            app.exportGame(format);
+            sheet = null;
+          }}
+        >
+          <b>{EXPORT_LABEL[format]} <span class="ext">.{EXPORT_FILE[format].ext}</span></b>
+          <span class="about">{EXPORT_ABOUT[format]}</span>
+        </button>
+      {/each}
+    </div>
+    <p class="save-note">Only your own cards are in it, and the cards everyone saw.</p>
   </Sheet>
 {:else if sheet === 'look'}
   <Sheet title="The table's look" onclose={() => (sheet = null)}>
@@ -1161,6 +1170,42 @@
     grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
     gap: 0.5rem;
     margin-bottom: 1rem;
+  }
+  /* (a label too long for its button wraps rather than spilling over the next one) */
+  .menu-list > .btn {
+    min-width: 0;
+    white-space: normal;
+    text-align: center;
+  }
+  .save-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .btn.save {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.15rem;
+    padding: 0.7rem 1rem;
+    border-radius: 16px;
+    white-space: normal;
+    text-align: left;
+    height: auto;
+  }
+  .btn.save .ext {
+    font-weight: 500;
+    color: var(--ink-dim);
+  }
+  .btn.save .about {
+    font-size: 0.82rem;
+    font-weight: 400;
+    color: var(--ink-dim);
+  }
+  .save-note {
+    margin: 0.8rem 0 0;
+    font-size: 0.8rem;
+    color: var(--ink-dim);
   }
   .rules {
     margin: 0.4rem 0 0;

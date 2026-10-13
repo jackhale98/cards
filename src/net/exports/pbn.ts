@@ -23,6 +23,8 @@ interface PbnHand {
   declarer: number | null;
   dummy: number | null;
   tricks: number[];
+  /** Played out (or passed out): a deal still going isn't written. */
+  done: boolean;
 }
 
 const SEAT = ['N', 'E', 'S', 'W'];
@@ -70,6 +72,7 @@ export const pbn: HandFormat<PbnHand> = {
       declarer: null,
       dummy: null,
       tricks: [],
+      done: false,
     };
   },
 
@@ -89,10 +92,14 @@ export const pbn: HandFormat<PbnHand> = {
     hand.declarer = d.bridge ? (d.maker ?? null) : null;
     hand.dummy = d.dummy ?? null;
     hand.tricks = [...d.tricks];
+    hand.done = true;
   },
 
   write(hands, seat, meta) {
-    const games = hands.map((h) => {
+    const finished = hands.filter((h) => h.done);
+    // (nothing finished yet: nothing to save)
+    if (!finished.length) return '';
+    const games = finished.map((h) => {
       const played = (s: number) => h.plays.filter((p) => p.seat === s).length;
       const known = (s: number) => seat === EVERYONE || s === seat || (h.contract && s === h.dummy) || played(s) === h.dealt[s].length;
       const deal = [0, 1, 2, 3].map((i) => (h.dealer + i) % 4).map((s) => (known(s) ? handText(h.dealt[s]) : '-'));

@@ -34,7 +34,8 @@ test('the security policy lets a whole game through, and blocks injected scripts
   await expect(page.locator('.hand .slot')).toHaveCount(13, { timeout: 15_000 });
   // saving the game as a spreadsheet (a file made in the page)
   await page.click('button[aria-label="Menu"]');
-  const [download] = await Promise.all([page.waitForEvent('download'), page.click('text=Save this game (spreadsheet)')]);
+  await page.click('text=Save this game');
+  const [download] = await Promise.all([page.waitForEvent('download'), page.click('button:has-text("Spreadsheet")')]);
   expect(download.suggestedFilename()).toMatch(/\.csv$/);
   // the card backs and cloths (pictures made on the fly)
   await page.click('button[aria-label="Menu"]');

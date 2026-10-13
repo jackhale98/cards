@@ -133,7 +133,10 @@ describe('saving a game in its standard record', () => {
         expect(Number(t.Result)).toBeLessThanOrEqual(13);
         expect(calls.length).toBeGreaterThanOrEqual(4);
         // thirteen tricks of four cards, every card once
-        const play = g.split(/\[Play "[NESW]"\]\r\n/)[1].split('\r\n');
+        const play = g
+          .split(/\[Play "[NESW]"\]\r\n/)[1]
+          .split('\r\n')
+          .filter(Boolean);
         expect(play).toHaveLength(13);
         const cards = play.flatMap((l) => l.split(' '));
         expect(cards.every((c) => /^[SHDC][AKQJT2-9]$/.test(c))).toBe(true);

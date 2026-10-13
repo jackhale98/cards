@@ -12,10 +12,16 @@ export type ExportFormat = 'csv' | 'pbn' | 'ohh';
 /** Every record a game can keep: the ones players save, and PHH (poker, for checking with PokerKit: see tools/). */
 export type RecordFormat = ExportFormat | 'phh';
 
+/** The choices under "Save this game": a short name, and what it's for. */
 export const EXPORT_LABEL: Record<ExportFormat, string> = {
-  csv: 'Save this game (spreadsheet)',
-  pbn: 'Save as PBN (bridge programs)',
-  ohh: 'Save as hand history (poker tools)',
+  csv: 'Spreadsheet',
+  pbn: 'PBN',
+  ohh: 'Hand history',
+};
+export const EXPORT_ABOUT: Record<ExportFormat, string> = {
+  csv: 'Every move, and your own cards each deal. Opens in Excel, Numbers or Google Sheets.',
+  pbn: 'The bridge record bridge programs read (BBO, Bridge Composer, double-dummy solvers).',
+  ohh: 'Open Hand History, for poker tracking tools.',
 };
 
 export const EXPORT_FILE: Record<ExportFormat, { ext: string; type: string }> = {

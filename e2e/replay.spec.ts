@@ -44,7 +44,8 @@ test('replay the last hand, then get back to the game', async ({ page }) => {
 
   // and save the game so far as a spreadsheet
   await page.click('button[aria-label="Menu"]');
-  const [download] = await Promise.all([page.waitForEvent('download'), page.click('text=Save this game (spreadsheet)')]);
+  await page.click('text=Save this game');
+  const [download] = await Promise.all([page.waitForEvent('download'), page.click('button:has-text("Spreadsheet")')]);
   expect(download.suggestedFilename()).toMatch(/^lamplight-holdem-\d{4}-\d{2}-\d{2}\.csv$/);
   const csv = readFileSync((await download.path())!, 'utf8');
   expect(csv).toContain('Hand,Move,Player,What happened,Your cards');
