@@ -32,6 +32,10 @@ test('the security policy lets a whole game through, and blocks injected scripts
   await page.click('button:has-text("Pass")');
   await expect.poll(() => page.workers().length, { timeout: 15_000 }).toBeGreaterThan(0);
   await expect(page.locator('.hand .slot')).toHaveCount(13, { timeout: 15_000 });
+  // saving the game as a spreadsheet (a file made in the page)
+  await page.click('button[aria-label="Menu"]');
+  const [download] = await Promise.all([page.waitForEvent('download'), page.click('text=Save this game (spreadsheet)')]);
+  expect(download.suggestedFilename()).toMatch(/\.csv$/);
   // the card backs and cloths (pictures made on the fly)
   await page.click('button[aria-label="Menu"]');
   await page.click('text=Card backs & cloth');

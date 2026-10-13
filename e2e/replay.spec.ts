@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { readFileSync } from 'node:fs';
 
 /** After a hand, step back through it as you saw it, then return to the game. */
 test('replay the last hand, then get back to the game', async ({ page }) => {
@@ -40,4 +41,12 @@ test('replay the last hand, then get back to the game', async ({ page }) => {
   await expect(bar).toContainText(/Move 2 of/);
   await bar.locator('button', { hasText: /back/i }).click();
   await expect(bar).toHaveCount(0);
+
+  // and save the game so far as a spreadsheet
+  await page.click('button[aria-label="Menu"]');
+  const [download] = await Promise.all([page.waitForEvent('download'), page.click('text=Save this game (spreadsheet)')]);
+  expect(download.suggestedFilename()).toMatch(/^lamplight-holdem-\d{4}-\d{2}-\d{2}\.csv$/);
+  const csv = readFileSync((await download.path())!, 'utf8');
+  expect(csv).toContain('Hand,Move,Player,What happened,Your cards');
+  expect(csv).toMatch(/\n1,,,Deal,\S+ \S+/);
 });

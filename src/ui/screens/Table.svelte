@@ -588,6 +588,15 @@
           }}>Replay the last hand</button
         >
       {/if}
+      {#if !display && !game.realtime}
+        <button
+          class="btn"
+          onclick={() => {
+            app.exportGame();
+            sheet = null;
+          }}>Save this game (spreadsheet)</button
+        >
+      {/if}
       {#if !display}<button class="btn" onclick={() => (sheet = 'tv')}>Show on a TV</button>{/if}
       {#if app.isHost}<button class="btn" onclick={() => (sheet = 'look')}>Card backs & cloth</button>{/if}
       <button

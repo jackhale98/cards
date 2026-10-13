@@ -559,6 +559,24 @@ class App {
   }
   private replayAsked = false;
 
+  /** Save this game so far as a spreadsheet: every move, and your own cards each deal. */
+  exportGame() {
+    const game = this.view?.state?.game ?? 'game';
+    const name = `lamplight-${game}-${new Date().toISOString().slice(0, 10)}.csv`;
+    const save = (csv: string | null) => {
+      if (!csv) return this.say('Nothing to save yet');
+      void import('./ui/saveFile').then((m) => m.saveFile(name, csv));
+    };
+    if (this.host) save(this.host.exportCsv(this.cid));
+    else if (this.client) {
+      this.client.onExport = (csv) => {
+        this.client!.onExport = () => {};
+        save(csv);
+      };
+      this.client.exportGame();
+    }
+  }
+
   closeReplay() {
     this.replay = null;
     this.replayAsked = false;

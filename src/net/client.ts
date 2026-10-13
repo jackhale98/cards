@@ -17,6 +17,8 @@ export class Client {
   onPings: (pings: (number | null)[]) => void = () => {};
   /** A moment of a finished hand, asked for with `replay` (null: there isn't one). */
   onFrame: (f: Frame | null) => void = () => {};
+  /** The game as a spreadsheet, asked for with `exportGame` (null: nothing to save). */
+  onExport: (csv: string | null) => void = () => {};
   /** When we last heard anything from the host. */
   lastHeard = 0;
   /** The host's latest sealed backup of the game (only the relay can unlock it; see backup.ts). */
@@ -66,6 +68,11 @@ export class Client {
         if (from !== this.hostPeer) return;
         const f = msg.frame;
         this.onFrame(f && typeof f === 'object' && f.state && f.status ? f : null);
+        return;
+      }
+      if (msg.t === 'export') {
+        if (from !== this.hostPeer) return;
+        this.onExport(typeof msg.csv === 'string' ? msg.csv : null);
         return;
       }
       if (msg.t === 'pings') {
@@ -151,6 +158,11 @@ export class Client {
   /** Ask the host for a moment of a finished hand (see Frame). */
   replay(hand: number, step: number) {
     if (this.hostPeer) this.transport.send({ t: 'replay', hand, step }, this.hostPeer);
+  }
+
+  /** Ask the host for the game so far as a spreadsheet (see Host.exportCsv). */
+  exportGame() {
+    if (this.hostPeer) this.transport.send({ t: 'export' }, this.hostPeer);
   }
 
   act(a: Action) {

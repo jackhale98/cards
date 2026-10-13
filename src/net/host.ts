@@ -22,6 +22,7 @@ import {
   type View,
 } from './protocol';
 import { seal } from './backup';
+import { GameRecord, toCsv } from './gameRecord';
 import { report } from './reports';
 import type { Transport } from './transport';
 
@@ -187,6 +188,7 @@ export class Host {
       return this.paced(peer, msg);
     }
     if (msg.t === 'replay') return this.sendFrame(peer, msg.hand, msg.step);
+    if (msg.t === 'export') return this.sendExport(peer);
     if (msg.t === 'act') {
       const cid = this.peers.get(peer);
       if (!cid) return;
@@ -429,6 +431,19 @@ export class Host {
   private hands: GameState[][] = [];
   /** The hand being played now, so far. */
   private recording: GameState[] | null = null;
+  /** The whole game, move by move, for saving as a spreadsheet (see gameRecord.ts). */
+  private gameRecord = new GameRecord();
+
+  /** This game so far as CSV, for `cid`: the moves, and only their own cards. */
+  exportCsv(cid: string | null): string | null {
+    const s = this.state;
+    if (!s || !this.module || this.module.realtime) return null;
+    return toCsv(
+      this.gameRecord,
+      this.gameSeat(cid),
+      s.players.map((p) => p.name),
+    );
+  }
 
   /**
    * Keep each moment of the hand in play, for replays. A hand ends in one of the end phases every
@@ -440,6 +455,14 @@ export class Host {
     const m = this.module;
     if (!s || !m || m.realtime) return;
     const ended = END_PHASES.has(s.phase) || !!m.status(s, 0).banner;
+    this.gameRecord.note(s, ended, () => {
+      // (the result as someone watching sees it: no "you")
+      try {
+        return m.status(s, -1).banner?.lines ?? [];
+      } catch {
+        return [];
+      }
+    });
     if (!ended) {
       this.recording ??= [];
       if (this.recording.length < REPLAY_STEPS && this.recording.at(-1) !== s) this.recording.push(s);
@@ -477,6 +500,16 @@ export class Host {
     if (c?.second !== second) this.framesAsked.set(peer, { second, n: 1 });
     const cid = this.displays.has(peer) ? null : (this.peers.get(peer) ?? null);
     this.transport?.send({ t: 'frame', frame: this.frame(cid, Number(hand), Number(step)) }, peer);
+  }
+
+  /** A player's spreadsheet of the game (counted with replay frames: a few a second at most). */
+  private sendExport(peer: string) {
+    const second = Math.floor(Date.now() / 1000);
+    const c = this.framesAsked.get(peer);
+    if (c?.second === second && ++c.n > FRAMES_PER_SECOND) return;
+    if (c?.second !== second) this.framesAsked.set(peer, { second, n: 1 });
+    const cid = this.displays.has(peer) ? null : (this.peers.get(peer) ?? null);
+    this.transport?.send({ t: 'export', csv: this.exportCsv(cid) }, peer);
   }
 
   /** Add a game that has just finished to tonight's tally (once; a rematch starts a new one). */
@@ -835,6 +868,7 @@ export class Host {
     this.history = [];
     this.hands = [];
     this.recording = null;
+    this.gameRecord = new GameRecord();
     this.state = this.module.setup(
       players.map((s) => ({ name: s.name, bot: s.bot })),
       randomSeed(),
@@ -852,6 +886,7 @@ export class Host {
     this.history = [];
     this.hands = [];
     this.recording = null;
+    this.gameRecord = new GameRecord();
     this.lobby.seats = this.lobby.seats.filter((s) => s.connected || s.host);
     // whoever sat out that game gets priority for the next one
     const played = new Set(this.lobby.playing ?? []);
