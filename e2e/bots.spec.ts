@@ -25,7 +25,7 @@ test("bots think in a worker, and a game's rules load only when it's picked", as
   expect(scripts.some((u) => /engine\/families\/(canasta|cribbage|rummy)\.ts/.test(u))).toBe(false);
   // pass three cards: the bots pass theirs from the worker, and play begins
   const cards = page.locator('.hand .slot');
-  for (let i = 0; i < 3; i++) await cards.nth(i).click();
+  for (let i = 0; i < 3; i++) await cards.nth(i).click({ position: { x: 14, y: 50 } }); // (its visible edge: the next card covers the middle)
   await page.click('button:has-text("Pass")');
   await expect.poll(() => page.workers().length, { timeout: 10_000 }).toBeGreaterThan(0);
   expect(page.workers().some((w) => w.url().includes('botWorker'))).toBe(true);

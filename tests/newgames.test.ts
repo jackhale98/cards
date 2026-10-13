@@ -172,6 +172,12 @@ describe('cheat (pagat)', () => {
 describe('go fish (pagat)', () => {
   const g = GAMES['go-fish'] as GameModule<GoFishData>;
 
+  it('says "1 card", not "1 cards"', () => {
+    const s = g.setup(people(3), 1, {});
+    s.zones['hand:1'].cards = s.zones['hand:1'].cards.slice(0, 1);
+    expect(g.status(s, 0).seats![1].badge).toMatch(/^1 card · /);
+  });
+
   it('five cards each, seven for two', () => {
     expect(ids(g.setup(people(4), 1, {}), 'hand:0')).toHaveLength(5);
     expect(ids(g.setup(people(2), 1, {}), 'hand:0').length + ids(g.setup(people(2), 1, {}), 'books:0').length).toBeGreaterThanOrEqual(7);

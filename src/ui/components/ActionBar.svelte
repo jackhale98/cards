@@ -178,7 +178,12 @@
     gap: 0;
     line-height: 1.1;
     font-size: 0.9rem;
-    padding: 0.5em 0.9em;
+    padding: 0.5em 0.7em;
+    /* the column is narrow on a phone: a long label ("Bid blind nil · 200") wraps rather than
+       running past the button's edge */
+    white-space: normal;
+    text-align: center;
+    overflow-wrap: anywhere;
   }
   .bar small {
     font-size: 0.66rem;
@@ -355,10 +360,16 @@
       scale: 0.96;
     }
   }
+  /* a race (Slap!, Grab a spoon): the boldest, biggest thing on the screen, easy to hit fast */
   .btn.slap {
     min-width: 6.5rem;
-    font-size: 1.05rem;
+    min-height: 64px;
+    font-size: 1.15rem;
     letter-spacing: 0.04em;
     touch-action: manipulation;
+    background: linear-gradient(180deg, #f08a6c, #d4573a);
+    border-color: rgba(255, 255, 255, 0.35);
+    color: #fff;
+    box-shadow: 0 6px 18px rgba(212, 87, 58, 0.4);
   }
 </style>

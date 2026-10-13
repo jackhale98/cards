@@ -50,6 +50,7 @@
   // the heights of what sits above the cards (measured: a headline can take two lines)
   const LAST_H = 26;
   let headerH = $state(0);
+  let mainW = $state(0);
   let headH = $state(0);
   let trackH = $state(0);
   /**
@@ -59,7 +60,10 @@
    * from the screen, not from the sizes they end up, so the layout can't chase itself.)
    */
   const cardSizes = $derived.by(() => {
-    const wantCenter = Math.min(pileOnly ? 120 : 92, vh * (status.track ? 0.13 : pileOnly ? 0.24 : 0.15), vw * (pileOnly ? 0.12 : 0.09));
+    // (a pile or two in the middle and nothing else there, as in Cheat, Spit or the slap games:
+    // they're what everyone watches, so they get the room)
+    const big = pileOnly || (centerZones.length <= 2 && !stripZones.length && centerZones.every((z) => z.layout === 'stack'));
+    const wantCenter = Math.min(big ? 120 : 92, vh * (status.track ? 0.13 : big ? 0.24 : 0.15), vw * (big ? 0.12 : 0.09));
     const wantHand = handMode
       ? // (hand mode: the middle is a pile or two at most, so the hand is bigger)
         Math.min(168, vh * (centerZones.length ? 0.27 : 0.34), vw * 0.15)
@@ -73,12 +77,78 @@
     const lastFits = room - LAST_H >= 1.6 * 36 + 1.45 * 48;
     if (lastFits) room -= LAST_H;
     // (hand mode's middle is empty but for a pile you can tap)
-    const need = (centerZones.length ? 1.6 * wantCenter : 0) + 1.45 * wantHand;
-    const k = need > room ? Math.max(0, room) / need : 1;
+    let k = 1;
+    // (piles that don't fit across wrap to another row: Kings Corners' eight, with six players)
+    for (let i = 0; i < 3; i++) {
+      // (each extra row: a pile, its label and the gap between rows, those last two in pixels)
+      const extra = centerZones.length ? centerRows(wantCenter * k) - 1 : 0;
+      const fixed = extra * (22 + Math.min(32, Math.max(10, vw * 0.03)));
+      const need = (centerZones.length ? (1.6 + 1.4 * extra) * wantCenter * k : 0) + 1.45 * wantHand * k;
+      k = need > room - fixed ? (k * Math.max(0, room - fixed)) / need : k;
+    }
     return { center: wantCenter * k, hand: wantHand * k, lastFits };
   });
+  /**
+   * Whether the middle's cards fit across side by side (a Hold'em board on a tablet): then a row
+   * of five or more needn't overlap. Piles about a card wide; a row of cards a card and a bit each.
+   */
+  const roomy = $derived.by(() => {
+    if (!mainW || stripZones.length) return false;
+    const gap = Math.min(32, Math.max(10, vw * 0.03));
+    const width = centerZones.reduce((w, z) => {
+      const cw = centerCw * (z.scale ?? 1);
+      return w + gap + (z.layout === 'spread' ? z.cards.length * cw * 1.1 : z.layout === 'trick' ? 3 * cw : 1.2 * cw);
+    }, 0);
+    return width < mainW - 16;
+  });
+  /**
+   * How many rows the middle's piles take at card width `cw`: each about a card wide, or its
+   * label's width (0.62rem capitals), with the gap between. Only piles: anything else, one row.
+   */
+  function centerRows(cw: number): number {
+    if (!mainW || !centerZones.every((z) => z.layout === 'stack')) return 1;
+    const gap = Math.min(32, Math.max(10, vw * 0.03));
+    const widths = centerZones.map((z) => Math.max(Math.max(34, cw), ((z.label?.length ?? 0) + 4) * 6.6) + gap);
+    let rows = 1;
+    let x = 0;
+    for (const w of widths) {
+      if (x && x + w > mainW + gap) {
+        rows++;
+        x = 0;
+      }
+      x += w;
+    }
+    return rows;
+  }
+  /** No card on the table narrower than this: below it the corner's rank and suit can't be read. */
+  const MIN_CW = 30;
   // a score track takes some height, so table cards get a little smaller with one
   const centerCw = $derived(Math.round(display ? Math.max(60, Math.min(300, vh * (status.track ? 0.18 : 0.22), vw * 0.1)) : Math.max(34, cardSizes.center)));
+
+  /**
+   * A row that scrolls sideways (everyone's melds, face-up cards) fades out at an edge with more
+   * beyond it, so a third player's cards past the edge aren't simply missing.
+   */
+  function edgeFade(el: HTMLElement) {
+    const update = () => {
+      el.classList.toggle('more-left', el.scrollLeft > 2);
+      el.classList.toggle('more-right', el.scrollLeft + el.clientWidth < el.scrollWidth - 2);
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    for (const c of el.children) ro.observe(c);
+    const mo = new MutationObserver(update);
+    mo.observe(el, { childList: true, subtree: true });
+    el.addEventListener('scroll', update, { passive: true });
+    return {
+      destroy() {
+        ro.disconnect();
+        mo.disconnect();
+        el.removeEventListener('scroll', update);
+      },
+    };
+  }
 
   /** Opponents in turn order starting to your left. */
   const others = $derived.by(() => {
@@ -185,7 +255,19 @@
   // (in a real-time game you react to the piles, so they stay put on the phone: watching the TV
   // instead would also time your reaction from the wrong screen)
   const centerZones = $derived(handMode && !game.realtime ? allCenterZones.filter(usable) : allCenterZones);
-  const stripZones = $derived(handMode ? allStripZones.filter(usable) : allStripZones);
+  /**
+   * The strip scrolls sideways, so what's yours to play from comes first, then your own, then
+   * everyone else's around from your left: in Palace your face-up and face-down cards (all you
+   * have left to play) never sit past the edge.
+   */
+  const stripZones = $derived.by(() => {
+    const list = handMode ? allStripZones.filter(usable) : allStripZones;
+    const rank = (z: (typeof list)[number]) => (usable(z) ? -2 : z.owner === you && you >= 0 ? -1 : z.owner == null ? n : (z.owner - Math.max(0, you) + n) % n);
+    return list
+      .map((z, i) => ({ z, i, r: rank(z) }))
+      .sort((a, b) => a.r - b.r || a.i - b.i)
+      .map((x) => x.z);
+  });
   // ---- table screen -----------------------------------------------------------------------
   /** On a table screen everything sized in rem grows with the screen (1rem = this many px). */
   // (a little smaller with lots of players, so seats don't collide around the oval)
@@ -250,7 +332,7 @@
   // ---- what just happened ------------------------------------------------------------------
   const lastEntry = $derived(s.log.at(-1));
   /** Latest player move, shown under the headline (unless the headline already says it). */
-  const lastMove = $derived(lastEntry && lastEntry.text !== status.headline ? lastEntry : null);
+  const lastMove = $derived(lastEntry && !(status.headline ?? '').includes(lastEntry.text) ? lastEntry : null);
 
   // ---- sounds: each new move on the table (on the big screen, when there is one), and the end
   let soundsOn = $state(soundOn());
@@ -411,7 +493,7 @@
   <!-- centre: shared zones, pot, headline -->
   <!-- tapping empty felt clears the selection (a touch shortcut; the Clear button is the accessible path) -->
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
-  <main onclick={(e) => !(e.target as Element).closest('button, .card') && (selected = [])}>
+  <main bind:clientWidth={mainW} onclick={(e) => !(e.target as Element).closest('button, .card') && (selected = [])}>
     {#if status.track && !handMode}<div class="track-wrap" bind:clientHeight={trackH}>
         <Track track={status.track} avatars={s.players.map((_, i) => lobbySeat(i)?.avatar)} />
       </div>{/if}
@@ -431,7 +513,10 @@
         <div class="zone-slot">
           <Zone
             zone={z}
-            cw={Math.round(centerCw * (z.scale ?? 1) * (z.layout === 'spread' && (z.faceUpHand || z.cards.length >= 10) && !display ? 0.82 : 1))}
+            cw={Math.max(
+              MIN_CW,
+              Math.round(centerCw * (z.scale ?? 1) * (z.layout === 'spread' && (z.faceUpHand || z.cards.length >= 10) && !display ? 0.82 : 1)),
+            )}
             {you}
             players={n}
             {selected}
@@ -441,6 +526,7 @@
             place={!!zoneAction(z.id)?.select}
             onzone={zoneAction(z.id) ? () => run(zoneAction(z.id)!) : undefined}
             fast={!!zoneAction(z.id)?.react}
+            {roomy}
           />
         </div>
       {/each}
@@ -458,11 +544,11 @@
         </div>
       {/if}
       {#if stripZones.length}
-        <div class="strip">
+        <div class="strip" use:edgeFade>
           {#each stripZones as z (z.id)}
             <Zone
               zone={z}
-              cw={Math.round(centerCw * (z.scale ?? 1))}
+              cw={Math.max(MIN_CW, Math.round(centerCw * (z.scale ?? 1)))}
               {you}
               players={n}
               {selected}
@@ -482,7 +568,9 @@
       <div class="banner panel">
         <button class="close" onclick={() => (bannerHidden = s.v)} aria-label="Hide">×</button>
         <h2>{status.banner.title}</h2>
-        {#each status.banner.lines as line, k (k)}<p><SuitText text={line} /></p>{/each}
+        <div class="lines" class:cols={status.banner.lines.length > 5}>
+          {#each status.banner.lines as line, k (k)}<p><SuitText text={line} /></p>{/each}
+        </div>
         {#if view.handDone && !display && !replay}
           <button class="btn small-btn replay-btn" onclick={() => app.showReplay(0, 0)}>Replay this hand</button>
         {/if}
@@ -509,7 +597,7 @@
       <div class="me">
         {#if me}
           <div class="me-name">
-            <AvatarBadge avatar={lobbySeat(you)?.avatar} name={me.name} seat={you} size={24} />{me.name}
+            <AvatarBadge avatar={lobbySeat(you)?.avatar} name={me.name} seat={you} size={24} /><span class="mn">{me.name}</span>
             {#if myInfo?.tag}<span class="mytag">{myInfo.tag}</span>{/if}
           </div>
           <div class="me-sub">
@@ -548,19 +636,19 @@
       {#if view.handDone && !(showBanner && status.banner) && !replay}
         <button class="btn quiet small-btn replay-quick" onclick={() => app.showReplay(0, 0)}>Replay hand</button>
       {/if}
-      {#if replay}<ReplayBar frame={replay} />{/if}
-      <ActionBar
-        actions={view.actions}
-        {selected}
-        pot={status.pot}
-        onact={(spec, amount, seat) => run(spec, amount, selected, seat)}
-        onclear={() => (selected = [])}
-        seatInfo={(seat) => ({
-          name: s.players[seat]?.name ?? '',
-          avatar: lobbySeat(seat)?.avatar,
-          relation: seatRelation(you, seat, n),
-        })}
-      />
+      <!-- (in a replay there's nothing to do but watch: the replay's controls get the whole column) -->
+      {#if replay}<ReplayBar frame={replay} />{:else}<ActionBar
+          actions={view.actions}
+          {selected}
+          pot={status.pot}
+          onact={(spec, amount, seat) => run(spec, amount, selected, seat)}
+          onclear={() => (selected = [])}
+          seatInfo={(seat) => ({
+            name: s.players[seat]?.name ?? '',
+            avatar: lobbySeat(seat)?.avatar,
+            relation: seatRelation(you, seat, n),
+          })}
+        />{/if}
     </aside>
   {/if}
 </div>
@@ -961,6 +1049,19 @@
     scrollbar-width: none;
     padding: 0 4px;
   }
+  /* more to scroll to: the row fades out at that edge */
+  .strip:global(.more-right) {
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+  }
+  .strip:global(.more-left) {
+    -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 28px), transparent);
+    mask-image: linear-gradient(to left, #000 calc(100% - 28px), transparent);
+  }
+  .strip:global(.more-left.more-right) {
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 28px, #000 calc(100% - 28px), transparent);
+    mask-image: linear-gradient(to right, transparent, #000 28px, #000 calc(100% - 28px), transparent);
+  }
   .strip > :global(*) {
     flex: none;
   }
@@ -1051,6 +1152,16 @@
     font-size: 0.85rem;
     color: var(--ink-dim);
   }
+  /* (a short screen and a long list of scores: two columns, so the panel fits without scrolling) */
+  @media (max-height: 440px) {
+    .lines.cols {
+      columns: 2;
+      column-gap: 1.6rem;
+    }
+    .lines.cols p {
+      break-inside: avoid;
+    }
+  }
   .close {
     position: absolute;
     top: 4px;
@@ -1081,7 +1192,11 @@
   }
   .me {
     flex: none;
-    width: clamp(70px, 13vw, 140px);
+    /* (room for a short name and a badge beside it: "Tester ★"; wider for a longer status,
+       "0 in hand · 0 up · 3 down", so it takes two lines rather than four) */
+    width: max-content;
+    min-width: clamp(100px, 14vw, 150px);
+    max-width: clamp(130px, 24vw, 220px);
     padding-bottom: 8px;
     font-size: 0.8rem;
   }
@@ -1091,8 +1206,19 @@
     align-items: center;
     gap: 0.35rem;
     white-space: nowrap;
+    min-width: 0;
+  }
+  /* a long name shortens ("Alexand…"); the dealer badge beside it always shows */
+  .me-name .mn {
     overflow: hidden;
     text-overflow: ellipsis;
+    min-width: 0;
+  }
+  .me-name > :global(*) {
+    flex: none;
+  }
+  .me-name > .mn {
+    flex: 0 1 auto;
   }
   .mytag {
     font-size: 0.65rem;
@@ -1129,6 +1255,19 @@
     width: clamp(108px, 17vw, 168px);
     padding-bottom: 8px;
     min-height: 0;
+    /* (the action buttons take what's left under a "Replay hand" button, not the whole height) */
+    display: flex;
+    flex-direction: column;
+  }
+  aside > :global(.replay) {
+    flex: 1;
+    min-height: 0;
+    height: auto;
+  }
+  aside > :global(.bar) {
+    flex: 1;
+    min-height: 0;
+    height: auto;
   }
   .rotate {
     display: none;
@@ -1176,6 +1315,18 @@
     min-width: 0;
     white-space: normal;
     text-align: center;
+  }
+  /* (a phone on its side: four across, so the whole menu fits without scrolling) */
+  @media (max-height: 440px) and (min-width: 560px) {
+    .menu-list {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 0.4rem;
+      margin-bottom: 0.4rem;
+    }
+    .menu-list > .btn {
+      padding: 0.4em 0.5em;
+      font-size: 0.85rem;
+    }
   }
   .save-list {
     display: flex;

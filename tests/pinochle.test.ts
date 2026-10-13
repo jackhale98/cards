@@ -59,6 +59,24 @@ describe('pinochle (pagat)', () => {
     expect(['meld', 'handOver']).toContain(s.phase);
   });
 
+  it('the melds go in the log, with no panel over the table (a panel would end the hand for the replay)', () => {
+    for (let seed = 1; seed < 30; seed++) {
+      const s = g.setup(people(4), seed, {});
+      g.apply(s, 0, { type: 'bid', amount: 250 });
+      for (const i of [1, 2, 3]) g.apply(s, i, { type: 'pass' });
+      g.apply(s, 0, { type: 'trump', amount: 1 });
+      g.apply(s, 2, { type: 'give', cards: ids(s, 'hand:2').slice(0, 4) });
+      g.apply(s, 0, { type: 'give', cards: ids(s, 'hand:0').slice(-4) });
+      if (s.phase !== 'meld') continue;
+      expect(g.status(s, 0).banner).toBeUndefined();
+      const melded = s.players.filter((_, i) => s.data.meld[i].points > 0);
+      expect(melded.length).toBeGreaterThan(0);
+      for (const p of melded) expect(s.log.some((l) => l.text.startsWith(`${p.name} melds `) && l.text.endsWith(`= ${s.data.meld[p.seat].points}`))).toBe(true);
+      return;
+    }
+    throw new Error('no deal reached the meld');
+  });
+
   /** Seat 0 to play a card to the trick with trumps hearts. */
   function midTrick(hand: string[], trick: [string, number][]) {
     const s = g.setup(people(4), 4, {});

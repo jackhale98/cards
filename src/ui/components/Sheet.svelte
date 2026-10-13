@@ -43,8 +43,9 @@
     display: flex;
     flex-direction: column;
     animation: pop 0.22s var(--ease-out);
-    background: rgba(8, 26, 20, 0.92);
-    background: color-mix(in srgb, var(--felt-3) 92%, transparent);
+    /* (nearly solid: a game-over banner behind mustn't show through the text) */
+    background: rgba(8, 26, 20, 0.97);
+    background: color-mix(in srgb, var(--felt-3) 97%, transparent);
   }
   .head {
     display: flex;

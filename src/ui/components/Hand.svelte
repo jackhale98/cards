@@ -21,11 +21,17 @@
   const layout = $derived.by(() => {
     const n = cards.length;
     if (!n || !width) return [];
-    const gap = Math.min(cw * 0.62, n > 1 ? (width - cw - 8) / (n - 1) : 0);
-    const total = cw + gap * (n - 1);
-    const left = (width - total) / 2;
     const mid = (n - 1) / 2;
     const spread = Math.min(3.2, 26 / n);
+    // the outer cards lean out, turning about a point below the card (transform-origin 50% 120%),
+    // so their top corners reach past the card's own width: leave room for that at each end (or
+    // they'd run under your name and the buttons beside the hand)
+    const lean = ((spread * mid) / 180) * Math.PI;
+    const reach = n > 1 ? Math.max(0, (cw / 2) * (Math.cos(lean) - 1) + 1.2 * cw * 1.4 * Math.sin(lean)) : 0;
+    const room = width - 2 * reach;
+    const gap = Math.min(cw * 0.62, n > 1 ? (room - cw - 8) / (n - 1) : 0);
+    const total = cw + gap * (n - 1);
+    const left = (width - total) / 2;
     return cards.map((_, i) => {
       const off = i - mid;
       return {

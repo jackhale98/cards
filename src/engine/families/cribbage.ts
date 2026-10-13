@@ -92,7 +92,12 @@ export function cribbageFamily(config: GameConfig): GameModule<CribData> {
       s.turn = null;
       // a loser short of 91 (in a game to 121) is skunked; short of 61, double skunked
       const skunk = (sc: number) => (target(s) === 121 && sc < 61 ? ' — double skunk' : target(s) === 121 && sc < 91 ? ' — skunked' : '');
-      d.result = { lines: [`${teamName(s, t)} reach ${target(s)}!`, ...d.scores.map((sc, i) => `${teamName(s, i)}: ${sc}${i === t ? '' : skunk(sc)}`)] };
+      d.result = {
+        lines: [
+          `${teamName(s, t)} ${teamsFor(s.players.length)[t].length > 1 ? 'reach' : 'reaches'} ${target(s)}!`,
+          ...d.scores.map((sc, i) => `${teamName(s, i)}: ${sc}${i === t ? '' : skunk(sc)}`),
+        ],
+      };
       return true;
     }
     return false;

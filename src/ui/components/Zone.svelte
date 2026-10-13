@@ -21,8 +21,10 @@
     zoneActive?: boolean;
     /** The selected card(s) can be put here: a tap places them (rather than selecting the top card). */
     place?: boolean;
+    /** There's room for a row of cards side by side: no need to overlap them. */
+    roomy?: boolean;
   }
-  let { zone, cw, you, players, selected, selectable, ontap, onzone, zoneActive = false, place = false, fast = false }: Props = $props();
+  let { zone, cw, you, players, selected, selectable, ontap, onzone, zoneActive = false, place = false, fast = false, roomy = false }: Props = $props();
 
   /** Trick cards sit between the centre and the seat that played them. */
   function trickPos(by: number | undefined) {
@@ -86,7 +88,7 @@
       {/each}
     </div>
   {:else}
-    <div class="spread" class:handdown={zone.faceUpHand}>
+    <div class="spread" class:handdown={zone.faceUpHand} class:roomy={roomy && !zone.faceUpHand}>
       {#each zone.cards as c, i (c.id)}
         <button
           class="scard"
@@ -164,6 +166,9 @@
   }
   .spread:has(> :nth-child(5)) .scard + .scard {
     margin-left: calc(var(--cw) * -0.45);
+  }
+  .spread.roomy .scard + .scard {
+    margin-left: 0;
   }
   /* a whole hand on the table (bridge dummy): just the corner indices show */
   .spread:has(> :nth-child(12)) .scard + .scard {

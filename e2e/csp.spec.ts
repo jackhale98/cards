@@ -28,7 +28,11 @@ test('the security policy lets a whole game through, and blocks injected scripts
   await page.click('button:has-text("Deal Hearts")');
   await expect(page.locator('.hand .slot')).toHaveCount(13);
   // pass three: the bots answer from their worker (rules loaded on demand)
-  for (let i = 0; i < 3; i++) await page.locator('.hand .slot').nth(i).click();
+  for (let i = 0; i < 3; i++)
+    await page
+      .locator('.hand .slot')
+      .nth(i)
+      .click({ position: { x: 14, y: 50 } }); // (its visible edge: the next card covers the middle)
   await page.click('button:has-text("Pass")');
   await expect.poll(() => page.workers().length, { timeout: 15_000 }).toBeGreaterThan(0);
   await expect(page.locator('.hand .slot')).toHaveCount(13, { timeout: 15_000 });

@@ -380,6 +380,16 @@ class App {
     host.onLocalView = (v) => (this.view = structuredClone(v));
     host.onPersist = (snap) => store.set('cards.host', JSON.stringify({ code, cid: this.cid, key: seatKey(), snap, at: Date.now() } satisfies SavedHost));
     this.host = host;
+    // (development builds: browser tests drive this seat with a bot's moves)
+    if (import.meta.env.DEV)
+      Object.assign(window, {
+        __botMove: () => {
+          const a = this.host?.botMoveFor(this.cid) ?? null;
+          if (a) this.act(a);
+          return a;
+        },
+        __phase: () => this.host?.state?.phase ?? null,
+      });
     this.isHost = true;
     this.connected = true;
     if (restore) host.resume();

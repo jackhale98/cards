@@ -519,7 +519,7 @@
     margin-bottom: 0.4rem;
   }
   .small-btn {
-    min-height: 32px;
+    min-height: 38px;
     padding: 0.2em 0.8em;
     font-size: 0.8rem;
   }
@@ -578,8 +578,8 @@
     color: var(--ink-dim);
     border: 1px solid var(--line);
     border-radius: 6px;
-    padding: 0 0.3rem;
-    margin-left: 0.3rem;
+    padding: 0 0.25rem;
+    margin-left: 0.25rem;
     flex: none;
   }
   .pname em.you {
@@ -597,7 +597,7 @@
   .inout {
     flex: none;
     min-width: 2.6rem;
-    height: 26px;
+    height: 32px;
     padding: 0 0.5rem;
     border-radius: 999px;
     border: 1px solid var(--line);
@@ -639,9 +639,10 @@
     font-size: 0.8rem;
     color: var(--ink-dim);
   }
+  /* (fingers, not a mouse: as big as the row allows) */
   .ctl button {
-    width: 28px;
-    height: 30px;
+    width: 30px;
+    height: 40px;
     border-radius: 8px;
     color: var(--ink-dim);
   }
@@ -702,6 +703,7 @@
   }
   .cat {
     flex: none;
+    min-height: 36px;
     padding: 0.35rem 0.8rem;
     border-radius: 999px;
     border: 1px solid var(--line);

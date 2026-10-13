@@ -320,9 +320,10 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
       values.set(seat, evaluate(cardsOf(s, seat), board));
       for (const c of hand(s, seat).cards) c.up = true; // reveal
     }
-    const lines: string[] = [];
+    let lines: string[] = [];
     const winners = new Set<number>();
     const pots = bet.pots(d.b);
+    const shares: number[][] = [];
     // chips carried from a thrown-in deal belong to the main pot
     if (d.carry && pots.length) pots[0].amount += d.carry;
     d.carry = 0;
@@ -338,11 +339,17 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
         collect(s, w, share + (odd-- > 0 ? 1 : 0));
         winners.add(w);
       }
+      shares.push(ordered);
       const label = pots.length > 1 ? (pi === 0 ? 'main pot' : `side pot ${pi}`) : 'the pot';
       lines.push(
         `${ordered.map((w) => name(s, w)).join(' & ')} ${ordered.length > 1 ? 'split' : 'wins'} ${label} (${pot.amount}) with ${values.get(ordered[0])!.name.toLowerCase()}`,
       );
     });
+    // one player taking every pot: one line, not one a pot saying the same thing
+    if (pots.length > 1 && shares.every((w) => w.length === 1 && w[0] === shares[0][0])) {
+      const w = shares[0][0];
+      lines = [`${name(s, w)} wins every pot (${pots.reduce((t, p) => t + p.amount, 0)}) with ${values.get(w)!.name.toLowerCase()}`];
+    }
     d.b.committed.fill(0);
     d.b.bets.fill(0);
     d.result = { lines, winners: [...winners] };

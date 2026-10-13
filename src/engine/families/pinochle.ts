@@ -166,6 +166,8 @@ export function pinochleFamily(config: GameConfig): GameModule<PinochleData> {
     s.turn = d.bidder;
     const side = teamOf(d.bidder!);
     const meld = sideMeld(s, side);
+    // (each player's melds in the log: the cards are face up on the table, labelled with their points)
+    s.players.forEach((_, i) => d.meld[i].points && log(s, `${name(s, i)} melds ${d.meld[i].lines.join(', ')} = ${d.meld[i].points}`));
     log(s, `Meld: ${teamName(s, 0)} ${sideMeld(s, 0)}, ${teamName(s, 1)} ${sideMeld(s, 1)}`);
     if (meld + 250 < d.bid!) {
       log(s, `${teamName(s, side)} can't reach ${d.bid} even taking every point`);
@@ -543,9 +545,7 @@ export function pinochleFamily(config: GameConfig): GameModule<PinochleData> {
             ? { title: `${teamName(s, teamOf(s.winner![0]))} win!`, lines: d.result?.lines ?? [] }
             : s.phase === 'handOver'
               ? { title: 'Hand over', lines: d.result?.lines ?? [] }
-              : s.phase === 'meld'
-                ? { title: 'Meld', lines: s.players.map((_, i) => `${name(s, i)}: ${d.meld[i].lines.join(', ') || 'nothing'} = ${d.meld[i].points}`) }
-                : undefined,
+              : undefined,
       };
     },
   };

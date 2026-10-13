@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { GameModule } from '../src/engine/types';
 import * as bet from '../src/engine/lib/betting';
 import { bestHand, eval5 } from '../src/engine/lib/pokerEval';
 
@@ -105,5 +106,40 @@ describe('betting', () => {
     expect(bet.streetComplete(b)).toBe(false);
     bet.act(b, chips, 0, { type: 'call' });
     expect(bet.streetComplete(b)).toBe(true);
+  });
+});
+
+describe('the result at a showdown', () => {
+  it('says once when one player takes every pot, rather than once a pot', async () => {
+    const { GAMES } = await import('./games');
+    const g = GAMES.holdem as GameModule<{ result: { lines: string[] } | null }>;
+    let merged = 0;
+    for (let seed = 1; seed <= 40 && merged < 2; seed++) {
+      let s = g.setup(
+        Array.from({ length: 6 }, (_, i) => ({ name: `P${i}`, bot: true })),
+        seed,
+        { stack: 200 },
+      );
+      s.options.botLevel = 0;
+      for (let i = 0; i < 4000 && s.phase !== 'gameOver'; i++) {
+        const sys = g.system?.(s);
+        const next = structuredClone(s);
+        if (sys) sys.run(next);
+        else {
+          const seat = s.players.find((p) => g.bot!(s, p.seat))?.seat ?? s.players.find((p) => g.actions(s, p.seat).some((a) => a.type === 'next'))?.seat;
+          if (seat == null) break;
+          g.apply(next, seat, g.bot!(s, seat) ?? { type: 'next' });
+        }
+        if (next.phase === 'handOver' && s.phase !== 'handOver' && next.data.result) {
+          const lines = next.data.result.lines;
+          const who = lines.map((l) => /^(\S+) wins (main|side)/.exec(l)?.[1]);
+          // never the same lone winner on every line
+          expect(lines.length > 1 && who.every((w) => w && w === who[0])).toBe(false);
+          if (/ wins every pot \(\d+\) with /.test(lines[0])) merged++;
+        }
+        s = next;
+      }
+    }
+    expect(merged).toBeGreaterThan(0);
   });
 });

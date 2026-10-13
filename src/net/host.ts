@@ -710,6 +710,21 @@ export class Host {
     return this.lobby.seats.filter((s) => !s.out);
   }
 
+  /**
+   * The move a bot would make in `cid`'s seat right now (null: nothing to do). For driving a
+   * person's seat in browser tests (see app.svelte.ts: development builds only).
+   */
+  botMoveFor(cid: string): Action | null {
+    const s = this.state;
+    const m = this.module;
+    const seat = this.gameSeat(cid);
+    if (!s || !m || seat < 0) return null;
+    const offered = m.actions(s, seat);
+    // (between hands: deal the next one)
+    if (offered.some((a) => a.type === 'next')) return { type: 'next' };
+    return m.bot?.(structuredClone(s), seat) ?? null;
+  }
+
   /** A client's seat in the game (-1: not playing). */
   private gameSeat(cid: string | null): number {
     if (!cid) return -1;

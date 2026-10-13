@@ -247,7 +247,7 @@ export function goFishFamily(config: GameConfig): GameModule<GoFishData> {
       return {
         headline,
         seats: s.players.map((_, i) => ({
-          badge: `${hand(s, i).cards.length} cards · ${d.books[i]} book${d.books[i] === 1 ? '' : 's'}`,
+          badge: `${hand(s, i).cards.length} card${hand(s, i).cards.length === 1 ? '' : 's'} · ${d.books[i]} book${d.books[i] === 1 ? '' : 's'}`,
           tag: i === s.dealer ? 'D' : undefined,
         })),
         scoreboard: { columns: ['Books'], rows: s.players.map((p) => ({ name: p.name, values: [d.books[p.seat]], highlight: s.winner?.includes(p.seat) })) },

@@ -96,6 +96,8 @@ describe('cribbage game', () => {
     });
     expect(s.phase).toBe('gameOver');
     expect(Math.max(...s.data.scores)).toBe(121);
+    // ("Ada reaches 121!", "Ada & Cleo reach 121!")
+    expect(s.data.result!.lines[0]).toMatch(n === 4 ? / reach 121!$/ : / reaches 121!$/);
     expect(hands).toBeGreaterThan(2);
     if (n === 4) expect(s.winner).toHaveLength(2);
   });

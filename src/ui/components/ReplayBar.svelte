@@ -107,8 +107,7 @@
     opacity: 0.3;
   }
   .icon.small {
-    font-size: 0.68rem;
-    min-height: 34px;
+    font-size: 0.75rem;
   }
   .play {
     grid-column: 1 / -1;
@@ -117,5 +116,20 @@
   }
   .back {
     white-space: normal;
+  }
+  /* (a phone on its side: the controls in two short rows, so the bar fits under the seats) */
+  @media (max-height: 440px) {
+    .replay {
+      gap: 0.3rem;
+    }
+    .buttons {
+      grid-template-columns: repeat(6, 1fr);
+    }
+    .buttons > .icon {
+      grid-column: span 2;
+    }
+    .buttons > .icon.small {
+      grid-column: span 3;
+    }
   }
 </style>
