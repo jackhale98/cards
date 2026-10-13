@@ -200,6 +200,14 @@ def check_poker(folder: str) -> dict:
         for i, hh in enumerate(histories, 1):
             where = f"{name} hand {i}"
             hands += 1
+            # a big blind all in for less than the blind: by the usual rule (ours) the bet to call is
+            # still the full big blind; PokerKit makes it what the blind put in. From there the two
+            # replays part ways (who's asked to act, the chips put in), so the hand is counted, not
+            # checked. Not a mistake on either side.
+            blinds = hh.blinds_or_straddles
+            if any(0 < hh.starting_stacks[k] < blinds[k] for k in range(min(len(blinds), len(hh.starting_stacks)))):
+                short_blinds += 1
+                continue
             try:
                 state = hh.create_state()
             except Exception as e:  # noqa: BLE001
@@ -224,13 +232,6 @@ def check_poker(folder: str) -> dict:
                 fail(where, "PokerKit thinks the hand isn't over")
                 continue
             if list(state.stacks) != list(hh.finishing_stacks):
-                # a big blind all in for less than the blind: by the usual rule (ours) everyone still
-                # calls the full big blind; PokerKit has them call what the blind put in. Not a mistake
-                # on either side, so these hands are counted, not failed.
-                blinds = hh.blinds_or_straddles
-                if any(0 < hh.starting_stacks[k] < blinds[k] for k in range(min(len(blinds), len(hh.starting_stacks)))):
-                    short_blinds += 1
-                    continue
                 fail(where, f"chips at the end: ours {list(hh.finishing_stacks)}, PokerKit's {list(state.stacks)}")
     result: dict = {"hands_checked": hands, "short_big_blind_hands_skipped": short_blinds}
     summary = f"{folder}/holdem-hu.json"
