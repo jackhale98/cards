@@ -2,10 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Client } from '../src/net/client';
 import { bidOf } from '../src/engine/families/trick/contracts';
 import { recordFormats } from '../src/net/exports/formats';
-import { callText } from '../src/net/exports/pbn';
+import { callText, pbn } from '../src/net/exports/pbn';
 import { phh } from '../src/net/exports/phh';
 import { EVERYONE, type HandFormat } from '../src/net/exports/types';
-import { GameRecord } from '../src/net/gameRecord';
+import { cardCode, GameRecord, toCsv } from '../src/net/gameRecord';
 import { familyRules } from '../src/engine/types';
 import { Host } from '../src/net/host';
 import { getGame } from '../src/games';
@@ -142,6 +142,64 @@ describe('saving a game in its standard record', () => {
       host.close();
     });
 
+    it('writes a passed-out deal as its own board, with its own cards', () => {
+      const g = GAMES.bridge;
+      let s = g.setup(
+        ['N', 'E', 'S', 'W'].map((name) => ({ name, bot: true })),
+        11,
+        {},
+      );
+      const record = new GameRecord({ pbn: pbn as HandFormat<unknown> });
+      const ended = (x: typeof s) => ['roundOver', 'gameOver'].includes(x.phase);
+      record.note(s, false, () => []);
+      const first = s.players.map((p) => s.zones[`hand:${p.seat}`].cards.map((c) => c.id));
+      // everyone passes: the cards are dealt again at once
+      for (let i = 0; i < 4; i++) {
+        const next = structuredClone(s);
+        const seat = s.turn!;
+        g.apply(next, seat, { type: 'decline' });
+        s = next;
+        record.note(s, ended(s), () => [], { seat, action: { type: 'decline' } });
+      }
+      const second = s.players.map((p) => s.zones[`hand:${p.seat}`].cards.map((c) => c.id));
+      expect(second).not.toEqual(first);
+      // then the new deal is bid and played out
+      for (let i = 0; i < 2000 && !ended(s); i++) {
+        const next = structuredClone(s);
+        const sys = g.system?.(s);
+        if (sys) {
+          sys.run(next);
+          s = next;
+          record.note(s, ended(s), () => []);
+          continue;
+        }
+        const seat = s.players.find((p) => g.bot!(s, p.seat))!.seat;
+        const action = g.bot!(s, seat)!;
+        g.apply(next, seat, action);
+        s = next;
+        record.note(s, ended(s), () => [], { seat, action });
+      }
+      const text = record.write('pbn', EVERYONE, { names: ['N', 'E', 'S', 'W'], table: 'T' })!;
+      const boards = text.split('\r\n\r\n').filter((b) => b.includes('[Deal '));
+      expect(boards).toHaveLength(2);
+      const deal = (b: string, seat: number) => {
+        const [first, hands] = /\[Deal "([NESW]):(.*)"\]/.exec(b)!.slice(1);
+        const order = ['N', 'E', 'S', 'W'];
+        return hands.split(' ')[(seat - order.indexOf(first) + 4) % 4];
+      };
+      expect(deal(boards[0], 0)).toBe(handText(first[0]));
+      expect(boards[0]).toContain('[Contract "Pass"]');
+      expect(boards[0]).toMatch(/\[Auction "[NESW]"\]\r\nPass Pass Pass Pass/);
+      expect(deal(boards[1], 0)).toBe(handText(second[0]));
+      expect(boards[1]).not.toContain('[Contract "Pass"]');
+      // the spreadsheet too: two hands, each with the cards it was played with
+      const deals = toCsv(record, 0, ['N', 'E', 'S', 'W'])
+        .split('\r\n')
+        .filter((r) => /^\d+,,,Deal,/.test(r))
+        .map((r) => r.split(',')[4]);
+      expect(deals).toEqual([first[0].map(cardCode).join(' '), second[0].map(cardCode).join(' ')]);
+    });
+
     it('shows only the hands that player saw: theirs, dummy and the ones played out', () => {
       const host = table('bridge', 3);
       const dealt = host.state!.players.map((p) => host.state!.zones[`hand:${p.seat}`].cards.map((c) => c.id));
@@ -175,8 +233,6 @@ describe('saving a game in its standard record', () => {
         expect(h.spec_version).toBe('1.4.9');
         expect(h.game_type).toBe('Holdem');
         expect(h.currency).toBe('XPM');
-        expect(h.hero_player_id).toBe(0);
-        expect(h.players.find((p: { id: number }) => p.id === 0).name).toBe('Hána');
         const acts = h.rounds.flatMap((r: { street: string; actions: { action: string; player_id: number; cards?: string[]; amount: number }[] }) =>
           r.actions.map((a) => ({ ...a, street: r.street })),
         );
@@ -184,6 +240,15 @@ describe('saving a game in its standard record', () => {
         expect(acts[0].action).toBe('Post SB');
         expect(acts[1].action).toBe('Post BB');
         const dealt = acts.filter((a: { action: string }) => a.action === 'Dealt Cards');
+        // (the bots play with their own dice, so Hana may be knocked out: then she's no hero, and sees no cards)
+        const hana = h.players.find((p: { id: number }) => p.id === 0);
+        if (!hana) {
+          expect(h.hero_player_id).toBeUndefined();
+          expect(dealt).toEqual([]);
+          continue;
+        }
+        expect(hana.name).toBe('Hána');
+        expect(h.hero_player_id).toBe(0);
         expect(dealt).toHaveLength(1);
         expect(dealt[0].player_id).toBe(0);
         expect(dealt[0].cards).toHaveLength(2);

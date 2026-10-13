@@ -174,7 +174,8 @@ export function ohh(rules: PokerRules): HandFormat<OhhHand> {
               small_blind_amount: h.sb,
               big_blind_amount: h.bb,
               ante_amount: 0,
-              ...(seat >= 0 ? { hero_player_id: seat } : {}),
+              // (the player saving it, if they were dealt into this hand: not once knocked out)
+              ...(h.players.some((p) => p.seat === seat) ? { hero_player_id: seat } : {}),
               players: h.players.map((p) => ({ id: p.seat, seat: p.seat + 1, name: meta.names[p.seat] ?? '', starting_stack: p.stack })),
               rounds,
               pots: [{ number: 0, amount: h.pot, rake: 0, player_wins: h.wins.map((w) => ({ player_id: w.seat, win_amount: w.amount })) }],

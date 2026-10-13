@@ -10,6 +10,9 @@ check what happened:
 - **[PokerKit](https://pokerkit.readthedocs.io/)** (University of Toronto) replays every Hold'em
   hand (PHH) through its own rules. Every action has to be legal as written, and everyone has to
   finish with the chips we gave them: blinds, minimum raises, all-ins, side pots and showdowns.
+  One rule differs: when the big blind is all in for less than the blind, we (by the usual rule)
+  still have everyone call the full big blind, where PokerKit has them call what was put in. The
+  report counts those hands (`short_big_blind_hands_skipped`) instead of failing them.
 
 ```bash
 pip install -r tools/requirements.txt          # Python 3.9–3.13

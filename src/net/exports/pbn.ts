@@ -82,6 +82,9 @@ export const pbn: HandFormat<PbnHand> = {
   end(hand, last) {
     const d = last.data as TrickData;
     hand.calls = [...(d.calls ?? [])];
+    // passed out: the record ends just before the last pass (the cards were dealt again with it)
+    while (!d.bridge && hand.calls.length < 4 && hand.calls.every((c) => c.call === 'P'))
+      hand.calls.push({ seat: (hand.dealer + hand.calls.length) % 4, call: 'P' });
     hand.contract = d.bridge ?? null;
     hand.declarer = d.bridge ? (d.maker ?? null) : null;
     hand.dummy = d.dummy ?? null;

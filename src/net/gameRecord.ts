@@ -44,6 +44,16 @@ export class GameRecord {
    * or ending (`ended`, with the result lines).
    */
   note(s: GameState, ended: boolean, result: () => string[], move?: { seat: number; action: Action }) {
+    // dealt again although the hand never ended (a deal thrown in): that hand ends here, and the
+    // new deal is a hand of its own
+    if (this.open && this.prev && (s.deals ?? 0) !== (this.prev.deals ?? 0)) {
+      this.open.result = ['Thrown in: dealt again'];
+      this.open = null;
+      for (const f of this.formats) {
+        const h = f.hands[f.hands.length - 1];
+        if (h) f.format.end(h, this.prev);
+      }
+    }
     const opening = !this.open && !ended;
     if (opening) {
       this.open = { dealt: s.players.map((p) => (s.zones[`hand:${p.seat}`]?.cards ?? []).map((c) => c.id)), moves: [], result: [] };

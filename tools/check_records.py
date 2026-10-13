@@ -172,6 +172,7 @@ def check_poker(folder: str) -> dict:
     from pokerkit.notation import HandHistory, parse_action
 
     hands = 0
+    short_blinds = 0
     for path in sorted(glob.glob(f"{folder}/*.phh")):
         name = os.path.basename(path)
         with open(path, "rb") as f:
@@ -207,8 +208,15 @@ def check_poker(folder: str) -> dict:
                 fail(where, "PokerKit thinks the hand isn't over")
                 continue
             if list(state.stacks) != list(hh.finishing_stacks):
+                # a big blind all in for less than the blind: by the usual rule (ours) everyone still
+                # calls the full big blind; PokerKit has them call what the blind put in. Not a mistake
+                # on either side, so these hands are counted, not failed.
+                blinds = hh.blinds_or_straddles
+                if any(0 < hh.starting_stacks[k] < blinds[k] for k in range(min(len(blinds), len(hh.starting_stacks)))):
+                    short_blinds += 1
+                    continue
                 fail(where, f"chips at the end: ours {list(hh.finishing_stacks)}, PokerKit's {list(state.stacks)}")
-    result: dict = {"hands_checked": hands}
+    result: dict = {"hands_checked": hands, "short_big_blind_hands_skipped": short_blinds}
     summary = f"{folder}/holdem-hu.json"
     if os.path.exists(summary):
         with open(summary) as f:

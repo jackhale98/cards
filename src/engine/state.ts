@@ -61,6 +61,7 @@ export function cutForDeal(s: GameState<any>): number {
 export function resetDeck(s: GameState<any>, config: GameConfig) {
   for (const z of Object.values(s.zones)) z.cards = [];
   s.zones.deck.cards = shuffle(buildDeck(config.deck), s).map((id) => ({ id }));
+  s.deals = (s.deals ?? 0) + 1;
 }
 
 export function zone(s: GameState<any>, id: string): ZoneState {

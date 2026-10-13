@@ -65,6 +65,18 @@ describe('betting', () => {
     expect(chips).toEqual([90, 90, 90]);
   });
 
+  it('lets nobody raise once everyone else is all in: call or fold (as PokerKit agrees)', () => {
+    const c = bet.newBetting(3, [false, false, false]);
+    const stacks = [500, 60, 40];
+    c.minRaise = 10;
+    bet.act(c, stacks, 1, { type: 'allin' });
+    bet.act(c, stacks, 2, { type: 'allin' });
+    const o = bet.options(c, stacks, 0);
+    expect(o.canRaise).toBe(false);
+    expect(o.toCall).toBe(60);
+    expect(() => bet.act(c, stacks, 0, { type: 'raise', to: 150 })).toThrow();
+  });
+
   it('reopens action after a raise and enforces the minimum raise', () => {
     const chips = [100, 100];
     const b = bet.newBetting(2, [false, false]);

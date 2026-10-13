@@ -106,6 +106,12 @@ export interface GameState<D = unknown> {
   options: Record<string, number | boolean>;
   /** Counter for card keys (`CardRef.k`). */
   seq?: number;
+  /**
+   * How many times the cards have been dealt (bumped by `resetDeck`). A record of the game uses
+   * it to tell a fresh deal from more play: some deals are thrown in and dealt again straight
+   * away, without the hand ever ending (bridge when everyone passes, euchre when nobody orders).
+   */
+  deals?: number;
   /** Set when the game is finished. */
   winner?: number[];
   /** Host bookkeeping: this finished game has been added to the game night tally. */
