@@ -34,6 +34,13 @@
     'blackjack',
     'cheat',
     'go-fish',
+    'seven-card-stud',
+    'baccarat',
+    'pinochle',
+    'whist',
+    'hand-and-foot',
+    'kings-corners',
+    'palace',
   ]);
 
   // Suit shapes in a 100-unit box centred on the origin.
@@ -99,6 +106,25 @@
   {@render corner('J', k, INK)}
   <rect x="-4.5" y="-7.5" width="12" height="17" rx="1" fill="#e9c46a" fill-opacity="0.22" stroke={INK} stroke-width="0.6" />
   <text x="1.5" y="4" font-size="10" font-style="italic" font-weight="700" text-anchor="middle" fill={INK} font-family={SERIF}>J</text>
+{/snippet}
+
+<!-- Court card with its framed centre, for any rank. -->
+{#snippet court(rank: string, k: Suit, fill: string)}
+  {@render card()}
+  {@render corner(rank, k, fill)}
+  <rect x="-4.5" y="-7.5" width="12" height="17" rx="1" fill="#e9c46a" fill-opacity="0.22" stroke={fill} stroke-width="0.6" />
+  <text x="1.5" y="4" font-size="10" font-style="italic" font-weight="700" text-anchor="middle" {fill} font-family={SERIF}>{rank}</text>
+{/snippet}
+
+<!-- Small card face or back, `w` px wide, centred on the current origin. -->
+{#snippet smallFace(w: number)}{@render face((-w * 11) / 23.5, (-w * 15.5) / 23.5, w)}{/snippet}
+{#snippet smallBack(w: number)}{@render back((-w * 11) / 23.5, (-w * 15.5) / 23.5, w)}{/snippet}
+
+<!-- A gold score tag. -->
+{#snippet tag(x: number, y: number, w: number, label: string)}
+  <rect x={x + 1.5} y={y + 2} width={w} height="14" rx="4" fill="#000" opacity="0.3" />
+  <rect {x} {y} width={w} height="14" rx="4" fill="#e9c46a" />
+  <text x={x + w / 2} y={y + 10.5} font-size="10" font-weight="700" text-anchor="middle" fill="#2a1d05" font-family={SERIF}>{label}</text>
 {/snippet}
 
 {#snippet chip(cx: number, cy: number)}
@@ -277,6 +303,80 @@
         <polygon transform="translate(0.5 1.5) scale(1.05)" points={STAR} fill="#6b3fa0" />
         <text x="-7" y="-6" font-size="6" font-weight="700" text-anchor="middle" fill="#6b3fa0" font-family={SERIF}>JK</text>
       </g>
+    {:else if id === 'seven-card-stud'}
+      <!-- the stud row: two down, then sevens showing for everyone to read -->
+      {#each [12, 21] as x (x)}<g transform="translate({x} 27)">{@render smallBack(18)}</g>{/each}
+      {#each [[31, 'S', INK], [41, 'H', RED], [51, 'D', RED]] as [x, k, fill] (x)}
+        <g transform="translate({x} 28) scale(0.77)">
+          {@render card()}
+          {@render corner('7', k as Suit, fill as string)}
+          {@render suit(k as Suit, -4, -1, 11, fill as string)}
+        </g>
+      {/each}
+      {@render chip(32, 51)}
+    {:else if id === 'baccarat'}
+      <!-- the dealing shoe, with a natural nine sliding out of its sloped front -->
+      <path d="M8,52 L56,52 L56,20 L22,34 Q8,40 8,46Z" fill="#000" opacity="0.3" transform="translate(1.2 1.8)" />
+      <path d="M8,52 L56,52 L56,20 L22,34 Q8,40 8,46Z" fill="#6e1c27" />
+      <path d="M22,34 L56,20 L56,27 L26,39Z" fill="#932c39" />
+      <path d="M22,34 L56,20" stroke="#e9c46a" stroke-width="1.4" stroke-linecap="round" />
+      <rect x="40" y="38" width="10" height="6" rx="1.5" fill="#e9c46a" opacity="0.85" />
+      <g transform="translate(22 30) rotate(-22)">
+        {@render card()}
+        {@render corner('9', 'D', RED)}
+        {@render suit('D', -4, -2, 12, RED)}
+      </g>
+    {:else if id === 'pinochle'}
+      <!-- the pinochle itself: queen of spades and jack of diamonds -->
+      <g transform="translate(24 28) rotate(-10)">{@render court('Q', 'S', INK)}</g>
+      <g transform="translate(39 28) rotate(9)">{@render court('J', 'D', RED)}</g>
+      {@render tag(22, 46, 20, '40')}
+    {:else if id === 'whist'}
+      <!-- a trick in the middle: one card from each player -->
+      {#each [[18, 32, 90, 'D', RED], [46, 32, 90, 'H', RED], [32, 18, 0, 'S', INK], [32, 46, 0, 'C', INK]] as [x, y, r, k, fill] (k)}
+        <g transform="translate({x} {y}) rotate({r})">
+          {@render smallFace(16)}
+          <g transform="rotate({-Number(r)})">{@render suit(k as Suit, -5, -5, 10, fill as string)}</g>
+        </g>
+      {/each}
+    {:else if id === 'hand-and-foot'}
+      <!-- the hand in a fan, and the foot waiting in its pile -->
+      {#each [3, 2, 1] as k (k)}<g transform="translate({44 + k * 0.8} {34 + k * 1.2})">{@render smallBack(20)}</g>{/each}
+      <g transform="translate(44 34)">
+        {@render smallFace(20)}
+        <g fill="#7a4a2a">
+          <ellipse cx="0.5" cy="3" rx="4.2" ry="6.2" />
+          <circle cx="-3.2" cy="-5.2" r="1.7" />
+          <circle cx="-0.6" cy="-6.6" r="1.5" />
+          <circle cx="1.9" cy="-6.4" r="1.3" />
+          <circle cx="3.9" cy="-5.2" r="1.1" />
+          <circle cx="5.3" cy="-3.4" r="0.95" />
+        </g>
+      </g>
+      {#each [-22, -6, 10] as a (a)}
+        <g transform="translate(18 60) rotate({a}) translate(0 -22)">{@render smallBack(18)}</g>
+      {/each}
+    {:else if id === 'kings-corners'}
+      <!-- the draw pile in the middle, kings in the four corners -->
+      <g transform="translate(32 32)">{@render smallBack(17)}</g>
+      {#each [[16, 16, -45, 'H', RED], [48, 16, 45, 'S', INK], [48, 48, -45, 'D', RED], [16, 48, 45, 'C', INK]] as [x, y, r, k, fill] (k)}
+        <g transform="translate({x} {y}) rotate({r})">
+          {@render smallFace(15)}
+          <text x="0" y="3.6" font-size="10" font-weight="700" text-anchor="middle" fill={String(fill)} font-family={SERIF}>K</text>
+          {@render suit(k as Suit, -2, 4.6, 4, fill as string)}
+        </g>
+      {/each}
+    {:else if id === 'palace'}
+      <!-- the palace: three face-down cards, three face-up on top, and a flag flying -->
+      <path d="M32,6 L32,22" stroke="#7a4a2a" stroke-width="1.4" stroke-linecap="round" />
+      <path d="M32.5,6.5 L43,9.5 L32.5,12.5Z" fill={RED} />
+      {#each [14, 32, 50] as x (x)}<g transform="translate({x} 46)">{@render smallBack(17)}</g>{/each}
+      {#each [[14, 'H', RED, -4], [32, 'S', INK, 0], [50, 'D', RED, 4]] as [x, k, fill, r] (x)}
+        <g transform="translate({x} 36) rotate({r})">
+          {@render smallFace(17)}
+          {@render suit(k as Suit, -5, -5, 10, fill as string)}
+        </g>
+      {/each}
     {:else if id === 'crazy-eights'}
       <g transform="translate(32 32) rotate(-6)">
         {@render face(-15, -21.4, 32)}
