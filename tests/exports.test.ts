@@ -12,11 +12,19 @@ import { getGame } from '../src/games';
 import { GAMES } from './games';
 import { Bus, MemTransport } from './netHarness';
 
-/** A game with bots in the other seats; Hana's moves made by a bot too, until `hands` hands are done. */
-function play(host: Host, game: string, hands: number, people: Record<string, number> = { h: 0 }) {
+/**
+ * A game with bots in the other seats; Hana's moves made by a bot too, until `hands` hands are
+ * done (or nobody here can deal the next: Hana knocked out). Returns how many hands were played.
+ */
+function play(host: Host, game: string, hands: number, people: Record<string, number> = { h: 0 }): number {
   let done = 0;
+  let wasDone = false;
   for (let i = 0; i < 20_000 && done < hands; i++) {
-    if (host.viewFor('h').handDone) done++;
+    const over = !!host.viewFor('h').handDone;
+    // (each hand counted once, as it ends)
+    if (over && !wasDone) done++;
+    wasDone = over;
+    if (over && !Object.keys(people).some((cid) => host.viewFor(cid).actions.some((a) => a.type === 'next'))) break;
     for (const [cid, seat] of Object.entries(people)) {
       const v = host.viewFor(cid);
       if (v.actions.some((a) => a.type === 'next')) host.act(cid, { type: 'next' });
@@ -27,6 +35,7 @@ function play(host: Host, game: string, hands: number, people: Record<string, nu
     }
     vi.advanceTimersByTime(1500);
   }
+  return done;
 }
 
 function table(game: string, bots: number) {
@@ -228,10 +237,12 @@ describe('saving a game in its standard record', () => {
   describe("Hold'em, as Open Hand History", () => {
     it('writes one JSON object a hand, with only your own cards and those shown down', () => {
       const host = table('holdem', 3);
-      play(host, 'holdem', 4);
+      // (the bots play with their own dice: Hana may be knocked out before the fourth hand)
+      const played = play(host, 'holdem', 4);
       const text = host.exportFile('h', 'ohh')!;
       const hands = text.split('\n\n').map((t) => JSON.parse(t).ohh);
-      expect(hands.length).toBeGreaterThanOrEqual(3);
+      expect(played).toBeGreaterThanOrEqual(1);
+      expect(hands.length).toBe(played);
       for (const h of hands) {
         expect(h.spec_version).toBe('1.4.9');
         expect(h.game_type).toBe('Holdem');
