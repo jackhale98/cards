@@ -4,8 +4,14 @@
 export type PassDirection = 'left' | 'right' | 'across' | 'hold' | 'left2' | 'right2';
 
 /** How a direction reads in a sentence ("Pass 3 cards two to the left"). */
-export const PASS_WORDS: Record<PassDirection, string> = { left: 'left', right: 'right', across: 'across', hold: 'nowhere', left2: 'two to the left', right2: 'two to the right' };
-
+export const PASS_WORDS: Record<PassDirection, string> = {
+  left: 'left',
+  right: 'right',
+  across: 'across',
+  hold: 'nowhere',
+  left2: 'two to the left',
+  right2: 'two to the right',
+};
 
 /** Seat that receives cards from `seat`. "Left" is the next seat in turn order. */
 export function passTarget(seat: number, dir: PassDirection, n: number): number {

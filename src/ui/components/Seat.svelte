@@ -29,14 +29,36 @@
     /** Label the seat whose move it is (table screen). */
     turnLabel?: boolean;
   }
-  let { player, info, cards, turn, connected, showChips, compact = false, avatar, relation = null, said = null, ping = null, scale = 1, turnLabel = false }: Props = $props();
+  let {
+    player,
+    info,
+    cards,
+    turn,
+    connected,
+    showChips,
+    compact = false,
+    avatar,
+    relation = null,
+    said = null,
+    ping = null,
+    scale = 1,
+    turnLabel = false,
+  }: Props = $props();
   const RELATION_LABEL: Record<Relation, string> = { left: '◂ your left', right: 'your right ▸', across: 'across' };
   const shown = $derived(cards.filter((c) => !isHidden(c.id)));
   // a crowded row shows face-down cards as one card and a count, leaving room for names
   const backs = $derived(Math.min(cards.length - shown.length, compact ? 1 : 4));
 </script>
 
-<div class="seat" data-seat={player.seat} class:turn class:out={info?.out} class:offline={!connected} class:compact style:--c={avatar?.color ?? seatColor(player.seat)}>
+<div
+  class="seat"
+  data-seat={player.seat}
+  class:turn
+  class:out={info?.out}
+  class:offline={!connected}
+  class:compact
+  style:--c={avatar?.color ?? seatColor(player.seat)}
+>
   {#if relation}<span class="rel rel-{relation}">{RELATION_LABEL[relation]}</span>{/if}
   {#if turnLabel && turn}<span class="rel now">to play</span>{/if}
   {#if said}
@@ -49,7 +71,10 @@
     {#if info?.tag}<span class="tag">{info.tag}</span>{/if}
   </div>
   <div class="meta">
-    <div class="name">{player.name}{#if player.bot}<span class="bot" title="Bot">◆</span>{/if} <PingDot ms={ping} /></div>
+    <div class="name">
+      {player.name}{#if player.bot}<span class="bot" title="Bot">◆</span>{/if}
+      <PingDot ms={ping} />
+    </div>
     <div class="sub">
       {#if showChips}<span class="chips"><span class="chip-dot"></span>{player.chips.toLocaleString()}</span>{/if}
       <!-- (a crowded poker row drops the badge: each action also pops up as a bubble) -->

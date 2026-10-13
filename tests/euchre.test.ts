@@ -93,7 +93,9 @@ describe('euchre', () => {
     expect(s.turn).toBe(s.dealer);
     expect(() => euchre.apply(s, s.dealer, { type: 'decline' })).toThrow(/stuck/);
     const naming = euchre.actions(s, s.dealer).find((a) => a.type === 'name')!;
-    expect(naming.choose!.options.map((o) => o.label).join()).not.toContain(upSuit === 'S' ? 'spades' : upSuit === 'H' ? 'hearts' : upSuit === 'D' ? 'diamonds' : 'clubs');
+    expect(naming.choose!.options.map((o) => o.label).join()).not.toContain(
+      upSuit === 'S' ? 'spades' : upSuit === 'H' ? 'hearts' : upSuit === 'D' ? 'diamonds' : 'clubs',
+    );
     euchre.apply(s, s.dealer, { type: 'name', amount: naming.choose!.options[0].value });
     expect(s.phase).toBe('play');
   });

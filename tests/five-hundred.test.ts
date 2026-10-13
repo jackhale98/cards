@@ -11,7 +11,10 @@ const cardsIn = (s: GameState) => Object.values(s.zones).reduce((n, z) => n + z.
 
 /** Find a bid's option value from the "Bid" action. */
 function bidValue(s: GameState<TrickData>, seat: number, label: string) {
-  const opt = g.actions(s, seat).find((a) => a.type === 'bid500')!.choose!.options.find((o) => o.label.startsWith(label));
+  const opt = g
+    .actions(s, seat)
+    .find((a) => a.type === 'bid500')!
+    .choose!.options.find((o) => o.label.startsWith(label));
   return opt!.value;
 }
 
@@ -36,7 +39,13 @@ describe('500', () => {
     const first = s.turn!;
     g.apply(s, first, { type: 'bid500', amount: bidValue(s, first, '7\u2009♠') });
     const second = s.turn!;
-    expect(g.actions(s, second).find((a) => a.type === 'bid500')!.choose!.options.filter((o) => !o.disabled).every((o) => Number(o.label.split('· ')[1]) > 140)).toBe(true);
+    expect(
+      g
+        .actions(s, second)
+        .find((a) => a.type === 'bid500')!
+        .choose!.options.filter((o) => !o.disabled)
+        .every((o) => Number(o.label.split('· ')[1]) > 140),
+    ).toBe(true);
     g.apply(s, second, { type: 'decline' });
     g.apply(s, s.turn!, { type: 'decline' });
     g.apply(s, s.turn!, { type: 'decline' });
@@ -141,7 +150,10 @@ describe('500', () => {
     g.apply(s, s.turn!, { type: 'misere' });
     expect(s.data.contract!.misere).toBe('closed');
     // only eights and up (and open misère) beat it
-    const grid = g.actions(s, s.turn!).find((a) => a.type === 'bid500')!.choose!.options.filter((o) => !o.disabled);
+    const grid = g
+      .actions(s, s.turn!)
+      .find((a) => a.type === 'bid500')!
+      .choose!.options.filter((o) => !o.disabled);
     expect(grid.every((o) => o.label.startsWith('8') || o.label.startsWith('9') || o.label.startsWith('10'))).toBe(true);
   });
 
@@ -175,7 +187,15 @@ describe('500', () => {
   it('misère: a player who cannot follow must play the joker', () => {
     const s = g.setup(bots, 4, {});
     for (const z of Object.values(s.zones)) z.cards = [];
-    Object.assign(s.data, { trump: null, maker: 0, contract: { tricks: 0, suit: 'NT', value: 250, misere: 'closed' }, sittingOut: 2, trickNo: 0, handSize: 10, tricks: [0, 0, 0, 0] });
+    Object.assign(s.data, {
+      trump: null,
+      maker: 0,
+      contract: { tricks: 0, suit: 'NT', value: 250, misere: 'closed' },
+      sittingOut: 2,
+      trickNo: 0,
+      handSize: 10,
+      tricks: [0, 0, 0, 0],
+    });
     s.zones['hand:0'].cards = [{ id: '5H' }];
     s.zones['hand:1'].cards = [{ id: 'X1' }, { id: 'KC' }];
     s.phase = 'play';

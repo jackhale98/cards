@@ -3,7 +3,10 @@ import { categoryOf, GAME_LIST, GAMES, misfit, playersText } from './games';
 
 describe('game picker', () => {
   it('sorts every game into a section', () => {
-    const by = (c: string) => GAME_LIST.filter((g) => categoryOf(g) === c).map((g) => g.config.id).sort();
+    const by = (c: string) =>
+      GAME_LIST.filter((g) => categoryOf(g) === c)
+        .map((g) => g.config.id)
+        .sort();
     expect(by('Poker')).toEqual(['five-card-draw', 'holdem', 'omaha', 'seven-card-stud']);
     expect(by('Trick-taking')).toEqual(['bridge', 'euchre', 'five-hundred', 'hearts', 'oh-hell', 'pinochle', 'spades', 'whist']);
     expect(by('Rummy')).toEqual(['canasta', 'gin-rummy', 'hand-and-foot', 'rummy-500']);

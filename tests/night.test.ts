@@ -28,8 +28,25 @@ describe('game night', () => {
   });
 
   it('adds up the night, best first', () => {
-    const g = (results: [string, number, number][]) => ({ game: 'x', name: 'X', at: 1, results: results.map(([id, place, points]) => ({ id, name: id.toUpperCase(), place, points })) });
-    const rows = nightTotals({ games: [g([['a', 0, 3], ['b', 1, 0]]), g([['a', 1, 0], ['b', 0, 3], ['c', 1, 0]])] });
+    const g = (results: [string, number, number][]) => ({
+      game: 'x',
+      name: 'X',
+      at: 1,
+      results: results.map(([id, place, points]) => ({ id, name: id.toUpperCase(), place, points })),
+    });
+    const rows = nightTotals({
+      games: [
+        g([
+          ['a', 0, 3],
+          ['b', 1, 0],
+        ]),
+        g([
+          ['a', 1, 0],
+          ['b', 0, 3],
+          ['c', 1, 0],
+        ]),
+      ],
+    });
     expect(rows.map((r) => [r.id, r.points, r.wins, r.played, r.rank])).toEqual([
       ['a', 3, 1, 2, 0],
       ['b', 3, 1, 2, 0],
@@ -103,7 +120,11 @@ describe('game night', () => {
     for (const id of ['hearts', 'cribbage', 'holdem', 'gin-rummy', 'bridge']) {
       const g = GAMES[id];
       const n = Math.max(g.config.players.min, 2);
-      const s = g.setup(Array.from({ length: n }, (_, i) => ({ name: `P${i}`, bot: true })), 1, {});
+      const s = g.setup(
+        Array.from({ length: n }, (_, i) => ({ name: `P${i}`, bot: true })),
+        1,
+        {},
+      );
       expect(g.standings!(s)).toHaveLength(n);
     }
   });

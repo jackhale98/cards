@@ -4,13 +4,7 @@ import type { CardRef, DealStep, GameConfig, GameState, SetupPlayer, ZoneState }
 import { assertRule } from './types';
 
 /** Build the initial state for a game from its config: zones, players and a shuffled deck in `deck`. */
-export function createState<D>(
-  config: GameConfig,
-  players: SetupPlayer[],
-  seed: Seed,
-  options: Record<string, number | boolean>,
-  data: D,
-): GameState<D> {
+export function createState<D>(config: GameConfig, players: SetupPlayer[], seed: Seed, options: Record<string, number | boolean>, data: D): GameState<D> {
   const zones: Record<string, ZoneState> = {};
   for (const z of config.zones) {
     const make = (id: string, owner?: number): ZoneState => ({
@@ -79,13 +73,7 @@ export const hand = (s: GameState<any>, seat: number) => zone(s, `hand:${seat}`)
 export const ids = (z: ZoneState) => z.cards.map((c) => c.id);
 
 /** Move specific cards (by id) between zones. */
-export function moveCards(
-  s: GameState<any>,
-  from: string,
-  to: string,
-  cardIds: string[],
-  extra: Partial<CardRef> = {},
-) {
+export function moveCards(s: GameState<any>, from: string, to: string, cardIds: string[], extra: Partial<CardRef> = {}) {
   const src = zone(s, from);
   const dst = zone(s, to);
   for (const id of cardIds) {
@@ -102,7 +90,13 @@ export function moveTop(s: GameState<any>, from: string, to: string, n: number, 
   if (n <= 0) return; // (slice(-0) would be the whole zone)
   const src = zone(s, from);
   const top = src.cards.slice(-n).reverse();
-  moveCards(s, from, to, top.map((c) => c.id), extra);
+  moveCards(
+    s,
+    from,
+    to,
+    top.map((c) => c.id),
+    extra,
+  );
 }
 
 /** Find which zone currently holds a card. */
@@ -149,14 +143,7 @@ export function sortHand(s: GameState<any>, seat: number, opts: Parameters<typeo
 }
 
 /** Record what happened. Pass `seat` (and a `short` bubble label) for player actions. */
-export function log(
-  s: GameState<any>,
-  text: string,
-  seat?: number,
-  short?: string,
-  to?: number,
-  zones?: { from?: string; to?: string },
-) {
+export function log(s: GameState<any>, text: string, seat?: number, short?: string, to?: number, zones?: { from?: string; to?: string }) {
   s.log.push({ t: Date.now(), text, seat, short, to, fromZone: zones?.from, toZone: zones?.to });
   if (s.log.length > 40) s.log.splice(0, s.log.length - 40);
 }

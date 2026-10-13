@@ -30,7 +30,14 @@ describe('crazy eights (pagat)', () => {
   });
 
   it('match rank or suit; an eight goes on anything and calls the suit', () => {
-    const s = rig([['9H', 'KC', '8S', '4D'], ['2C', '3C', 'QC'], ['5S', '6S']], 'KH');
+    const s = rig(
+      [
+        ['9H', 'KC', '8S', '4D'],
+        ['2C', '3C', 'QC'],
+        ['5S', '6S'],
+      ],
+      'KH',
+    );
     const play = g.actions(s, 0).find((a) => a.type === 'play')!;
     expect(play.select!.cards.sort()).toEqual(['9H', 'KC'].sort());
     expect(g.actions(s, 0).find((a) => a.type === 'eight')!.select!.cards).toEqual(['8S']);
@@ -39,7 +46,12 @@ describe('crazy eights (pagat)', () => {
     g.apply(s, 0, { type: 'eight', cards: ['8S'], amount: 3 }); // clubs
     expect(s.data.suit).toBe('C');
     // after an eight: the called suit or another eight (not the eight's rank-mates otherwise)
-    expect(g.actions(s, 1).find((a) => a.type === 'play')!.select!.cards.sort()).toEqual(['2C', '3C', 'QC'].sort());
+    expect(
+      g
+        .actions(s, 1)
+        .find((a) => a.type === 'play')!
+        .select!.cards.sort(),
+    ).toEqual(['2C', '3C', 'QC'].sort());
   });
 
   it('you may draw instead of playing; drawing ends your turn', () => {
@@ -51,14 +63,32 @@ describe('crazy eights (pagat)', () => {
   });
 
   it('say “last card” before the next player moves, or draw two', () => {
-    const s = rig([['9H', 'KH'], ['2H', '3C', '4C'], ['5S', '6S']], 'QH', undefined, { specials: false });
+    const s = rig(
+      [
+        ['9H', 'KH'],
+        ['2H', '3C', '4C'],
+        ['5S', '6S'],
+      ],
+      'QH',
+      undefined,
+      { specials: false },
+    );
     g.apply(s, 0, { type: 'play', cards: ['9H'] });
     expect(s.data.unannounced).toBe(0);
     expect(types(s, 0)).toEqual(['lastCard']);
     g.apply(s, 1, { type: 'play', cards: ['2H'] }); // too late
     expect(ids(s, 'hand:0')).toHaveLength(3);
 
-    const t = rig([['9H', 'KH'], ['2H', '3C', '4C'], ['5S', '6S']], 'QH', undefined, { specials: false });
+    const t = rig(
+      [
+        ['9H', 'KH'],
+        ['2H', '3C', '4C'],
+        ['5S', '6S'],
+      ],
+      'QH',
+      undefined,
+      { specials: false },
+    );
     expect(types(t, 0)).toContain('lastCard'); // can say it before playing
     g.apply(t, 0, { type: 'lastCard' });
     g.apply(t, 0, { type: 'play', cards: ['9H'] });
@@ -77,7 +107,14 @@ describe('crazy eights (pagat)', () => {
     g.apply(a, 0, { type: 'play', cards: ['AH'] });
     expect(a.turn).toBe(3);
 
-    const two = rig([['2H', '3S', '4S'], ['2C', '8C', '5D'], ['9D', '8D', 'KD']], '9H');
+    const two = rig(
+      [
+        ['2H', '3S', '4S'],
+        ['2C', '8C', '5D'],
+        ['9D', '8D', 'KD'],
+      ],
+      '9H',
+    );
     g.apply(two, 0, { type: 'play', cards: ['2H'] });
     // only a two will do (not even an eight)
     expect(g.actions(two, 1).find((x) => x.type === 'play')!.select!.cards).toEqual(['2C']);
@@ -123,7 +160,11 @@ describe('crazy eights (pagat)', () => {
 
   it('bots play whole games to the target', () => {
     for (const n of [2, 4, 8]) {
-      const s = g.setup(Array.from({ length: n }, (_, i) => ({ name: `B${i}`, bot: true })), n, {});
+      const s = g.setup(
+        Array.from({ length: n }, (_, i) => ({ name: `B${i}`, bot: true })),
+        n,
+        {},
+      );
       for (let i = 0; i < 50000 && s.phase !== 'gameOver'; i++) {
         if (s.phase === 'handOver') {
           expect(cardsIn(s)).toBe(n >= 6 ? 104 : 52);

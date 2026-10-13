@@ -14,9 +14,7 @@
     { "id": "books", "perPlayer": true, "label": "Books", "visibility": "all", "layout": "spread", "area": "strip", "hideEmpty": true, "scale": 0.62 }
   ],
   "rules": { "family": "gofish" },
-  "options": [
-    { "id": "allBooks", "label": "Play until every book is made", "type": "boolean", "default": false }
-  ],
+  "options": [{ "id": "allBooks", "label": "Play until every book is made", "type": "boolean", "default": false }],
   "rulesSummary": [
     "Five cards each (seven with two players); the rest make the pond.",
     "On your turn, pick a card and ask another player for that rank. If they have any, they hand them all over and you ask again.",

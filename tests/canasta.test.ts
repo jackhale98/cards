@@ -93,7 +93,15 @@ describe('canasta play', () => {
       const t = rig(['QS', 'QH', 'QD', '4C'], ['8C'], { scores: [-100, 0] });
       g.apply(t, 0, { type: 'draw' });
       // melding all but one card would leave nothing to keep after discarding
-      expect(() => g.apply(t, 0, { type: 'meld', cards: ['QS', 'QH', 'QD', '4C'].slice(0, 3).concat(t.data.received[0]).filter((c) => c !== '4C') })).toThrow();
+      expect(() =>
+        g.apply(t, 0, {
+          type: 'meld',
+          cards: ['QS', 'QH', 'QD', '4C']
+            .slice(0, 3)
+            .concat(t.data.received[0])
+            .filter((c) => c !== '4C'),
+        }),
+      ).toThrow();
       t.zones['hand:0'].cards = [{ id: '4C' }];
       expect(() => g.apply(t, 0, { type: 'discard', cards: ['4C'] })).toThrow(/canasta to go out/);
     }
@@ -150,14 +158,27 @@ describe('canasta (pagat audit)', () => {
     for (let i = 1; i < n; i++) s.zones[`hand:${i}`].cards = ['4S', '9D', 'JC'].map((id) => ({ id: `${id}#2` }));
     s.zones.discard.cards = pile.map((id) => ({ id, up: true }));
     s.zones.deck.cards = stock.map((id) => ({ id }));
-    Object.assign(s.data, { melds: [], red3: [[], []], frozen: false, scores: [0, 0], melded: s.players.map(() => false), turnMelded: false, ask: null, turnStartRanks: (opts.melds ?? []).filter((m) => m.team === 0).map((m) => m.rank), ...opts });
+    Object.assign(s.data, {
+      melds: [],
+      red3: [[], []],
+      frozen: false,
+      scores: [0, 0],
+      melded: s.players.map(() => false),
+      turnMelded: false,
+      ask: null,
+      turnStartRanks: (opts.melds ?? []).filter((m) => m.team === 0).map((m) => m.rank),
+      ...opts,
+    });
     s.phase = 'draw';
     s.turn = 0;
     return s;
   }
 
   it('wild cards alone can be added to a meld the side already has', () => {
-    const s = rig(['2H', 'X1#1', '9C', '9D'], ['8C'], { melds: [meld(0, 13, ['KS', 'KH', 'KD']), meld(0, 9, ['9S', '9H', '2C'])], melded: [true, false, true, false] });
+    const s = rig(['2H', 'X1#1', '9C', '9D'], ['8C'], {
+      melds: [meld(0, 13, ['KS', 'KH', 'KD']), meld(0, 9, ['9S', '9H', '2C'])],
+      melded: [true, false, true, false],
+    });
     g.apply(s, 0, { type: 'draw' });
     const add = g.actions(s, 0).find((a) => a.type === 'addWild')!;
     expect(add.choose!.options.map((o) => o.value).sort((a, b) => a - b)).toEqual([9, 13]);
@@ -230,7 +251,12 @@ describe('canasta (pagat audit)', () => {
     g.apply(s, 0, { type: 'discard', cards: ['4D'] });
     expect(s.data.result!.lines[0]).toMatch(/goes out concealed/);
 
-    const p = rig(['5C', '5D', '5H', '5S', '5C#2', '5D#2', '2H', '9C'], ['8C'], { melds: [meld(0, 9, ['9S', '9H', '9D'])], melded: [false, false, true, false] }, ['4D']);
+    const p = rig(
+      ['5C', '5D', '5H', '5S', '5C#2', '5D#2', '2H', '9C'],
+      ['8C'],
+      { melds: [meld(0, 9, ['9S', '9H', '9D'])], melded: [false, false, true, false] },
+      ['4D'],
+    );
     g.apply(p, 0, { type: 'draw' });
     g.apply(p, 0, { type: 'meld', cards: ['5C', '5D', '5H', '5S', '5C#2', '5D#2', '2H', '9C'] });
     g.apply(p, 0, { type: 'discard', cards: ['4D'] });

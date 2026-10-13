@@ -8,7 +8,7 @@ export function keepAwake(): () => void {
   let done = false;
   const get = async () => {
     try {
-      const got = await (navigator as unknown as { wakeLock?: { request: (t: 'screen') => Promise<typeof lock> } }).wakeLock?.request('screen') ?? null;
+      const got = (await (navigator as unknown as { wakeLock?: { request: (t: 'screen') => Promise<typeof lock> } }).wakeLock?.request('screen')) ?? null;
       // cleaned up while the request was pending: hand it straight back
       if (done) void got?.release?.();
       else lock = got;

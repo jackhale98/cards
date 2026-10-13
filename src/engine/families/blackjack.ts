@@ -366,7 +366,10 @@ export function blackjackFamily(config: GameConfig): GameModule<BlackjackData> {
         case 'bet': {
           assertRule(s.phase === 'bet' && d.bets[seat] === null, 'Not betting now');
           const amount = Math.floor(a.amount ?? 0);
-          assertRule(amount >= minBet(s) && amount <= Math.min(maxBet(s), s.players[seat].chips), `Bet ${minBet(s)} to ${Math.min(maxBet(s), s.players[seat].chips)}`);
+          assertRule(
+            amount >= minBet(s) && amount <= Math.min(maxBet(s), s.players[seat].chips),
+            `Bet ${minBet(s)} to ${Math.min(maxBet(s), s.players[seat].chips)}`,
+          );
           d.bets[seat] = amount;
           log(s, `${who} bets ${amount}`, seat, `Bet ${amount}`);
           if (d.bets.every((b) => b !== null)) {
@@ -463,7 +466,8 @@ export function blackjackFamily(config: GameConfig): GameModule<BlackjackData> {
       const upTotal = dealer.length ? (zone(s, 'dealer').cards.every((c) => c.up) ? handTotal(dealer).total : value(dealer[0])) : 0;
       let headline: string;
       if (s.phase === 'bet') headline = d.bets[viewer] === null ? `Round ${d.round} of ${rounds(s)} · place your bet` : 'Waiting for bets…';
-      else if (s.phase === 'insurance') headline = d.insurance[viewer] === null && inRound(s, viewer) ? 'The dealer shows an ace — insurance?' : 'Waiting on insurance…';
+      else if (s.phase === 'insurance')
+        headline = d.insurance[viewer] === null && inRound(s, viewer) ? 'The dealer shows an ace — insurance?' : 'Waiting on insurance…';
       else if (s.phase === 'play') {
         const h = current(s)!;
         const many = s.turn != null && d.hands[s.turn].length > 1 ? ` (hand ${d.active + 1})` : '';
@@ -475,7 +479,10 @@ export function blackjackFamily(config: GameConfig): GameModule<BlackjackData> {
         if (!inRound(s, i)) return 'Out';
         return d.hands[i].map((h) => (h.result ? `${h.result} · ${h.bet}` : `${handTotal(h.cards).total} on ${h.bet}`)).join(' | ');
       };
-      const mine = viewer >= 0 && inRound(s, viewer) ? d.hands[viewer].map((h) => `${handTotal(h.cards).soft && handTotal(h.cards).total < 21 ? 'soft ' : ''}${handTotal(h.cards).total}`).join(' · ') : undefined;
+      const mine =
+        viewer >= 0 && inRound(s, viewer)
+          ? d.hands[viewer].map((h) => `${handTotal(h.cards).soft && handTotal(h.cards).total < 21 ? 'soft ' : ''}${handTotal(h.cards).total}`).join(' · ')
+          : undefined;
       return {
         headline,
         hint: mine,

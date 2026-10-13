@@ -4,7 +4,15 @@ import type { Transport } from '../src/net/transport';
 import type { SlapData } from '../src/engine/families/slap';
 import type { GameState } from '../src/engine/types';
 
-const quiet: Transport = { kind: 'memory', selfId: 'host-peer', onMessage: () => {}, onPeerJoin: () => {}, onPeerLeave: () => {}, send: () => {}, leave: () => {} };
+const quiet: Transport = {
+  kind: 'memory',
+  selfId: 'host-peer',
+  onMessage: () => {},
+  onPeerJoin: () => {},
+  onPeerLeave: () => {},
+  send: () => {},
+  leave: () => {},
+};
 
 /** A host (seat 0, a person) and bots, playing a real-time game with the clock under our control. */
 function game(id: string, bots: number) {

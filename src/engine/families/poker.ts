@@ -205,7 +205,9 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
   function studFirst(s: S): number | null {
     const d = s.data;
     const n = s.players.length;
-    const order = bet.live(d.b).sort((a, b) => showingScore(upCards(s, b)) - showingScore(upCards(s, a)) || ((a - d.button - 1 + n) % n) - ((b - d.button - 1 + n) % n));
+    const order = bet
+      .live(d.b)
+      .sort((a, b) => showingScore(upCards(s, b)) - showingScore(upCards(s, a)) || ((a - d.button - 1 + n) % n) - ((b - d.button - 1 + n) % n));
     const first = order[0];
     if (first == null) return null;
     return bet.canAct(d.b, first) ? first : nextActor(s, first);
@@ -360,7 +362,9 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
         winners.add(w);
       }
       const label = pots.length > 1 ? (pi === 0 ? 'main pot' : `side pot ${pi}`) : 'the pot';
-      lines.push(`${ordered.map((w) => name(s, w)).join(' & ')} ${ordered.length > 1 ? 'split' : 'wins'} ${label} (${pot.amount}) with ${values.get(ordered[0])!.name.toLowerCase()}`);
+      lines.push(
+        `${ordered.map((w) => name(s, w)).join(' & ')} ${ordered.length > 1 ? 'split' : 'wins'} ${label} (${pot.amount}) with ${values.get(ordered[0])!.name.toLowerCase()}`,
+      );
     });
     d.b.committed.fill(0);
     d.b.bets.fill(0);
@@ -393,7 +397,10 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
       // (stud: the smallest bet; the bring-in is half of it)
       const studAnte = stud ? Number(options.ante ?? config.chips!.ante ?? Math.max(1, Math.floor(bb / 5))) : 0;
       const s = createState<PokerData>(config, players, seed, options, {
-        b: bet.newBetting(players.length, players.map(() => false)),
+        b: bet.newBetting(
+          players.length,
+          players.map(() => false),
+        ),
         street: 0,
         showdown: false,
         button: 0,
@@ -462,7 +469,11 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
         const own = ids(hand(s, seat));
         const max = drawLimit(s, seat);
         assertRule(cards.length <= max && new Set(cards).size === cards.length && cards.every((c) => own.includes(c)), `Discard up to ${max} cards`);
-        if (max > (draw?.max ?? 3) && cards.length === max) assertRule(own.some((c) => parseCard(c).rank === 14 && !cards.includes(c)), 'Drawing four means keeping an ace');
+        if (max > (draw?.max ?? 3) && cards.length === max)
+          assertRule(
+            own.some((c) => parseCard(c).rank === 14 && !cards.includes(c)),
+            'Drawing four means keeping an ace',
+          );
         moveCards(s, `hand:${seat}`, 'muck', cards);
         d.discards!.push(...cards);
         // short of cards: the discards so far become a new stock
@@ -603,10 +614,7 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
           tag: i === d.button ? 'D' : undefined,
         })),
         hint: viewer >= 0 ? handName(viewer) : undefined,
-        banner:
-          s.phase === 'gameOver'
-            ? { title: `${s.winner!.map((w) => name(s, w)).join(' & ')} wins it all!`, lines: d.result?.lines ?? [] }
-            : undefined,
+        banner: s.phase === 'gameOver' ? { title: `${s.winner!.map((w) => name(s, w)).join(' & ')} wins it all!`, lines: d.result?.lines ?? [] } : undefined,
       };
     },
   };
@@ -778,7 +786,10 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
     if (draw) {
       const v = eval5(cards);
       const hi = Math.max(...cards.map((c) => parseCard(c).rank));
-      return Math.min(1, v.category === 0 ? hi / 40 : v.category === 1 ? 0.35 + v.score / eval5(['AS', 'AH', 'KC', 'QD', 'JC']).score * 0.2 : 0.55 + v.category * 0.07);
+      return Math.min(
+        1,
+        v.category === 0 ? hi / 40 : v.category === 1 ? 0.35 + (v.score / eval5(['AS', 'AH', 'KC', 'QD', 'JC']).score) * 0.2 : 0.55 + v.category * 0.07,
+      );
     }
     if (board.length === 0) {
       const [a, b] = cards.map(parseCard).sort((x, y) => y.rank - x.rank);

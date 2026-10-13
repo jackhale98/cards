@@ -107,7 +107,10 @@ describe('cribbage game', () => {
     s.zones['hand:0'].cards = ['5H', 'KC', '9D', '2S'].map((id) => ({ id }));
     s.zones['hand:1'].cards = ['TS', '5C', 'QD', '3H'].map((id) => ({ id }));
     s.zones.starter.cards = [{ id: '4D', up: true }];
-    s.data.kept = [['5H', 'KC', '9D', '2S'], ['TS', '5C', 'QD', '3H']];
+    s.data.kept = [
+      ['5H', 'KC', '9D', '2S'],
+      ['TS', '5C', 'QD', '3H'],
+    ];
     Object.assign(s.data, { count: 0, goes: [false, false], lastPlayer: null });
     s.phase = 'peg';
     s.turn = 0;
@@ -143,11 +146,12 @@ describe('cribbage game', () => {
     s.players.forEach((_, i) => crib.apply(s, i, { type: 'crib', cards: s.zones[`hand:${i}`].cards.slice(0, 2).map((c) => c.id) }));
     expect(s.phase).toBe('cut');
     expect(s.turn).toBe(0); // pone cuts
-    for (const c of deck) if (c.id.startsWith('J')) {
-      deck.splice(deck.indexOf(c), 1);
-      deck.splice(Math.floor(deck.length / 2), 0, c);
-      break;
-    }
+    for (const c of deck)
+      if (c.id.startsWith('J')) {
+        deck.splice(deck.indexOf(c), 1);
+        deck.splice(Math.floor(deck.length / 2), 0, c);
+        break;
+      }
     // make every remaining deck card the jack position-independent: replace the deck with jacks first
     s.zones.deck.cards = s.zones.deck.cards.filter((c) => c.id.startsWith('J')).concat(s.zones.deck.cards.filter((c) => !c.id.startsWith('J')));
     const jacks = s.zones.deck.cards.filter((c) => c.id.startsWith('J')).length;
@@ -172,7 +176,9 @@ describe('cribbage: counting your own hands (muggins)', () => {
     s.zones['played:1'].cards = DEALER.map((id) => ({ id, up: true }));
     s.zones.crib.cards = CRIB.map((id) => ({ id }));
     s.zones.starter.cards = [{ id: STARTER, up: true }];
-    s.zones.deck.cards = buildDeck({}).filter((c) => ![...PONE, ...DEALER, ...CRIB, STARTER].includes(c)).map((id) => ({ id }));
+    s.zones.deck.cards = buildDeck({})
+      .filter((c) => ![...PONE, ...DEALER, ...CRIB, STARTER].includes(c))
+      .map((id) => ({ id }));
     Object.assign(s.data, { kept: [PONE, DEALER], scores: [...scores], prev: [...scores] });
     s.phase = 'show';
     s.data.showStep = 0;

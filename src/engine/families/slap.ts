@@ -95,8 +95,7 @@ export function slapFamily(config: GameConfig): GameModule<SlapData> {
 
   const canSlap = (s: S, seat: number) =>
     s.phase === 'play' && !s.data.out[seat] && !s.data.missed.includes(seat) && !s.data.slaps.some((x) => x.seat === seat) && pile(s).cards.length > 0;
-  const canFlip = (s: S, seat: number) =>
-    s.phase === 'play' && s.turn === seat && !s.data.slaps.length && s.data.collect === null && count(s, seat) > 0;
+  const canFlip = (s: S, seat: number) => s.phase === 'play' && s.turn === seat && !s.data.slaps.length && s.data.collect === null && count(s, seat) > 0;
 
   /** The next seat (after `seat`) holding cards, or null if nobody does. */
   function nextWithCards(s: S, seat: number): number | null {
@@ -106,7 +105,9 @@ export function slapFamily(config: GameConfig): GameModule<SlapData> {
 
   /** The pile goes to the bottom of `seat`'s cards (shuffled first in Slapjack). */
   function takePile(s: S, seat: number) {
-    const taken = pile(s).cards.splice(0).map((c) => ({ id: c.id }));
+    const taken = pile(s)
+      .cards.splice(0)
+      .map((c) => ({ id: c.id }));
     if (!ers) shuffle(taken, s);
     const into = hand(s, seat);
     // a pile is face up bottom first; turned over it goes under, the old top card lowest
@@ -172,8 +173,7 @@ export function slapFamily(config: GameConfig): GameModule<SlapData> {
     const d = s.data;
     const holders = s.players.flatMap((_, i) => (count(s, i) > 0 && !d.out[i] ? [i] : []));
     // in Slapjack the empty-handed are still in until the next jack; in ERS they can always slap back in
-    if (holders.length === 1 && (ers || s.players.every((_, i) => i === holders[0] || d.out[i])))
-      finish(s, [`${name(s, holders[0])} has every card!`]);
+    if (holders.length === 1 && (ers || s.players.every((_, i) => i === holders[0] || d.out[i]))) finish(s, [`${name(s, holders[0])} has every card!`]);
   }
 
   /** Slapjack: a jack went by (taken by someone else, or covered): anyone without cards who didn't win it is out. */
@@ -395,7 +395,16 @@ export function slapFamily(config: GameConfig): GameModule<SlapData> {
     /** Reaction times: Easy is slow, Hard quicker than most people. */
     botDelay(s, _seat, a) {
       const level = botLevel(s.options);
-      if (a.type === 'slap') return span(([[800, 1400], [520, 900], [340, 580]] as const)[level]);
+      if (a.type === 'slap')
+        return span(
+          (
+            [
+              [800, 1400],
+              [520, 900],
+              [340, 580],
+            ] as const
+          )[level],
+        );
       return span([550, 1000]);
     },
 
@@ -425,7 +434,13 @@ export function slapFamily(config: GameConfig): GameModule<SlapData> {
           badge: d.out[i] ? 'Out' : `${count(s, i)} card${count(s, i) === 1 ? '' : 's'}`,
           out: d.out[i],
         })),
-        banner: s.phase === 'gameOver' ? { title: s.winner!.length === 1 ? `${name(s, s.winner![0])} wins!` : 'A tie!', lines: [...(d.result?.lines ?? []), ...s.players.map((p, i) => `${p.name}: ${count(s, i)} cards`)] } : undefined,
+        banner:
+          s.phase === 'gameOver'
+            ? {
+                title: s.winner!.length === 1 ? `${name(s, s.winner![0])} wins!` : 'A tie!',
+                lines: [...(d.result?.lines ?? []), ...s.players.map((p, i) => `${p.name}: ${count(s, i)} cards`)],
+              }
+            : undefined,
       };
     },
   };

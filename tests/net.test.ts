@@ -167,7 +167,10 @@ describe('connection health', () => {
     gn.leave();
     guest.nudge();
     expect(guest.connected).toBe(true);
-    expect(host.lobby.seats.map((s) => [s.id, s.connected])).toEqual([['h', true], ['g', true]]);
+    expect(host.lobby.seats.map((s) => [s.id, s.connected])).toEqual([
+      ['h', true],
+      ['g', true],
+    ]);
     expect(guest.view!.lobby.seats).toHaveLength(2);
     expect(hostT.status().networks.map((n) => n.kind)).toEqual(['nostr', 'mqtt']);
   });

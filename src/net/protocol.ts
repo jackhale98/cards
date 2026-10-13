@@ -6,7 +6,36 @@ export interface Avatar {
   color: string;
 }
 
-export const AVATAR_EMOJI = ['🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐸', '🐵', '🦉', '🐧', '🐙', '🦄', '🐲', '🦖', '🐳', '🦋', '🌵', '🍀', '🍄', '🌙', '⭐', '🔥', '💎', '🎩', '👑', '🎲', '🚀', '🎸'];
+export const AVATAR_EMOJI = [
+  '🦊',
+  '🐻',
+  '🐼',
+  '🐨',
+  '🐯',
+  '🦁',
+  '🐸',
+  '🐵',
+  '🦉',
+  '🐧',
+  '🐙',
+  '🦄',
+  '🐲',
+  '🦖',
+  '🐳',
+  '🦋',
+  '🌵',
+  '🍀',
+  '🍄',
+  '🌙',
+  '⭐',
+  '🔥',
+  '💎',
+  '🎩',
+  '👑',
+  '🎲',
+  '🚀',
+  '🎸',
+];
 export const AVATAR_COLORS = ['#e9c46a', '#5fb3d9', '#e76f51', '#9b8cf2', '#7bd389', '#f28cbf', '#f4a261', '#4fd1c5', '#c9d36a', '#d98ae0'];
 
 /** Accept only a short emoji and a hex colour from the network. */
@@ -139,6 +168,10 @@ export function makeRoomCode(): string {
   crypto.getRandomValues(a);
   return [...a].map((n) => CODE_CHARS[n % CODE_CHARS.length]).join('');
 }
-export const normaliseCode = (c: string) => c.toUpperCase().replace(/[^A-Z]/g, '').slice(0, CODE_LENGTH);
+export const normaliseCode = (c: string) =>
+  c
+    .toUpperCase()
+    .replace(/[^A-Z]/g, '')
+    .slice(0, CODE_LENGTH);
 // (four-letter codes from before the switch still open)
 export const isValidCode = (c: string) => /^[A-Z]{4,5}$/.test(c);

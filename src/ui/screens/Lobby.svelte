@@ -52,7 +52,10 @@
 
   // the picker: recent games first, then a section per kind of game
   const people = $derived(lobby.seats.filter((s) => !s.bot).length);
-  const recent = app.recentGames.filter((id) => GAMES[id]).slice(0, 3).map((id) => GAMES[id]);
+  const recent = app.recentGames
+    .filter((id) => GAMES[id])
+    .slice(0, 3)
+    .map((id) => GAMES[id]);
   const sections = CATEGORIES.map((c) => ({ name: c, games: GAME_LIST.filter((g) => categoryOf(g) === c) })).filter((x) => x.games.length);
   const sectionEls: Record<string, HTMLElement> = $state({});
   let query = $state('');
@@ -140,7 +143,9 @@
     <span class="gicon"><GameIcon id={g.config.id} icon={g.config.icon} size={40} /></span>
     <span class="gname">{g.config.name}</span>
     <span class="gmeta">
-      {#if why}<span class="warn">{why} players{why.startsWith('up to') ? ' · rest sit out' : ''}</span>{:else}{playersText(g)} players{g.config.chips ? ' · chips' : ''}{/if}
+      {#if why}<span class="warn">{why} players{why.startsWith('up to') ? ' · rest sit out' : ''}</span>{:else}{playersText(g)} players{g.config.chips
+          ? ' · chips'
+          : ''}{/if}
     </span>
   </button>
 {/snippet}
@@ -186,11 +191,21 @@
 
 {#if splitting}
   <Sheet title="Split the table" onclose={() => (splitting = false)}>
-    <p class="small">Pick who moves to a new table of their own, and whose phone hosts it. Tonight's scoreboard goes with them, and their games join this table's tally when they come back.</p>
+    <p class="small">
+      Pick who moves to a new table of their own, and whose phone hosts it. Tonight's scoreboard goes with them, and their games join this table's tally when
+      they come back.
+    </p>
     <ul class="pick">
       {#each splittable as s (s.id)}
         <li>
-          <label class="pick-who"><input type="checkbox" checked={going.includes(s.id)} onchange={() => toggleGoing(s.id)} /><AvatarBadge avatar={s.avatar} name={s.name} seat={0} size={26} />{s.name}</label>
+          <label class="pick-who"
+            ><input type="checkbox" checked={going.includes(s.id)} onchange={() => toggleGoing(s.id)} /><AvatarBadge
+              avatar={s.avatar}
+              name={s.name}
+              seat={0}
+              size={26}
+            />{s.name}</label
+          >
           {#if going.includes(s.id)}
             <label class="pick-host"><input type="radio" name="newhost" checked={newHost === s.id} onchange={() => (newHost = s.id)} />hosts</label>
           {/if}
@@ -216,14 +231,22 @@
 <div class="lobby">
   <section class="invite panel">
     <div class="eyebrow">Table code</div>
-    <div class="code">{#each lobby.code.split('') as ch, k (k)}<span>{ch}</span>{/each}</div>
+    <div class="code">
+      {#each lobby.code.split('') as ch, k (k)}<span>{ch}</span>{/each}
+    </div>
     <!-- the QR is generated a moment later: hold its place so the page doesn't jump -->
     {#if qr}<img class="qr" src={qr} alt="QR code to join this table" />{:else}<div class="qr" aria-hidden="true"></div>{/if}
     <p class="small">Scan, or open the site and enter the code. Friends somewhere else can join with the invite link. Same WiFi is fastest.</p>
     <div class="row">
       <button class="btn" onclick={share}>Share invite</button>
       <button class="btn" onclick={() => (tv = true)}>📺 TV</button>
-      <button class="btn quiet" onclick={() => { app.leave(); app.go('/'); }}>Leave</button>
+      <button
+        class="btn quiet"
+        onclick={() => {
+          app.leave();
+          app.go('/');
+        }}>Leave</button
+      >
     </div>
     {#if app.isHost}<NetStatus />{:else if !app.connected}<p class="status warn">Reconnecting to the host…</p>{/if}
   </section>
@@ -256,7 +279,12 @@
             {#if !seat.bot && !seat.host}<PingDot ms={app.pings[i]} label />{/if}
             {#if host && !seat.bot && (seat.out || lobby.seats.length > 1)}
               <!-- who plays this game: tap to sit someone out, or bring them in -->
-              <button class="inout" class:on={!seat.out} onclick={() => host.setPlaying(seat.id, !!seat.out)} aria-label={seat.out ? `Deal ${seat.name} in` : `Sit ${seat.name} out`}>
+              <button
+                class="inout"
+                class:on={!seat.out}
+                onclick={() => host.setPlaying(seat.id, !!seat.out)}
+                aria-label={seat.out ? `Deal ${seat.name} in` : `Sit ${seat.name} out`}
+              >
                 {seat.out ? 'Out' : 'In'}
               </button>
             {/if}
@@ -272,17 +300,22 @@
       </ul>
       {#if sittingOut && host}<p class="small">More people than {game.config.name} seats: whoever sits out plays the next game. Tap In / Out to choose.</p>{/if}
       {#if lobby.spectators}<p class="small">+ {lobby.spectators} watching</p>{/if}
-      <button class="btn small-btn look-btn" onclick={() => (looking = true)}>🎴 {backOf(lobby.look?.back).name} backs · {clothOf(lobby.look?.cloth).name}</button>
+      <button class="btn small-btn look-btn" onclick={() => (looking = true)}
+        >🎴 {backOf(lobby.look?.back).name} backs · {clothOf(lobby.look?.cloth).name}</button
+      >
       {#if host && splittable.length >= 1}
         <button class="btn small-btn split-btn" onclick={openSplit}>⑂ Split the table</button>
       {/if}
       {#if lobby.splits?.length}
-        <p class="small">Also playing tonight: {#each lobby.splits as x, k (x.code)}{k ? ' · ' : ''}table <b>{x.code}</b> ({x.names.join(', ')}){/each}</p>
+        <p class="small">
+          Also playing tonight: {#each lobby.splits as x, k (x.code)}{k ? ' · ' : ''}table <b>{x.code}</b> ({x.names.join(', ')}){/each}
+        </p>
       {/if}
       {#if lobby.parent}
         <p class="small">
           Split off from table <b>{lobby.parent}</b>.
-          {#if host}<button class="btn small-btn" onclick={() => app.goBack()}>Everyone back to {lobby.parent}</button>{:else}The host can bring everyone back, games and all.{/if}
+          {#if host}<button class="btn small-btn" onclick={() => app.goBack()}>Everyone back to {lobby.parent}</button>{:else}The host can bring everyone back,
+            games and all.{/if}
         </p>
       {/if}
       {#if lobby.displays}<p class="small">📺 Table screen connected — phones will show just your hand</p>{/if}
@@ -300,12 +333,22 @@
       {#if !host}
         <div class="chosen">
           <span class="gicon"><GameIcon id={game.config.id} icon={game.config.icon} size={44} /></span>
-          <div><b>{game.config.name}</b><p class="small">{game.config.tagline}</p></div>
+          <div>
+            <b>{game.config.name}</b>
+            <p class="small">{game.config.tagline}</p>
+          </div>
         </div>
       {/if}
       {#if host}
         <label class="search">
-          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="11" cy="11" r="6.5" stroke="currentColor" stroke-width="2" fill="none" /><path d="m16 16 4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"
+            ><circle cx="11" cy="11" r="6.5" stroke="currentColor" stroke-width="2" fill="none" /><path
+              d="m16 16 4.5 4.5"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+            /></svg
+          >
           <input
             type="search"
             bind:value={query}
@@ -322,7 +365,9 @@
         {#if query.trim()}
           {#if found.length}
             <div class="sec">{found.length} game{found.length === 1 ? '' : 's'}</div>
-            <div class="games">{#each found as g (g.config.id)}{@render tile(g)}{/each}</div>
+            <div class="games">
+              {#each found as g (g.config.id)}{@render tile(g)}{/each}
+            </div>
           {:else}
             <p class="small none">No games match “{query.trim()}”.</p>
           {/if}
@@ -332,11 +377,15 @@
           </nav>
           {#if recent.length}
             <div class="sec">Recent</div>
-            <div class="games">{#each recent as g (g.config.id)}{@render tile(g)}{/each}</div>
+            <div class="games">
+              {#each recent as g (g.config.id)}{@render tile(g)}{/each}
+            </div>
           {/if}
           {#each sections as sec (sec.name)}
             <div class="sec" bind:this={sectionEls[sec.name]}>{sec.name}</div>
-            <div class="games">{#each sec.games as g (g.config.id)}{@render tile(g)}{/each}</div>
+            <div class="games">
+              {#each sec.games as g (g.config.id)}{@render tile(g)}{/each}
+            </div>
           {/each}
         {/if}
       {/if}
@@ -350,8 +399,12 @@
       <b>{game.config.name}</b>
       <!-- a long line glides along by itself rather than being cut off -->
       {#key `${game.config.id}|${startError}|${changed}`}
-        {#if host && startError}<span class="small warn-text line" use:marquee><span class="run">{startError}{game.bot ? ' — add bots to fill seats' : ''}</span></span>
-        {:else}<span class="small line" use:marquee><span class="run">{changed ? `${changed} setting${changed > 1 ? 's' : ''} changed` : game.config.tagline}</span></span>{/if}
+        {#if host && startError}<span class="small warn-text line" use:marquee
+            ><span class="run">{startError}{game.bot ? ' — add bots to fill seats' : ''}</span></span
+          >
+        {:else}<span class="small line" use:marquee
+            ><span class="run">{changed ? `${changed} setting${changed > 1 ? 's' : ''} changed` : game.config.tagline}</span></span
+          >{/if}
       {/key}
     </div>
     {#if game.config.options?.length}

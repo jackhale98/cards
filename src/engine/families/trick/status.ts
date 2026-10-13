@@ -21,7 +21,12 @@ export function trickStatus(g: TrickGame, s: S, viewer: number): GameStatus {
     headline = d.passes[viewer] ? 'Waiting for everyone to pass…' : viewer >= 0 ? `Pass ${R.passing!.count} cards ${dirLabel(s, viewer)}` : 'Passing cards';
   } else if (s.phase === 'order') {
     const up = cardOrJokerLabel(d.upcard!);
-    headline = s.turn === viewer ? (viewer === s.dealer ? `Pick up the ${up}, or pass?` : `Order up the ${up}, or pass?`) : `${name(s, s.turn!)} is deciding on the ${up}`;
+    headline =
+      s.turn === viewer
+        ? viewer === s.dealer
+          ? `Pick up the ${up}, or pass?`
+          : `Order up the ${up}, or pass?`
+        : `${name(s, s.turn!)} is deciding on the ${up}`;
   } else if (s.phase === 'name') {
     const stuck = g.euchreBids?.stickTheDealer && s.turn === s.dealer;
     headline = s.turn === viewer ? (stuck ? "You're stuck — name trumps" : 'Name a trump suit, or pass') : `${name(s, s.turn!)} to name trumps`;
@@ -65,7 +70,11 @@ export function trickStatus(g: TrickGame, s: S, viewer: number): GameStatus {
   if (d.trump && s.phase !== 'gameOver' && !d.bridge) headline += ` · trumps ${SUIT_SYMBOL[d.trump]}`;
   // five-handed 500: the called card (its holder only once it's played, or to themselves)
   if (d.called && (s.phase === 'play' || s.phase === 'trickEnd'))
-    headline += d.partnerShown ? ` · ${name(s, d.partner!)} is the partner` : viewer === d.partner ? ` · you hold the ${cardOrJokerLabel(d.called)}: you're the partner` : ` · partner card ${cardOrJokerLabel(d.called)}`;
+    headline += d.partnerShown
+      ? ` · ${name(s, d.partner!)} is the partner`
+      : viewer === d.partner
+        ? ` · you hold the ${cardOrJokerLabel(d.called)}: you're the partner`
+        : ` · partner card ${cardOrJokerLabel(d.called)}`;
   else if (auction && d.contract && d.maker != null && s.phase === 'play') {
     headline += d.contract.misere ? ` · ${contractLabel(d.contract)}` : ' · no trumps';
     if (d.jokerSuit) headline += ` · joker ${SUIT_SYMBOL[d.jokerSuit]}`;
@@ -89,9 +98,24 @@ export function trickStatus(g: TrickGame, s: S, viewer: number): GameStatus {
       return [call, `${d.scores[side]} pts`, d.vul?.[side] && s.phase === 'call' ? 'vul' : ''].filter(Boolean).join(' · ');
     }
     if (g.euchreBids || auction) {
-      const role =
-        !active(g, s, i) ? 'Sitting out' : d.defAlone === i ? 'Defending alone' : d.partnerShown && d.partner === i ? 'Partner' : d.maker === i && (s.phase === 'play' || s.phase === 'trickEnd' || s.phase === 'discard') ? (auction ? contractLabel(d.contract!) : d.sittingOut != null ? 'Alone' : 'Maker') : auction && d.passedOut?.[i] && s.phase === 'auction' ? 'Passed' : '';
-      return [role, s.phase === 'play' || s.phase === 'trickEnd' ? `${d.tricks[i]} tricks` : '', `${d.scores[teamOf(g, s, i)]} pts`].filter(Boolean).join(' · ');
+      const role = !active(g, s, i)
+        ? 'Sitting out'
+        : d.defAlone === i
+          ? 'Defending alone'
+          : d.partnerShown && d.partner === i
+            ? 'Partner'
+            : d.maker === i && (s.phase === 'play' || s.phase === 'trickEnd' || s.phase === 'discard')
+              ? auction
+                ? contractLabel(d.contract!)
+                : d.sittingOut != null
+                  ? 'Alone'
+                  : 'Maker'
+              : auction && d.passedOut?.[i] && s.phase === 'auction'
+                ? 'Passed'
+                : '';
+      return [role, s.phase === 'play' || s.phase === 'trickEnd' ? `${d.tricks[i]} tricks` : '', `${d.scores[teamOf(g, s, i)]} pts`]
+        .filter(Boolean)
+        .join(' · ');
     }
     const parts: string[] = [];
     if (bidding) parts.push(d.bids[i] == null ? '' : `${d.tricks[i]}/${d.bids[i] === 0 && g.nilAllowed ? 'nil' : d.bids[i]}`);
@@ -110,7 +134,11 @@ export function trickStatus(g: TrickGame, s: S, viewer: number): GameStatus {
       rows: teams.map((t, ti) => ({
         name: teamName(g, s, ti),
         values: [
-          bidding ? t.map((i) => `${d.tricks[i]}/${d.bids[i] ?? '–'}`).join(' ') : R.scoring.type === 'penalty' ? t.reduce((n, i) => n + d.points[i], 0) : t.reduce((n, i) => n + d.tricks[i], 0),
+          bidding
+            ? t.map((i) => `${d.tricks[i]}/${d.bids[i] ?? '–'}`).join(' ')
+            : R.scoring.type === 'penalty'
+              ? t.reduce((n, i) => n + d.points[i], 0)
+              : t.reduce((n, i) => n + d.tricks[i], 0),
           d.scores[ti],
         ],
         highlight: !!s.winner && t.some((i) => s.winner!.includes(i)),
@@ -118,7 +146,10 @@ export function trickStatus(g: TrickGame, s: S, viewer: number): GameStatus {
     },
     banner:
       s.phase === 'gameOver'
-        ? { title: `${[...new Set(s.winner!.map((w) => teamOf(g, s, w)))].map((ti) => teamName(g, s, ti)).join(' & ')} win${s.winner!.length > 1 ? '' : 's'}!`, lines: d.result?.lines ?? [] }
+        ? {
+            title: `${[...new Set(s.winner!.map((w) => teamOf(g, s, w)))].map((ti) => teamName(g, s, ti)).join(' & ')} win${s.winner!.length > 1 ? '' : 's'}!`,
+            lines: d.result?.lines ?? [],
+          }
         : s.phase === 'roundOver'
           ? { title: 'Hand complete', lines: d.result?.lines ?? [] }
           : undefined,

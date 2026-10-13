@@ -11,7 +11,10 @@ const check = (ok, what) => {
 
 function connect(peer, headers, host, at = room, secret) {
   return new Promise((resolve, reject) => {
-    const ws = new WebSocket(`${base}/room/${at}?peer=${peer}${host ? `&host=${host}` : ''}${secret ? `&secret=${secret}` : ''}`, headers ? { headers } : undefined);
+    const ws = new WebSocket(
+      `${base}/room/${at}?peer=${peer}${host ? `&host=${host}` : ''}${secret ? `&secret=${secret}` : ''}`,
+      headers ? { headers } : undefined,
+    );
     const inbox = [];
     ws.onmessage = (e) => inbox.push(e.data === 'pong' ? 'pong' : JSON.parse(e.data));
     ws.onopen = () => resolve({ ws, inbox });
@@ -43,10 +46,7 @@ check(!c.inbox.some((m) => m.t === 'msg'), '…and nobody else');
 
 a.ws.send(JSON.stringify({ d: { all: 1 } }));
 await wait(150);
-check(
-  !!take(b, (m) => m.t === 'msg' && m.d.all) && !!take(c, (m) => m.t === 'msg' && m.d.all),
-  'broadcast reaches everyone else',
-);
+check(!!take(b, (m) => m.t === 'msg' && m.d.all) && !!take(c, (m) => m.t === 'msg' && m.d.all), 'broadcast reaches everyone else');
 check(!a.inbox.some((m) => m.t === 'msg'), '…but not the sender');
 
 b.ws.send(JSON.stringify({ to: 'alice1', s: { sdp: 'x' } }));

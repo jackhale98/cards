@@ -1,7 +1,23 @@
 import { buildDeck, cardLabel, cardName, parseCard } from '../cards';
 import { nextRandom } from '../rng';
 import { describeShow, pegPoints, pipValue, scoreHand } from '../lib/cribbageScore';
-import { createState, cutForDeal, deal, hand, ids, log, moveCards, moveTop, name, nextSeat, placesFromScores, resetDeck, seatOrderFrom, sortHand, zone } from '../state';
+import {
+  createState,
+  cutForDeal,
+  deal,
+  hand,
+  ids,
+  log,
+  moveCards,
+  moveTop,
+  name,
+  nextSeat,
+  placesFromScores,
+  resetDeck,
+  seatOrderFrom,
+  sortHand,
+  zone,
+} from '../state';
 import { botBudget, dealUnseen, edge, fork, playOut, searchMove, shuffled, type SearchGame } from '../bots/search';
 import { assertRule, type Action, type GameConfig, type GameModule, type GameState } from '../types';
 import { acrossTeams, sideName, soloTeams, teamIndex } from '../lib/teams';
@@ -367,7 +383,14 @@ export function cribbageFamily(config: GameConfig): GameModule<CribData> {
       if (s.phase === 'discard') {
         if (d.discards[seat]) return [];
         const k = layout(s).discard;
-        return [{ type: 'crib', label: `To ${s.dealer === seat ? 'your' : name(s, s.dealer) + "'s"} crib`, style: 'primary', select: { min: k, max: k, cards: ids(hand(s, seat)) } }];
+        return [
+          {
+            type: 'crib',
+            label: `To ${s.dealer === seat ? 'your' : name(s, s.dealer) + "'s"} crib`,
+            style: 'primary',
+            select: { min: k, max: k, cards: ids(hand(s, seat)) },
+          },
+        ];
       }
       if (s.phase === 'cut' && s.turn === seat) return [{ type: 'cut', label: 'Cut the deck', style: 'primary', zone: 'deck' }];
       if (s.phase === 'peg' && s.turn === seat) {
@@ -379,7 +402,14 @@ export function cribbageFamily(config: GameConfig): GameModule<CribData> {
         const c = d.claim;
         const what = c.crib ? 'crib' : 'hand';
         if (c.points == null && seat === c.seat)
-          return [{ type: 'count', label: `Count ${c.crib ? 'your crib' : 'your hand'}`, style: 'primary', amount: { min: 0, max: 29, step: 1, default: 0, label: `points in your ${what}` } }];
+          return [
+            {
+              type: 'count',
+              label: `Count ${c.crib ? 'your crib' : 'your hand'}`,
+              style: 'primary',
+              amount: { min: 0, max: 29, step: 1, default: 0, label: `points in your ${what}` },
+            },
+          ];
         if (c.points != null && checkers(s, c.seat).includes(seat) && !c.accepted[seat])
           return [
             { type: 'accept', label: `Accept ${c.points}`, style: 'primary' },
@@ -401,7 +431,10 @@ export function cribbageFamily(config: GameConfig): GameModule<CribData> {
           const k = layout(s).discard;
           const cards = a.cards ?? [];
           const own = ids(hand(s, seat));
-          assertRule(cards.length === k && new Set(cards).size === k && cards.every((c) => own.includes(c)), `Choose ${k} card${k > 1 ? 's' : ''} for the crib`);
+          assertRule(
+            cards.length === k && new Set(cards).size === k && cards.every((c) => own.includes(c)),
+            `Choose ${k} card${k > 1 ? 's' : ''} for the crib`,
+          );
           d.discards[seat] = cards;
           log(s, `${who} puts ${k} card${k > 1 ? 's' : ''} in the crib`, seat, 'To crib', undefined, { to: 'crib' });
           if (d.discards.every(Boolean)) {
@@ -528,7 +561,9 @@ export function cribbageFamily(config: GameConfig): GameModule<CribData> {
       const k = layout(s).discard;
       let headline = '';
       if (s.phase === 'discard')
-        headline = d.discards[viewer] ? 'Waiting for the others…' : `Choose ${k} card${k > 1 ? 's' : ''} for ${s.dealer === viewer ? 'your' : name(s, s.dealer) + "'s"} crib`;
+        headline = d.discards[viewer]
+          ? 'Waiting for the others…'
+          : `Choose ${k} card${k > 1 ? 's' : ''} for ${s.dealer === viewer ? 'your' : name(s, s.dealer) + "'s"} crib`;
       else if (s.phase === 'cut') headline = s.turn === viewer ? 'Tap the deck to cut' : `${name(s, s.turn!)} cuts the deck`;
       else if (s.phase === 'peg') {
         if (s.turn === viewer) headline = canPlay(s, viewer) ? `Count ${d.count} — your play` : `Count ${d.count} — you can't play: say Go`;
@@ -539,9 +574,12 @@ export function cribbageFamily(config: GameConfig): GameModule<CribData> {
         const what = c.crib ? `${c.seat === viewer ? 'your' : name(s, c.seat) + "'s"} crib` : `${c.seat === viewer ? 'your' : name(s, c.seat) + "'s"} hand`;
         if (c.points == null) headline = c.seat === viewer ? `Count ${what} — miss any and the others can take them` : `${name(s, c.seat)} is counting ${what}`;
         else if (checkers(s, c.seat).includes(viewer) && !c.accepted[viewer]) headline = `${name(s, c.seat)} says ${c.points} — accept, or call muggins?`;
-        else headline = `${c.seat === viewer ? 'You say' : name(s, c.seat) + ' says'} ${c.points} · waiting for ${checkers(s, c.seat).filter((i) => !c.accepted[i]).map((i) => name(s, i)).join(', ')}`;
-      }
-      else if (s.phase === 'roundOver') headline = 'Hand counted';
+        else
+          headline = `${c.seat === viewer ? 'You say' : name(s, c.seat) + ' says'} ${c.points} · waiting for ${checkers(s, c.seat)
+            .filter((i) => !c.accepted[i])
+            .map((i) => name(s, i))
+            .join(', ')}`;
+      } else if (s.phase === 'roundOver') headline = 'Hand counted';
       else if (s.phase === 'gameOver') headline = 'Game over';
 
       const teams = teamsFor(s.players.length);

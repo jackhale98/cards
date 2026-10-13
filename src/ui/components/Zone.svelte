@@ -34,16 +34,29 @@
 </script>
 
 <div class="zone" data-zone={zone.id} data-layout={zone.layout} style:--cw="{cw}px">
-  {#if zone.label && zone.layout !== 'trick'}<div class="label eyebrow" data-flip><SuitText text={zone.label} />{#if zone.layout === 'stack'} · {zone.cards.length}{/if}</div>{/if}
+  {#if zone.label && zone.layout !== 'trick'}<div class="label eyebrow" data-flip>
+      <SuitText text={zone.label} />{#if zone.layout === 'stack'}
+        · {zone.cards.length}{/if}
+    </div>{/if}
 
   {#if zone.layout === 'stack'}
     {@const below = zone.peek ? zone.cards.slice(-zone.peek, -1).filter((c) => c.up !== false && !isHidden(c.id)) : []}
-    <button class="stack" style:margin-left={zone.peek ? `calc(var(--cw) * ${0.3 * (zone.peek - 1)})` : undefined} data-flip class:active={zoneActive} onpointerdown={fast ? () => onzone?.() : undefined} onclick={(e) => (fast && e.detail !== 0 ? undefined : !place && top && selectable?.has(top.id) ? ontap(top.id) : onzone?.())} disabled={!zoneActive && !(top && selectable?.has(top.id))}>
+    <button
+      class="stack"
+      style:margin-left={zone.peek ? `calc(var(--cw) * ${0.3 * (zone.peek - 1)})` : undefined}
+      data-flip
+      class:active={zoneActive}
+      onpointerdown={fast ? () => onzone?.() : undefined}
+      onclick={(e) => (fast && e.detail !== 0 ? undefined : !place && top && selectable?.has(top.id) ? ontap(top.id) : onzone?.())}
+      disabled={!zoneActive && !(top && selectable?.has(top.id))}
+    >
       {#if zone.cards.length > 1}<div class="under"><Card id="?u" /></div>{/if}
       {#if zone.cards.length > 8}<div class="under two"><Card id="?u2" /></div>{/if}
       {#each below as c, i (c.id)}
         <!-- the cards just under the top, fanned out to the left -->
-        <div class="peeked" style:transform="translateX(calc(var(--cw) * {-0.3 * (below.length - i)})) rotate({-4 * (below.length - i)}deg)"><Card id={c.id} /></div>
+        <div class="peeked" style:transform="translateX(calc(var(--cw) * {-0.3 * (below.length - i)})) rotate({-4 * (below.length - i)}deg)">
+          <Card id={c.id} />
+        </div>
       {/each}
       {#if top && isHidden(top.id)}
         <!-- a face-down top just sits there: cards drawn from it fly out on their own -->
@@ -62,7 +75,12 @@
     <div class="trick" data-flip>
       {#each zone.cards as c (c.id)}
         {@const p = trickPos(c.by)}
-        <div class="tcard" style:transform="translate(-50%, -50%) translate({p.x}px, {p.y}px) rotate({p.rot}deg)" in:receive={{ key: c.id }} out:send={{ key: c.id }}>
+        <div
+          class="tcard"
+          style:transform="translate(-50%, -50%) translate({p.x}px, {p.y}px) rotate({p.rot}deg)"
+          in:receive={{ key: c.id }}
+          out:send={{ key: c.id }}
+        >
           <Card id={c.id} />
         </div>
       {/each}

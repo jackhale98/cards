@@ -116,7 +116,11 @@ export function play(sound: Sound) {
   const c = audio();
   if (!c) return;
   // asleep: play once it has woken (audio() asked it to)
-  if (c.state === 'suspended') void c.resume().then(() => c.state === 'running' && render(c, sound), () => {});
+  if (c.state === 'suspended')
+    void c.resume().then(
+      () => c.state === 'running' && render(c, sound),
+      () => {},
+    );
   else if (c.state === 'running') render(c, sound);
 }
 

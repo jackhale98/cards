@@ -122,7 +122,7 @@ function loadAvatar(): Avatar {
   } catch {
     /* ignore */
   }
-  const pick = <T,>(a: T[]) => a[Math.floor(Math.random() * a.length)];
+  const pick = <T>(a: T[]) => a[Math.floor(Math.random() * a.length)];
   return { emoji: pick(AVATAR_EMOJI), color: pick(AVATAR_COLORS) };
 }
 
@@ -448,7 +448,12 @@ class App {
         void this.addNext();
       }
       if (this.view && this.lostSince && Date.now() - this.lostSince > REJOIN_AFTER_MS) void this.rejoin();
-      this.canTakeOver = !!this.view && this.view.you >= 0 && !!this.hostGoneSince && Date.now() - this.hostGoneSince > TAKEOVER_OFFER_MS && !!this.savedBackup(this.currentCode);
+      this.canTakeOver =
+        !!this.view &&
+        this.view.you >= 0 &&
+        !!this.hostGoneSince &&
+        Date.now() - this.hostGoneSince > TAKEOVER_OFFER_MS &&
+        !!this.savedBackup(this.currentCode);
     }, 2000);
   }
 

@@ -9,7 +9,10 @@
   }
   let { look = DEFAULT_LOOK, onpick }: Props = $props();
   const current = $derived({ ...DEFAULT_LOOK, ...look });
-  const css = (vars: Record<string, string>) => Object.entries(vars).map(([k, v]) => `${k}: ${v}`).join('; ');
+  const css = (vars: Record<string, string>) =>
+    Object.entries(vars)
+      .map(([k, v]) => `${k}: ${v}`)
+      .join('; ');
 </script>
 
 <div class="look">

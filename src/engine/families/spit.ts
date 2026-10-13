@@ -123,7 +123,9 @@ export function spitFamily(config: GameConfig): GameModule<SpitData> {
 
   function start(s: S) {
     resetDeck(s, config);
-    const all = zone(s, 'deck').cards.splice(0).map((c) => c.id);
+    const all = zone(s, 'deck')
+      .cards.splice(0)
+      .map((c) => c.id);
     const half = Math.ceil(all.length / 2);
     s.data.round = 0;
     s.data.result = null;
@@ -235,7 +237,8 @@ export function spitFamily(config: GameConfig): GameModule<SpitData> {
         const cards = mine.filter(([, q]) => q === p).map(([c]) => c);
         if (cards.length) out.push({ type: `play${p}`, label: `On ${CENTRES[p]}`, style: 'primary', select: { min: 1, max: 1, cards }, zone: CENTRES[p] });
       }
-      if (mine.length) out.push({ type: 'play', label: 'Play', select: { min: 1, max: 1, cards: [...new Set(mine.map(([c]) => c))] }, quick: true, menu: true });
+      if (mine.length)
+        out.push({ type: 'play', label: 'Play', select: { min: 1, max: 1, cards: [...new Set(mine.map(([c]) => c))] }, quick: true, menu: true });
       const mv = movable(s, seat);
       if (mv.length) out.push({ type: 'move', label: 'To empty space', select: { min: 1, max: 1, cards: mv } });
       if (stuck(s) && !d.ready[seat]) out.push({ type: 'spit', label: 'Spit!', style: 'primary', react: true });
@@ -307,9 +310,26 @@ export function spitFamily(config: GameConfig): GameModule<SpitData> {
 
     botDelay(s, _seat, a) {
       const level = botLevel(s.options);
-      if (a.type.startsWith('slap')) return span(([[800, 1300], [520, 850], [340, 560]] as const)[level]);
+      if (a.type.startsWith('slap'))
+        return span(
+          (
+            [
+              [800, 1300],
+              [520, 850],
+              [340, 560],
+            ] as const
+          )[level],
+        );
       if (a.type === 'spit') return span([500, 1100]);
-      return span(([[1500, 2600], [950, 1600], [600, 1000]] as const)[level]);
+      return span(
+        (
+          [
+            [1500, 2600],
+            [950, 1600],
+            [600, 1000],
+          ] as const
+        )[level],
+      );
     },
 
     standings(s) {
@@ -326,7 +346,12 @@ export function spitFamily(config: GameConfig): GameModule<SpitData> {
         headline = d.slaps.length ? 'Slap!' : `${who(d.emptied!)} cleared ${d.emptied === viewer ? 'your' : 'their'} piles — slap the smaller pile!`;
       else if (stuck(s)) {
         const waiting = seats(s).filter((i) => !d.ready[i]);
-        headline = !top(s, 0) && !top(s, 1) && d.round === 1 && !d.ready.some(Boolean) ? 'Ready? Call Spit! to start' : waiting.includes(viewer) || viewer < 0 ? 'Nobody can go — call Spit!' : `Waiting for ${name(s, waiting[0])} to call Spit!`;
+        headline =
+          !top(s, 0) && !top(s, 1) && d.round === 1 && !d.ready.some(Boolean)
+            ? 'Ready? Call Spit! to start'
+            : waiting.includes(viewer) || viewer < 0
+              ? 'Nobody can go — call Spit!'
+              : `Waiting for ${name(s, waiting[0])} to call Spit!`;
       } else headline = 'Play onto either pile — one up or one down';
       const piles = (i: number) =>
         [0, 1, 2, 3, 4].map((g) => (tops(s, i).some((c) => c.group === g) ? 1 + under(s, i).filter((u) => u.group === g).length : 0)).join(' · ');

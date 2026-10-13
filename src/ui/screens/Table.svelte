@@ -222,7 +222,6 @@
   // keep the screen awake while at the table
   $effect(() => keepAwake());
 
-
   // ---- what just happened ------------------------------------------------------------------
   const lastEntry = $derived(s.log.at(-1));
   /** Latest player move, shown under the headline (unless the headline already says it). */
@@ -256,8 +255,7 @@
     if (s.phase === 'gameOver' && lastPhase != null && lastPhase !== 'gameOver') sound(display || s.winner?.includes(you) ? 'win' : 'end');
     lastPhase = s.phase;
   });
-  const saidBy = (seat: number) =>
-    lastEntry?.seat === seat && lastEntry.short ? { text: lastEntry.short, key: lastEntry.t } : null;
+  const saidBy = (seat: number) => (lastEntry?.seat === seat && lastEntry.short ? { text: lastEntry.short, key: lastEntry.t } : null);
 
   // Before the DOM updates, note where the acting player sits so cards fly to/from them.
   let tableEl: HTMLElement;
@@ -353,26 +351,35 @@
       {#each others as seat (seat)}
         {@const pos = display ? tvSeatPos(seat) : null}
         <div class="seat-slot" style:left={pos?.left} style:top={pos?.top} bind:clientWidth={slotW[seat]} bind:clientHeight={slotH[seat]}>
-        <Seat
-          player={s.players[seat]}
-          info={status.seats[seat]}
-          cards={seatZone(seat)}
-          turn={s.turn === seat}
-          connected={lobbySeat(seat)?.connected ?? true}
-          {showChips}
-          compact={others.length > 4 || (others.length >= 3 && vw < 940 && !display)}
-          avatar={lobbySeat(seat)?.avatar}
-          relation={display ? null : seatRelation(you, seat, n)}
-          said={saidBy(seat)}
-          ping={lobbySeat(seat)?.host ? null : pingOf(seat)}
-          scale={tvRem / 16}
-          turnLabel={display}
-        />
+          <Seat
+            player={s.players[seat]}
+            info={status.seats[seat]}
+            cards={seatZone(seat)}
+            turn={s.turn === seat}
+            connected={lobbySeat(seat)?.connected ?? true}
+            {showChips}
+            compact={others.length > 4 || (others.length >= 3 && vw < 940 && !display)}
+            avatar={lobbySeat(seat)?.avatar}
+            relation={display ? null : seatRelation(you, seat, n)}
+            said={saidBy(seat)}
+            ping={lobbySeat(seat)?.host ? null : pingOf(seat)}
+            scale={tvRem / 16}
+            turnLabel={display}
+          />
         </div>
       {/each}
     </div>
     <button class="icon" onclick={() => (sheet = 'scores')} aria-label="Scores and log">
-      <svg viewBox="0 0 24 24" width="20" height="20"><path d="M7 4h10v3a5 5 0 0 1-10 0V4Zm5 8v4m-4 4h8m-4-4v4M7 6H4v1a3 3 0 0 0 3 3m10-4h3v1a3 3 0 0 1-3 3" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round" /></svg>
+      <svg viewBox="0 0 24 24" width="20" height="20"
+        ><path
+          d="M7 4h10v3a5 5 0 0 1-10 0V4Zm5 8v4m-4 4h8m-4-4v4M7 6H4v1a3 3 0 0 0 3 3m10-4h3v1a3 3 0 0 1-3 3"
+          stroke="currentColor"
+          stroke-width="1.8"
+          fill="none"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        /></svg
+      >
     </button>
   </header>
 
@@ -396,18 +403,18 @@
       {#each centerZones as z (z.id)}
         <div class="zone-slot">
           <Zone
-          zone={z}
-          cw={Math.round(centerCw * (z.scale ?? 1) * (z.layout === 'spread' && z.cards.length >= 10 && !display ? 0.82 : 1))}
-          {you}
-          players={n}
-          {selected}
-          {selectable}
-          ontap={tap}
-          zoneActive={!!zoneAction(z.id)}
-          place={!!zoneAction(z.id)?.select}
-          onzone={zoneAction(z.id) ? () => run(zoneAction(z.id)!) : undefined}
-          fast={!!zoneAction(z.id)?.react}
-        />
+            zone={z}
+            cw={Math.round(centerCw * (z.scale ?? 1) * (z.layout === 'spread' && z.cards.length >= 10 && !display ? 0.82 : 1))}
+            {you}
+            players={n}
+            {selected}
+            {selectable}
+            ontap={tap}
+            zoneActive={!!zoneAction(z.id)}
+            place={!!zoneAction(z.id)?.select}
+            onzone={zoneAction(z.id) ? () => run(zoneAction(z.id)!) : undefined}
+            fast={!!zoneAction(z.id)?.react}
+          />
         </div>
       {/each}
       {#if status.pot && !handMode}
@@ -417,7 +424,10 @@
               <span style:bottom="{i * 4}px" style:--c={seatColor(i * 3)}></span>
             {/each}
           </div>
-          <div><div class="eyebrow">Pot</div><b>{status.pot.toLocaleString()}</b></div>
+          <div>
+            <div class="eyebrow">Pot</div>
+            <b>{status.pot.toLocaleString()}</b>
+          </div>
         </div>
       {/if}
       {#if stripZones.length}
@@ -449,7 +459,10 @@
         {#if s.phase === 'gameOver' && tonight.length}
           <!-- top four, so a nine-player night still fits -->
           <p class="tonight">
-            Tonight: {tonight.slice(0, 4).map((r) => `${r.name} ${r.points}`).join(' · ')}{tonight.length > 4 ? ` · +${tonight.length - 4} more` : ''}
+            Tonight: {tonight
+              .slice(0, 4)
+              .map((r) => `${r.name} ${r.points}`)
+              .join(' · ')}{tonight.length > 4 ? ` · +${tonight.length - 4} more` : ''}
           </p>
         {/if}
         {#if s.phase === 'gameOver' && !display}
@@ -496,15 +509,7 @@
             fast={!!zoneAction(myHandZone.id)?.react}
           />
         {:else}
-        <Hand
-          cards={myHand}
-          cw={handCw}
-          {selected}
-          {selectable}
-          fresh={(s.data as any)?.received?.[you] ?? []}
-          ontap={tap}
-          onswipe={swipe}
-        />
+          <Hand cards={myHand} cw={handCw} {selected} {selectable} fresh={(s.data as any)?.received?.[you] ?? []} ontap={tap} onswipe={swipe} />
         {/if}
       </div>
     </footer>
@@ -541,27 +546,61 @@
   <Sheet title="Table {view.lobby.code}" onclose={() => (sheet = null)}>
     <div class="menu-list">
       <button class="btn" onclick={toggleFullscreen}>{fullscreen ? 'Exit full screen' : 'Full screen'}</button>
-      <button class="btn" onclick={() => { soundsOn = !soundsOn; setSound(soundsOn); }}>{display ? (soundsOn ? 'Sound here: on' : 'Sound here: off') : soundsOn ? 'Sound: on' : 'Sound: off'}</button>
+      <button
+        class="btn"
+        onclick={() => {
+          soundsOn = !soundsOn;
+          setSound(soundsOn);
+        }}>{display ? (soundsOn ? 'Sound here: on' : 'Sound here: off') : soundsOn ? 'Sound: on' : 'Sound: off'}</button
+      >
       {#if view.lobby.displays && !display}
-        <button class="btn" onclick={() => app.act({ type: SCREEN_SOUND, amount: screenSoundOn ? 0 : 1 })}>{screenSoundOn ? 'TV sound: on' : 'TV sound: off'}</button>
+        <button class="btn" onclick={() => app.act({ type: SCREEN_SOUND, amount: screenSoundOn ? 0 : 1 })}
+          >{screenSoundOn ? 'TV sound: on' : 'TV sound: off'}</button
+        >
       {/if}
       {#if view.lobby.displays && !display}
-        <button class="btn" onclick={() => { app.setHandMode(!app.handMode); sheet = null; }}>
+        <button
+          class="btn"
+          onclick={() => {
+            app.setHandMode(!app.handMode);
+            sheet = null;
+          }}
+        >
           {app.handMode ? 'Show whole table' : 'Just my hand'}
         </button>
       {/if}
       {#if !display}<button class="btn" onclick={() => (sheet = 'tv')}>Show on a TV</button>{/if}
       {#if app.isHost}<button class="btn" onclick={() => (sheet = 'look')}>Card backs & cloth</button>{/if}
-      <button class="btn" onclick={() => { navigator.clipboard?.writeText(inviteUrl(view.lobby.code)); app.say('Invite link copied'); }}>Copy invite link</button>
+      <button
+        class="btn"
+        onclick={() => {
+          navigator.clipboard?.writeText(inviteUrl(view.lobby.code));
+          app.say('Invite link copied');
+        }}>Copy invite link</button
+      >
       {#if app.isHost}
-        <button class="btn" onclick={() => { app.host?.endGame(); sheet = null; }}>Back to lobby</button>
+        <button
+          class="btn"
+          onclick={() => {
+            app.host?.endGame();
+            sheet = null;
+          }}>Back to lobby</button
+        >
       {/if}
       <a class="btn" href={bugReportLink({ game: game.config.name, table: view.lobby.code })}>Report a problem</a>
-      <button class="btn danger" onclick={() => { app.leave(); app.go('/'); }}>{app.isHost ? 'Close table' : 'Leave table'}</button>
+      <button
+        class="btn danger"
+        onclick={() => {
+          app.leave();
+          app.go('/');
+        }}>{app.isHost ? 'Close table' : 'Leave table'}</button
+      >
     </div>
     {#if game.config.rulesSummary}
       <div class="eyebrow">How to play {game.config.name}</div>
-      <ul class="rules">{#each game.config.rulesSummary as r, k (k)}<li>{r}</li>{/each}</ul>
+      <ul class="rules">
+        {#each game.config.rulesSummary as r, k (k)}<li>{r}</li>{/each}
+      </ul>
     {/if}
   </Sheet>
 {:else if sheet === 'look'}
@@ -572,10 +611,16 @@
   <Sheet title="Scores" onclose={() => (sheet = null)}>
     {#if status.scoreboard}
       <table class="scores">
-        <thead><tr><th></th>{#each status.scoreboard.columns as c, k (k)}<th>{c}</th>{/each}</tr></thead>
+        <thead
+          ><tr
+            ><th></th>{#each status.scoreboard.columns as c, k (k)}<th>{c}</th>{/each}</tr
+          ></thead
+        >
         <tbody>
           {#each status.scoreboard.rows as r, k (k)}
-            <tr class:hl={r.highlight}><td>{r.name}</td>{#each r.values as v, j (j)}<td><SuitText text={v} /></td>{/each}</tr>
+            <tr class:hl={r.highlight}
+              ><td>{r.name}</td>{#each r.values as v, j (j)}<td><SuitText text={v} /></td>{/each}</tr
+            >
           {/each}
         </tbody>
       </table>

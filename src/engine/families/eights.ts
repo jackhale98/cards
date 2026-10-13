@@ -176,7 +176,14 @@ export function eightsFamily(config: GameConfig): GameModule<EightsData> {
     moveCards(s, `hand:${seat}`, PILE, [card], { up: true, by: seat });
     const r = rankOf(card);
     d.suit = r === 8 ? named! : (parseCard(card).suit as Suit);
-    log(s, `${name(s, seat)} plays the ${cardName(card)}${r === 8 ? ` and calls ${SUIT_NAME[named!].toLowerCase()}` : ''}`, seat, r === 8 ? `8 → ${SUIT_SYMBOL[named!]}` : cardLabel(card), undefined, { to: PILE });
+    log(
+      s,
+      `${name(s, seat)} plays the ${cardName(card)}${r === 8 ? ` and calls ${SUIT_NAME[named!].toLowerCase()}` : ''}`,
+      seat,
+      r === 8 ? `8 → ${SUIT_SYMBOL[named!]}` : cardLabel(card),
+      undefined,
+      { to: PILE },
+    );
     const left = hand(s, seat).cards.length;
     // going out ends the hand at once, whatever the card
     if (!left) return endHand(s, seat);
@@ -282,14 +289,17 @@ export function eightsFamily(config: GameConfig): GameModule<EightsData> {
       if (lastCardRule(s) && !d.announced[seat] && (d.unannounced === seat || (s.turn === seat && s.phase === 'play' && size === 2)))
         out.push({ type: 'lastCard', label: 'Last card!', style: d.unannounced === seat ? 'danger' : 'quiet' });
       if (s.turn !== seat) return out;
-      if (s.phase === 'nominate') return [{ type: 'nominate', label: 'Call a suit', style: 'primary', choose: { label: 'The eight calls', options: suitChoices() } }];
+      if (s.phase === 'nominate')
+        return [{ type: 'nominate', label: 'Call a suit', style: 'primary', choose: { label: 'The eight calls', options: suitChoices() } }];
       if (s.phase !== 'play') return out;
       const options = legal(s, seat);
       const plain = options.filter((c) => rankOf(c) !== 8);
       const eights = options.filter((c) => rankOf(c) === 8);
       if (plain.length) out.unshift({ type: 'play', label: 'Play', style: 'primary', quick: true, select: { min: 1, max: 1, cards: plain } });
-      if (eights.length) out.push({ type: 'eight', label: 'Play an 8', select: { min: 1, max: 1, cards: eights }, choose: { label: 'Call a suit', options: suitChoices() } });
-      if (canDraw(s)) out.push({ type: 'draw', label: d.pendingDraw ? `Draw ${d.pendingDraw}` : 'Draw', style: options.length ? 'quiet' : 'primary', zone: 'deck' });
+      if (eights.length)
+        out.push({ type: 'eight', label: 'Play an 8', select: { min: 1, max: 1, cards: eights }, choose: { label: 'Call a suit', options: suitChoices() } });
+      if (canDraw(s))
+        out.push({ type: 'draw', label: d.pendingDraw ? `Draw ${d.pendingDraw}` : 'Draw', style: options.length ? 'quiet' : 'primary', zone: 'deck' });
       else if (!options.length) out.push({ type: 'pass', label: 'Pass (no cards to draw)', style: 'primary' });
       return out;
     },
@@ -332,7 +342,10 @@ export function eightsFamily(config: GameConfig): GameModule<EightsData> {
         case 'eight': {
           assertRule(s.phase === 'play', 'Not now');
           const card = a.cards?.[0];
-          assertRule(card && legal(s, seat).includes(card), d.pendingDraw ? `Play a 2, or draw ${d.pendingDraw}` : `Match the ${SUIT_NAME[d.suit].toLowerCase()} or the rank — or play an 8`);
+          assertRule(
+            card && legal(s, seat).includes(card),
+            d.pendingDraw ? `Play a 2, or draw ${d.pendingDraw}` : `Match the ${SUIT_NAME[d.suit].toLowerCase()} or the rank — or play an 8`,
+          );
           const isEight = rankOf(card) === 8;
           const named = SUITS[a.amount ?? -1];
           assertRule(!isEight || named, 'Call a suit for your eight');
@@ -380,7 +393,9 @@ export function eightsFamily(config: GameConfig): GameModule<EightsData> {
       let headline: string;
       if (s.phase === 'nominate') headline = s.turn === viewer ? 'An eight was turned up: call a suit' : `${turnName} is calling a suit for the eight`;
       else if (s.phase === 'play') {
-        const need = d.pendingDraw ? `play a 2 or draw ${d.pendingDraw}` : `${SUIT_SYMBOL[d.suit]}${rankOf(top(s)) !== 8 ? ` or ${rankLabel(rankOf(top(s)))}` : ''} — or an 8`;
+        const need = d.pendingDraw
+          ? `play a 2 or draw ${d.pendingDraw}`
+          : `${SUIT_SYMBOL[d.suit]}${rankOf(top(s)) !== 8 ? ` or ${rankLabel(rankOf(top(s)))}` : ''} — or an 8`;
         headline = s.turn === viewer ? `Your turn: ${need}` : `${turnName} to play · ${need}`;
         if (d.unannounced === viewer) headline = 'Say “last card!” before the next player moves';
       } else headline = d.result?.lines[0] ?? '';

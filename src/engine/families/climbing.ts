@@ -58,8 +58,7 @@ export const climbRank = (id: string) => {
   return r === 2 ? 15 : r;
 };
 const rankName = (r: number) => rankLabel(r === 15 ? 2 : r);
-const playName = (count: number, rank: number) =>
-  count === 1 ? `a ${rankName(rank)}` : `${['', '', 'two', 'three', 'four'][count]} ${rankName(rank)}s`;
+const playName = (count: number, rank: number) => (count === 1 ? `a ${rankName(rank)}` : `${['', '', 'two', 'three', 'four'][count]} ${rankName(rank)}s`);
 
 /** Title for a finishing place among `n` players. */
 export function titleFor(place: number, n: number): string {
@@ -229,7 +228,10 @@ export function climbingFamily(config: GameConfig): GameModule<ClimbingData> {
   const search: SearchGame<ClimbingData> = {
     determinize(s, viewer) {
       const c = fork(s);
-      dealUnseen(c, c.players.filter((p) => p.seat !== viewer).map((p) => ({ zone: `hand:${p.seat}` })));
+      dealUnseen(
+        c,
+        c.players.filter((p) => p.seat !== viewer).map((p) => ({ zone: `hand:${p.seat}` })),
+      );
       return c;
     },
     candidates(s, seat) {
@@ -318,7 +320,10 @@ export function climbingFamily(config: GameConfig): GameModule<ClimbingData> {
           const owe = d.owed[i];
           const cards = a.cards ?? [];
           const own = ids(hand(s, seat));
-          assertRule(cards.length === owe.count && new Set(cards).size === cards.length && cards.every((c) => own.includes(c)), `Choose ${owe.count} card${owe.count > 1 ? 's' : ''} to give back`);
+          assertRule(
+            cards.length === owe.count && new Set(cards).size === cards.length && cards.every((c) => own.includes(c)),
+            `Choose ${owe.count} card${owe.count > 1 ? 's' : ''} to give back`,
+          );
           moveCards(s, `hand:${seat}`, `hand:${owe.to}`, cards);
           d.received[owe.to] = cards;
           d.received[seat] = [];
@@ -334,9 +339,15 @@ export function climbingFamily(config: GameConfig): GameModule<ClimbingData> {
         case 'play': {
           const cards = a.cards ?? [];
           const own = ids(hand(s, seat));
-          assertRule(cards.length >= 1 && cards.length <= 4 && new Set(cards).size === cards.length && cards.every((c) => own.includes(c)), 'Choose cards from your hand');
+          assertRule(
+            cards.length >= 1 && cards.length <= 4 && new Set(cards).size === cards.length && cards.every((c) => own.includes(c)),
+            'Choose cards from your hand',
+          );
           const rank = climbRank(cards[0]);
-          assertRule(cards.every((c) => climbRank(c) === rank), 'Play cards of one rank');
+          assertRule(
+            cards.every((c) => climbRank(c) === rank),
+            'Play cards of one rank',
+          );
           if (d.top) {
             assertRule(cards.length === d.top.count, `Play ${d.top.count === 1 ? 'one card' : `${d.top.count} cards`}`);
             assertRule(rank > d.top.rank, `Play higher than ${playName(d.top.count, d.top.rank)}`);
@@ -407,7 +418,7 @@ export function climbingFamily(config: GameConfig): GameModule<ClimbingData> {
         headline,
         seats: s.players.map((_, i) => ({
           badge: [
-            place(i) >= 0 && s.phase === 'play' ? `Out · ${titleFor(place(i), s.players.length)}` : d.titles[i] ?? '',
+            place(i) >= 0 && s.phase === 'play' ? `Out · ${titleFor(place(i), s.players.length)}` : (d.titles[i] ?? ''),
             s.phase === 'play' && d.passed[i] ? 'Passed' : '',
             `${d.points[i]} pts`,
           ]

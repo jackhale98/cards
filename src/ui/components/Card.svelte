@@ -21,17 +21,7 @@
   const court = $derived(info && info.rank >= 11 && info.rank <= 13);
 </script>
 
-<div
-  class="card"
-  class:back={hidden}
-  class:red
-  class:selected
-  class:playable
-  class:dim
-  class:fresh
-  role="img"
-  aria-label={info ? `${rank}${sym}` : 'card'}
->
+<div class="card" class:back={hidden} class:red class:selected class:playable class:dim class:fresh role="img" aria-label={info ? `${rank}${sym}` : 'card'}>
   {#if info && info.suit === 'X'}
     <div class="joker"><span>★</span><small>JOKER</small></div>
   {:else if info}
@@ -151,7 +141,9 @@
 
   /* the table's card back (see ui/backArt.ts): one drawing of the whole card, margin included */
   .back {
-    background: var(--back-art) center / 100% 100% no-repeat, var(--back-a);
+    background:
+      var(--back-art) center / 100% 100% no-repeat,
+      var(--back-a);
     box-shadow:
       0 0.08em 0.2em rgba(0, 0, 0, 0.3),
       0 0.6em 1.2em -0.4em rgba(0, 0, 0, 0.5),

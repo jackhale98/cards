@@ -231,7 +231,12 @@ describe('free table: rummy moves and deck placement', () => {
     const before = s.zones.deck.cards.length;
     freetable.apply(s, 0, { type: 'toBottom', cards: ['KS', '6H'] });
     expect(s.zones.deck.cards.length).toBe(before + 2);
-    expect(s.zones.deck.cards.slice(0, 2).map((c) => c.id).sort()).toEqual(['6H', 'KS']);
+    expect(
+      s.zones.deck.cards
+        .slice(0, 2)
+        .map((c) => c.id)
+        .sort(),
+    ).toEqual(['6H', 'KS']);
     freetable.apply(s, 0, { type: 'toTop', cards: ['7H'] });
     expect(s.zones.deck.cards.at(-1)!.id).toBe('7H');
     // the next draw takes the card just put on top
@@ -242,7 +247,11 @@ describe('free table: rummy moves and deck placement', () => {
 
 describe('free table: passing cards', () => {
   const four = () => {
-    const s = freetable.setup(['A', 'B', 'C', 'D'].map((name) => ({ name })), 9, {});
+    const s = freetable.setup(
+      ['A', 'B', 'C', 'D'].map((name) => ({ name })),
+      9,
+      {},
+    );
     freetable.apply(s, 0, { type: 'deal', amount: 3 });
     return s;
   };

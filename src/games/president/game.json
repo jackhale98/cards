@@ -15,9 +15,7 @@
     { "id": "hand", "perPlayer": true, "visibility": "owner", "layout": "fan", "area": "hand" }
   ],
   "rules": { "family": "climbing", "style": "president", "end": { "target": 11 } },
-  "options": [
-    { "id": "target", "label": "Play to", "type": "number", "default": 11, "min": 3, "max": 21, "step": 2 }
-  ],
+  "options": [{ "id": "target", "label": "Play to", "type": "number", "default": 11, "min": 3, "max": 21, "step": 2 }],
   "rulesSummary": [
     "All cards are dealt. 2 is the highest card, then A, K, Q… down to 3. The holder of the 3♣ leads the first hand.",
     "Play one card, or a set of the same rank. The next play must be the same number of cards and higher. Or pass — you can still play later in the same round. Nobody wins tricks: the aim is to run out of cards.",

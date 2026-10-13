@@ -18,7 +18,10 @@
     "lead": "leftOfDealer",
     "trump": "S",
     "breaks": "S",
-    "teams": [[0, 2], [1, 3]],
+    "teams": [
+      [0, 2],
+      [1, 3]
+    ],
     "bidding": { "nil": true },
     "scoring": { "type": "contract", "bags": { "every": 10, "penalty": 100 }, "nil": 100 },
     "end": { "target": 500 }
@@ -34,7 +37,14 @@
     },
     "6": {
       "deck": { "decks": 2, "exclude": ["2D"] },
-      "rules": { "teams": [[0, 3], [1, 4], [2, 5]], "duplicates": "later" }
+      "rules": {
+        "teams": [
+          [0, 3],
+          [1, 4],
+          [2, 5]
+        ],
+        "duplicates": "later"
+      }
     }
   },
   "options": [

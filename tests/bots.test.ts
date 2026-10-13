@@ -41,14 +41,18 @@ function playDeal(g: GameModule, seed: number, n: number): string | null {
 
 describe('bots only make moves the rules allow', () => {
   for (const g of GAME_LIST.filter((g) => g.bot)) {
-    it(g.config.id, () => {
-      const n = Math.max(g.config.players.min, Math.min(g.config.players.max, g.config.id === 'holdem' || g.config.id === 'omaha' ? 3 : 4));
-      const problems: string[] = [];
-      for (let seed = 1; seed <= 400 && problems.length < 3; seed++) {
-        const p = playDeal(g, seed, n);
-        if (p) problems.push(p);
-      }
-      expect(problems).toEqual([]);
-    }, 60000); // (400 deals of the slower games take a few seconds)
+    it(
+      g.config.id,
+      () => {
+        const n = Math.max(g.config.players.min, Math.min(g.config.players.max, g.config.id === 'holdem' || g.config.id === 'omaha' ? 3 : 4));
+        const problems: string[] = [];
+        for (let seed = 1; seed <= 400 && problems.length < 3; seed++) {
+          const p = playDeal(g, seed, n);
+          if (p) problems.push(p);
+        }
+        expect(problems).toEqual([]);
+      },
+      60000,
+    ); // (400 deals of the slower games take a few seconds)
   }
 });

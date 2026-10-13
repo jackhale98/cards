@@ -72,7 +72,9 @@ describe('poker (pagat)', () => {
     const board = ['AS', 'KS', 'QS', 'JS', 'TS'];
     const burns = ['4H', '5H', '6H'];
     const used = [...board, ...burns, ...Object.values(hole).flat()];
-    s.zones.deck.cards = buildDeck().filter((c) => !used.includes(c)).map((id) => ({ id }));
+    s.zones.deck.cards = buildDeck()
+      .filter((c) => !used.includes(c))
+      .map((id) => ({ id }));
     const order = [burns[0], board[0], board[1], board[2], burns[1], board[3], burns[2], board[4]];
     s.zones.deck.cards.push(...order.reverse().map((id) => ({ id })));
     const act = (type: string) => holdem.apply(s, s.turn!, { type });
@@ -242,7 +244,13 @@ describe('500 joker (pagat)', () => {
     s.turn = 0;
     if (misere) {
       // misère needs a seven first
-      g.apply(s, 0, { type: 'bid500', amount: g.actions(s, 0).find((a) => a.type === 'bid500')!.choose!.options.find((o) => o.label.startsWith('7\u2009♠'))!.value });
+      g.apply(s, 0, {
+        type: 'bid500',
+        amount: g
+          .actions(s, 0)
+          .find((a) => a.type === 'bid500')!
+          .choose!.options.find((o) => o.label.startsWith('7\u2009♠'))!.value,
+      });
       g.apply(s, 1, { type: 'decline' });
       g.apply(s, 2, { type: 'decline' });
       g.apply(s, 3, { type: 'misere' });
@@ -257,7 +265,12 @@ describe('500 joker (pagat)', () => {
 
   it('the contractor can make the joker the top card of a suit before the lead', () => {
     const { s } = noTrumps();
-    g.apply(s, 0, { type: 'bury', cards: cardsOf(s, 'hand:0').filter((c) => !c.includes('X')).slice(0, 3) });
+    g.apply(s, 0, {
+      type: 'bury',
+      cards: cardsOf(s, 'hand:0')
+        .filter((c) => !c.includes('X'))
+        .slice(0, 3),
+    });
     expect(s.phase).toBe('joker');
     const choose = g.actions(s, 0)[0].choose!.options;
     expect(choose.map((o) => o.value)).toEqual([0, 1, 2, 3, 4]);
@@ -265,12 +278,22 @@ describe('500 joker (pagat)', () => {
     expect(s.data.jokerSuit).toBe('H');
     expect(s.phase).toBe('play');
     // now it's just the top heart: it leads like any card
-    expect(g.actions(s, 0).find((a) => a.type === 'play')!.select!.cards.some((c) => c.includes('X'))).toBe(true);
+    expect(
+      g
+        .actions(s, 0)
+        .find((a) => a.type === 'play')!
+        .select!.cards.some((c) => c.includes('X')),
+    ).toBe(true);
   });
 
   it('a suitless joker is led by calling a suit not yet led; the others must follow it', () => {
     const { s } = noTrumps();
-    g.apply(s, 0, { type: 'bury', cards: cardsOf(s, 'hand:0').filter((c) => !c.includes('X')).slice(0, 3) });
+    g.apply(s, 0, {
+      type: 'bury',
+      cards: cardsOf(s, 'hand:0')
+        .filter((c) => !c.includes('X'))
+        .slice(0, 3),
+    });
     g.apply(s, 0, { type: 'nominate', amount: 4 });
     expect(s.data.jokerSuit).toBeNull();
     const plays = g.actions(s, 0).find((a) => a.type === 'play')!.select!.cards;
@@ -293,7 +316,12 @@ describe('500 joker (pagat)', () => {
     // move the joker to the misère bidder
     const j = s.zones['hand:0'].cards.findIndex((c) => c.id.includes('X'));
     [s.zones['hand:0'].cards[j], s.zones[`hand:${maker}`].cards[0]] = [s.zones[`hand:${maker}`].cards[0], s.zones['hand:0'].cards[j]];
-    g.apply(s, maker, { type: 'bury', cards: cardsOf(s, `hand:${maker}`).filter((c) => !c.includes('X')).slice(0, 3) });
+    g.apply(s, maker, {
+      type: 'bury',
+      cards: cardsOf(s, `hand:${maker}`)
+        .filter((c) => !c.includes('X'))
+        .slice(0, 3),
+    });
     expect(s.phase).toBe('joker');
     expect(g.actions(s, maker)[0].choose!.options.map((o) => o.value)).toEqual([0, 1, 2, 3]);
   });
@@ -366,10 +394,21 @@ describe('bots play with their partner', () => {
   function rig(hand2: string[], trump: string | null) {
     const s = g.setup(bots(4), 5, defaults(g));
     for (const z of Object.values(s.zones)) z.cards = [];
-    s.zones.trick.cards = [{ id: 'AH', by: 0, up: true }, { id: '5H', by: 1, up: true }];
+    s.zones.trick.cards = [
+      { id: 'AH', by: 0, up: true },
+      { id: '5H', by: 1, up: true },
+    ];
     s.zones['hand:2'].cards = hand2.map((id) => ({ id }));
     s.zones['hand:3'].cards = ['6H', '7C'].map((id) => ({ id }));
-    Object.assign(s.data, { trump, maker: 0, contract: { tricks: 7, suit: trump ?? 'NT', value: 140 }, trickNo: 3, handSize: 10, sittingOut: null, ledSuits: ['H'] });
+    Object.assign(s.data, {
+      trump,
+      maker: 0,
+      contract: { tricks: 7, suit: trump ?? 'NT', value: 140 },
+      trickNo: 3,
+      handSize: 10,
+      sittingOut: null,
+      ledSuits: ['H'],
+    });
     s.phase = 'play';
     s.turn = 2;
     return s;

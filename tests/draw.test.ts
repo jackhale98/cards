@@ -94,7 +94,11 @@ describe('five card draw (pagat)', () => {
 
   it('bots play whole games, conserving chips and cards, with up to seven players', () => {
     for (const n of [2, 4, 7]) {
-      const s = g.setup(Array.from({ length: n }, (_, i) => ({ name: `B${i}`, bot: true })), 10 + n, opts({ stack: 200, ante: 10, jacks: n >= 4 }));
+      const s = g.setup(
+        Array.from({ length: n }, (_, i) => ({ name: `B${i}`, bot: true })),
+        10 + n,
+        opts({ stack: 200, ante: 10, jacks: n >= 4 }),
+      );
       let hands = 0;
       for (let i = 0; i < 200000 && s.phase !== 'gameOver'; i++) {
         if (s.phase === 'handOver') {

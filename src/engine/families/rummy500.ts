@@ -271,7 +271,9 @@ export function rummy500Family(config: GameConfig): GameModule<Rummy500Data> {
     relayout(s);
     s.phase = 'draw';
     s.turn = first;
-    log(s, `Hand ${d.handNo}: ${name(s, s.dealer)} deals ${size} each, ${cardOrJokerLabel(pile(s)[0])} turned up`, undefined, undefined, undefined, { from: 'deck' });
+    log(s, `Hand ${d.handNo}: ${name(s, s.dealer)} deals ${size} each, ${cardOrJokerLabel(pile(s)[0])} turned up`, undefined, undefined, undefined, {
+      from: 'deck',
+    });
   }
 
   function sortHand(s: S, seat: number) {
@@ -342,7 +344,12 @@ export function rummy500Family(config: GameConfig): GameModule<Rummy500Data> {
       meld.cards = plan.cards;
       meld.as = plan.as;
       meld.low = plan.low;
-      log(s, `${who} lays off ${list(cards)}${jokers.length ? ` (${jokers.join(', ')})` : ''}${meld.owner !== seat ? ` on ${name(s, meld.owner)}'s meld` : ''}`, seat, `Laid off ${list(cards)}`);
+      log(
+        s,
+        `${who} lays off ${list(cards)}${jokers.length ? ` (${jokers.join(', ')})` : ''}${meld.owner !== seat ? ` on ${name(s, meld.owner)}'s meld` : ''}`,
+        seat,
+        `Laid off ${list(cards)}`,
+      );
     }
     for (const c of cards) d.scoredBy[c] = seat;
     if (d.mustMeld && cards.includes(d.mustMeld)) d.mustMeld = null;
@@ -364,7 +371,10 @@ export function rummy500Family(config: GameConfig): GameModule<Rummy500Data> {
       const used = new Set(melds.flat());
       // points we could meld, minus the junk we'd be stuck holding
       const gain =
-        melds.flat().filter((c) => taken.includes(c)).reduce((n, c) => n + handValue(c), 0) +
+        melds
+          .flat()
+          .filter((c) => taken.includes(c))
+          .reduce((n, c) => n + handValue(c), 0) +
         taken.filter(isJoker).length * 15 -
         taken.filter((c) => !used.has(c) && !isJoker(c) && !s.data.melds.some((m) => layoffOptions(m, [c]).length)).reduce((n, c) => n + handValue(c), 0) * 0.6;
       if (canUse(card, [...own, ...taken], s.data.melds) && (!best || gain > best.gain)) best = { card, gain };
@@ -387,7 +397,8 @@ export function rummy500Family(config: GameConfig): GameModule<Rummy500Data> {
       // with a joker or two (or as a joker itself)
       const rest = own.filter((c) => c !== must);
       for (let i = 0; i < rest.length; i++)
-        for (let j = i + 1; j < rest.length; j++) if (meldOptions([must, rest[i], rest[j]]).length) return { type: 'meld', cards: [must, rest[i], rest[j]], amount: 0 };
+        for (let j = i + 1; j < rest.length; j++)
+          if (meldOptions([must, rest[i], rest[j]]).length) return { type: 'meld', cards: [must, rest[i], rest[j]], amount: 0 };
     }
     const melds = findMelds(own);
     if (melds.length) return { type: 'meld', cards: melds[0] };
@@ -400,7 +411,8 @@ export function rummy500Family(config: GameConfig): GameModule<Rummy500Data> {
     if (joker) {
       const rest = own.filter((c) => c !== joker);
       for (let i = 0; i < rest.length; i++)
-        for (let j = i + 1; j < rest.length; j++) if (meldOptions([joker, rest[i], rest[j]]).length) return { type: 'meld', cards: [joker, rest[i], rest[j]], amount: 0 };
+        for (let j = i + 1; j < rest.length; j++)
+          if (meldOptions([joker, rest[i], rest[j]]).length) return { type: 'meld', cards: [joker, rest[i], rest[j]], amount: 0 };
     }
     // discard the most expensive card that isn't close to a meld
     const near = (c: string) => {
@@ -447,7 +459,12 @@ export function rummy500Family(config: GameConfig): GameModule<Rummy500Data> {
       const own = ids(hand(s, seat));
       if (s.phase === 'declare' && d.pending) {
         return [
-          { type: 'declare', label: 'Say what the joker is', style: 'primary', choose: { label: 'The joker stands for…', options: d.pending.options.map((m, i) => ({ value: i, label: planLabel(m) })) } },
+          {
+            type: 'declare',
+            label: 'Say what the joker is',
+            style: 'primary',
+            choose: { label: 'The joker stands for…', options: d.pending.options.map((m, i) => ({ value: i, label: planLabel(m) })) },
+          },
           { type: 'cancel', label: 'Cancel', style: 'quiet' },
         ];
       }
@@ -460,9 +477,7 @@ export function rummy500Family(config: GameConfig): GameModule<Rummy500Data> {
         return out;
       }
       if (s.phase !== 'play') return [];
-      const out: ActionSpec[] = [
-        { type: 'meld', label: 'Meld', style: 'primary', select: { min: 3, max: own.length, cards: own } },
-      ];
+      const out: ActionSpec[] = [{ type: 'meld', label: 'Meld', style: 'primary', select: { min: 3, max: own.length, cards: own } }];
       const tableCards = d.melds.flatMap((m) => m.cards);
       if (tableCards.length) out.push({ type: 'layoff', label: 'Lay off', select: { min: 2, max: own.length + 1, cards: [...own, ...tableCards] } });
       if (!d.mustMeld) out.push({ type: 'discard', label: 'Discard', quick: 'swipe', select: { min: 1, max: 1, cards: own.filter((c) => c !== d.justTook) } });
@@ -529,7 +544,14 @@ export function rummy500Family(config: GameConfig): GameModule<Rummy500Data> {
           d.mustMeld = deep ? card : null;
           d.justTook = deep ? null : card;
           sortHand(s, seat);
-          log(s, `${who} takes ${deep ? `${list(taken)} from the pile` : `the ${cardName(card)}`}`, seat, `Took ${taken.length > 1 ? `${taken.length} cards` : cardOrJokerLabel(card)}`, undefined, { from: 'discard' });
+          log(
+            s,
+            `${who} takes ${deep ? `${list(taken)} from the pile` : `the ${cardName(card)}`}`,
+            seat,
+            `Took ${taken.length > 1 ? `${taken.length} cards` : cardOrJokerLabel(card)}`,
+            undefined,
+            { from: 'discard' },
+          );
           s.phase = 'play';
           return;
         }
@@ -551,7 +573,10 @@ export function rummy500Family(config: GameConfig): GameModule<Rummy500Data> {
           const own = ids(hand(s, seat));
           const onTable = cards.filter((c) => meldOf(s, c));
           const fromHand = cards.filter((c) => own.includes(c));
-          assertRule(onTable.length === 1 && fromHand.length >= 1 && fromHand.length + 1 === cards.length, 'Pick cards from your hand and one card of the meld to add to');
+          assertRule(
+            onTable.length === 1 && fromHand.length >= 1 && fromHand.length + 1 === cards.length,
+            'Pick cards from your hand and one card of the meld to add to',
+          );
           const meld = meldOf(s, onTable[0])!;
           const options = layoffOptions(meld, fromHand);
           assertRule(options.length, `Those don’t fit that meld`);
@@ -627,7 +652,8 @@ export function rummy500Family(config: GameConfig): GameModule<Rummy500Data> {
       let headline: string;
       if (s.phase === 'draw') {
         const canCall = d.rummyBy != null && viewer >= 0 && viewer !== d.rummyBy && viewer !== s.turn && rummyCards(s).length > 0;
-        headline = s.turn === viewer ? 'Draw — or take from the discard pile' : canCall ? `Rummy! is on — call it before ${turnName} draws` : `${turnName} to draw`;
+        headline =
+          s.turn === viewer ? 'Draw — or take from the discard pile' : canCall ? `Rummy! is on — call it before ${turnName} draws` : `${turnName} to draw`;
       } else if (s.phase === 'declare') headline = s.turn === viewer ? 'Say what the joker stands for' : `${turnName} is declaring a joker`;
       else if (s.phase === 'play')
         headline =
@@ -637,8 +663,7 @@ export function rummy500Family(config: GameConfig): GameModule<Rummy500Data> {
               : 'Meld or lay off, then discard'
             : `${turnName} is playing`;
       else headline = d.result?.headline ?? '';
-      const meldedBy = (i: number) =>
-        d.melds.flatMap((m) => m.cards.filter((c) => d.scoredBy[c] === i).map((c) => meldValue(c, m))).reduce((a, b) => a + b, 0);
+      const meldedBy = (i: number) => d.melds.flatMap((m) => m.cards.filter((c) => d.scoredBy[c] === i).map((c) => meldValue(c, m))).reduce((a, b) => a + b, 0);
       let hint: string | undefined;
       if (viewer >= 0 && (s.phase === 'draw' || s.phase === 'play')) {
         const left = ids(hand(s, viewer)).reduce((a, c) => a + handValue(c), 0);
@@ -647,7 +672,10 @@ export function rummy500Family(config: GameConfig): GameModule<Rummy500Data> {
       return {
         headline,
         hint,
-        seats: s.players.map((_, i) => ({ badge: `${d.scores[i]} pts${meldedBy(i) && s.phase !== 'handOver' ? ` · ${meldedBy(i)} down` : ''}`, tag: i === s.dealer ? 'D' : undefined })),
+        seats: s.players.map((_, i) => ({
+          badge: `${d.scores[i]} pts${meldedBy(i) && s.phase !== 'handOver' ? ` · ${meldedBy(i)} down` : ''}`,
+          tag: i === s.dealer ? 'D' : undefined,
+        })),
         scoreboard: {
           columns: ['Melded', 'Score'],
           rows: s.players.map((p, i) => ({ name: p.name, values: [meldedBy(i), d.scores[i]], highlight: s.winner?.includes(i) })),

@@ -101,8 +101,7 @@ export default {
     const m = url.pathname.match(/^\/room\/([^/]+)$/);
     if (!m || !ROOM_NAME.test(m[1])) return new Response('Not found', { status: 404 });
     if (req.headers.get('Upgrade')?.toLowerCase() !== 'websocket') return new Response('Expected a WebSocket', { status: 426 });
-    if (!originAllowed(req.headers.get('Origin'), env.ALLOWED_ORIGINS ?? ''))
-      return new Response('Origin not allowed', { status: 403 });
+    if (!originAllowed(req.headers.get('Origin'), env.ALLOWED_ORIGINS ?? '')) return new Response('Origin not allowed', { status: 403 });
     if (!PEER_ID.test(url.searchParams.get('peer') ?? '')) return new Response('Bad peer id', { status: 400 });
     const secret = url.searchParams.get('secret');
     if (secret !== null && !SECRET.test(secret)) return new Response('Bad secret', { status: 400 });
@@ -302,7 +301,6 @@ export class Room extends DurableObject<Env> {
   }
 }
 
-
 // ---- anonymous error reports ------------------------------------------------------------------
 
 /**
@@ -428,18 +426,36 @@ export class Reports extends DurableObject<Env> {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
        ON CONFLICT(sig) DO UPDATE SET count = count + 1, last = excluded.last, phase = excluded.phase,
          action = excluded.action, ua = excluded.ua, v = excluded.v, stack = excluded.stack`,
-      sig, r.kind, r.msg, r.stack, r.game, r.phase, r.action, r.ua, r.v, now, now,
+      sig,
+      r.kind,
+      r.msg,
+      r.stack,
+      r.game,
+      r.phase,
+      r.action,
+      r.ua,
+      r.v,
+      now,
+      now,
     );
-    this.ctx.storage.sql.exec(
-      `DELETE FROM errors WHERE sig NOT IN (SELECT sig FROM errors ORDER BY last DESC LIMIT ${Reports.KEEP})`,
-    );
+    this.ctx.storage.sql.exec(`DELETE FROM errors WHERE sig NOT IN (SELECT sig FROM errors ORDER BY last DESC LIMIT ${Reports.KEEP})`);
   }
 
   list() {
     return this.ctx.storage.sql
-      .exec<{ kind: string; msg: string; stack: string; game: string; phase: string; action: string; ua: string; v: string; count: number; first: number; last: number }>(
-        'SELECT kind, msg, stack, game, phase, action, ua, v, count, first, last FROM errors ORDER BY last DESC LIMIT 200',
-      )
+      .exec<{
+        kind: string;
+        msg: string;
+        stack: string;
+        game: string;
+        phase: string;
+        action: string;
+        ua: string;
+        v: string;
+        count: number;
+        first: number;
+        last: number;
+      }>('SELECT kind, msg, stack, game, phase, action, ua, v, count, first, last FROM errors ORDER BY last DESC LIMIT 200')
       .toArray();
   }
 }

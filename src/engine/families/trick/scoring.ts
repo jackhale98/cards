@@ -84,7 +84,9 @@ export function roundScores(g: TrickGame, s: S): { deltas: number[]; lines: stri
       const value = made && won === 10 && c.value < (sc.slam ?? 250) ? (sc.slam ?? 250) : c.value;
       const each = side.length === 2 ? value / 2 : value;
       for (const i of side) deltas[teamOf(g, s, i)] = made ? each : -each;
-      lines.push(`${side.map((i) => name(s, i)).join(' & ')} ${made ? 'make' : 'go down on'} ${contractLabel(c)} with ${won} tricks: ${made ? '+' : '−'}${each}${side.length === 2 ? ' each' : ''}`);
+      lines.push(
+        `${side.map((i) => name(s, i)).join(' & ')} ${made ? 'make' : 'go down on'} ${contractLabel(c)} with ${won} tricks: ${made ? '+' : '−'}${each}${side.length === 2 ? ' each' : ''}`,
+      );
       for (const p of s.players) {
         if (side.includes(p.seat)) continue;
         deltas[teamOf(g, s, p.seat)] = d.tricks[p.seat] * sc.perTrick;
@@ -160,9 +162,7 @@ export function endRound(g: TrickGame, s: S) {
   }
   const { deltas, lines } = roundScores(g, s);
   deltas.forEach((v, ti) => (d.scores[ti] += v));
-  teamsFor(g, s.players.length).forEach((_, ti) =>
-    lines.push(`${teamName(g, s, ti)}: ${deltas[ti] >= 0 ? '+' : ''}${deltas[ti]} → ${d.scores[ti]}`),
-  );
+  teamsFor(g, s.players.length).forEach((_, ti) => lines.push(`${teamName(g, s, ti)}: ${deltas[ti] >= 0 ? '+' : ''}${deltas[ti]} → ${d.scores[ti]}`));
   d.result = { lines };
   s.turn = null;
   if (g.auction) return endAuctionRound(g, s, deltas, lines);
@@ -170,10 +170,10 @@ export function endRound(g: TrickGame, s: S) {
   const reached = R.end.deals
     ? d.round + 1 >= Number(s.options.deals ?? R.end.deals)
     : R.end.rounds
-    ? d.round + 1 >= totalRounds(g, s)
-    : lowWins
-      ? Math.max(...d.scores) >= target(g, s)
-      : best >= target(g, s);
+      ? d.round + 1 >= totalRounds(g, s)
+      : lowWins
+        ? Math.max(...d.scores) >= target(g, s)
+        : best >= target(g, s);
   const tied = d.scores.filter((x) => x === best).length > 1;
   // a side down at `loseAt` ends the game: the best of the rest win (as long as they're level)
   const loseAt = R.end.loseAt;
@@ -218,7 +218,8 @@ function endAuctionRound(g: TrickGame, s: S, deltas: number[], lines: string[]) 
     winners = teams.map((_, ti) => ti).filter((ti) => d.scores[ti] > loseAt);
     for (const ti of teams.keys()) if (d.scores[ti] <= loseAt) lines.push(`${teamName(g, s, ti)} go out the back door at ${d.scores[ti]}`);
   }
-  if (bidToWin && !winners.length && d.scores.some((x, ti) => x >= target(g, s) && ti !== makers)) lines.push(`(A side has to make a bid to win — reaching ${target(g, s)} on defence isn't enough)`);
+  if (bidToWin && !winners.length && d.scores.some((x, ti) => x >= target(g, s) && ti !== makers))
+    lines.push(`(A side has to make a bid to win — reaching ${target(g, s)} on defence isn't enough)`);
   if (winners.length) {
     s.winner = winners.flatMap((ti) => teams[ti]);
     s.phase = 'gameOver';

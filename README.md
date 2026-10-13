@@ -28,10 +28,10 @@ the middle of the table. It needs no accounts or app store, and there's no serve
   the table cloth (green baize, navy, burgundy, plum, oak, charcoal) in the lobby or mid-game; every
   phone and the TV follow. Each back is a small SVG drawn on the device: nothing to download.
 - **Pick your look:** each player chooses an emoji avatar and colour, and every seat is labelled
-  *your left*, *across* or *your right*.
+  _your left_, _across_ or _your right_.
 - **Built for landscape phones:** fanned hand, tap or swipe up to play, haptics, and keeps the screen awake.
   Full screen from the table menu on Android; on iPhone, Share → Add to Home Screen opens it full screen.
-- **Table display:** put a tablet or laptop in the middle as the shared board (`Use this device as the table display`). While one is connected, phones switch to *hand mode*: a bigger hand and your own info, with only the piles you can tap right now (switch back from the menu).
+- **Table display:** put a tablet or laptop in the middle as the shared board (`Use this device as the table display`). While one is connected, phones switch to _hand mode_: a bigger hand and your own info, with only the piles you can tap right now (switch back from the menu).
 - **Friends far away:** the invite link works over the internet too (through the Lamplight relay), so someone in another city can join the table live.
 - **Game night:** every finished game adds to a running scoreboard for the evening (3 / 2 / 1 points for the podium, partners share), shown in the lobby, on the game-over screen and in the scores sheet. The host can start a new night.
 - **Big groups:** everyone who joins gets a seat at the table, even past what the game seats. The
@@ -47,7 +47,7 @@ From the lobby (**📺 TV**) or the table menu (**Show on a TV**):
 - **Any TV with a web browser** (Samsung, LG, Fire TV, a games console…): open `lamplight.cards/tv` on
   the TV. It shows a five-letter code; type it into the phone and the TV becomes the table display.
   Nobody has to type on the remote. (The pairing goes through the relay in a tiny room of its own.)
-- **Chromecast / Google TV:** from Chrome on Android or a computer, tap *Cast*. The TV runs the app at
+- **Chromecast / Google TV:** from Chrome on Android or a computer, tap _Cast_. The TV runs the app at
   `/?cast=1` as a Cast receiver and is told the table code over a custom channel. The receiver is
   published in the Google Cast console (App ID `221DFB34`, built into `src/net/cast.ts`); how it was
   set up, and how to test a change on your own receiver, is in [docs/CHROMECAST.md](docs/CHROMECAST.md).
@@ -99,7 +99,7 @@ on, and when the old host comes back it rejoins as a player in its own seat (`sr
 `takeover` in `relay/src/index.ts`).
 
 The host's device runs the rules and is the single source of truth. Every other device sends
-*intents* ("play the 7♣") and gets back a **personalised view**. Your device never receives
+_intents_ ("play the 7♣") and gets back a **personalised view**. Your device never receives
 another player's hidden cards, so nobody can peek with dev tools.
 
 > Bluetooth isn't used: Web Bluetooth isn't available on iOS, and browsers can't advertise as a

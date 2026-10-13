@@ -190,7 +190,12 @@ export function cheatFamily(config: GameConfig): GameModule<CheatData> {
       if (d.last && d.last.seat !== seat) out.push({ type: 'cheat', label: `Cheat! (${name(s, d.last.seat)})`, style: 'danger' });
       if (s.turn === seat) {
         const own = ids(hand(s, seat));
-        out.unshift({ type: 'play', label: `Play as ${rankPlural(d.rank)}`, style: 'primary', select: { min: 1, max: Math.min(maxPlay(s), own.length), cards: own } });
+        out.unshift({
+          type: 'play',
+          label: `Play as ${rankPlural(d.rank)}`,
+          style: 'primary',
+          select: { min: 1, max: Math.min(maxPlay(s), own.length), cards: own },
+        });
         if (d.last && !hand(s, d.last.seat).cards.length) out.push({ type: 'accept', label: `Let ${name(s, d.last.seat)} win` });
       }
       return out;
@@ -217,7 +222,10 @@ export function cheatFamily(config: GameConfig): GameModule<CheatData> {
       assertRule(a.type === 'play', `Unknown action ${a.type}`);
       const cards = a.cards ?? [];
       const own = ids(hand(s, seat));
-      assertRule(cards.length >= 1 && cards.length <= maxPlay(s) && new Set(cards).size === cards.length && cards.every((c) => own.includes(c)), `Play 1 to ${maxPlay(s)} cards`);
+      assertRule(
+        cards.length >= 1 && cards.length <= maxPlay(s) && new Set(cards).size === cards.length && cards.every((c) => own.includes(c)),
+        `Play 1 to ${maxPlay(s)} cards`,
+      );
       // playing on accepts the last play
       if (closeWindow(s)) return;
       collectShown(s);
@@ -240,7 +248,10 @@ export function cheatFamily(config: GameConfig): GameModule<CheatData> {
 
     standings(s) {
       // fewest cards left places best
-      return placesFromScores(s.players.map((_, i) => (s.winner?.includes(i) ? -1 : hand(s, i).cards.length)), true);
+      return placesFromScores(
+        s.players.map((_, i) => (s.winner?.includes(i) ? -1 : hand(s, i).cards.length)),
+        true,
+      );
     },
 
     status(s, viewer) {
@@ -256,7 +267,10 @@ export function cheatFamily(config: GameConfig): GameModule<CheatData> {
       } else headline = d.result?.lines[0] ?? '';
       return {
         headline,
-        seats: s.players.map((_, i) => ({ badge: `${hand(s, i).cards.length} card${hand(s, i).cards.length === 1 ? '' : 's'}`, tag: i === s.dealer ? 'D' : undefined })),
+        seats: s.players.map((_, i) => ({
+          badge: `${hand(s, i).cards.length} card${hand(s, i).cards.length === 1 ? '' : 's'}`,
+          tag: i === s.dealer ? 'D' : undefined,
+        })),
         banner: s.phase === 'gameOver' ? { title: `${name(s, s.winner![0])} wins!`, lines: d.result?.lines ?? [] } : undefined,
       };
     },

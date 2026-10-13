@@ -15,9 +15,7 @@
   ],
   "rules": { "family": "canasta", "end": { "target": 5000 } },
   "byPlayers": { "6": { "deck": { "decks": 3, "jokers": 2 } } },
-  "options": [
-    { "id": "target", "label": "Play to", "type": "number", "default": 5000, "min": 1500, "max": 10000, "step": 500 }
-  ],
+  "options": [{ "id": "target", "label": "Play to", "type": "number", "default": 5000, "min": 1500, "max": 10000, "step": 500 }],
   "rulesSummary": [
     "Two decks and four jokers. Partners sit across (or play two head to head). Jokers and 2s are wild; red 3s are laid out at once as bonuses.",
     "Each turn draw from the stock (two cards head to head), or take the whole discard pile by melding its top card. Then meld and discard.",

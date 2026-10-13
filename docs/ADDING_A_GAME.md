@@ -10,27 +10,27 @@ src/games/my-game/
   rules.ts    # optional escape hatch for rules no family covers
 ```
 
-| family         | games it can express today | engine |
-|----------------|----------------------------|--------|
-| `free`         | anything (rules not enforced). Optional zones add moves: `discard` (discard face up/down, take the top discard) and a per-player `melds` zone (lay down melds, add to anyone's) | `src/engine/families/free.ts` |
-| `trick-taking` | Hearts, Spades, Oh Hell, Euchre, 500, Contract Bridge, Whist… | `src/engine/families/trick/` (one file per stage: `deal`, `bidding`, `play`, `scoring`, `actions`, `status`; bots in `bots.ts`, 500 and bridge contracts in `contracts.ts`; the map is at the top of `index.ts`) |
-| `poker`        | Texas Hold'em, Omaha, Pineapple-style variants (blinds and a board), Five Card Draw (`draw`: antes and one draw) | `src/engine/families/poker.ts` |
-| `rummy`        | Gin Rummy (style `gin`), Rummy 500 (style `500`) | `src/engine/families/rummy.ts`, `rummy500.ts` |
-| `canasta`      | Classic Canasta, partnerships or head to head | `src/engine/families/canasta.ts` |
-| `climbing`     | President (style `president`): beat the last play or pass, first out wins | `src/engine/families/climbing.ts` |
-| `cribbage`     | Cribbage for 2–4 (4 = partners), to 121 or 61 | `src/engine/families/cribbage.ts` |
-| `blackjack`    | Blackjack against the house (the host's phone deals) | `src/engine/families/blackjack.ts` |
-| `baccarat`     | Punto Banco against the house: bet on Player, Banker or Tie | `src/engine/families/baccarat.ts` |
-| `cheat`        | Cheat / Bullshit / I Doubt It | `src/engine/families/cheat.ts` |
-| `gofish`       | Go Fish | `src/engine/families/gofish.ts` |
-| `eights`       | Crazy Eights: match rank or suit, eights call a suit, optional Q/A/2 specials | `src/engine/families/eights.ts` |
-| `palace`       | Palace / Shithead: beat the pile or pick it up, then face-up and blind face-down cards | `src/engine/families/palace.ts` |
-| `corners`      | Kings Corners: build down in alternating colours, kings in the corners | `src/engine/families/corners.ts` |
-| `spit`         | Spit: two players play at once onto two middle piles, one rank up or down | `src/engine/families/spit.ts` |
-| `spoons`       | Spoons: pass cards along at once, quietly take a spoon on four of a kind, S-P-O-O-N | `src/engine/families/spoons.ts` |
-| `slap`         | Slapjack and Egyptian Rat Screw, in real time: turn cards over, slap the pile (`style`: `slapjack` or `ers`) | `src/engine/families/slap.ts` |
-| `handfoot`     | Hand and Foot: partnership canasta with a hand and a foot, four rounds | `src/engine/families/handfoot.ts` |
-| `pinochle`     | Partnership auction Pinochle: bid, pass four, meld, must-beat trick play | `src/engine/families/pinochle.ts` |
+| family         | games it can express today                                                                                                                                                      | engine                                                                                                                                                                                                           |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `free`         | anything (rules not enforced). Optional zones add moves: `discard` (discard face up/down, take the top discard) and a per-player `melds` zone (lay down melds, add to anyone's) | `src/engine/families/free.ts`                                                                                                                                                                                    |
+| `trick-taking` | Hearts, Spades, Oh Hell, Euchre, 500, Contract Bridge, Whist…                                                                                                                   | `src/engine/families/trick/` (one file per stage: `deal`, `bidding`, `play`, `scoring`, `actions`, `status`; bots in `bots.ts`, 500 and bridge contracts in `contracts.ts`; the map is at the top of `index.ts`) |
+| `poker`        | Texas Hold'em, Omaha, Pineapple-style variants (blinds and a board), Five Card Draw (`draw`: antes and one draw)                                                                | `src/engine/families/poker.ts`                                                                                                                                                                                   |
+| `rummy`        | Gin Rummy (style `gin`), Rummy 500 (style `500`)                                                                                                                                | `src/engine/families/rummy.ts`, `rummy500.ts`                                                                                                                                                                    |
+| `canasta`      | Classic Canasta, partnerships or head to head                                                                                                                                   | `src/engine/families/canasta.ts`                                                                                                                                                                                 |
+| `climbing`     | President (style `president`): beat the last play or pass, first out wins                                                                                                       | `src/engine/families/climbing.ts`                                                                                                                                                                                |
+| `cribbage`     | Cribbage for 2–4 (4 = partners), to 121 or 61                                                                                                                                   | `src/engine/families/cribbage.ts`                                                                                                                                                                                |
+| `blackjack`    | Blackjack against the house (the host's phone deals)                                                                                                                            | `src/engine/families/blackjack.ts`                                                                                                                                                                               |
+| `baccarat`     | Punto Banco against the house: bet on Player, Banker or Tie                                                                                                                     | `src/engine/families/baccarat.ts`                                                                                                                                                                                |
+| `cheat`        | Cheat / Bullshit / I Doubt It                                                                                                                                                   | `src/engine/families/cheat.ts`                                                                                                                                                                                   |
+| `gofish`       | Go Fish                                                                                                                                                                         | `src/engine/families/gofish.ts`                                                                                                                                                                                  |
+| `eights`       | Crazy Eights: match rank or suit, eights call a suit, optional Q/A/2 specials                                                                                                   | `src/engine/families/eights.ts`                                                                                                                                                                                  |
+| `palace`       | Palace / Shithead: beat the pile or pick it up, then face-up and blind face-down cards                                                                                          | `src/engine/families/palace.ts`                                                                                                                                                                                  |
+| `corners`      | Kings Corners: build down in alternating colours, kings in the corners                                                                                                          | `src/engine/families/corners.ts`                                                                                                                                                                                 |
+| `spit`         | Spit: two players play at once onto two middle piles, one rank up or down                                                                                                       | `src/engine/families/spit.ts`                                                                                                                                                                                    |
+| `spoons`       | Spoons: pass cards along at once, quietly take a spoon on four of a kind, S-P-O-O-N                                                                                             | `src/engine/families/spoons.ts`                                                                                                                                                                                  |
+| `slap`         | Slapjack and Egyptian Rat Screw, in real time: turn cards over, slap the pile (`style`: `slapjack` or `ers`)                                                                    | `src/engine/families/slap.ts`                                                                                                                                                                                    |
+| `handfoot`     | Hand and Foot: partnership canasta with a hand and a foot, four rounds                                                                                                          | `src/engine/families/handfoot.ts`                                                                                                                                                                                |
+| `pinochle`     | Partnership auction Pinochle: bid, pass four, meld, must-beat trick play                                                                                                        | `src/engine/families/pinochle.ts`                                                                                                                                                                                |
 
 `schemas/game.schema.json` describes every parameter, so editors like VS Code give you
 autocomplete and validation as you type (each file points at it with `$schema`). `pnpm test`
@@ -64,46 +64,46 @@ is a different combination of the same parameters.
 
 ### Trick-taking parameters
 
-| key | values |
-|-----|--------|
-| `handSizes` | `"all"` (deal the whole deck), `"ladder"` (1 → `maxHand` → 1), or a list like `[10, 9, 8]` |
-| `passing` | `{ "count": 3, "cycle": ["left", "right", "across", "hold"] }` |
-| `lead` | `"twoOfClubs"`, `"leftOfDealer"` or `"maker"` (whoever won the bidding) |
-| `trump` | `"none"`, a suit letter, `"turnUp"` (the card after the deal sets trumps; needs a `trump` zone) or `"chosen"` (decided by the bidding) |
-| `bowers` | the jack of trumps and the other jack of its colour are the top two trumps |
-| `joker` | a joker is the highest trump (in no trumps it wins any trick, played when void) |
-| `kitty` | cards left undealt for the bid winner |
-| `breaks` | a suit that can't be led until it has been played |
-| `noPointsFirstTrick` | no point cards on the first trick unless you have no choice |
-| `teams` | partnerships, e.g. `[[0, 2], [1, 3]]` |
-| `bidding` | `{ "nil": true, "hook": true }` (bid a number of tricks; hook: the dealer can't make bids total the tricks), `{ "type": "euchre", "stickTheDealer": true, "alone": true }` (order up / name trumps; needs an `upcard` zone), `{ "type": "auction", "schedule": "avondale", "misere": true }` (500 bids, optionally with misère and open misère), or `{ "type": "bridge" }` (contract bridge auction with doubles; the declarer plays a face-up `dummy` zone) |
-| `scoring` | `penalty` (`cardPoints`, `moon`), `contract` (`bags`, `nil`), `exact` (`bonus`), `tricks`, `euchre`, `auction` (`perTrick`, `slam`), or `bridge` (duplicate scores, Chicago vulnerability) |
-| `end` | `{ "target": 100, "lowWins": true }`, `{ "rounds": true }` (play through `handSizes` once), `{ "deals": 4 }` (a fixed number of deals; option `deals` overrides); add `"loseAt": -500` to lose at a score. Auction games are won only by making a bid unless option `bidToWin` is off |
+| key                  | values                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `handSizes`          | `"all"` (deal the whole deck), `"ladder"` (1 → `maxHand` → 1), or a list like `[10, 9, 8]`                                                                                                                                                                                                                                                                                                                                                                   |
+| `passing`            | `{ "count": 3, "cycle": ["left", "right", "across", "hold"] }`                                                                                                                                                                                                                                                                                                                                                                                               |
+| `lead`               | `"twoOfClubs"`, `"leftOfDealer"` or `"maker"` (whoever won the bidding)                                                                                                                                                                                                                                                                                                                                                                                      |
+| `trump`              | `"none"`, a suit letter, `"turnUp"` (the card after the deal sets trumps; needs a `trump` zone) or `"chosen"` (decided by the bidding)                                                                                                                                                                                                                                                                                                                       |
+| `bowers`             | the jack of trumps and the other jack of its colour are the top two trumps                                                                                                                                                                                                                                                                                                                                                                                   |
+| `joker`              | a joker is the highest trump (in no trumps it wins any trick, played when void)                                                                                                                                                                                                                                                                                                                                                                              |
+| `kitty`              | cards left undealt for the bid winner                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `breaks`             | a suit that can't be led until it has been played                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `noPointsFirstTrick` | no point cards on the first trick unless you have no choice                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `teams`              | partnerships, e.g. `[[0, 2], [1, 3]]`                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `bidding`            | `{ "nil": true, "hook": true }` (bid a number of tricks; hook: the dealer can't make bids total the tricks), `{ "type": "euchre", "stickTheDealer": true, "alone": true }` (order up / name trumps; needs an `upcard` zone), `{ "type": "auction", "schedule": "avondale", "misere": true }` (500 bids, optionally with misère and open misère), or `{ "type": "bridge" }` (contract bridge auction with doubles; the declarer plays a face-up `dummy` zone) |
+| `scoring`            | `penalty` (`cardPoints`, `moon`), `contract` (`bags`, `nil`), `exact` (`bonus`), `tricks`, `euchre`, `auction` (`perTrick`, `slam`), or `bridge` (duplicate scores, Chicago vulnerability)                                                                                                                                                                                                                                                                   |
+| `end`                | `{ "target": 100, "lowWins": true }`, `{ "rounds": true }` (play through `handSizes` once), `{ "deals": 4 }` (a fixed number of deals; option `deals` overrides); add `"loseAt": -500` to lose at a score. Auction games are won only by making a bid unless option `bidToWin` is off                                                                                                                                                                        |
 
 ### Poker parameters
 
-| key | values |
-|-----|--------|
-| `holeCards` | cards dealt to each player |
-| `useHole` | `0` = best five of any cards; `2` = exactly two hole cards (Omaha) |
-| `board` | community cards per street, e.g. `[3, 1, 1]` |
+| key         | values                                                             |
+| ----------- | ------------------------------------------------------------------ |
+| `holeCards` | cards dealt to each player                                         |
+| `useHole`   | `0` = best five of any cards; `2` = exactly two hole cards (Omaha) |
+| `board`     | community cards per street, e.g. `[3, 1, 1]`                       |
 
 ### Rummy parameters (style `gin`)
 
-| key | values |
-|-----|--------|
-| `handSize` | cards dealt to each player (10 for Gin) |
-| `knockMax` | most deadwood you may knock with (`0` = gin only) |
-| `bonuses` | `gin`, `bigGin`, `undercut`, plus end-of-game `box` (per hand won) and `game` |
-| `end` | `{ "target": 100 }` |
+| key        | values                                                                        |
+| ---------- | ----------------------------------------------------------------------------- |
+| `handSize` | cards dealt to each player (10 for Gin)                                       |
+| `knockMax` | most deadwood you may knock with (`0` = gin only)                             |
+| `bonuses`  | `gin`, `bigGin`, `undercut`, plus end-of-game `box` (per hand won) and `game` |
+| `end`      | `{ "target": 100 }`                                                           |
 
 Melds are found automatically (`src/engine/lib/melds.ts` searches for the least deadwood), and
 layoffs are made for the defender, so players only choose what to draw and discard.
 
 ### Cribbage parameters
 
-| key | values |
-|-----|--------|
+| key      | values                                      |
+| -------- | ------------------------------------------- |
 | `target` | points to win (121, or 61 for a short game) |
 
 Game option `muggins` (boolean): players count their own hand and crib; opponents accept or call
@@ -128,13 +128,13 @@ that player's seat, e.g. `log(s, 'Riley raises to 60', seat, 'Raise to 60')`.
 
 Zones are where cards live. Every game needs a `deck` zone.
 
-| field        | meaning |
-|--------------|---------|
-| `perPlayer`  | one copy per seat, with ids `hand:0`, `hand:1`, … |
-| `visibility` | `all` (face up for everyone), `owner` (only that seat), `none` (nobody, e.g. the deck) |
+| field        | meaning                                                                                                                    |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| `perPlayer`  | one copy per seat, with ids `hand:0`, `hand:1`, …                                                                          |
+| `visibility` | `all` (face up for everyone), `owner` (only that seat), `none` (nobody, e.g. the deck)                                     |
 | `layout`     | `fan` (a hand), `stack` (a pile showing its top card), `spread` (a row), `trick` (cards placed toward whoever played them) |
-| `area`       | `hand` (bottom of your screen), `center` (the table), `none` (not drawn) |
-| `hideEmpty`  | don't draw the zone while it's empty (e.g. hands laid face up at the end of Gin) |
+| `area`       | `hand` (bottom of your screen), `center` (the table), `none` (not drawn)                                                   |
+| `hideEmpty`  | don't draw the zone while it's empty (e.g. hands laid face up at the end of Gin)                                           |
 
 The host enforces visibility: cards a player can't see are replaced with anonymous placeholders
 **before** anything is sent over the network.
@@ -202,7 +202,6 @@ A zone can set `"scale"` (e.g. `0.6`) to draw its cards smaller than other table
 `"area": "strip"` to sit in one row beside the centre piles that scrolls sideways instead of
 wrapping. Rummy 500 uses both for everyone's melds, so a busy table still fits on a phone.
 
-
 ## Smarter bots
 
 Set `botLevels: true` on a module and the lobby offers **Bots: Easy / Normal / Hard** (the
@@ -229,7 +228,7 @@ Most games take turns, and the host runs one bot at a time. A game whose module 
   that bot takes to react, and a bot keeps its timer while its planned action stays the same.
 - `status.race` names what players are reacting to (it changes when a new card lands). An action
   spec marked `react: true` goes the moment a finger touches it. The space bar triggers it too. The
-  player's device adds `race` and `rt` (how long after `race` appeared on *that* screen they reacted).
+  player's device adds `race` and `rt` (how long after `race` appeared on _that_ screen they reacted).
 - The host stamps every action with `at` (its own clock). To decide a race, collect the reactions
   that arrive within a short window after the first, and the smallest `rt` wins. That way a slow
   connection doesn't cost anyone a slap. See `judge` in `families/slap.ts`.

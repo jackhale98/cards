@@ -192,7 +192,10 @@ export class Host {
    * once; any more within HELLO_GAP_MS wait, and only the latest of them is handled. A connection
    * hopping between client ids is cut off after a few.
    */
-  private helloPace = new Map<string, { last: number; pending: Extract<ClientMsg, { t: 'hello' }> | null; timer: ReturnType<typeof setTimeout> | null; ids: number[] }>();
+  private helloPace = new Map<
+    string,
+    { last: number; pending: Extract<ClientMsg, { t: 'hello' }> | null; timer: ReturnType<typeof setTimeout> | null; ids: number[] }
+  >();
 
   private paced(peer: string, msg: Extract<ClientMsg, { t: 'hello' }>) {
     const now = Date.now();
@@ -209,15 +212,18 @@ export class Host {
       return this.greet(peer, msg);
     }
     p.pending = msg;
-    p.timer ??= setTimeout(() => {
-      const q = this.helloPace.get(peer);
-      if (!q) return;
-      q.timer = null;
-      const latest = q.pending;
-      q.pending = null;
-      q.last = Date.now();
-      if (latest) this.greet(peer, latest);
-    }, HELLO_GAP_MS - (now - p.last));
+    p.timer ??= setTimeout(
+      () => {
+        const q = this.helloPace.get(peer);
+        if (!q) return;
+        q.timer = null;
+        const latest = q.pending;
+        q.pending = null;
+        q.last = Date.now();
+        if (latest) this.greet(peer, latest);
+      },
+      HELLO_GAP_MS - (now - p.last),
+    );
   }
 
   private greet(peer: string, msg: Extract<ClientMsg, { t: 'hello' }>) {
@@ -299,7 +305,9 @@ export class Host {
     }
     // (everyone's phone hears about connections when they change, or every so often: not every beat)
     const pings = this.pings();
-    const moved = pings.length !== this.sentPings.length || pings.some((p, i) => (p == null) !== (this.sentPings[i] == null) || Math.abs((p ?? 0) - (this.sentPings[i] ?? 0)) > 25);
+    const moved =
+      pings.length !== this.sentPings.length ||
+      pings.some((p, i) => (p == null) !== (this.sentPings[i] == null) || Math.abs((p ?? 0) - (this.sentPings[i] ?? 0)) > 25);
     if (!moved && ++this.quietBeats < 5) return;
     this.quietBeats = 0;
     this.sentPings = pings;
@@ -346,7 +354,8 @@ export class Host {
   act(cid: string, a: Action): string | null {
     // (from the network: anything at all)
     if (!a || typeof a !== 'object' || typeof a.type !== 'string') return 'That move isn’t available right now';
-    if (a.cards !== undefined && (!Array.isArray(a.cards) || a.cards.length > 60 || !a.cards.every((c) => typeof c === 'string'))) return 'That move isn’t available right now';
+    if (a.cards !== undefined && (!Array.isArray(a.cards) || a.cards.length > 60 || !a.cards.every((c) => typeof c === 'string')))
+      return 'That move isn’t available right now';
     if (a.type === SCREEN_SOUND) {
       if (!this.lobby.seats.some((s) => s.id === cid)) return 'You are not at the table';
       this.lobby.screenSound = a.amount !== 0;
@@ -359,7 +368,8 @@ export class Host {
     const resolved = resolveAction(this.state, seat, a);
     if (!resolved) return 'The table changed — try again';
     // real-time games: when it arrived, and a believable reaction time (measured on the player's device)
-    if (this.module.realtime) Object.assign(resolved, { at: Date.now(), rt: typeof a.rt === 'number' && isFinite(a.rt) ? Math.max(0, Math.min(10_000, a.rt)) : undefined });
+    if (this.module.realtime)
+      Object.assign(resolved, { at: Date.now(), rt: typeof a.rt === 'number' && isFinite(a.rt) ? Math.max(0, Math.min(10_000, a.rt)) : undefined });
     return this.applyAs(seat, resolved);
   }
 
@@ -575,7 +585,8 @@ export class Host {
 
   /** The seats in the game being played (or about to be dealt), in seat order. */
   players(): LobbySeat[] {
-    if (this.state && this.lobby.playing) return this.lobby.playing.map((id) => this.lobby.seats.find((s) => s.id === id) ?? { id, name: '?', connected: false });
+    if (this.state && this.lobby.playing)
+      return this.lobby.playing.map((id) => this.lobby.seats.find((s) => s.id === id) ?? { id, name: '?', connected: false });
     return this.lobby.seats.filter((s) => !s.out);
   }
 
@@ -608,7 +619,9 @@ export class Host {
       if (me) me.out = true;
     }
     while (playing().length > max) {
-      const bump = playing().filter((s) => !s.host || playing().length === 1).sort((a, b) => order(a) - order(b))[0];
+      const bump = playing()
+        .filter((s) => !s.host || playing().length === 1)
+        .sort((a, b) => order(a) - order(b))[0];
       if (!bump) break;
       bump.out = true;
     }
@@ -664,7 +677,10 @@ export class Host {
     // (only a table that split off from this one, once; and only well-formed games)
     if (!this.lobby.splits?.some((x) => x.code === from)) return;
     const known = new Set((this.lobby.night?.games ?? []).map((g) => `${g.at}:${g.game}`));
-    const fresh = games.slice(0, 100).map(cleanNightGame).filter((g): g is NightGame => !!g && !known.has(`${g.at}:${g.game}`));
+    const fresh = games
+      .slice(0, 100)
+      .map(cleanNightGame)
+      .filter((g): g is NightGame => !!g && !known.has(`${g.at}:${g.game}`));
     if (fresh.length) {
       this.lobby.night ??= { games: [] };
       this.lobby.night.games.push(...fresh);
@@ -806,8 +822,7 @@ export class Host {
       actions: s && m && seat >= 0 ? redactActions(s, seat, m.actions(s, seat)) : [],
       status: s && m ? m.status(s, seat) : null,
     };
-    if (s && m?.config.undo && this.history.length && seat >= 0)
-      view.actions.push({ type: UNDO, label: 'Undo', menu: true });
+    if (s && m?.config.undo && this.history.length && seat >= 0) view.actions.push({ type: UNDO, label: 'Undo', menu: true });
     return view;
   }
 
@@ -848,7 +863,8 @@ export class Host {
     this.backedUp = v;
     // the players who could take over: seated people (not bots, not table screens)
     const players = new Set(this.lobby.seats.filter((x) => !x.bot && !x.host).map((x) => x.id));
-    for (const [peer, cid] of this.peers) if (players.has(cid) && !this.displays.has(peer)) this.transport?.send({ t: 'backup', blob, v, token: this.takeoverToken }, peer);
+    for (const [peer, cid] of this.peers)
+      if (players.has(cid) && !this.displays.has(peer)) this.transport?.send({ t: 'backup', blob, v, token: this.takeoverToken }, peer);
   }
 }
 

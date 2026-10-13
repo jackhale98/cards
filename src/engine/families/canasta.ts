@@ -117,14 +117,17 @@ export function canastaFamily(config: GameConfig): GameModule<CanastaData> {
   const fixedSides = (n: number): number[][] => (n === 4 || n === 6 ? acrossTeams(n) : soloTeams(n));
   const sides = (s: S) => s.data.sides ?? fixedSides(s.players.length);
   /** Sides with someone on them (with three, a side can be emptied by its player becoming a partner). */
-  const liveSides = (s: S) => sides(s).map((_, i) => i).filter((i) => sides(s)[i].length);
+  const liveSides = (s: S) =>
+    sides(s)
+      .map((_, i) => i)
+      .filter((i) => sides(s)[i].length);
   const teamOf = (s: S, seat: number) => teamIndex(sides(s), seat);
   const teamSeats = (s: S, team: number) => sides(s)[team] ?? [];
   const teamName = (s: S, team: number) => sideName(s, teamSeats(s, team));
   /** Scores are kept per player with three (the partnerships change), per side otherwise. */
   const scoreOf = (s: S, seat: number) => (threeHanded(s) ? s.data.scores[seat] : s.data.scores[teamOf(s, seat)]);
   /** Red threes a side has laid out (with three, each partner's own). */
-  const redsOf = (s: S, team: number) => (threeHanded(s) ? teamSeats(s, team).flatMap((i) => s.data.red3[i] ?? []) : s.data.red3[team] ?? []);
+  const redsOf = (s: S, team: number) => (threeHanded(s) ? teamSeats(s, team).flatMap((i) => s.data.red3[i] ?? []) : (s.data.red3[team] ?? []));
   const addReds = (s: S, seat: number, reds: string[]) => s.data.red3[threeHanded(s) ? seat : teamOf(s, seat)].push(...reds);
   /** Cards dealt: 15 each for two, 13 for three or six, 11 for four. */
   const dealSize = (n: number) => (n === 2 ? 15 : n === 4 ? 11 : 13);
@@ -248,7 +251,8 @@ export function canastaFamily(config: GameConfig): GameModule<CanastaData> {
       const concealedOut = !top && left <= 1 && ownCanasta && !s.data.turnMelded && canGoOutAfter(s, seat, cards, groups);
       if (!concealedOut) assertRule(newValue >= min, `Your side's first meld must be worth ${min} — that's ${newValue}`);
     }
-    if (left < 2 && s.data.ask?.seat === seat && s.data.ask.answer === 'no') assertRule(false, 'Your partner said not to go out: keep a card after you discard');
+    if (left < 2 && s.data.ask?.seat === seat && s.data.ask.answer === 'no')
+      assertRule(false, 'Your partner said not to go out: keep a card after you discard');
     // keep a card to discard unless the side will have its canastas
     if (left < 2) assertRule(canGoOutAfter(s, seat, cards, groups), `You need ${canastasNeeded(s) === 1 ? 'a canasta' : 'two canastas'} to go out`);
     return groups;
@@ -276,7 +280,8 @@ export function canastaFamily(config: GameConfig): GameModule<CanastaData> {
         moveCards(s, c === fromPile ? 'discard' : `hand:${seat}`, meldZone(team), [c], { up: true });
         m.cards.push(c);
       }
-      if (!wasCanasta && isCanasta(m)) log(s, `${teamName(s, team)} complete a ${isNatural(m) ? 'natural' : 'mixed'} canasta of ${rankName(rank)}s!`, seat, 'Canasta!');
+      if (!wasCanasta && isCanasta(m))
+        log(s, `${teamName(s, team)} complete a ${isNatural(m) ? 'natural' : 'mixed'} canasta of ${rankName(rank)}s!`, seat, 'Canasta!');
     }
     s.data.turnMelded = true;
     relayout(s);
@@ -323,7 +328,12 @@ export function canastaFamily(config: GameConfig): GameModule<CanastaData> {
     const top = topCard(s);
     const team = teamOf(s, seat);
     return (
-      zone(s, 'deck').cards.length === 0 && !!top && !isWild(top) && !isBlackThree(top) && !pileFrozenFor(s, team) && teamMelds(s, team).some((m) => m.rank === parseCard(top).rank)
+      zone(s, 'deck').cards.length === 0 &&
+      !!top &&
+      !isWild(top) &&
+      !isBlackThree(top) &&
+      !pileFrozenFor(s, team) &&
+      teamMelds(s, team).some((m) => m.rank === parseCard(top).rank)
     );
   }
 
@@ -340,7 +350,9 @@ export function canastaFamily(config: GameConfig): GameModule<CanastaData> {
       const bonus = melds.filter(isCanasta).reduce((n, m) => n + (isNatural(m) ? 500 : 300), 0);
       const sign = melds.length ? 1 : -1;
       const outPts = outSeat != null && teamOf(s, outSeat) === t ? (concealed ? 200 : 100) : 0;
-      const held = teamSeats(s, t).flatMap((i) => ids(hand(s, i))).reduce((n, c) => n + cardPoints(c), 0);
+      const held = teamSeats(s, t)
+        .flatMap((i) => ids(hand(s, i)))
+        .reduce((n, c) => n + cardPoints(c), 0);
       const parts = [`melds ${meldPts}`, bonus && `canastas ${bonus}`, outPts && `out ${outPts}`, held && `held −${held}`];
       if (threeHanded(s)) {
         // the side's score goes to each partner, with their own red threes
@@ -502,7 +514,13 @@ export function canastaFamily(config: GameConfig): GameModule<CanastaData> {
       if (s.phase === 'draw') {
         const empty = zone(s, 'deck').cards.length === 0;
         const out: ActionSpec[] = [];
-        if (!mustTakePile(s, seat)) out.push({ type: 'draw', label: empty ? 'No stock — end the hand' : drawCount(s) === 2 ? 'Draw 2' : 'Draw', style: empty ? 'quiet' : 'primary', zone: 'deck' });
+        if (!mustTakePile(s, seat))
+          out.push({
+            type: 'draw',
+            label: empty ? 'No stock — end the hand' : drawCount(s) === 2 ? 'Draw 2' : 'Draw',
+            style: empty ? 'quiet' : 'primary',
+            zone: 'deck',
+          });
         if (top && !isWild(top) && !isBlackThree(top))
           out.push({ type: 'takePile', label: `Take the pile`, style: empty ? 'primary' : undefined, select: { min: 0, max: own.length, cards: own } });
         return out;
@@ -586,7 +604,10 @@ export function canastaFamily(config: GameConfig): GameModule<CanastaData> {
           assertRule(s.phase === 'play', 'Draw first');
           const cards = a.cards ?? [];
           const own = ids(hand(s, seat));
-          assertRule(cards.length && cards.every((c) => own.includes(c) && isWild(c)) && new Set(cards).size === cards.length, 'Choose wild cards from your hand');
+          assertRule(
+            cards.length && cards.every((c) => own.includes(c) && isWild(c)) && new Set(cards).size === cards.length,
+            'Choose wild cards from your hand',
+          );
           const m = teamMelds(s, teamOf(s, seat)).find((x) => x.rank === a.amount);
           assertRule(m && m.rank !== 3, 'Choose one of your side’s melds');
           const groups = planMeld(s, seat, cards, null, new Map([[m.rank, cards]]));
@@ -657,7 +678,9 @@ export function canastaFamily(config: GameConfig): GameModule<CanastaData> {
           if (isWild(card)) d.frozen = true;
           d.received[seat] = [];
           updatePile(s);
-          log(s, `${who} discards ${isWild(card) ? `a ${label(card)} — the pile is frozen` : `a ${label(card)}`}`, seat, label(card), undefined, { to: 'discard' });
+          log(s, `${who} discards ${isWild(card) ? `a ${label(card)} — the pile is frozen` : `a ${label(card)}`}`, seat, label(card), undefined, {
+            to: 'discard',
+          });
           if (!hand(s, seat).cards.length) return endHand(s, seat, concealedOut(s, seat));
           if (d.turnMelded) d.melded[seat] = true;
           s.phase = 'draw';
@@ -705,12 +728,12 @@ export function canastaFamily(config: GameConfig): GameModule<CanastaData> {
         if (s.turn === viewer && mustTakePile(s, viewer)) headline = 'The stock is gone: you must take the pile';
         else if (s.turn === viewer && zone(s, 'deck').cards.length === 0) headline = 'The stock is gone: take the pile, or the hand ends';
         else headline = s.turn === viewer ? (drawCount(s) === 2 ? 'Draw 2 — or take the pile' : 'Draw — or take the pile') : `${turnName} to draw`;
-      } else if (s.phase === 'ask') headline = s.turn === viewer ? `${name(s, d.ask!.seat)} asks: may I go out?` : `${name(s, d.ask!.seat)} asks ${turnName}: may I go out?`;
+      } else if (s.phase === 'ask')
+        headline = s.turn === viewer ? `${name(s, d.ask!.seat)} asks: may I go out?` : `${name(s, d.ask!.seat)} asks ${turnName}: may I go out?`;
       else if (s.phase === 'play') {
         const told = d.ask?.seat === s.turn && d.ask.answer ? (d.ask.answer === 'yes' ? ' — told to go out' : ' — told not to go out') : '';
         headline = (s.turn === viewer ? 'Meld, then discard' : `${turnName} is playing`) + told;
-      }
-      else headline = d.result?.lines[0] ?? '';
+      } else headline = d.result?.lines[0] ?? '';
       let hint: string | undefined;
       if (viewer >= 0 && (s.phase === 'draw' || s.phase === 'play')) {
         const team = teamOf(s, viewer);
@@ -726,7 +749,11 @@ export function canastaFamily(config: GameConfig): GameModule<CanastaData> {
           columns: ['Canastas', 'Score'],
           rows: threeHanded(s)
             ? s.players.map((p) => ({ name: p.name, values: [canastas(s, teamOf(s, p.seat)), d.scores[p.seat]], highlight: !!s.winner?.includes(p.seat) }))
-            : liveSides(s).map((t) => ({ name: teamName(s, t), values: [canastas(s, t), d.scores[t]], highlight: !!s.winner && teamSeats(s, t).some((i) => s.winner!.includes(i)) })),
+            : liveSides(s).map((t) => ({
+                name: teamName(s, t),
+                values: [canastas(s, t), d.scores[t]],
+                highlight: !!s.winner && teamSeats(s, t).some((i) => s.winner!.includes(i)),
+              })),
         },
         banner:
           s.phase === 'gameOver'

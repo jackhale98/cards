@@ -42,18 +42,37 @@
 <Sheet title="Show on a TV" {onclose}>
   <div class="tvsheet">
     {#if canCast}
-      <button class="btn primary wide" onclick={cast} disabled={casting}>{casting ? 'Starting Lamplight on the TV…' : 'Cast to a Chromecast or Google TV'}</button>
+      <button class="btn primary wide" onclick={cast} disabled={casting}
+        >{casting ? 'Starting Lamplight on the TV…' : 'Cast to a Chromecast or Google TV'}</button
+      >
       <div class="or"><span>or any TV with a web browser</span></div>
     {/if}
     <ol>
       <li>On the TV's web browser, open <b>{tvUrl}</b>. It shows a {CODE_LENGTH}-letter code.</li>
       <li>Type that code here:</li>
     </ol>
-    <form onsubmit={(e) => { e.preventDefault(); void pair(); }}>
-      <input value={code} oninput={(e) => (code = normaliseCode(e.currentTarget.value))} placeholder="TV CODE" maxlength={CODE_LENGTH} autocapitalize="characters" autocomplete="off" spellcheck="false" aria-label="TV code" />
+    <form
+      onsubmit={(e) => {
+        e.preventDefault();
+        void pair();
+      }}
+    >
+      <input
+        value={code}
+        oninput={(e) => (code = normaliseCode(e.currentTarget.value))}
+        placeholder="TV CODE"
+        maxlength={CODE_LENGTH}
+        autocapitalize="characters"
+        autocomplete="off"
+        spellcheck="false"
+        aria-label="TV code"
+      />
       <button class="btn" class:primary={!canCast} disabled={busy || code.length !== CODE_LENGTH}>{busy ? 'Connecting…' : 'Show table'}</button>
     </form>
-    <p class="small">Apple TV: use Screen Mirroring from a spare iPad or phone that has this table open as the table display — not from your own phone, or everyone sees your hand.</p>
+    <p class="small">
+      Apple TV: use Screen Mirroring from a spare iPad or phone that has this table open as the table display — not from your own phone, or everyone sees your
+      hand.
+    </p>
   </div>
 </Sheet>
 

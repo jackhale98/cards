@@ -15,9 +15,7 @@
     { "id": "won", "perPlayer": true, "visibility": "none", "layout": "stack", "area": "none" }
   ],
   "rules": { "family": "pinochle", "end": { "target": 1500 } },
-  "options": [
-    { "id": "target", "label": "Play to", "type": "number", "default": 1500, "min": 500, "max": 3000, "step": 250 }
-  ],
+  "options": [{ "id": "target", "label": "Play to", "type": "number", "default": 1500, "min": 500, "max": 3000, "step": 250 }],
   "rulesSummary": [
     "48 cards: two each of A, 10, K, Q, J and 9 in every suit, ranked in that order (the 10 beats the king). Partners sit across; 12 cards each.",
     "Bid in tens from 250. Once you pass you're out; if the other three pass, the dealer takes it at 250.",

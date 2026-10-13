@@ -138,11 +138,15 @@ function dealBias(g: GameModule, players: number, deals: number) {
 
 describe('every game deals fairly', () => {
   for (const g of GAME_LIST) {
-    it(g.config.id, () => {
-      const players = g.config.players.counts ? g.config.players.counts[0] : Math.min(4, Math.max(g.config.players.min, 2));
-      const results = dealBias(g, players, 1500);
-      expect(results.filter((r) => Math.abs(r.sigmas) > 6 || r.never.length)).toEqual([]);
-      expect(results.length).toBeGreaterThan(0);
-    }, 60_000);
+    it(
+      g.config.id,
+      () => {
+        const players = g.config.players.counts ? g.config.players.counts[0] : Math.min(4, Math.max(g.config.players.min, 2));
+        const results = dealBias(g, players, 1500);
+        expect(results.filter((r) => Math.abs(r.sigmas) > 6 || r.never.length)).toEqual([]);
+        expect(results.length).toBeGreaterThan(0);
+      },
+      60_000,
+    );
   }
 });

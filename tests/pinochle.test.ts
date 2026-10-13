@@ -77,17 +77,54 @@ describe('pinochle (pagat)', () => {
     // must beat the K♠ with the 10 (10 outranks K)
     expect(legal(midTrick(['TS#1', 'QS#1', 'AH#1'], [['KS#1', 1]]))).toEqual(['TS#1']);
     // the trick is trumped: follow with any spade
-    expect(legal(midTrick(['TS#1', 'QS#1', 'AH#1'], [['KS#1', 1], ['9H#1', 2]]))).toEqual(['QS#1', 'TS#1']);
+    expect(
+      legal(
+        midTrick(
+          ['TS#1', 'QS#1', 'AH#1'],
+          [
+            ['KS#1', 1],
+            ['9H#1', 2],
+          ],
+        ),
+      ),
+    ).toEqual(['QS#1', 'TS#1']);
     // void in spades: must trump, and over the 9♥
-    expect(legal(midTrick(['TH#1', '9H#2', 'KC#1'], [['KS#1', 1], ['JH#1', 2]]))).toEqual(['TH#1']);
+    expect(
+      legal(
+        midTrick(
+          ['TH#1', '9H#2', 'KC#1'],
+          [
+            ['KS#1', 1],
+            ['JH#1', 2],
+          ],
+        ),
+      ),
+    ).toEqual(['TH#1']);
     // can't overtrump: any trump
-    expect(legal(midTrick(['9H#2', 'JH#2', 'KC#1'], [['KS#1', 1], ['AH#1', 2]]))).toEqual(['9H#2', 'JH#2']);
+    expect(
+      legal(
+        midTrick(
+          ['9H#2', 'JH#2', 'KC#1'],
+          [
+            ['KS#1', 1],
+            ['AH#1', 2],
+          ],
+        ),
+      ),
+    ).toEqual(['9H#2', 'JH#2']);
     // no spades, no trumps: anything
     expect(legal(midTrick(['KC#1', 'QD#1'], [['KS#1', 1]]))).toEqual(['KC#1', 'QD#1']);
   });
 
   it('equal cards: the first played wins', () => {
-    const s = midTrick(['AS#2'], [['AS#1', 1], ['9S#1', 2], ['QS#1', 3]]);
+    const s = midTrick(
+      ['AS#2'],
+      [
+        ['AS#1', 1],
+        ['9S#1', 2],
+        ['QS#1', 3],
+      ],
+    );
     s.zones['hand:0'].cards = [{ id: 'AS#2' }];
     g.apply(s, 0, { type: 'card', cards: ['AS#2'] });
     g.system!(s)!.run(s);

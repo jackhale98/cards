@@ -157,9 +157,7 @@ export function cornersFamily(config: GameConfig): GameModule<CornersData> {
         const t = top(s, from);
         if (t && canPlace(s, seat, t, to)) return { type: `to:${to}`, cards: [t] };
       }
-    for (const c of byValue)
-      for (const p of PILES)
-        if (top(s, p) && canPlace(s, seat, c, p)) return { type: `to:${p}`, cards: [c] };
+    for (const c of byValue) for (const p of PILES) if (top(s, p) && canPlace(s, seat, c, p)) return { type: `to:${p}`, cards: [c] };
     const empty = SIDES.find((p) => !top(s, p));
     if (empty && byValue.length) return { type: `to:${empty}`, cards: [byValue[0]] };
     return null;
@@ -226,7 +224,10 @@ export function cornersFamily(config: GameConfig): GameModule<CornersData> {
       const to = a.type.startsWith('to:') ? (a.type.slice(3) as Pile) : null;
       assertRule(to && PILES.includes(to), `Unknown action ${a.type}`);
       const card = a.cards?.[0];
-      assertRule(card && canPlace(s, seat, card, to), `That can’t go there: one lower and the other colour${isCorner(to) ? ', or a king into an empty corner' : ''}`);
+      assertRule(
+        card && canPlace(s, seat, card, to),
+        `That can’t go there: one lower and the other colour${isCorner(to) ? ', or a king into an empty corner' : ''}`,
+      );
       const from = pileOf(s, card);
       if (from) {
         const moving = cards(s, from);
@@ -234,7 +235,14 @@ export function cornersFamily(config: GameConfig): GameModule<CornersData> {
         log(s, `${who} moves the ${cardLabel(moving[0])} pile${isCorner(to) ? ' into a corner' : ` onto ${PILE_NAME[to]}`}`, seat, `${cardLabel(moving[0])} →`);
       } else {
         moveCards(s, `hand:${seat}`, to, [card], { up: true, by: seat });
-        log(s, `${who} plays the ${cardName(card)}${isCorner(to) && cards(s, to).length === 1 ? ' into a corner' : ` on ${isCorner(to) ? `the ${PILE_NAME[to]} corner` : PILE_NAME[to]}`}`, seat, cardLabel(card), undefined, { to });
+        log(
+          s,
+          `${who} plays the ${cardName(card)}${isCorner(to) && cards(s, to).length === 1 ? ' into a corner' : ` on ${isCorner(to) ? `the ${PILE_NAME[to]} corner` : PILE_NAME[to]}`}`,
+          seat,
+          cardLabel(card),
+          undefined,
+          { to },
+        );
       }
       d.moved++;
       labelPiles(s);

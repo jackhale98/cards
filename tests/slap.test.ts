@@ -9,7 +9,11 @@ const ers = GAMES['egyptian-rat-screw'] as GameModule<SlapData>;
 
 /** A table whose piles are set by hand: `piles[seat]` lists cards bottom first (the last is turned up next). */
 function table(g: GameModule<SlapData>, piles: string[][], options: Record<string, number | boolean> = {}): S {
-  const s = g.setup(piles.map((_, i) => ({ name: `P${i}` })), 1, options);
+  const s = g.setup(
+    piles.map((_, i) => ({ name: `P${i}` })),
+    1,
+    options,
+  );
   piles.forEach((p, i) => (s.zones[`hand:${i}`].cards = p.map((id) => ({ id }))));
   s.zones.pile.cards = [];
   s.turn = 0;
@@ -21,7 +25,11 @@ const count = (s: S, seat: number) => s.zones[`hand:${seat}`].cards.length;
 
 describe('slapjack', () => {
   it('the quickest reaction takes the pile, not the first to arrive', () => {
-    const s = table(slapjack, [['2S', 'JH'], ['3S', '4S'], ['5S', '6S']]);
+    const s = table(slapjack, [
+      ['2S', 'JH'],
+      ['3S', '4S'],
+      ['5S', '6S'],
+    ]);
     flip(slapjack, s);
     const race = s.data.race;
     // P1 arrives first but reacted slower (a fast connection); P2 arrives later with the quicker hand
@@ -36,7 +44,10 @@ describe('slapjack', () => {
   });
 
   it('a wrong slap pays a card to whoever turned it up', () => {
-    const s = table(slapjack, [['2S', '9H'], ['3S', '4S']]);
+    const s = table(slapjack, [
+      ['2S', '9H'],
+      ['3S', '4S'],
+    ]);
     flip(slapjack, s);
     slapjack.apply(s, 1, { type: 'slap', race: s.data.race, rt: 300 });
     expect(count(s, 1)).toBe(1);
@@ -47,7 +58,10 @@ describe('slapjack', () => {
   });
 
   it('a slap aimed at a card already covered does nothing', () => {
-    const s = table(slapjack, [['2S', '9H'], ['3S', '4S']]);
+    const s = table(slapjack, [
+      ['2S', '9H'],
+      ['3S', '4S'],
+    ]);
     flip(slapjack, s);
     const old = s.data.race;
     flip(slapjack, s);
@@ -93,7 +107,14 @@ describe('slapjack', () => {
   });
 
   it('a time limit ends the game and the most cards wins', () => {
-    const s = table(slapjack, [['2S', '9H', '8H'], ['3S', '4S']], { timer: 1 });
+    const s = table(
+      slapjack,
+      [
+        ['2S', '9H', '8H'],
+        ['3S', '4S'],
+      ],
+      { timer: 1 },
+    );
     slapjack.apply(s, 0, { type: 'flip', at: 10_000 });
     expect(s.data.endsAt).toBe(10_000 + 5 * 60_000);
     runSystem(slapjack, s);
@@ -104,7 +125,10 @@ describe('slapjack', () => {
 
 describe('egyptian rat screw', () => {
   it('a court card must be answered in time, or its player takes the pile', () => {
-    const s = table(ers, [['2S', 'KH'], ['3S', '4S', '5S', '6S']]);
+    const s = table(ers, [
+      ['2S', 'KH'],
+      ['3S', '4S', '5S', '6S'],
+    ]);
     flip(ers, s); // king: P1 has 3 tries
     expect(s.turn).toBe(1);
     flip(ers, s);
@@ -120,7 +144,10 @@ describe('egyptian rat screw', () => {
   });
 
   it('answering with a court card passes the challenge on', () => {
-    const s = table(ers, [['2S', 'KH'], ['3S', 'QS', '6S']]);
+    const s = table(ers, [
+      ['2S', 'KH'],
+      ['3S', 'QS', '6S'],
+    ]);
     flip(ers, s);
     flip(ers, s); // 6
     flip(ers, s); // queen: P0 has 2 tries
@@ -129,7 +156,10 @@ describe('egyptian rat screw', () => {
   });
 
   it('doubles slap by default; sandwiches, marriages and tens only when chosen', () => {
-    const s = table(ers, [['7S', '7H'], ['2S', '2H']]);
+    const s = table(ers, [
+      ['7S', '7H'],
+      ['2S', '2H'],
+    ]);
     flip(ers, s, 0); // 7
     flip(ers, s, 1); // 2
     flip(ers, s, 0); // 7: a sandwich, not on by default
@@ -139,20 +169,41 @@ describe('egyptian rat screw', () => {
     expect(s.zones.pile.cards[0].up).toBe(false);
     expect(count(s, 1)).toBe(0);
 
-    const t = table(ers, [['7S', '7H'], ['2S', '2H']], { sandwich: true });
+    const t = table(
+      ers,
+      [
+        ['7S', '7H'],
+        ['2S', '2H'],
+      ],
+      { sandwich: true },
+    );
     flip(ers, t, 0);
     flip(ers, t, 1);
     flip(ers, t, 0);
     ers.apply(t, 1, { type: 'slap', race: t.data.race, rt: 200 });
     expect(t.data.slaps).toHaveLength(1);
 
-    const m = table(ers, [['2S', 'KS'], ['3S', 'QH']], { marriage: true });
+    const m = table(
+      ers,
+      [
+        ['2S', 'KS'],
+        ['3S', 'QH'],
+      ],
+      { marriage: true },
+    );
     flip(ers, m, 0);
     flip(ers, m, 1);
     ers.apply(m, 0, { type: 'slap', race: m.data.race, rt: 200 });
     expect(m.data.slaps).toHaveLength(1);
 
-    const ten = table(ers, [['2S', '3S'], ['5D', '7H']], { tens: true });
+    const ten = table(
+      ers,
+      [
+        ['2S', '3S'],
+        ['5D', '7H'],
+      ],
+      { tens: true },
+    );
     flip(ers, ten, 0);
     flip(ers, ten, 1);
     ers.apply(ten, 1, { type: 'slap', race: ten.data.race, rt: 200 });
@@ -160,7 +211,10 @@ describe('egyptian rat screw', () => {
   });
 
   it('a slap beats a challenge winner to the pile', () => {
-    const s = table(ers, [['2S', 'JH'], ['3S', 'JS']]);
+    const s = table(ers, [
+      ['2S', 'JH'],
+      ['3S', 'JS'],
+    ]);
     flip(ers, s); // jack: P1 has one try
     flip(ers, s); // jack again: doubles, and a new challenge
     ers.apply(s, 0, { type: 'slap', race: s.data.race, rt: 300 });

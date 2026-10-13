@@ -47,7 +47,13 @@
       <div class="confirm">
         Clear tonight's scores?
         <button class="btn small-btn" onclick={() => (confirming = false)}>Keep</button>
-        <button class="btn small-btn danger" onclick={() => { onreset(); confirming = false; }}>Clear</button>
+        <button
+          class="btn small-btn danger"
+          onclick={() => {
+            onreset();
+            confirming = false;
+          }}>Clear</button
+        >
       </div>
     {:else}
       <button class="link" onclick={() => (confirming = true)}>New night</button>

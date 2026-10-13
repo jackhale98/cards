@@ -27,7 +27,8 @@ export function rankFor(g: TrickGame, id: string, trump: Suit | null): number {
   return c.rank;
 }
 
-export const suitOf = (g: TrickGame, s: S, id: string) => (!s.data.trump && s.data.jokerSuit && parseCard(id).suit === 'X' ? s.data.jokerSuit : suitFor(g, id, s.data.trump));
+export const suitOf = (g: TrickGame, s: S, id: string) =>
+  !s.data.trump && s.data.jokerSuit && parseCard(id).suit === 'X' ? s.data.jokerSuit : suitFor(g, id, s.data.trump);
 export const rankOf = (g: TrickGame, s: S, id: string) => rankFor(g, id, s.data.trump);
 /** A joker with no suit (no trumps, not nominated): it wins any trick and is led by calling a suit. */
 export const suitless = (g: TrickGame, s: S, id: string) => parseCard(id).suit === 'X' && suitOf(g, s, id) === 'X';
@@ -89,7 +90,9 @@ export function currentWinner(g: TrickGame, s: S) {
   const joker = trick.find((c) => parseCard(c.id).suit === 'X');
   if (joker && (s.data.trump || suitless(g, s, joker.id))) return joker;
   // a led suitless joker has been handled above; otherwise the led card's suit is the one to beat
-  return trick[trickWinner(trick, { trump: s.data.trump, suitOf: (c) => suitOf(g, s, c), rankOf: (c) => rankOf(g, s, c), laterWinsTies: g.R.duplicates === 'later' })];
+  return trick[
+    trickWinner(trick, { trump: s.data.trump, suitOf: (c) => suitOf(g, s, c), rankOf: (c) => rankOf(g, s, c), laterWinsTies: g.R.duplicates === 'later' })
+  ];
 }
 
 /** Play a card (the declarer plays the dummy's cards on the dummy's turn). */

@@ -26,9 +26,7 @@
   // With many options, card actions only appear once a matching selection is made.
   // While cards are selected, pile shortcuts (Draw — also a tap on the deck) step aside for card actions.
   const crowded = $derived(actions.filter((a) => !a.menu).length > 3);
-  const main = $derived(
-    actions.filter((a) => !a.menu && (!crowded || (a.select ? ready(a) : !(a.zone && selected.length)))),
-  );
+  const main = $derived(actions.filter((a) => !a.menu && (!crowded || (a.select ? ready(a) : !(a.zone && selected.length)))));
   const more = $derived(actions.filter((a) => a.menu));
 
   function ready(a: ActionSpec) {
@@ -60,7 +58,6 @@
     }
     onact(a);
   }
-
 </script>
 
 <div class="bar">
@@ -139,7 +136,9 @@
             onact(spec, o.value);
             chooseFor = null;
           }}
-          >{#if o.label.includes(' · ')}<SuitText text={o.label.split(' · ')[0]} /><small>{o.label.split(' · ')[1]}</small>{:else}<SuitText text={o.label} />{/if}</button
+          >{#if o.label.includes(' · ')}<SuitText text={o.label.split(' · ')[0]} /><small>{o.label.split(' · ')[1]}</small>{:else}<SuitText
+              text={o.label}
+            />{/if}</button
         >
       {/each}
     </div>

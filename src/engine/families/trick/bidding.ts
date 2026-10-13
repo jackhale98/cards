@@ -41,7 +41,12 @@ function makeTrumps(g: TrickGame, s: S, seat: number, suit: Suit, alone: boolean
     d.outSeats = partnersOf(g, s, seat);
     d.sittingOut = d.outSeats[0] ?? null;
   }
-  log(s, `${name(s, seat)} ${pickUp ? (seat === s.dealer ? 'picks it up' : 'orders it up') : `names ${SUIT_SYMBOL[suit]}`}${alone ? ' and goes alone' : ''}`, seat, `${SUIT_SYMBOL[suit]}${alone ? ' alone' : ''}`);
+  log(
+    s,
+    `${name(s, seat)} ${pickUp ? (seat === s.dealer ? 'picks it up' : 'orders it up') : `names ${SUIT_SYMBOL[suit]}`}${alone ? ' and goes alone' : ''}`,
+    seat,
+    `${SUIT_SYMBOL[suit]}${alone ? ' alone' : ''}`,
+  );
   if (pickUp && !d.outSeats?.includes(s.dealer)) {
     moveCards(s, 'upcard', `hand:${s.dealer}`, ids(zone(s, 'upcard')));
     s.phase = 'discard';
@@ -183,7 +188,10 @@ export function applyCall(g: TrickGame, s: S, seat: number, a: Action) {
 export function applyDouble(g: TrickGame, s: S, seat: number, a: Action) {
   const x = a.type === 'double';
   assertRule(s.phase === 'call' && s.turn === seat, 'Not your turn');
-  assertRule(x ? canDouble(g, s, seat) : canRedouble(g, s, seat), x ? 'You can only double an opponent’s bid' : 'You can only redouble a double of your side’s bid');
+  assertRule(
+    x ? canDouble(g, s, seat) : canRedouble(g, s, seat),
+    x ? 'You can only double an opponent’s bid' : 'You can only redouble a double of your side’s bid',
+  );
   s.data.calls!.push({ seat, call: x ? 'X' : 'XX' });
   log(s, `${name(s, seat)} ${x ? 'doubles' : 'redoubles'}`, seat, x ? 'Double' : 'Redouble');
   afterCall(g, s, seat);

@@ -31,9 +31,7 @@ for (const config of Object.values(configs)) {
 /** Game picker order: alphabetical by name, with the rules-free Free Table last. */
 const LAST = ['freetable'];
 export const GAME_LIST: GameInfo[] = Object.values(GAMES).sort(
-  (a, b) =>
-    Number(LAST.includes(a.config.id)) - Number(LAST.includes(b.config.id)) ||
-    a.config.name.localeCompare(b.config.name, 'en', { numeric: true }),
+  (a, b) => Number(LAST.includes(a.config.id)) - Number(LAST.includes(b.config.id)) || a.config.name.localeCompare(b.config.name, 'en', { numeric: true }),
 );
 
 const loaded = new Map<string, GameModule>();

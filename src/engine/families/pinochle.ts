@@ -102,7 +102,10 @@ export function meldOf(cards: string[], trump: Suit): { points: number; lines: s
 function meldCards(cards: string[], trump: Suit): string[] {
   const has = new Set<string>();
   const take = (r: number, s: Suit, n: number) =>
-    cards.filter((c) => parseCard(c).rank === r && suitOf(c) === s).slice(0, n).forEach((c) => has.add(c));
+    cards
+      .filter((c) => parseCard(c).rank === r && suitOf(c) === s)
+      .slice(0, n)
+      .forEach((c) => has.add(c));
   const count = (r: number, s: Suit) => cards.filter((c) => parseCard(c).rank === r && suitOf(c) === s).length;
   const [a, t, k, q, j] = [14, 10, 13, 12, 11].map((r) => count(r, trump));
   if (Math.min(a, t, k, q, j) >= 1) for (const r of [14, 10, 13, 12, 11]) take(r, trump, 2);
@@ -270,7 +273,9 @@ export function pinochleFamily(config: GameConfig): GameModule<PinochleData> {
       if (side === dec) {
         const made = how === 'played' && meld + pts >= d.bid!;
         delta = made ? meld + pts : -d.bid!;
-        lines.push(`${teamName(s, side)} bid ${d.bid}: ${made ? `made it — meld ${meld} + ${pts}` : how === 'played' ? `set (${meld + pts})` : 'set'} → ${delta >= 0 ? '+' : ''}${delta}`);
+        lines.push(
+          `${teamName(s, side)} bid ${d.bid}: ${made ? `made it — meld ${meld} + ${pts}` : how === 'played' ? `set (${meld + pts})` : 'set'} → ${delta >= 0 ? '+' : ''}${delta}`,
+        );
       } else {
         // the other side saves its meld by taking a point (a meld of only dix always counts)
         const onlyDix = [side, side + 2].every((i) => d.meld[i].lines.every((l) => l.startsWith('Dix') || l.startsWith('Two dix')));
@@ -370,7 +375,14 @@ export function pinochleFamily(config: GameConfig): GameModule<PinochleData> {
           ];
         }
         case 'trump':
-          return [{ type: 'trump', label: 'Name trumps', style: 'primary', choose: { label: 'Trumps', options: SUITS.map((x, i) => ({ value: i, label: `${SUIT_SYMBOL[x]} ${SUIT_NAME[x]}` })) } }];
+          return [
+            {
+              type: 'trump',
+              label: 'Name trumps',
+              style: 'primary',
+              choose: { label: 'Trumps', options: SUITS.map((x, i) => ({ value: i, label: `${SUIT_SYMBOL[x]} ${SUIT_NAME[x]}` })) },
+            },
+          ];
         case 'pass':
           return [{ type: 'give', label: `Pass 4 to ${name(s, d.bidder!)}`, style: 'primary', select: { min: 4, max: 4, cards: own } }];
         case 'return':
@@ -495,7 +507,13 @@ export function pinochleFamily(config: GameConfig): GameModule<PinochleData> {
           // keep meld and trumps; send back low side cards
           const keep = new Set(meldCards(own, d.trump!));
           const give = [...own]
-            .sort((a, b) => Number(keep.has(a)) * 20 + Number(suitOf(a) === d.trump) * 10 + power(a) - (Number(keep.has(b)) * 20 + Number(suitOf(b) === d.trump) * 10 + power(b)))
+            .sort(
+              (a, b) =>
+                Number(keep.has(a)) * 20 +
+                Number(suitOf(a) === d.trump) * 10 +
+                power(a) -
+                (Number(keep.has(b)) * 20 + Number(suitOf(b) === d.trump) * 10 + power(b)),
+            )
             .slice(0, 4);
           return { type: 'give', cards: give };
         }
@@ -514,18 +532,28 @@ export function pinochleFamily(config: GameConfig): GameModule<PinochleData> {
       const turnName = s.turn != null ? name(s, s.turn) : '';
       let headline: string;
       const contract = d.bidder != null && d.bid != null ? `${name(s, d.bidder)} bid ${d.bid}${d.trump ? ` in ${SUIT_SYMBOL[d.trump]}` : ''}` : '';
-      if (s.phase === 'bid') headline = s.turn === viewer ? `Your bid${d.bid ? ` — ${d.bid} to beat` : ` — at least ${MIN_BID}`}` : `${turnName} to bid${d.bid ? ` · ${d.bid} so far` : ''}`;
+      if (s.phase === 'bid')
+        headline =
+          s.turn === viewer ? `Your bid${d.bid ? ` — ${d.bid} to beat` : ` — at least ${MIN_BID}`}` : `${turnName} to bid${d.bid ? ` · ${d.bid} so far` : ''}`;
       else if (s.phase === 'trump') headline = s.turn === viewer ? 'You won the bid: name trumps' : `${turnName} is naming trumps`;
       else if (s.phase === 'pass') headline = s.turn === viewer ? `Pass four cards to ${name(s, d.bidder!)}` : `${turnName} is passing four cards`;
       else if (s.phase === 'return') headline = s.turn === viewer ? `Pass four cards back to ${name(s, partner(viewer))}` : `${turnName} is passing four back`;
-      else if (s.phase === 'meld') headline = `${contract} · meld ${sideMeld(s, teamOf(d.bidder!))} — ${s.turn === viewer ? 'play it or throw it in' : `${turnName} decides`}`;
-      else if (s.phase === 'play' || s.phase === 'trickEnd') headline = `${contract} · ${s.turn === viewer ? 'your turn' : s.turn != null ? `${turnName} to play` : ''}`;
+      else if (s.phase === 'meld')
+        headline = `${contract} · meld ${sideMeld(s, teamOf(d.bidder!))} — ${s.turn === viewer ? 'play it or throw it in' : `${turnName} decides`}`;
+      else if (s.phase === 'play' || s.phase === 'trickEnd')
+        headline = `${contract} · ${s.turn === viewer ? 'your turn' : s.turn != null ? `${turnName} to play` : ''}`;
       else headline = d.result?.lines[0] ?? '';
       return {
         headline,
-        hint: viewer >= 0 && d.trump && s.phase !== 'handOver' && s.phase !== 'gameOver' ? `Your side: meld ${sideMeld(s, teamOf(viewer))}, points ${d.taken[teamOf(viewer)]}` : undefined,
+        hint:
+          viewer >= 0 && d.trump && s.phase !== 'handOver' && s.phase !== 'gameOver'
+            ? `Your side: meld ${sideMeld(s, teamOf(viewer))}, points ${d.taken[teamOf(viewer)]}`
+            : undefined,
         seats: s.players.map((_, i) => ({
-          badge: [s.phase === 'bid' && d.passed[i] ? 'Passed' : d.bidder === i && d.bid ? `Bid ${d.bid}` : '', d.meld[i]?.points && s.phase !== 'bid' ? `meld ${d.meld[i].points}` : '']
+          badge: [
+            s.phase === 'bid' && d.passed[i] ? 'Passed' : d.bidder === i && d.bid ? `Bid ${d.bid}` : '',
+            d.meld[i]?.points && s.phase !== 'bid' ? `meld ${d.meld[i].points}` : '',
+          ]
             .filter(Boolean)
             .join(' · '),
           tag: i === s.dealer ? 'D' : undefined,

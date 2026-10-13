@@ -31,8 +31,7 @@ export function scoreHand(hand: string[], starter: string | null, isCrib = false
 
   // pairs: every pair of equal ranks scores 2 (so three of a kind = 6, four = 12)
   let pairs = 0;
-  for (let i = 0; i < all.length; i++)
-    for (let j = i + 1; j < all.length; j++) if (lowRank(all[i]) === lowRank(all[j])) pairs += 2;
+  for (let i = 0; i < all.length; i++) for (let j = i + 1; j < all.length; j++) if (lowRank(all[i]) === lowRank(all[j])) pairs += 2;
 
   // runs: the longest run of 3+ ranks, multiplied by duplicate ranks within it (double runs…)
   const counts = new Map<number, number>();
@@ -103,7 +102,10 @@ export function pegPoints(seq: string[]): { points: number; reasons: string[] } 
   }
   // runs: the longest tail (3+ cards) whose ranks are consecutive in any order
   for (let len = seq.length; len >= 3; len--) {
-    const ranks = seq.slice(-len).map(lowRank).sort((a, b) => a - b);
+    const ranks = seq
+      .slice(-len)
+      .map(lowRank)
+      .sort((a, b) => a - b);
     if (ranks.every((r, i) => i === 0 || r === ranks[i - 1] + 1)) {
       points += len;
       reasons.push(`run of ${len} for ${len}`);

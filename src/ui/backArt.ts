@@ -13,8 +13,7 @@ const CY = H / 2;
 // Suit shapes in a 100-unit box centred on the origin (same as GameIcon).
 const SPADE =
   'M0,-44 C6,-32 46,-12 46,8 C46,22 35,30 23,30 C15,30 8,26 4,20 C5,30 9,38 16,44 L-16,44 C-9,38 -5,30 -4,20 C-8,26 -15,30 -23,30 C-35,30 -46,22 -46,8 C-46,-12 -6,-32 0,-44Z';
-const HEART =
-  'M0,40 C-16,26 -46,6 -46,-14 C-46,-30 -34,-40 -22,-40 C-11,-40 -3,-33 0,-25 C3,-33 11,-40 22,-40 C34,-40 46,-30 46,-14 C46,6 16,26 0,40Z';
+const HEART = 'M0,40 C-16,26 -46,6 -46,-14 C-46,-30 -34,-40 -22,-40 C-11,-40 -3,-33 0,-25 C3,-33 11,-40 22,-40 C34,-40 46,-30 46,-14 C46,6 16,26 0,40Z';
 const DIAMOND = 'M0,-46 C10,-28 24,-12 38,0 C24,12 10,28 0,46 C-10,28 -24,12 -38,0 C-24,-12 -10,-28 0,-46Z';
 const CLUB =
   '<circle cx="0" cy="-20" r="20"/><circle cx="-22" cy="10" r="20"/><circle cx="22" cy="10" r="20"/><circle cx="0" cy="4" r="12"/><path d="M-6,4 L6,4 C6,24 10,36 16,44 L-16,44 C-10,36 -6,24 -6,4Z"/>';
@@ -126,7 +125,8 @@ const forest = (() => {
   const sprig = (x: number, y: number, r: number) =>
     `<g transform="translate(${x} ${y}) rotate(${r})"><path d="M0,9 L0,-9" stroke="${sage}" stroke-width="0.7"/><path d="${LEAF}" transform="translate(-3 -2) rotate(-35) scale(0.55)" fill="${sage}"/><path d="${LEAF}" transform="translate(3 2) rotate(35) scale(0.55)" fill="${sage}"/><path d="${LEAF}" transform="translate(0 -8) scale(0.5)" fill="${sage}"/></g>`;
   const pattern = `<pattern id="p" width="34" height="34" patternUnits="userSpaceOnUse"><g opacity="0.3">${sprig(8, 9, -20)}${sprig(25, 26, 160)}</g></pattern>`;
-  const wreath = ring(22, `<path d="${LEAF}" transform="translate(${CX} ${CY - 48}) rotate(62) scale(1.15)" fill="${gold}"/>`) +
+  const wreath =
+    ring(22, `<path d="${LEAF}" transform="translate(${CX} ${CY - 48}) rotate(62) scale(1.15)" fill="${gold}"/>`) +
     ring(22, `<path d="${LEAF}" transform="translate(${CX} ${CY - 40}) rotate(118) scale(0.9)" fill="${gold}" opacity="0.75"/>`, CX, CY, 8);
   return card({
     base: green,
@@ -139,7 +139,9 @@ const forest = (() => {
       `<circle cx="${CX}" cy="${CY}" r="27" fill="none" stroke="${gold}" stroke-width="1.4"/>` +
       ring(4, `<path d="${LEAF}" transform="translate(${CX} ${CY - 11}) scale(1.35)" fill="${gold}"/>`) +
       `<circle cx="${CX}" cy="${CY}" r="3" fill="${green}" stroke="${gold}" stroke-width="1.2"/>` +
-      sym(`<path d="${LEAF}" transform="translate(${CX} 44) rotate(90) scale(1.2)" fill="${gold}"/><circle cx="${CX - 14}" cy="44" r="1.6" fill="${gold}"/><circle cx="${CX + 14}" cy="44" r="1.6" fill="${gold}"/>`),
+      sym(
+        `<path d="${LEAF}" transform="translate(${CX} 44) rotate(90) scale(1.2)" fill="${gold}"/><circle cx="${CX - 14}" cy="44" r="1.6" fill="${gold}"/><circle cx="${CX + 14}" cy="44" r="1.6" fill="${gold}"/>`,
+      ),
   });
 })();
 
@@ -152,7 +154,8 @@ const deco = (() => {
       const a = (Math.PI * i) / 12;
       s += `<line x1="${CX}" y1="20" x2="${(CX + Math.cos(a) * 110).toFixed(1)}" y2="${(20 + Math.sin(a) * 110).toFixed(1)}" stroke="${gold}" stroke-width="0.9" opacity="0.7"/>`;
     }
-    for (const r of [34, 58, 82, 106]) s += `<path d="M${CX - r},20 A${r},${r} 0 0 0 ${CX + r},20" fill="none" stroke="${gold}" stroke-width="${r === 106 ? 2 : 1}"/>`;
+    for (const r of [34, 58, 82, 106])
+      s += `<path d="M${CX - r},20 A${r},${r} 0 0 0 ${CX + r},20" fill="none" stroke="${gold}" stroke-width="${r === 106 ? 2 : 1}"/>`;
     s += `<path d="M${CX - 18},20 A18,18 0 0 0 ${CX + 18},20Z" fill="${gold}"/>`;
     return s;
   })();
@@ -236,7 +239,13 @@ const stars = (() => {
         : `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(0.5 + s * 0.9).toFixed(2)}" fill="${pale}" opacity="${(0.4 + s * 0.6).toFixed(2)}"/>`;
   }
   const constellation = [
-    [48, 60], [70, 52], [92, 66], [108, 58], [118, 82], [96, 92], [92, 66],
+    [48, 60],
+    [70, 52],
+    [92, 66],
+    [108, 58],
+    [118, 82],
+    [96, 92],
+    [92, 66],
   ];
   const line = `<polyline points="${constellation.map((p) => p.join(',')).join(' ')}" fill="none" stroke="${pale}" stroke-opacity="0.45" stroke-width="0.7"/>${constellation.map(([x, y]) => `<circle cx="${x}" cy="${y}" r="1.8" fill="${pale}"/>`).join('')}`;
   // a ring of moon phases: full at the top, new at the bottom, waning down the left
@@ -273,7 +282,12 @@ const ocean = (() => {
   const foam = '#eaf4f1';
   const s = 14;
   const arcs = (cx: number, cy: number) =>
-    [1, 0.7, 0.4].map((k) => `<path d="M${cx - s * k},${cy} A${s * k},${s * k} 0 0 1 ${cx + s * k},${cy}" fill="none" stroke="${foam}" stroke-opacity="${k === 1 ? 0.5 : 0.28}" stroke-width="0.9"/>`).join('');
+    [1, 0.7, 0.4]
+      .map(
+        (k) =>
+          `<path d="M${cx - s * k},${cy} A${s * k},${s * k} 0 0 1 ${cx + s * k},${cy}" fill="none" stroke="${foam}" stroke-opacity="${k === 1 ? 0.5 : 0.28}" stroke-width="0.9"/>`,
+      )
+      .join('');
   const pattern = `<pattern id="p" width="${2 * s}" height="${2 * s}" patternUnits="userSpaceOnUse">${arcs(s, s)}${arcs(0, 2 * s)}${arcs(2 * s, 2 * s)}</pattern>`;
   const waveLine = (y: number, w: number) => {
     let d = `M${CX - w},${y}`;
@@ -298,7 +312,8 @@ const rose = (() => {
   const rose = '#9c3f63';
   const cream = '#fbeef2';
   const blossom = (x: number, y: number, r: number, fill: string, centre: string) =>
-    ring(5, `<ellipse cx="${x}" cy="${y - r * 0.55}" rx="${r * 0.42}" ry="${r * 0.55}" fill="${fill}"/>`, x, y) + `<circle cx="${x}" cy="${y}" r="${r * 0.22}" fill="${centre}"/>`;
+    ring(5, `<ellipse cx="${x}" cy="${y - r * 0.55}" rx="${r * 0.42}" ry="${r * 0.55}" fill="${fill}"/>`, x, y) +
+    `<circle cx="${x}" cy="${y}" r="${r * 0.22}" fill="${centre}"/>`;
   const pattern = `<pattern id="p" width="30" height="30" patternUnits="userSpaceOnUse"><g opacity="0.32">${blossom(8, 8, 6, cream, rose)}${blossom(23, 23, 6, cream, rose)}</g><path d="${LEAF}" transform="translate(23 8) rotate(40) scale(0.45)" fill="${cream}" opacity="0.25"/><path d="${LEAF}" transform="translate(8 23) rotate(-40) scale(0.45)" fill="${cream}" opacity="0.25"/></pattern>`;
   const petals = (n: number, d: number, rx: number, ry: number, fill: string, off = 0) =>
     ring(n, `<ellipse cx="${CX}" cy="${CY - d}" rx="${rx}" ry="${ry}" fill="${fill}"/>`, CX, CY, off);
@@ -329,16 +344,28 @@ const knit = (() => {
     return `<path d="${d}" fill="none" stroke="${cream}" stroke-width="2.2" stroke-linejoin="round"/>`;
   };
   const snow = (x: number, y: number, s: number) =>
-    ring(6, `<line x1="${x}" y1="${y}" x2="${x}" y2="${y - s}" stroke="${cream}" stroke-width="1.6" stroke-linecap="round"/><line x1="${x}" y1="${y - s * 0.6}" x2="${x + s * 0.28}" y2="${y - s * 0.85}" stroke="${cream}" stroke-width="1.1" stroke-linecap="round"/><line x1="${x}" y1="${y - s * 0.6}" x2="${x - s * 0.28}" y2="${y - s * 0.85}" stroke="${cream}" stroke-width="1.1" stroke-linecap="round"/>`, x, y);
-  const dots = (y: number) => Array.from({ length: 13 }, (_, i) => `<rect x="${i * 20 + 4}" y="${y - 2}" width="4" height="4" transform="rotate(45 ${i * 20 + 6} ${y})" fill="${cream}"/>`).join('');
+    ring(
+      6,
+      `<line x1="${x}" y1="${y}" x2="${x}" y2="${y - s}" stroke="${cream}" stroke-width="1.6" stroke-linecap="round"/><line x1="${x}" y1="${y - s * 0.6}" x2="${x + s * 0.28}" y2="${y - s * 0.85}" stroke="${cream}" stroke-width="1.1" stroke-linecap="round"/><line x1="${x}" y1="${y - s * 0.6}" x2="${x - s * 0.28}" y2="${y - s * 0.85}" stroke="${cream}" stroke-width="1.1" stroke-linecap="round"/>`,
+      x,
+      y,
+    );
+  const dots = (y: number) =>
+    Array.from(
+      { length: 13 },
+      (_, i) => `<rect x="${i * 20 + 4}" y="${y - 2}" width="4" height="4" transform="rotate(45 ${i * 20 + 6} ${y})" fill="${cream}"/>`,
+    ).join('');
   return card({
     base: berry,
     defs,
     body:
       `<rect width="${W}" height="${H}" fill="url(#p)"/>` +
       `<rect x="0" y="${CY - 44}" width="${W}" height="88" fill="#6d1c28"/>` +
-      zig(CY - 44, 1) + zig(CY + 44, -1) +
-      snow(CX, CY, 24) + snow(CX - 58, CY, 14) + snow(CX + 58, CY, 14) +
+      zig(CY - 44, 1) +
+      zig(CY + 44, -1) +
+      snow(CX, CY, 24) +
+      snow(CX - 58, CY, 14) +
+      snow(CX + 58, CY, 14) +
       `<circle cx="${CX - 29}" cy="${CY}" r="2.4" fill="${cream}"/><circle cx="${CX + 29}" cy="${CY}" r="2.4" fill="${cream}"/>` +
       sym(dots(CY - 62) + dots(CY - 140) + zig(CY - 122, 1)) +
       `<rect x="20" y="20" width="210" height="310" rx="12" fill="none" stroke="${cream}" stroke-width="2"/>`,
@@ -373,7 +400,9 @@ const bauhaus = (() => {
   const c = { red: '#d1495b', yel: '#edae49', blu: '#3d7ea6', cream: '#f2e8d5' };
   // a 4 × 6 grid of 50-unit tiles, each a quarter circle, half circle or block
   const tiles: string[] = [];
-  const x0 = 25, y0 = 25, t = 50;
+  const x0 = 25,
+    y0 = 25,
+    t = 50;
   const shapes = [
     (x: number, y: number, f: string) => `<path d="M${x},${y + t} A${t},${t} 0 0 1 ${x + t},${y}L${x + t},${y + t}Z" fill="${f}"/>`,
     (x: number, y: number, f: string) => `<path d="M${x},${y + t} A${t / 2},${t / 2} 0 0 1 ${x + t},${y + t}Z" fill="${f}"/>`,

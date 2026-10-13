@@ -6,7 +6,10 @@ import { GAMES } from './games';
 const gin = GAMES['gin-rummy'] as GameModule<RummyData>;
 const h = (s: string) => s.split(' ').map((id) => ({ id }));
 const ids = (s: GameState, z: string) => s.zones[z].cards.map((c) => c.id);
-const bots = [{ name: 'A', bot: true }, { name: 'B', bot: true }];
+const bots = [
+  { name: 'A', bot: true },
+  { name: 'B', bot: true },
+];
 
 /** Put the game in seat 0's discard step with the given hands. */
 function rig(seed: number, hand0: string, hand1: string) {

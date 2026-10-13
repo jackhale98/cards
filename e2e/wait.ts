@@ -23,11 +23,7 @@ export async function poppedIn(el: Locator) {
  * speech bubble that fades over seconds, a pulsing seat) and never move what the layout checks.
  */
 export async function cardsLanded(page: Page) {
-  await page.waitForFunction(() =>
-    document
-      .getAnimations()
-      .every((a) => a.playState !== 'running' || a instanceof CSSAnimation || a instanceof CSSTransition),
-  );
+  await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== 'running' || a instanceof CSSAnimation || a instanceof CSSTransition));
 }
 
 /**

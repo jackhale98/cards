@@ -1,16 +1,6 @@
 import { parseCard } from '../cards';
 
-export const HAND_NAMES = [
-  'High card',
-  'Pair',
-  'Two pair',
-  'Three of a kind',
-  'Straight',
-  'Flush',
-  'Full house',
-  'Four of a kind',
-  'Straight flush',
-] as const;
+export const HAND_NAMES = ['High card', 'Pair', 'Two pair', 'Three of a kind', 'Straight', 'Flush', 'Full house', 'Four of a kind', 'Straight flush'] as const;
 
 export interface HandValue {
   /** Comparable score: higher is better. */
@@ -21,8 +11,7 @@ export interface HandValue {
 }
 
 /** Encode a category plus up to five tiebreak ranks as one comparable number. */
-const encode = (cat: number, ranks: number[]) =>
-  ranks.slice(0, 5).reduce((acc, r, i) => acc + r * 15 ** (4 - i), cat * 15 ** 5);
+const encode = (cat: number, ranks: number[]) => ranks.slice(0, 5).reduce((acc, r, i) => acc + r * 15 ** (4 - i), cat * 15 ** 5);
 
 /** Evaluate exactly five cards. */
 export function eval5(ids: string[]): HandValue {

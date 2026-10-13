@@ -40,7 +40,14 @@ function wantsTricks(g: TrickGame, s: S, seat: number): boolean {
   const d = s.data;
   if (g.R.scoring.type === 'penalty') return false;
   if (isMisere(s)) return false; // the contractor ducks; defenders keep low to make them win one
-  if (g.R.scoring.type === 'tricks' || g.R.scoring.type === 'whist' || g.R.scoring.type === 'euchre' || g.R.scoring.type === 'auction' || g.R.scoring.type === 'bridge') return true;
+  if (
+    g.R.scoring.type === 'tricks' ||
+    g.R.scoring.type === 'whist' ||
+    g.R.scoring.type === 'euchre' ||
+    g.R.scoring.type === 'auction' ||
+    g.R.scoring.type === 'bridge'
+  )
+    return true;
   if (d.bids[seat] === 0 && g.nilAllowed) return false;
   if (g.R.scoring.type === 'exact') return d.tricks[seat] < (d.bids[seat] ?? 0);
   const team = teamsFor(g, s.players.length)[teamOf(g, s, seat)];
@@ -134,7 +141,8 @@ function botCall(g: TrickGame, s: S, seat: number): Action {
     const before = calls.slice(0, k).some((x) => typeof x.call === 'number');
     const ours = calls.slice(0, k).some((x) => typeof x.call === 'number' && teamOf(g, s, x.seat) === teamOf(g, s, seat));
     // an opening 1NT shows 15–17; a no-trump response shows a modest balanced hand
-    if (pBids === 0) pPts = !before ? (strain === 'NT' ? (level === 1 ? 16 : 21) : 13) : ours ? (strain === 'NT' ? 6 + level * 2 : 8) : strain === 'NT' ? 16 : 11;
+    if (pBids === 0)
+      pPts = !before ? (strain === 'NT' ? (level === 1 ? 16 : 21) : 13) : ours ? (strain === 'NT' ? 6 + level * 2 : 8) : strain === 'NT' ? 16 : 11;
     else pPts += 2;
     pBids++;
     if (strain === 'NT') pNT = true;
@@ -175,7 +183,25 @@ function botCall(g: TrickGame, s: S, seat: number): Action {
   const total = (pBids ? pPts : 7) + mine + (strain !== 'NT' && fit(strain) >= 8 ? shortness(strain) : 0);
   const game = strain === 'NT' ? 3 : strain === 'S' || strain === 'H' ? 4 : 5;
   const level =
-    total >= 37 ? 7 : total >= 33 ? 6 : total >= 29 && strain !== 'NT' ? 5 : total >= 26 ? game : total >= 23 ? (strain === 'NT' ? 2 : 3) : total >= 18 ? (strain === 'NT' ? 1 : 2) : total >= 13 ? 1 : 0;
+    total >= 37
+      ? 7
+      : total >= 33
+        ? 6
+        : total >= 29 && strain !== 'NT'
+          ? 5
+          : total >= 26
+            ? game
+            : total >= 23
+              ? strain === 'NT'
+                ? 2
+                : 3
+              : total >= 18
+                ? strain === 'NT'
+                  ? 1
+                  : 2
+                : total >= 13
+                  ? 1
+                  : 0;
   const cheapest = Array.from({ length: 35 }, (_, i) => i).find((i) => i > a.lastBid && bidOf(i).strain === strain);
   if (cheapest != null && bidOf(cheapest).level <= level) {
     // jump straight to game (or slam) rather than inching up
@@ -193,7 +219,9 @@ function botBury(g: TrickGame, s: S, seat: number): Action {
   const k = g.auction ? (g.R.kitty ?? 3) : 1;
   const cards = ids(hand(s, seat));
   const weight = (c: string) =>
-    d.contract?.misere ? -rankOf(g, s, c) : (suitOf(g, s, c) === d.trump ? 100 : 0) + rankOf(g, s, c) + cards.filter((x) => suitOf(g, s, x) === suitOf(g, s, c)).length * 0.5;
+    d.contract?.misere
+      ? -rankOf(g, s, c)
+      : (suitOf(g, s, c) === d.trump ? 100 : 0) + rankOf(g, s, c) + cards.filter((x) => suitOf(g, s, x) === suitOf(g, s, c)).length * 0.5;
   return { type: 'bury', cards: [...cards].sort((a, b) => weight(a) - weight(b)).slice(0, k) };
 }
 
@@ -336,7 +364,13 @@ export function trickSearch(g: TrickGame, module: GameModule<TrickData>): Search
     },
 
     apply: (s, seat, a) => module.apply(s, seat, a),
-    rollout: (s) => playOut(module, (x, seat) => quickBot(g, x, seat), s, (x) => x.phase === 'roundOver' || x.phase === 'gameOver'),
+    rollout: (s) =>
+      playOut(
+        module,
+        (x, seat) => quickBot(g, x, seat),
+        s,
+        (x) => x.phase === 'roundOver' || x.phase === 'gameOver',
+      ),
     // the hand's points for our side against the others' (Hearts: fewer is better)
     score: (before, after, seat) => edge(before.data.scores, after.data.scores, teamOf(g, before, seat), g.lowWins),
   };

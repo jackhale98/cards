@@ -12,17 +12,17 @@
     "bindings": [
       { "name": "ROOMS", "class_name": "Room" },
       // anonymous error reports from the app (see Reports in src/index.ts)
-      { "name": "REPORTS", "class_name": "Reports" }
-    ]
+      { "name": "REPORTS", "class_name": "Reports" },
+    ],
   },
   // SQLite-backed Durable Objects are available on the Workers free plan
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["Room"] },
-    { "tag": "v2", "new_sqlite_classes": ["Reports"] }
+    { "tag": "v2", "new_sqlite_classes": ["Reports"] },
   ],
   "vars": {
     // sites allowed to connect (besides localhost); "*." allows any subdomain, e.g. Pages previews
-    "ALLOWED_ORIGINS": "https://lamplight.cards,https://*.lamplight.cards,https://*.pages.dev"
+    "ALLOWED_ORIGINS": "https://lamplight.cards,https://*.lamplight.cards,https://*.pages.dev",
   },
-  "observability": { "enabled": true }
+  "observability": { "enabled": true },
 }

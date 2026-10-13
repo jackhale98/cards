@@ -70,7 +70,10 @@ describe('blackjack (pagat)', () => {
     g.apply(s, 0, { type: 'bet', amount: 20 });
     expect(g.actions(s, 0).map((a) => a.type)).toEqual(['hit', 'stand', 'double', 'split']);
     g.apply(s, 0, { type: 'split' });
-    expect(s.data.hands[0].map((h) => h.cards)).toEqual([['8S', '3C'], ['8H', '2H']]);
+    expect(s.data.hands[0].map((h) => h.cards)).toEqual([
+      ['8S', '3C'],
+      ['8H', '2H'],
+    ]);
     expect(s.players[0].chips).toBe(960);
     g.apply(s, 0, { type: 'double' }); // 11 + 9 = 20
     expect(s.data.hands[0][0]).toMatchObject({ bet: 40, done: true });

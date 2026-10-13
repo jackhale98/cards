@@ -68,10 +68,11 @@ export function spoonsFamily(config: GameConfig): GameModule<SpoonsData> {
   function deal(s: S) {
     const d = s.data;
     resetDeck(s, config);
-    for (const i of active(s)) for (let k = 0; k < 4; k++) {
-      const c = zone(s, 'deck').cards.pop()!;
-      hand(s, i).cards.push({ id: c.id });
-    }
+    for (const i of active(s))
+      for (let k = 0; k < 4; k++) {
+        const c = zone(s, 'deck').cards.pop()!;
+        hand(s, i).cards.push({ id: c.id });
+      }
     d.spoons = active(s).length - 1;
     d.has = s.players.map(() => false);
     d.claims = [];
@@ -151,10 +152,22 @@ export function spoonsFamily(config: GameConfig): GameModule<SpoonsData> {
       if (s.phase !== 'play' || seat < 0 || d.out[seat]) return [];
       const out: ActionSpec[] = [];
       const h = ids(hand(s, seat));
-      if (h.length > 4) out.push({ type: 'pass', label: target(s, seat) === 'discard' ? 'Discard' : 'Pass on', style: 'primary', select: { min: 1, max: 1, cards: h }, quick: true });
+      if (h.length > 4)
+        out.push({
+          type: 'pass',
+          label: target(s, seat) === 'discard' ? 'Discard' : 'Pass on',
+          style: 'primary',
+          select: { min: 1, max: 1, cards: h },
+          quick: true,
+        });
       else if (canPickUp(s, seat)) {
         const n = zone(s, source(s, seat)).cards.length;
-        out.push({ type: 'take', label: n > 1 && seat !== s.dealer ? `Pick up (${n})` : 'Pick up', style: 'primary', zone: seat === s.dealer ? 'deck' : undefined });
+        out.push({
+          type: 'take',
+          label: n > 1 && seat !== s.dealer ? `Pick up (${n})` : 'Pick up',
+          style: 'primary',
+          zone: seat === s.dealer ? 'deck' : undefined,
+        });
       }
       // always on offer, so the button never gives away that a spoon has gone
       if (!d.has[seat] && !d.claims.some((c) => c.seat === seat)) out.push({ type: 'spoon', label: 'Grab a spoon 🥄', style: 'danger', react: true });
@@ -188,7 +201,9 @@ export function spoonsFamily(config: GameConfig): GameModule<SpoonsData> {
         assertRule(h.cards.length <= 4, 'Pass a card on first');
         if (seat === s.dealer && !zone(s, 'deck').cards.length) {
           // the deck is used up: the discards are shuffled into a new one
-          const back = zone(s, 'discard').cards.splice(0).map((c) => ({ id: c.id }));
+          const back = zone(s, 'discard')
+            .cards.splice(0)
+            .map((c) => ({ id: c.id }));
           zone(s, 'deck').cards = shuffle(back, s);
         }
         const from = zone(s, source(s, seat)).cards;
@@ -243,11 +258,31 @@ export function spoonsFamily(config: GameConfig): GameModule<SpoonsData> {
         const scramble = s.data.spoons < s.data.has.filter((_, i) => !s.data.out[i]).length - 1;
         return span(
           scramble
-            ? ([[700, 1200], [450, 800], [300, 550]] as const)[level]
-            : ([[2500, 4500], [1400, 2600], [700, 1400]] as const)[level],
+            ? (
+                [
+                  [700, 1200],
+                  [450, 800],
+                  [300, 550],
+                ] as const
+              )[level]
+            : (
+                [
+                  [2500, 4500],
+                  [1400, 2600],
+                  [700, 1400],
+                ] as const
+              )[level],
         );
       }
-      return span(([[800, 1300], [550, 950], [350, 650]] as const)[level]);
+      return span(
+        (
+          [
+            [800, 1300],
+            [550, 950],
+            [350, 650],
+          ] as const
+        )[level],
+      );
     },
 
     standings(s) {
@@ -268,7 +303,14 @@ export function spoonsFamily(config: GameConfig): GameModule<SpoonsData> {
       return {
         headline,
         race: d.race,
-        hint: me && s.phase === 'play' ? (fourOfAKind(s, viewer) && !d.has[viewer] ? 'Four of a kind — grab a spoon!' : waiting > 1 ? `${waiting} cards waiting for you` : undefined) : undefined,
+        hint:
+          me && s.phase === 'play'
+            ? fourOfAKind(s, viewer) && !d.has[viewer]
+              ? 'Four of a kind — grab a spoon!'
+              : waiting > 1
+                ? `${waiting} cards waiting for you`
+                : undefined
+            : undefined,
         seats: s.players.map((_, i) => ({
           badge: d.out[i] ? 'Out' : WORD.slice(0, d.letters[i]) || '—',
           tag: d.has[i] ? '🥄' : i === s.dealer ? 'D' : undefined,
@@ -276,7 +318,10 @@ export function spoonsFamily(config: GameConfig): GameModule<SpoonsData> {
         })),
         banner:
           s.phase === 'gameOver'
-            ? { title: `${name(s, s.winner![0])} wins!`, lines: [...(d.result?.lines ?? []), ...s.players.map((p, i) => `${p.name}: ${WORD.slice(0, d.letters[i]) || '—'}`)] }
+            ? {
+                title: `${name(s, s.winner![0])} wins!`,
+                lines: [...(d.result?.lines ?? []), ...s.players.map((p, i) => `${p.name}: ${WORD.slice(0, d.letters[i]) || '—'}`)],
+              }
             : undefined,
       };
     },

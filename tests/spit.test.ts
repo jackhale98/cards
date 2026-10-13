@@ -68,7 +68,10 @@ describe('spit', () => {
     s.zones.right.cards = [{ id: 'TH', up: true }];
     expect(spit.actions(s, 0).map((a) => a.type)).toContain('move');
     spit.apply(s, 0, { type: 'move', cards: ['8H'] });
-    expect(tops(s, 0).map((c) => [c.id, c.group])).toEqual([['2C', 0], ['8H', 1]]);
+    expect(tops(s, 0).map((c) => [c.id, c.group])).toEqual([
+      ['2C', 0],
+      ['8H', 1],
+    ]);
     expect(spit.actions(s, 0).map((a) => a.type)).not.toContain('move');
   });
 
@@ -77,7 +80,11 @@ describe('spit', () => {
     stock(s, 0, [['8H'], [], [], [], []], ['9D', '2D']);
     stock(s, 1, [['4C'], ['QD'], [], [], []], ['5D']);
     s.zones.left.cards = [{ id: '7S', up: true }];
-    s.zones.right.cards = [{ id: 'KS', up: true }, { id: 'AS', up: true }, { id: '2S', up: true }];
+    s.zones.right.cards = [
+      { id: 'KS', up: true },
+      { id: 'AS', up: true },
+      { id: '2S', up: true },
+    ];
     spit.apply(s, 0, { type: 'play0', cards: ['8H'] });
     expect(s.phase).toBe('slap');
     const race = s.data.race;

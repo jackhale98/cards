@@ -81,8 +81,7 @@ export function goFishFamily(config: GameConfig): GameModule<GoFishData> {
     layBooks(s, seat);
   }
 
-  const firstWithCards = (s: S, from: number) =>
-    hand(s, from).cards.length ? from : nextSeat(s, from, (x) => !hand(s, x).cards.length);
+  const firstWithCards = (s: S, from: number) => (hand(s, from).cards.length ? from : nextSeat(s, from, (x) => !hand(s, x).cards.length));
 
   /** Pagat: the game ends when someone runs out of cards or the stock does (or, long game: every book is down). */
   function checkEnd(s: S): boolean {
@@ -117,7 +116,7 @@ export function goFishFamily(config: GameConfig): GameModule<GoFishData> {
     const mine = ranksIn(s, seat);
     const others = s.players.map((p) => p.seat).filter((i) => i !== seat && hand(s, i).cards.length);
     const ask = (r: number, target: number): Action => ({ type: 'ask', cards: [holding(s, seat).find((c) => rankOf(c) === r)!], seat: target });
-    const pick = <T,>(xs: T[]) => xs[Math.floor(Math.random() * xs.length)];
+    const pick = <T>(xs: T[]) => xs[Math.floor(Math.random() * xs.length)];
     if (level === 0) return ask(pick(mine), pick(others));
     // someone known to hold a rank we have
     for (const i of others) {
@@ -150,7 +149,13 @@ export function goFishFamily(config: GameConfig): GameModule<GoFishData> {
       if (s.phase !== 'play' || s.turn !== seat) return [];
       const others = s.players.map((p) => p.seat).filter((i) => i !== seat && hand(s, i).cards.length);
       const out: ActionSpec[] = [
-        { type: 'ask', label: 'Ask for this rank…', style: 'primary', select: { min: 1, max: 1, cards: holding(s, seat) }, target: { seats: others, label: 'Ask who?' } },
+        {
+          type: 'ask',
+          label: 'Ask for this rank…',
+          style: 'primary',
+          select: { min: 1, max: 1, cards: holding(s, seat) },
+          target: { seats: others, label: 'Ask who?' },
+        },
       ];
       return out;
     },
@@ -180,7 +185,13 @@ export function goFishFamily(config: GameConfig): GameModule<GoFishData> {
         moveCards(s, `hand:${target}`, `hand:${seat}`, theirs);
         sortHand(s, seat);
         d.last = { asker: seat, target, rank, got: theirs.length };
-        log(s, `${name(s, seat)} asks ${name(s, target)} for ${rankPlural(rank)} — gets ${theirs.length}`, seat, `+${theirs.length} ${theirs.length === 1 ? RANK_WORDS[rank] : rankPlural(rank)}`, target);
+        log(
+          s,
+          `${name(s, seat)} asks ${name(s, target)} for ${rankPlural(rank)} — gets ${theirs.length}`,
+          seat,
+          `+${theirs.length} ${theirs.length === 1 ? RANK_WORDS[rank] : rankPlural(rank)}`,
+          target,
+        );
         // the asker now surely has that rank (unless it makes a book)
         if (!d.known[seat].includes(rank)) d.known[seat].push(rank);
         layBooks(s, seat);
@@ -235,7 +246,10 @@ export function goFishFamily(config: GameConfig): GameModule<GoFishData> {
       } else headline = d.result?.lines.join(' · ') ?? '';
       return {
         headline,
-        seats: s.players.map((_, i) => ({ badge: `${hand(s, i).cards.length} cards · ${d.books[i]} book${d.books[i] === 1 ? '' : 's'}`, tag: i === s.dealer ? 'D' : undefined })),
+        seats: s.players.map((_, i) => ({
+          badge: `${hand(s, i).cards.length} cards · ${d.books[i]} book${d.books[i] === 1 ? '' : 's'}`,
+          tag: i === s.dealer ? 'D' : undefined,
+        })),
         scoreboard: { columns: ['Books'], rows: s.players.map((p) => ({ name: p.name, values: [d.books[p.seat]], highlight: s.winner?.includes(p.seat) })) },
         banner:
           s.phase === 'gameOver'

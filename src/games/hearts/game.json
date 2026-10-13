@@ -30,9 +30,7 @@
       "rules": { "passing": { "count": 3, "cycle": ["left", "right", "left2", "hold", "left", "right", "right2", "hold"] } }
     }
   },
-  "options": [
-    { "id": "target", "label": "Play to", "type": "number", "default": 100, "min": 25, "max": 200, "step": 25 }
-  ],
+  "options": [{ "id": "target", "label": "Play to", "type": "number", "default": 100, "min": 25, "max": 200, "step": 25 }],
   "rulesSummary": [
     "Pass three cards (left, right, across, then no pass), then play 13 tricks.",
     "Three players: the 2♦ is taken out, 17 cards each, and the passes go left, right, then none. Five: the 2♦ and 2♣ are out, 10 each, and the 3♣ leads; passes go left, right, two to the left, none, left, right, two to the right, none.",

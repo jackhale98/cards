@@ -22,8 +22,7 @@ function leaks(g: GameModule, seed: number, n: number, steps: number): string[] 
     for (const p of s.players) {
       for (const z of Object.values(s.zones)) for (const c of z.cards) if (canSee(z, c, p.seat)) seen[p.seat].add(c.id);
       const data = JSON.stringify(redact(g, s, p.seat).data ?? null);
-      for (const c of deck)
-        if (!seen[p.seat].has(c) && data.includes(`"${c}"`)) found.push(`step ${i} (${s.phase}): seat ${p.seat} is sent ${c} in data`);
+      for (const c of deck) if (!seen[p.seat].has(c) && data.includes(`"${c}"`)) found.push(`step ${i} (${s.phase}): seat ${p.seat} is sent ${c} in data`);
     }
     if (s.phase === 'gameOver') break;
     const sys = g.system?.(s);
@@ -40,11 +39,15 @@ function leaks(g: GameModule, seed: number, n: number, steps: number): string[] 
 
 describe('game data sent to a player never names cards hidden from them', () => {
   for (const g of GAME_LIST.filter((g) => g.bot)) {
-    it(g.config.id, () => {
-      const n = Math.max(g.config.players.min, Math.min(g.config.players.max, 4));
-      const found: string[] = [];
-      for (let seed = 1; seed <= 3 && !found.length; seed++) found.push(...leaks(g, seed, n, 300));
-      expect(found).toEqual([]);
-    }, 30000);
+    it(
+      g.config.id,
+      () => {
+        const n = Math.max(g.config.players.min, Math.min(g.config.players.max, 4));
+        const found: string[] = [];
+        for (let seed = 1; seed <= 3 && !found.length; seed++) found.push(...leaks(g, seed, n, 300));
+        expect(found).toEqual([]);
+      },
+      30000,
+    );
   }
 });

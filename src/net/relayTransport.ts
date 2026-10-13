@@ -147,8 +147,7 @@ export class RelayTransport implements Transport {
       this.marks = (m.v ?? 1) >= 2;
       if (m.host) this.hostPeer = m.host;
       for (const p of m.peers) this.arrived(p);
-    }
-    else if (m.t === 'join') this.arrived(m.peer);
+    } else if (m.t === 'join') this.arrived(m.peer);
     else if (m.t === 'leave') {
       this.present.delete(m.peer);
       this.update(m.peer);

@@ -41,7 +41,38 @@ describe('rng', () => {
 
 describe('registry', () => {
   it('loads every game folder, including config-only games', () => {
-    expect(Object.keys(GAMES).sort()).toEqual(['baccarat', 'blackjack', 'bridge', 'canasta', 'cheat', 'crazy-eights', 'cribbage', 'egyptian-rat-screw', 'euchre', 'five-card-draw', 'five-hundred', 'freetable', 'gin-rummy', 'go-fish', 'hand-and-foot', 'hearts', 'holdem', 'kings-corners', 'oh-hell', 'omaha', 'palace', 'pinochle', 'president', 'rummy-500', 'seven-card-stud', 'slapjack', 'spades', 'spit', 'spoons', 'whist']);
+    expect(Object.keys(GAMES).sort()).toEqual([
+      'baccarat',
+      'blackjack',
+      'bridge',
+      'canasta',
+      'cheat',
+      'crazy-eights',
+      'cribbage',
+      'egyptian-rat-screw',
+      'euchre',
+      'five-card-draw',
+      'five-hundred',
+      'freetable',
+      'gin-rummy',
+      'go-fish',
+      'hand-and-foot',
+      'hearts',
+      'holdem',
+      'kings-corners',
+      'oh-hell',
+      'omaha',
+      'palace',
+      'pinochle',
+      'president',
+      'rummy-500',
+      'seven-card-stud',
+      'slapjack',
+      'spades',
+      'spit',
+      'spoons',
+      'whist',
+    ]);
     for (const g of GAME_LIST) {
       expect(g.config.players.min).toBeLessThanOrEqual(g.config.players.max);
       expect(g.config.zones.some((z) => z.id === 'deck')).toBe(true);
@@ -50,15 +81,18 @@ describe('registry', () => {
 
   it('deals config-only games from their deal recipe', () => {
     // a sandbox game with its own deal recipe and no rules
-    const g = moduleFor({
-      ...GAMES['crazy-eights'].config,
-      id: 'deal-test',
-      rules: { family: 'free' },
-      deal: [
-        { to: 'hand', count: 7 },
-        { to: 'table', count: 1, faceUp: true },
-      ],
-    } as GameConfig, freeFamily);
+    const g = moduleFor(
+      {
+        ...GAMES['crazy-eights'].config,
+        id: 'deal-test',
+        rules: { family: 'free' },
+        deal: [
+          { to: 'hand', count: 7 },
+          { to: 'table', count: 1, faceUp: true },
+        ],
+      } as GameConfig,
+      freeFamily,
+    );
     const s = g.setup([{ name: 'A' }, { name: 'B' }, { name: 'C' }], 1, {});
     expect(s.zones['hand:0'].cards).toHaveLength(7);
     expect(s.zones.table.cards).toHaveLength(1);

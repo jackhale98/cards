@@ -30,7 +30,13 @@
     return () => clearInterval(t);
   });
   const waited = $derived(app.joinStarted ? Math.max(0, Math.round((now - app.joinStarted) / 1000)) : 0);
-  const LABEL: Record<string, string> = { relay: 'the Lamplight relay', nostr: 'Nostr relays', mqtt: 'MQTT brokers', torrent: 'WebTorrent trackers', local: 'this browser' };
+  const LABEL: Record<string, string> = {
+    relay: 'the Lamplight relay',
+    nostr: 'Nostr relays',
+    mqtt: 'MQTT brokers',
+    torrent: 'WebTorrent trackers',
+    local: 'this browser',
+  };
   const trying = $derived(app.netStatus?.networks.map((n) => LABEL[n.kind] ?? n.kind).join(', ') ?? '');
   // local test mode has no relays to wait for
   const relaysUp = $derived(app.net === 'local' ? 1 : (app.netStatus?.networks.reduce((n, x) => n + x.up, 0) ?? 0));

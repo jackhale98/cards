@@ -16,14 +16,15 @@
   ],
   "rules": {
     "family": "trick-taking",
-    "teams": [[0, 2], [1, 3]],
+    "teams": [
+      [0, 2],
+      [1, 3]
+    ],
     "bidding": { "type": "bridge" },
     "scoring": { "type": "bridge" },
     "end": { "deals": 4 }
   },
-  "options": [
-    { "id": "deals", "label": "Deals", "type": "number", "default": 4, "min": 4, "max": 16, "step": 4 }
-  ],
+  "options": [{ "id": "deals", "label": "Deals", "type": "number", "default": 4, "min": 4, "max": 16, "step": 4 }],
   "rulesSummary": [
     "Partners sit across. The dealer calls first: bid a number of tricks over six (1–7) in a suit or no trumps (♣ < ♦ < ♥ < ♠ < NT), pass, double an opponent's bid, or redouble their double. Three passes after a bid end the auction.",
     "The first of the winning side to name the final suit is declarer. The player on their left leads; then declarer's partner lays their hand face up as dummy, and declarer plays both hands.",

@@ -40,7 +40,10 @@ export function trickActions(g: TrickGame, s: S, seat: number): ActionSpec[] {
     if (g.euchreBids?.alone) out.push({ type: 'orderAlone', label: 'Go alone' });
     out.push({ type: 'decline', label: 'Pass', style: 'quiet' });
   } else if (s.phase === 'name' && s.turn === seat) {
-    const options = NAMEABLE.filter((x) => x !== parseCard(d.upcard!).suit).map((x) => ({ value: NAMEABLE.indexOf(x), label: `${SUIT_SYMBOL[x]} ${SUIT_NAME[x]}` }));
+    const options = NAMEABLE.filter((x) => x !== parseCard(d.upcard!).suit).map((x) => ({
+      value: NAMEABLE.indexOf(x),
+      label: `${SUIT_SYMBOL[x]} ${SUIT_NAME[x]}`,
+    }));
     out.push({ type: 'name', label: 'Name trumps', style: 'primary', choose: { label: 'Trumps', options } });
     if (g.euchreBids?.alone) out.push({ type: 'nameAlone', label: 'Name & go alone', choose: { label: 'Trumps — going alone', options } });
     if (!(g.euchreBids?.stickTheDealer && seat === s.dealer)) out.push({ type: 'decline', label: 'Pass', style: 'quiet' });
@@ -49,9 +52,19 @@ export function trickActions(g: TrickGame, s: S, seat: number): ActionSpec[] {
     // suit bids in whole rows of five (bids already passed greyed out); misère gets its own buttons
     const first = open.find((b) => !b.misere);
     const options = first
-      ? SUIT_BIDS.filter((b) => b.tricks >= first.tricks).map((b) => ({ value: ALL_BIDS.indexOf(b), label: `${contractLabel(b)} · ${b.value}`, disabled: !open.includes(b) }))
+      ? SUIT_BIDS.filter((b) => b.tricks >= first.tricks).map((b) => ({
+          value: ALL_BIDS.indexOf(b),
+          label: `${contractLabel(b)} · ${b.value}`,
+          disabled: !open.includes(b),
+        }))
       : [];
-    if (first) out.push({ type: 'bid500', label: 'Bid', style: 'primary', choose: { label: d.contract ? `Bid over ${contractLabel(d.contract)}` : 'Your bid', options } });
+    if (first)
+      out.push({
+        type: 'bid500',
+        label: 'Bid',
+        style: 'primary',
+        choose: { label: d.contract ? `Bid over ${contractLabel(d.contract)}` : 'Your bid', options },
+      });
     if (open.includes(MISERE)) out.push({ type: 'misere', label: 'Misère · 250' });
     if (open.includes(OPEN_MISERE)) out.push({ type: 'openMisere', label: 'Open misère · 500' });
     out.push({ type: 'decline', label: 'Pass', style: 'quiet' });
@@ -61,7 +74,8 @@ export function trickActions(g: TrickGame, s: S, seat: number): ActionSpec[] {
     const options = Array.from({ length: 35 }, (_, i) => i)
       .filter((i) => i >= Math.floor((a.lastBid + 1) / 5) * 5)
       .map((i) => ({ value: i, label: bidLabel(i), disabled: i <= a.lastBid }));
-    if (a.lastBid < 34) out.push({ type: 'call', label: 'Bid', style: 'primary', choose: { label: a.lastBid >= 0 ? `Bid over ${bidLabel(a.lastBid)}` : 'Your bid', options } });
+    if (a.lastBid < 34)
+      out.push({ type: 'call', label: 'Bid', style: 'primary', choose: { label: a.lastBid >= 0 ? `Bid over ${bidLabel(a.lastBid)}` : 'Your bid', options } });
     if (canDouble(g, s, seat)) out.push({ type: 'double', label: 'Double' });
     if (canRedouble(g, s, seat)) out.push({ type: 'redouble', label: 'Redouble' });
     out.push({ type: 'decline', label: 'Pass', style: 'quiet' });
@@ -71,22 +85,36 @@ export function trickActions(g: TrickGame, s: S, seat: number): ActionSpec[] {
   } else if (s.phase === 'play' && controller(s) === seat) {
     const fromDummy = s.turn !== seat;
     const legal = legalCards(g, s, s.turn!);
-    if (legal.length) out.push({ type: 'play', label: fromDummy ? 'Play from dummy' : 'Play', style: 'primary', quick: true, select: { min: 1, max: 1, cards: legal } });
+    if (legal.length)
+      out.push({ type: 'play', label: fromDummy ? 'Play from dummy' : 'Play', style: 'primary', quick: true, select: { min: 1, max: 1, cards: legal } });
     const joker = ids(zone(s, sourceZone(s, s.turn!))).find((c) => suitless(g, s, c));
     if (joker && !zone(s, 'trick').cards.length && jokerLeadSuits(s).length)
       out.push({
         type: 'leadJoker',
         label: 'Lead the joker',
         style: legal.length ? undefined : 'primary',
-        choose: { label: 'Call a suit for the others to follow', options: jokerLeadSuits(s).map((x) => ({ value: NAMEABLE.indexOf(x), label: `${SUIT_SYMBOL[x]} ${SUIT_NAME[x]}` })) },
+        choose: {
+          label: 'Call a suit for the others to follow',
+          options: jokerLeadSuits(s).map((x) => ({ value: NAMEABLE.indexOf(x), label: `${SUIT_SYMBOL[x]} ${SUIT_NAME[x]}` })),
+        },
       });
   } else if (s.phase === 'blind' && s.turn === seat) {
     out.push({ type: 'blindNil', label: `Bid blind nil · ${((R.scoring as { nil?: number }).nil ?? 100) * 2}`, style: 'danger' });
     out.push({ type: 'look', label: 'Look at my cards', style: 'primary' });
   } else if (s.phase === 'blindPass' && s.turn === seat) {
-    out.push({ type: 'blindGive', label: `Give 2 to ${name(s, (seat + 2) % s.players.length)}`, style: 'primary', select: { min: 2, max: 2, cards: ids(hand(s, seat)) } });
+    out.push({
+      type: 'blindGive',
+      label: `Give 2 to ${name(s, (seat + 2) % s.players.length)}`,
+      style: 'primary',
+      select: { min: 2, max: 2, cards: ids(hand(s, seat)) },
+    });
   } else if (s.phase === 'blindReturn' && s.turn === seat) {
-    out.push({ type: 'blindGive', label: `Give 2 back to ${name(s, (seat + 2) % s.players.length)}`, style: 'primary', select: { min: 2, max: 2, cards: ids(hand(s, seat)) } });
+    out.push({
+      type: 'blindGive',
+      label: `Give 2 back to ${name(s, (seat + 2) % s.players.length)}`,
+      style: 'primary',
+      select: { min: 2, max: 2, cards: ids(hand(s, seat)) },
+    });
   } else if (s.phase === 'defend' && s.turn === seat) {
     out.push({ type: 'defendAlone', label: 'Defend alone' });
     out.push({ type: 'stayIn', label: 'Play with partner', style: 'primary' });
@@ -95,7 +123,10 @@ export function trickActions(g: TrickGame, s: S, seat: number): ActionSpec[] {
       type: 'callCard',
       label: 'Call a partner',
       style: 'primary',
-      choose: { label: 'Whoever holds this card plays with you (secretly, until it’s played)', options: callable(g, s).map((c) => ({ value: g.deckCards.indexOf(c), label: cardOrJokerLabel(c) })) },
+      choose: {
+        label: 'Whoever holds this card plays with you (secretly, until it’s played)',
+        options: callable(g, s).map((c) => ({ value: g.deckCards.indexOf(c), label: cardOrJokerLabel(c) })),
+      },
     });
     out.push({ type: 'callAlone', label: 'Play alone' });
   } else if (s.phase === 'joker' && s.turn === seat) {

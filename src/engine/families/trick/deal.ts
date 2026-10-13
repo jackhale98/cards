@@ -138,9 +138,12 @@ export function startPlay(g: TrickGame, s: S) {
   const twoClubs = s.players.findIndex((_, i) => ids(hand(s, i)).includes(opener));
   if (g.R.lead === 'twoOfClubs' && twoClubs >= 0) s.turn = twoClubs;
   else if (g.R.lead === 'maker' && d.maker != null) s.turn = d.maker;
-  else if (g.bridgeBids && d.maker != null) s.turn = nextSeat(s, d.maker); // left of the declarer leads
-  else if (g.euchreBids && d.defAlone != null) s.turn = d.defAlone; // a lone defender leads
-  else if (g.euchreBids && d.sittingOut != null) s.turn = nextActive(g, s, d.maker!); // left of a lone maker
+  else if (g.bridgeBids && d.maker != null)
+    s.turn = nextSeat(s, d.maker); // left of the declarer leads
+  else if (g.euchreBids && d.defAlone != null)
+    s.turn = d.defAlone; // a lone defender leads
+  else if (g.euchreBids && d.sittingOut != null)
+    s.turn = nextActive(g, s, d.maker!); // left of a lone maker
   else s.turn = active(g, s, nextSeat(s, s.dealer)) ? nextSeat(s, s.dealer) : nextActive(g, s, nextSeat(s, s.dealer));
 }
 
@@ -214,7 +217,12 @@ export function applyNominate(g: TrickGame, s: S, seat: number, a: Action) {
   const suit = a.amount === 4 && !d.contract?.misere ? null : NAMEABLE[a.amount ?? -1];
   assertRule(suit !== undefined, 'Choose a suit');
   d.jokerSuit = suit;
-  log(s, suit ? `${who}’s joker is the top ${SUIT_NAME[suit].toLowerCase().replace(/s$/, '')}` : `${who}’s joker has no suit`, seat, suit ? `Joker ${SUIT_SYMBOL[suit]}` : 'Joker');
+  log(
+    s,
+    suit ? `${who}’s joker is the top ${SUIT_NAME[suit].toLowerCase().replace(/s$/, '')}` : `${who}’s joker has no suit`,
+    seat,
+    suit ? `Joker ${SUIT_SYMBOL[suit]}` : 'Joker',
+  );
   s.players.forEach((_, i) => sortHand(s, i, { trump: d.trump }));
   startPlay(g, s);
 }

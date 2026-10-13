@@ -17,12 +17,7 @@ export interface BettingState {
   minRaise: number;
 }
 
-export type BetAction =
-  | { type: 'fold' }
-  | { type: 'check' }
-  | { type: 'call' }
-  | { type: 'raise'; to: number }
-  | { type: 'allin' };
+export type BetAction = { type: 'fold' } | { type: 'check' } | { type: 'call' } | { type: 'raise'; to: number } | { type: 'allin' };
 
 export function newBetting(n: number, out: boolean[]): BettingState {
   return {

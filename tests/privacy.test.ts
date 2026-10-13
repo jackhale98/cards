@@ -62,11 +62,29 @@ const botPick = (g: GameModule) => (s: GameState) => {
 };
 
 describe('privacy: log lines never name hidden cards', () => {
-  for (const id of ['gin-rummy', 'hearts', 'spades', 'oh-hell', 'holdem', 'omaha', 'cribbage', 'euchre', 'five-hundred', 'bridge', 'rummy-500', 'president', 'canasta']) {
+  for (const id of [
+    'gin-rummy',
+    'hearts',
+    'spades',
+    'oh-hell',
+    'holdem',
+    'omaha',
+    'cribbage',
+    'euchre',
+    'five-hundred',
+    'bridge',
+    'rummy-500',
+    'president',
+    'canasta',
+  ]) {
     it(id, () => {
       const g = GAMES[id];
       const n = g.config.players.max >= 4 ? 4 : 2;
-      const s = g.setup(Array.from({ length: n }, (_, i) => ({ name: `P${i}`, bot: true })), 21, {});
+      const s = g.setup(
+        Array.from({ length: n }, (_, i) => ({ name: `P${i}`, bot: true })),
+        21,
+        {},
+      );
       checkLogs(g, s, botPick(g), 3000);
     });
   }
@@ -98,7 +116,11 @@ describe('privacy: what each device receives', () => {
   it('action card lists only contain cards the player can see (or placeholders)', () => {
     for (const g of GAME_LIST) {
       const n = Math.max(2, g.config.players.min);
-      const s = g.setup(Array.from({ length: n }, (_, i) => ({ name: `P${i}` })), 5, {});
+      const s = g.setup(
+        Array.from({ length: n }, (_, i) => ({ name: `P${i}` })),
+        5,
+        {},
+      );
       // put a face-down card on the table where the game has one
       if (s.zones.table) s.zones.table.cards.push({ ...s.zones.deck.cards.pop()!, up: false });
       for (let seat = 0; seat < n; seat++) {
@@ -110,7 +132,16 @@ describe('privacy: what each device receives', () => {
         for (const spec of view.actions)
           for (const id of spec.select?.cards ?? []) {
             const z = Object.values(s.zones).find((z) => z.cards.some((c) => c.id === id));
-            if (!isHidden(id)) expect(z && canSee(z, z.cards.find((c) => c.id === id)!, seat), `${g.config.id}: ${id} leaked to seat ${seat}`).toBe(true);
+            if (!isHidden(id))
+              expect(
+                z &&
+                  canSee(
+                    z,
+                    z.cards.find((c) => c.id === id)!,
+                    seat,
+                  ),
+                `${g.config.id}: ${id} leaked to seat ${seat}`,
+              ).toBe(true);
           }
       }
     }

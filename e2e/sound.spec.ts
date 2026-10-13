@@ -17,7 +17,10 @@ test('sounds follow the game, and the menu mutes them', async ({ page }) => {
   const heard = () => page.evaluate(() => (window as unknown as { __sounds: string[] }).__sounds);
   // a chime when it's our turn; chips when we (and the bots) bet
   await expect.poll(heard, { timeout: 15_000 }).toContain('turn');
-  await page.locator('aside button', { hasText: /Call|Check/ }).first().click();
+  await page
+    .locator('aside button', { hasText: /Call|Check/ })
+    .first()
+    .click();
   await expect.poll(heard, { timeout: 15_000 }).toContain('chips');
   // mute from the menu: nothing more plays
   await page.click('button[aria-label="Menu"]');

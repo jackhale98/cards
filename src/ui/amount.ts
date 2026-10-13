@@ -29,9 +29,7 @@ export function valueToSlider(v: number, a: AmountSpec): number {
 /** "+5 / +25 / +100"-style quick adds that make sense for this range. */
 export function quickAdds(a: AmountSpec): number[] {
   const span = a.max - a.min;
-  return [1, 5, 10, 25, 50, 100, 250, 500, 1000, 5000, 10000]
-    .filter((c) => c >= a.step && c % a.step === 0 && c <= span / 2)
-    .slice(-3);
+  return [1, 5, 10, 25, 50, 100, 250, 500, 1000, 5000, 10000].filter((c) => c >= a.step && c % a.step === 0 && c <= span / 2).slice(-3);
 }
 
 /** Validate typed text: returns the amount to send (exactly as typed), or why it can't be used. */

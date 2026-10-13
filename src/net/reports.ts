@@ -24,7 +24,8 @@ const endpoint = () => RELAY_URL.replace(/^ws/, 'http').replace(/\/$/, '') + '/r
 
 /** The real site: lamplight.cards (and its previews), not localhost or a test run. */
 export const reportingOn = () =>
-  typeof location !== 'undefined' && (location.hostname === 'lamplight.cards' || location.hostname.endsWith('.lamplight.cards') || location.hostname.endsWith('.pages.dev'));
+  typeof location !== 'undefined' &&
+  (location.hostname === 'lamplight.cards' || location.hostname.endsWith('.lamplight.cards') || location.hostname.endsWith('.pages.dev'));
 
 /** Card ids, table codes and the like don't belong in a report: strip anything that looks like one. */
 export function scrub(text: string): string {

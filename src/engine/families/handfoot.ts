@@ -93,10 +93,19 @@ export function handFootFamily(config: GameConfig): GameModule<HandFootData> {
   const teamSeats = (s: S, team: number) => s.players.map((p) => p.seat).filter((i) => teamOf(s, i) === team);
   const teamName = (s: S, team: number) => sideName(s, teamSeats(s, team));
   const teamMelds = (s: S, team: number) => s.data.melds.filter((m) => m.team === team);
-  const incompleteOf = (s: S, team: number) => new Map(teamMelds(s, team).filter((m) => !isPile(m)).map((m) => [m.rank, m.cards]));
+  const incompleteOf = (s: S, team: number) =>
+    new Map(
+      teamMelds(s, team)
+        .filter((m) => !isPile(m))
+        .map((m) => [m.rank, m.cards]),
+    );
   const piles = (s: S, team: number) => {
     const done = teamMelds(s, team).filter(isPile);
-    return { clean: done.filter((m) => kindOf(m) === 'clean').length, dirty: done.filter((m) => kindOf(m) === 'dirty').length, wild: done.filter((m) => kindOf(m) === 'wild').length };
+    return {
+      clean: done.filter((m) => kindOf(m) === 'clean').length,
+      dirty: done.filter((m) => kindOf(m) === 'dirty').length,
+      wild: done.filter((m) => kindOf(m) === 'wild').length,
+    };
   };
   const topCard = (s: S) => zone(s, 'discard').cards.at(-1)?.id ?? null;
   const footZ = (seat: number) => `foot:${seat}`;
@@ -133,8 +142,9 @@ export function handFootFamily(config: GameConfig): GameModule<HandFootData> {
           // a clean pile is topped with a red card, a dirty one with a black card, a wild one with a joker
           const k = kindOf(m);
           const topId =
-            (k === 'wild' ? m.cards.find((c) => parseCard(c).suit === 'X') : m.cards.find((c) => !isWild(c) && 'HD'.includes(parseCard(c).suit) === (k === 'clean'))) ??
-            m.cards[0];
+            (k === 'wild'
+              ? m.cards.find((c) => parseCard(c).suit === 'X')
+              : m.cards.find((c) => !isWild(c) && 'HD'.includes(parseCard(c).suit) === (k === 'clean'))) ?? m.cards[0];
           z.cards.push({ id: topId, up: true, group: i });
           under.cards.push(...m.cards.filter((c) => c !== topId).map((id) => ({ id, up: true })));
         } else z.cards.push(...[...m.cards.filter((c) => !isWild(c)), ...m.cards.filter(isWild)].map((id) => ({ id, up: true, group: i })));
@@ -227,7 +237,10 @@ export function handFootFamily(config: GameConfig): GameModule<HandFootData> {
     }
     if (top) {
       const fromHand = cards.filter((c) => (isWild(top) ? isWild(c) : !isWild(c) && parseCard(c).rank === parseCard(top).rank)).length;
-      assertRule(fromHand >= 2, isWild(top) ? 'To take a wild card you need two wild cards' : `You need two ${rankName(parseCard(top).rank)}s from your hand to take the pile`);
+      assertRule(
+        fromHand >= 2,
+        isWild(top) ? 'To take a wild card you need two wild cards' : `You need two ${rankName(parseCard(top).rank)}s from your hand to take the pile`,
+      );
       const r = isWild(top) ? 0 : parseCard(top).rank;
       assertRule(!inc.has(r), `You already have an unfinished ${rankName(r)} meld: take the pile to start a new one only once it's a pile`);
     }
@@ -237,7 +250,11 @@ export function handFootFamily(config: GameConfig): GameModule<HandFootData> {
     }
     // in the foot, keep a card to discard unless the side can go out
     const left = ids(hand(s, seat)).length - cards.length;
-    if (left < 2 && d.footTaken[seat]) assertRule(sideCanGoOut(s, team, groups), `You can’t go out yet: you need 2 clean, 2 dirty and 1 wild pile${partners(s.players.length) ? ' (and your partners in their feet)' : ''}`);
+    if (left < 2 && d.footTaken[seat])
+      assertRule(
+        sideCanGoOut(s, team, groups),
+        `You can’t go out yet: you need 2 clean, 2 dirty and 1 wild pile${partners(s.players.length) ? ' (and your partners in their feet)' : ''}`,
+      );
     return groups;
   }
 
@@ -285,7 +302,9 @@ export function handFootFamily(config: GameConfig): GameModule<HandFootData> {
       const out = outSeat != null && teamOf(s, outSeat) === t ? 100 : 0;
       const total = meldPts + bonus + reds + out - heldPts;
       d.scores[t] += total;
-      const parts = [`melds ${meldPts}`, bonus && `piles ${bonus}`, reds && `red 3s ${reds}`, out && `out ${out}`, heldPts && `held −${heldPts}`].filter(Boolean);
+      const parts = [`melds ${meldPts}`, bonus && `piles ${bonus}`, reds && `red 3s ${reds}`, out && `out ${out}`, heldPts && `held −${heldPts}`].filter(
+        Boolean,
+      );
       lines.push(`${teamName(s, t)}: ${parts.join(', ')} = ${total >= 0 ? '+' : ''}${total} → ${d.scores[t]}`);
     }
     showHands(s);
@@ -294,7 +313,9 @@ export function handFootFamily(config: GameConfig): GameModule<HandFootData> {
     log(s, lines[0], outSeat ?? undefined, outSeat != null ? 'Out!' : undefined);
     if (d.round >= ROUNDS) {
       const best = Math.max(...d.scores);
-      s.winner = teams(s).filter((t) => d.scores[t] === best).flatMap((t) => teamSeats(s, t));
+      s.winner = teams(s)
+        .filter((t) => d.scores[t] === best)
+        .flatMap((t) => teamSeats(s, t));
       s.phase = 'gameOver';
     } else s.phase = 'handOver';
   }
@@ -397,7 +418,9 @@ export function handFootFamily(config: GameConfig): GameModule<HandFootData> {
       const own = ids(hand(s, seat));
       const top = topCard(s);
       if (s.phase === 'draw') {
-        const out: ActionSpec[] = [{ type: 'draw', label: zone(s, 'deck').cards.length ? 'Draw 2' : 'No stock — end the round', style: 'primary', zone: 'deck' }];
+        const out: ActionSpec[] = [
+          { type: 'draw', label: zone(s, 'deck').cards.length ? 'Draw 2' : 'No stock — end the round', style: 'primary', zone: 'deck' },
+        ];
         if (top && !isBlackThree(top)) out.push({ type: 'takePile', label: 'Take the pile', select: { min: 2, max: own.length, cards: own } });
         return out;
       }
@@ -462,7 +485,14 @@ export function handFootFamily(config: GameConfig): GameModule<HandFootData> {
           moveCards(s, 'discard', `hand:${seat}`, taken);
           d.received[seat] = taken;
           sortHand(s, seat);
-          log(s, `${who} takes the pile (${taken.length + 1} cards) with the ${rankName(isWild(top) ? 0 : parseCard(top).rank)}`, seat, `Took ${taken.length + 1}`, undefined, { from: 'discard' });
+          log(
+            s,
+            `${who} takes the pile (${taken.length + 1} cards) with the ${rankName(isWild(top) ? 0 : parseCard(top).rank)}`,
+            seat,
+            `Took ${taken.length + 1}`,
+            undefined,
+            { from: 'discard' },
+          );
           s.phase = 'play';
           afterCardsLeft(s, seat);
           return;
@@ -494,11 +524,22 @@ export function handFootFamily(config: GameConfig): GameModule<HandFootData> {
           // a last card can only go if the side may go out — or the stock is gone (a red 3 drawn as the
           // last card can leave a single card), when the round is over anyway
           const stuck = own.length === 1 && d.footTaken[seat] && !sideCanGoOut(s, teamOf(s, seat));
-          if (stuck) assertRule(zone(s, 'deck').cards.length === 0, `You can’t go out yet: you need 2 clean, 2 dirty and 1 wild pile${partners(s.players.length) ? ' (and your partners in their feet)' : ''}`);
+          if (stuck)
+            assertRule(
+              zone(s, 'deck').cards.length === 0,
+              `You can’t go out yet: you need 2 clean, 2 dirty and 1 wild pile${partners(s.players.length) ? ' (and your partners in their feet)' : ''}`,
+            );
           moveCards(s, `hand:${seat}`, 'discard', [card], { up: true });
           if (stuck) return endRound(s, null);
           d.received[seat] = [];
-          log(s, `${who} discards a ${isWild(card) ? 'wild card' : rankName(parseCard(card).rank)}`, seat, isWild(card) ? 'Wild' : rankName(parseCard(card).rank), undefined, { to: 'discard' });
+          log(
+            s,
+            `${who} discards a ${isWild(card) ? 'wild card' : rankName(parseCard(card).rank)}`,
+            seat,
+            isWild(card) ? 'Wild' : rankName(parseCard(card).rank),
+            undefined,
+            { to: 'discard' },
+          );
           if (afterCardsLeft(s, seat)) return;
           s.phase = 'draw';
           s.turn = nextSeat(s, seat);
@@ -547,12 +588,19 @@ export function handFootFamily(config: GameConfig): GameModule<HandFootData> {
       return {
         headline,
         hint,
-        seats: s.players.map((_, i) => ({ badge: `${d.scores[teamOf(s, i)]} pts${d.footTaken[i] ? ' · in foot' : ''}`, tag: i === s.dealer ? 'D' : undefined })),
+        seats: s.players.map((_, i) => ({
+          badge: `${d.scores[teamOf(s, i)]} pts${d.footTaken[i] ? ' · in foot' : ''}`,
+          tag: i === s.dealer ? 'D' : undefined,
+        })),
         scoreboard: {
           columns: ['Clean', 'Dirty', 'Wild', 'Score'],
           rows: teams(s).map((t) => {
             const p = piles(s, t);
-            return { name: teamName(s, t), values: [p.clean, p.dirty, p.wild, d.scores[t]], highlight: !!s.winner && teamSeats(s, t).some((i) => s.winner!.includes(i)) };
+            return {
+              name: teamName(s, t),
+              values: [p.clean, p.dirty, p.wild, d.scores[t]],
+              highlight: !!s.winner && teamSeats(s, t).some((i) => s.winner!.includes(i)),
+            };
           }),
         },
         banner:

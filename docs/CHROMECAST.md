@@ -31,13 +31,13 @@ The App ID isn't secret. It ends up in the site's public JavaScript either way.
 
 ## 3. Register your Chromecast as a test device
 
-A new application is *unpublished*, which means it only runs on Chromecasts you list as test
+A new application is _unpublished_, which means it only runs on Chromecasts you list as test
 devices.
 
 1. Find the Chromecast's **serial number**. It's printed on the device (or its power brick) and
    shown in the **Google Home** app: tap the device → ⚙ Settings → **Device information**.
 2. In the Cast console, click **Add new device**, enter the serial number and a description.
-3. Wait until its status says *Ready for testing* (can take up to 15 minutes), then **restart the
+3. Wait until its status says _Ready for testing_ (can take up to 15 minutes), then **restart the
    Chromecast** (unplug it for a few seconds) so it picks up the change.
 
 ## 4. Give the App ID to the site
@@ -46,7 +46,7 @@ Lamplight's ID is built into `src/net/cast.ts`. To point a build at a different 
 set it as a build variable instead:
 
 1. Open the **Cloudflare dashboard** → **Workers & Pages** → the Lamplight Pages project.
-2. **Settings** → **Variables and Secrets** (for *Production*) → **Add**:
+2. **Settings** → **Variables and Secrets** (for _Production_) → **Add**:
    - **Name:** `VITE_CAST_APP_ID`
    - **Value:** the App ID from step 2
 3. Save, then go to **Deployments** and **Retry deployment** on the latest one (or push any commit)
@@ -69,10 +69,10 @@ Chromecast can show a Lamplight table, not just yours.
 
 ## Troubleshooting
 
-| What you see | Try |
-|---|---|
-| No **Cast** button | Casting needs Chrome (Android or a computer), and a Chromecast on the same Wi-Fi for it to offer. |
-| Chromecast isn't in the list | Phone and TV on the same Wi-Fi? Guest networks often block casting. |
-| TV shows a blank or error screen | Unpublished app and the device isn't registered (or wasn't restarted after registering). Check its status in the console. |
-| TV shows Lamplight but not the table | The table code didn't arrive: cast again from the table menu (**Show on a TV**). |
-| Apple TV | Websites can't cast to Apple TV. Open `lamplight.cards/tv` on a TV with a browser, or Screen Mirror a spare iPad/phone that has the table open. |
+| What you see                         | Try                                                                                                                                             |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| No **Cast** button                   | Casting needs Chrome (Android or a computer), and a Chromecast on the same Wi-Fi for it to offer.                                               |
+| Chromecast isn't in the list         | Phone and TV on the same Wi-Fi? Guest networks often block casting.                                                                             |
+| TV shows a blank or error screen     | Unpublished app and the device isn't registered (or wasn't restarted after registering). Check its status in the console.                       |
+| TV shows Lamplight but not the table | The table code didn't arrive: cast again from the table menu (**Show on a TV**).                                                                |
+| Apple TV                             | Websites can't cast to Apple TV. Open `lamplight.cards/tv` on a TV with a browser, or Screen Mirror a spare iPad/phone that has the table open. |

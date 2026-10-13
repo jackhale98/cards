@@ -55,30 +55,51 @@
       <h4>Playing together</h4>
       <ol>
         <li><b>One person starts a table</b> and picks the game.</li>
-        <li><b>Everyone else joins</b> by scanning the QR code, typing the five-letter table code, or tapping the invite link (it works from anywhere, not just the same room).</li>
+        <li>
+          <b>Everyone else joins</b> by scanning the QR code, typing the five-letter table code, or tapping the invite link (it works from anywhere, not just the
+          same room).
+        </li>
         <li><b>Your phone is your hand.</b> Turn it sideways: your cards at the bottom, the table in the middle. Each phone only ever gets its own cards.</li>
         <li><b>Short of players?</b> Bots fill empty seats, Easy, Normal or Hard.</li>
-        <li><b>A game we don't have?</b> Pick <b>Free Table</b>, at the end of the game list: a real deck with no rules enforced. Deal, draw, play, pass and bet however your game goes, house rules welcome, and anyone can undo a slip.</li>
+        <li>
+          <b>A game we don't have?</b> Pick <b>Free Table</b>, at the end of the game list: a real deck with no rules enforced. Deal, draw, play, pass and bet
+          however your game goes, house rules welcome, and anyone can undo a slip.
+        </li>
       </ol>
 
       <h4>Game night</h4>
       <ul>
         <li>Every finished game adds to the evening's <b>scoreboard</b>: 3, 2 and 1 points for the podium, and partners share.</li>
-        <li><b>More people than the game seats?</b> Everyone still gets a seat at the table. The host taps <b>In / Out</b> to choose who plays; the rest watch, and whoever sat out plays next.</li>
-        <li><b>Split the table</b> to run two games at once: the host picks a group and whose phone hosts their new table. They take the scoreboard with them, and <b>Everyone back</b> brings them home with their games added.</li>
+        <li>
+          <b>More people than the game seats?</b> Everyone still gets a seat at the table. The host taps <b>In / Out</b> to choose who plays; the rest watch, and
+          whoever sat out plays next.
+        </li>
+        <li>
+          <b>Split the table</b> to run two games at once: the host picks a group and whose phone hosts their new table. They take the scoreboard with them, and
+          <b>Everyone back</b> brings them home with their games added.
+        </li>
       </ul>
 
       <h4>Go full screen</h4>
       <ul>
         <li><b>Android:</b> tap <b>Full screen</b> in the table menu (☰) — the browser's bars disappear and the table fills the phone.</li>
-        <li><b>iPhone:</b> Safari doesn't allow full screen for websites, so add Lamplight to your Home Screen: tap <b>Share</b>, then <b>Add to Home Screen</b>. Open it from that icon and it fills the screen like an app.</li>
+        <li>
+          <b>iPhone:</b> Safari doesn't allow full screen for websites, so add Lamplight to your Home Screen: tap <b>Share</b>, then <b>Add to Home Screen</b>.
+          Open it from that icon and it fills the screen like an app.
+        </li>
       </ul>
 
       <h4>On a TV or a big screen</h4>
       <ul>
-        <li><b>Chromecast or Google TV:</b> tap <b>📺 TV</b> in the lobby (or <b>Show on a TV</b> in the table menu), then <b>Cast</b>. Cast from Chrome or Edge on any device at the table — a player's Android phone, or a laptop.</li>
+        <li>
+          <b>Chromecast or Google TV:</b> tap <b>📺 TV</b> in the lobby (or <b>Show on a TV</b> in the table menu), then <b>Cast</b>. Cast from Chrome or Edge
+          on any device at the table — a player's Android phone, or a laptop.
+        </li>
         <li><b>Any TV with a web browser:</b> open <b>lamplight.cards/tv</b> on it, and type the code it shows into <b>Show on a TV</b> on a phone.</li>
-        <li><b>A laptop or tablet in the middle:</b> open the site and choose <b>Use this device as the table display</b>. A laptop doing this can cast it on to the TV too.</li>
+        <li>
+          <b>A laptop or tablet in the middle:</b> open the site and choose <b>Use this device as the table display</b>. A laptop doing this can cast it on to
+          the TV too.
+        </li>
         <li>With a table screen on, phones switch to a bigger hand. Mute the TV from any phone's table menu (<b>TV sound</b>).</li>
         <li><b>Apple TV:</b> use Screen Mirroring from a spare iPad or phone showing the table display — not your own phone, or everyone sees your hand.</li>
       </ul>
@@ -94,9 +115,13 @@
         <li>Refresh or lose signal and you keep your seat. If the host's phone drops out, any player can <b>take over hosting</b> and the game carries on.</li>
         <li>Rules follow <a href="https://www.pagat.com" target="_blank" rel="noreferrer">pagat.com</a>; each game's rules are in its table menu.</li>
         <li>No accounts, no ads, nothing to install.</li>
-        <li>If something breaks, Lamplight sends an anonymous report — the error and the kind of device, never your cards, name or table — so it can be fixed.</li>
+        <li>
+          If something breaks, Lamplight sends an anonymous report — the error and the kind of device, never your cards, name or table — so it can be fixed.
+        </li>
         <li>Found a bug, or want a game we don't have? Write to <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>.</li>
-        <li>Lamplight is free. If it makes your game nights better, you can <a href={SUPPORT_URL} target="_blank" rel="noreferrer">buy us a beer on Ko-fi</a> 🍺</li>
+        <li>
+          Lamplight is free. If it makes your game nights better, you can <a href={SUPPORT_URL} target="_blank" rel="noreferrer">buy us a beer on Ko-fi</a> 🍺
+        </li>
       </ul>
     </div>
   </Sheet>
@@ -134,7 +159,13 @@
           class:need={needName && !name.trim()}
           bind:value={name}
           oninput={() => (needName = false)}
-          onblur={commitName} maxlength="20" placeholder="e.g. Sam" autocomplete="nickname" enterkeyhint="done" aria-label="Your name" />
+          onblur={commitName}
+          maxlength="20"
+          placeholder="e.g. Sam"
+          autocomplete="nickname"
+          enterkeyhint="done"
+          aria-label="Your name"
+        />
       </div>
     </div>
 
@@ -171,8 +202,11 @@
   </section>
 
   <footer>
-    Devices link directly whenever they can, so on the same WiFi your game stays in the room. No accounts, no app store.
-    · <a href="https://github.com/jackhale98/cards" target="_blank" rel="noreferrer">Open source</a>
+    Devices link directly whenever they can, so on the same WiFi your game stays in the room. No accounts, no app store. · <a
+      href="https://github.com/jackhale98/cards"
+      target="_blank"
+      rel="noreferrer">Open source</a
+    >
     · <a href={bugReportLink()}>Report a bug</a>
     · <a href={gameRequestLink()}>Request a game</a>
     · <a href={SUPPORT_URL} target="_blank" rel="noreferrer">🍺 Support Lamplight</a>
@@ -234,8 +268,7 @@
     background:
       radial-gradient(ellipse 85% 150% at -6% -12%, var(--glow) 0%, rgba(255, 186, 104, 0.14) 40%, rgba(255, 186, 104, 0) 78%),
       radial-gradient(ellipse 130% 125% at 18% 10%, rgba(30, 12, 0, 0) 45%, rgba(30, 12, 0, 0.42) 100%),
-      linear-gradient(rgba(255, 160, 80, 0.07), rgba(255, 160, 80, 0.07)),
-      radial-gradient(ellipse 80% 70% at 50% 42%, #2f5e3e 0%, #1b3b28 55%, #0d1a10 100%);
+      linear-gradient(rgba(255, 160, 80, 0.07), rgba(255, 160, 80, 0.07)), radial-gradient(ellipse 80% 70% at 50% 42%, #2f5e3e 0%, #1b3b28 55%, #0d1a10 100%);
   }
   @media (orientation: portrait), (max-width: 620px) {
     .home {
@@ -245,8 +278,7 @@
       background:
         radial-gradient(ellipse 150% 75% at -14% -8%, var(--glow) 0%, rgba(255, 186, 104, 0.14) 40%, rgba(255, 186, 104, 0) 78%),
         radial-gradient(ellipse 150% 110% at 15% 5%, rgba(30, 12, 0, 0) 45%, rgba(30, 12, 0, 0.42) 100%),
-        linear-gradient(rgba(255, 160, 80, 0.07), rgba(255, 160, 80, 0.07)),
-        radial-gradient(ellipse 80% 70% at 50% 42%, #2f5e3e 0%, #1b3b28 55%, #0d1a10 100%);
+        linear-gradient(rgba(255, 160, 80, 0.07), rgba(255, 160, 80, 0.07)), radial-gradient(ellipse 80% 70% at 50% 42%, #2f5e3e 0%, #1b3b28 55%, #0d1a10 100%);
     }
   }
   .hero {

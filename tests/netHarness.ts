@@ -37,4 +37,3 @@ export class MemTransport implements Transport {
     this.bus.leave(this);
   }
 }
-

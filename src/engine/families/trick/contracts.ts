@@ -22,8 +22,16 @@ export const OPEN_MISERE: Contract = { tricks: 0, suit: 'NT', value: 500, misere
 /** Every 500 bid from lowest to highest: misère ranks above the sevens, open misère between 10♦ and 10♥. */
 export const ALL_BIDS: Contract[] = (() => {
   const out = [...SUIT_BIDS];
-  out.splice(out.findIndex((b) => b.tricks === 8), 0, MISERE);
-  out.splice(out.findIndex((b) => b.tricks === 10 && b.suit === 'H'), 0, OPEN_MISERE);
+  out.splice(
+    out.findIndex((b) => b.tricks === 8),
+    0,
+    MISERE,
+  );
+  out.splice(
+    out.findIndex((b) => b.tricks === 10 && b.suit === 'H'),
+    0,
+    OPEN_MISERE,
+  );
   return out;
 })();
 // a thin space keeps a bid ("6 ♦") from reading as a card ("6♦")

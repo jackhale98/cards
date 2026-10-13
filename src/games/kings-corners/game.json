@@ -21,9 +21,7 @@
     { "id": "hand", "perPlayer": true, "visibility": "owner", "layout": "fan", "area": "hand" }
   ],
   "rules": { "family": "corners", "end": { "target": 25 } },
-  "options": [
-    { "id": "target", "label": "Play to", "type": "number", "default": 25, "min": 10, "max": 100, "step": 5 }
-  ],
+  "options": [{ "id": "target", "label": "Play to", "type": "number", "default": 25, "min": 10, "max": 100, "step": 5 }],
   "rulesSummary": [
     "Seven cards each. Four cards turned up around the stock start the North, East, South and West piles.",
     "On your turn make as many plays as you like, then draw a card to end your turn.",

@@ -34,12 +34,22 @@ describe('president', () => {
   });
 
   it('a play must match the count and be higher; passing players can come back', () => {
-    const s = rig([['6S', '6H', 'KS'], ['5S', '5H', '9C', '9D'], ['7S', '7H', 'QC'], ['3D', '4D', 'AH', 'AS']]);
+    const s = rig([
+      ['6S', '6H', 'KS'],
+      ['5S', '5H', '9C', '9D'],
+      ['7S', '7H', 'QC'],
+      ['3D', '4D', 'AH', 'AS'],
+    ]);
     g.apply(s, 0, { type: 'play', cards: ['6S', '6H'] });
     // seat 1 can't play a lower pair or a single
     expect(() => g.apply(s, 1, { type: 'play', cards: ['5S', '5H'] })).toThrow();
     expect(() => g.apply(s, 1, { type: 'play', cards: ['9C'] })).toThrow();
-    expect(g.actions(s, 1).find((a) => a.type === 'play')!.select!.cards.sort()).toEqual(['9C', '9D']);
+    expect(
+      g
+        .actions(s, 1)
+        .find((a) => a.type === 'play')!
+        .select!.cards.sort(),
+    ).toEqual(['9C', '9D']);
     g.apply(s, 1, { type: 'pass' });
     g.apply(s, 2, { type: 'play', cards: ['7S', '7H'] });
     g.apply(s, 3, { type: 'pass' });
@@ -129,7 +139,11 @@ describe('president', () => {
 describe('president reseating (pagat)', () => {
   it('after a hand, play goes round in order of rank: President first, Scum last', () => {
     const g = GAMES.president as GameModule<ClimbingData>;
-    const s = g.setup(Array.from({ length: 5 }, (_, i) => ({ name: `B${i}`, bot: true })), 3, {});
+    const s = g.setup(
+      Array.from({ length: 5 }, (_, i) => ({ name: `B${i}`, bot: true })),
+      3,
+      {},
+    );
     for (let i = 0; i < 5000 && s.phase !== 'handOver' && s.phase !== 'gameOver'; i++) {
       const seat = s.players.findIndex((p) => g.bot!(s, p.seat));
       g.apply(s, seat, g.bot!(s, seat)!);

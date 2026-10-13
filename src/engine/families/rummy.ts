@@ -66,9 +66,7 @@ export function rummyFamily(config: GameConfig): GameModule<RummyData> {
   /** Deadwood left after discarding each possible card (11-card hand). */
   function discardOptions(s: S, seat: number) {
     const cards = ids(hand(s, seat));
-    return cards
-      .filter((c) => c !== s.data.justTook)
-      .map((c) => ({ card: c, points: bestMelds(cards.filter((x) => x !== c)).points }));
+    return cards.filter((c) => c !== s.data.justTook).map((c) => ({ card: c, points: bestMelds(cards.filter((x) => x !== c)).points }));
   }
 
   /** Cards `seat` hasn't seen: not in its hand or the discard pile, nor picked up by the opponent. */
@@ -223,7 +221,12 @@ export function rummyFamily(config: GameConfig): GameModule<RummyData> {
       // the game bonus doubles if the loser didn't score at all (a shutout)
       const game = (B.game ?? 0) * (d.scores[other(winner)] === 0 ? 2 : 1);
       const finals = [0, 1].map((i) => d.scores[i] + (i === winner ? game : 0) + d.boxes[i] * (B.box ?? 0));
-      lines.push(...[0, 1].map((i) => `${name(s, i)}: ${d.scores[i]} + ${d.boxes[i]} hands won${i === winner && game ? ` + ${game} ${d.scores[other(winner)] === 0 ? 'shutout' : 'game'}` : ''} = ${finals[i]}`));
+      lines.push(
+        ...[0, 1].map(
+          (i) =>
+            `${name(s, i)}: ${d.scores[i]} + ${d.boxes[i]} hands won${i === winner && game ? ` + ${game} ${d.scores[other(winner)] === 0 ? 'shutout' : 'game'}` : ''} = ${finals[i]}`,
+        ),
+      );
       s.winner = [finals[0] >= finals[1] ? 0 : 1];
       s.phase = 'gameOver';
     } else s.phase = 'handOver';
@@ -373,8 +376,10 @@ export function rummyFamily(config: GameConfig): GameModule<RummyData> {
       const top = topDiscard(s);
       const turnName = s.turn != null ? name(s, s.turn) : '';
       let headline: string;
-      if (s.phase === 'firstPick') headline = s.turn === viewer ? `Take the ${top ? cardLabel(top) : 'upcard'} or pass` : `${turnName} is deciding on the upcard`;
-      else if (s.phase === 'draw') headline = s.turn === viewer ? (d.mustDrawStock ? 'Draw from the stock' : 'Draw from the stock or take the discard') : `${turnName} to draw`;
+      if (s.phase === 'firstPick')
+        headline = s.turn === viewer ? `Take the ${top ? cardLabel(top) : 'upcard'} or pass` : `${turnName} is deciding on the upcard`;
+      else if (s.phase === 'draw')
+        headline = s.turn === viewer ? (d.mustDrawStock ? 'Draw from the stock' : 'Draw from the stock or take the discard') : `${turnName} to draw`;
       else if (s.phase === 'discard') headline = s.turn === viewer ? 'Discard a card — or knock' : `${turnName} to discard`;
       else headline = d.result?.headline ?? '';
 

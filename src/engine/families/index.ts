@@ -68,7 +68,8 @@ function bySize(config: GameConfig, make: Family): GameModule {
     out[k] =
       k === 'setup'
         ? (players: unknown[], ...rest: unknown[]) => (forSize(players.length).setup as (...a: unknown[]) => unknown)(players, ...rest)
-        : (s: { players: unknown[] }, ...rest: unknown[]) => ((forSize(s.players.length) as unknown as Record<string, (...a: unknown[]) => unknown>)[k])(s, ...rest);
+        : (s: { players: unknown[] }, ...rest: unknown[]) =>
+            (forSize(s.players.length) as unknown as Record<string, (...a: unknown[]) => unknown>)[k](s, ...rest);
   }
   return out as unknown as GameModule;
 }

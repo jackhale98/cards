@@ -268,13 +268,21 @@ export function palaceFamily(config: GameConfig): GameModule<PalaceData> {
           assertRule(src === 'hand' || src === 'up', 'Turn over a face-down card');
           const from = sourceCards(s, seat);
           const cards = a.cards ?? [];
-          assertRule(cards.length >= 1 && new Set(cards).size === cards.length && cards.every((c) => from.includes(c)), src === 'hand' ? 'Play from your hand' : 'Play your face-up cards');
+          assertRule(
+            cards.length >= 1 && new Set(cards).size === cards.length && cards.every((c) => from.includes(c)),
+            src === 'hand' ? 'Play from your hand' : 'Play your face-up cards',
+          );
           const r = rankOf(cards[0]);
-          assertRule(cards.every((c) => rankOf(c) === r), 'Play cards of one rank');
+          assertRule(
+            cards.every((c) => rankOf(c) === r),
+            'Play cards of one rank',
+          );
           assertRule(canGoOn(s, r), `Play a ${rankLabel(toBeat(s))} or higher, a 2 or a 10 — or pick up`);
           moveCards(s, src === 'hand' ? `hand:${seat}` : upZ(seat), 'pile', cards, { up: true, by: seat });
           d.last = `${who} played ${plural(cards.length, r)}`;
-          log(s, `${who} plays ${plural(cards.length, r)}`, seat, cards.length === 1 ? cardLabel(cards[0]) : `${cards.length}× ${rankLabel(r)}`, undefined, { to: 'pile' });
+          log(s, `${who} plays ${plural(cards.length, r)}`, seat, cards.length === 1 ? cardLabel(cards[0]) : `${cards.length}× ${rankLabel(r)}`, undefined, {
+            to: 'pile',
+          });
           return afterPlay(s, seat);
         }
         case 'pickup': {

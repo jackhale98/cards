@@ -63,7 +63,12 @@ export function candidateMelds(ids: string[]): string[][] {
 export function bestMelds(ids: string[], layOffOnto?: string[][]): MeldResult & { laid: string[] } {
   const candidates = candidateMelds(ids);
   const after = (deadwood: string[]) => {
-    const laid = layOffOnto ? layOff(deadwood, layOffOnto.map((m) => [...m])) : [];
+    const laid = layOffOnto
+      ? layOff(
+          deadwood,
+          layOffOnto.map((m) => [...m]),
+        )
+      : [];
     return { laid, points: total(deadwood.filter((c) => !laid.includes(c))) };
   };
   let best: MeldResult & { laid: string[] } = { melds: [], deadwood: [...ids], ...after([...ids]) };

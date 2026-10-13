@@ -105,7 +105,10 @@ describe('spades for three (pagat)', () => {
     expect(s.data.scores).toHaveLength(3);
     while (s.phase === 'bid') spades.apply(s, s.turn!, spades.bot!(s, s.turn!)!);
     expect(s.phase).toBe('play');
-    const clubs = s.players.flatMap((_, i) => ids(s, `hand:${i}`)).filter((c) => c.endsWith('C')).sort((a, b) => '23456789TJQKA'.indexOf(a[0]) - '23456789TJQKA'.indexOf(b[0]));
+    const clubs = s.players
+      .flatMap((_, i) => ids(s, `hand:${i}`))
+      .filter((c) => c.endsWith('C'))
+      .sort((a, b) => '23456789TJQKA'.indexOf(a[0]) - '23456789TJQKA'.indexOf(b[0]));
     expect(ids(s, `hand:${s.turn}`)).toContain(clubs[0]);
     expect(spades.actions(s, s.turn!).find((a) => a.type === 'play')!.select!.cards).toEqual([clubs[0]]);
   });
@@ -288,7 +291,10 @@ describe('canasta for three and six (pagat)', () => {
     s.zones['hand:0'].cards = ['AH', 'AD', '4C', '6D'].map((id) => ({ id }));
     s.zones['hand:1'].cards = ['5S', '7D'].map((id) => ({ id }));
     s.zones['hand:2'].cards = ['5C', '7H'].map((id) => ({ id }));
-    s.zones.discard.cards = [{ id: '9C', up: true }, { id: 'AS', up: true }];
+    s.zones.discard.cards = [
+      { id: '9C', up: true },
+      { id: 'AS', up: true },
+    ];
     s.zones.deck.cards = ['5H', '6H', '7S', '8S'].map((id) => ({ id }));
     Object.assign(s.data, {
       sides: [[0], [1], [2]],
@@ -309,7 +315,12 @@ describe('canasta for three and six (pagat)', () => {
     canasta.apply(s, 0, { type: 'takePile', cards: ['AH', 'AD'] });
     expect(s.data.sides).toEqual([[0], [1, 2], []]);
     const partners = s.data.melds.filter((m: any) => m.team === 1);
-    expect(partners.map((m: any) => [m.rank, m.cards.length]).sort()).toEqual([[12, 6], [8, 3]].sort());
+    expect(partners.map((m: any) => [m.rank, m.cards.length]).sort()).toEqual(
+      [
+        [12, 6],
+        [8, 3],
+      ].sort(),
+    );
     expect(s.data.melds.filter((m: any) => m.team === 2)).toEqual([]);
     // red threes stay with the player who laid them
     expect(s.data.red3).toEqual([[], ['3H'], []]);
@@ -343,7 +354,6 @@ describe('canasta for three and six (pagat)', () => {
 describe('six-handed spades and 500 (pagat): double packs', () => {
   const spades = GAMES.spades as GameModule<TrickData>;
   const five = GAMES['five-hundred'] as GameModule<TrickData>;
-
 
   it('spades for six: three pairs across; 102 cards (two packs without the 2♦s), 17 each', () => {
     const s = spades.setup(bots(6), 1, {});

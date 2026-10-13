@@ -41,9 +41,7 @@ export function redact<D>(module: GameModule<D>, s: GameState<D>, viewer: number
   for (const [id, z] of Object.entries(s.zones)) {
     zones[id] = {
       ...z,
-      cards: z.cards.map((c, i) =>
-        canSee(z, c, viewer) ? c : { id: aliasOf(z, c, i), up: false, by: c.by },
-      ),
+      cards: z.cards.map((c, i) => (canSee(z, c, viewer) ? c : { id: aliasOf(z, c, i), up: false, by: c.by })),
     };
   }
   return {
@@ -53,7 +51,6 @@ export function redact<D>(module: GameModule<D>, s: GameState<D>, viewer: number
     data: module.redactData ? module.redactData(s, viewer) : s.data,
   };
 }
-
 
 /**
  * Card ids inside action specs must be the ones the viewer sees: a face-down card on the table
@@ -66,9 +63,7 @@ export function redactActions(s: GameState<any>, viewer: number, specs: ActionSp
       if (!canSee(z, c, viewer)) alias.set(c.id, aliasOf(z, c, i));
     });
   if (!alias.size) return specs;
-  return specs.map((spec) =>
-    spec.select ? { ...spec, select: { ...spec.select, cards: spec.select.cards.map((c) => alias.get(c) ?? c) } } : spec,
-  );
+  return specs.map((spec) => (spec.select ? { ...spec, select: { ...spec.select, cards: spec.select.cards.map((c) => alias.get(c) ?? c) } } : spec));
 }
 
 /**

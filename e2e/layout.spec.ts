@@ -71,8 +71,7 @@ async function checkLayout(page: Page, opts: { seatsMayScroll: boolean }) {
     if (table && table.scrollWidth > table.clientWidth + 1) out.push(`table content is ${table.scrollWidth}px wide in ${table.clientWidth}px`);
     // the piles in the middle (deck, discard, pot…); a long row of melds may scroll in its strip
     document.querySelectorAll('.zones > .zone-slot, .zones > .pot').forEach((el) => inside('pile', el));
-    for (const sel of ['.headline', '.zones', 'footer .me', '.hand-wrap', 'aside', '.seats'])
-      document.querySelectorAll(sel).forEach((el) => inside(sel, el));
+    for (const sel of ['.headline', '.zones', 'footer .me', '.hand-wrap', 'aside', '.seats']) document.querySelectorAll(sel).forEach((el) => inside(sel, el));
     document.querySelectorAll('aside button').forEach((el) => inside('action button', el));
     // seats on a row that scrolls may sit out of view; on a table display every seat must show
     if (!seatsMayScroll) document.querySelectorAll('.seat-slot').forEach((el) => inside('seat', el));

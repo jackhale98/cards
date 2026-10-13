@@ -6,7 +6,10 @@ import { assertRule, type ActionSpec, type CardRef, type GameConfig, type GameMo
 /** Keep each meld group together and in rank order. */
 function sortGroups(s: GameState<any>, zoneId: string) {
   const z = s.zones[zoneId];
-  const order = sortCards(z.cards.map((c) => c.id), { aceLow: true });
+  const order = sortCards(
+    z.cards.map((c) => c.id),
+    { aceLow: true },
+  );
   z.cards.sort((a, b) => (a.group ?? 0) - (b.group ?? 0) || order.indexOf(a.id) - order.indexOf(b.id));
 }
 
@@ -95,7 +98,13 @@ export function freeFamily(config: GameConfig): GameModule<FreeData> {
           type: 'deal',
           label: 'Deal to all',
           menu: true,
-          amount: { min: 1, max: Math.max(1, Math.floor(deckCount / s.players.length)), step: 1, default: Math.min(5, Math.floor(deckCount / s.players.length)) || 1, label: 'each' },
+          amount: {
+            min: 1,
+            max: Math.max(1, Math.floor(deckCount / s.players.length)),
+            step: 1,
+            default: Math.min(5, Math.floor(deckCount / s.players.length)) || 1,
+            label: 'each',
+          },
         });
         out.push({ type: 'flipTop', label: 'Turn up top card', menu: true });
         out.push({ type: 'shuffle', label: 'Shuffle deck', menu: true });
@@ -130,7 +139,10 @@ export function freeFamily(config: GameConfig): GameModule<FreeData> {
         });
         const hidden = list.length - shown.length;
         const parts = [...(shown.length ? [shown.map(cardLabel).join(' ')] : []), ...(hidden ? [`${hidden} face-down card${hidden === 1 ? '' : 's'}`] : [])];
-        return { text: parts.join(' and '), short: shown.length && !hidden ? shown.map(cardLabel).join(' ') : `${list.length} card${list.length === 1 ? '' : 's'}` };
+        return {
+          text: parts.join(' and '),
+          short: shown.length && !hidden ? shown.map(cardLabel).join(' ') : `${list.length} card${list.length === 1 ? '' : 's'}`,
+        };
       };
       switch (a.type) {
         case 'play':
@@ -141,7 +153,14 @@ export function freeFamily(config: GameConfig): GameModule<FreeData> {
           return log(s, `${who} plays ${plural(n)} face down`, seat, `${n} face down`);
         case 'discard':
           moveFromAnywhere('discard', { up: true });
-          return log(s, `${who} discards ${n === 1 ? `the ${cardName(cards[0])}` : plural(n)}`, seat, n === 1 ? cardLabel(cards[0]) : `Discarded ${n}`, undefined, { to: 'discard' });
+          return log(
+            s,
+            `${who} discards ${n === 1 ? `the ${cardName(cards[0])}` : plural(n)}`,
+            seat,
+            n === 1 ? cardLabel(cards[0]) : `Discarded ${n}`,
+            undefined,
+            { to: 'discard' },
+          );
         case 'discardDown':
           moveFromAnywhere('discard', { up: false });
           return log(s, `${who} discards ${plural(n)} face down`, seat, 'Discarded face down', undefined, { to: 'discard' });
@@ -191,7 +210,14 @@ export function freeFamily(config: GameConfig): GameModule<FreeData> {
           const top = zone(s, 'discard').cards.at(-1);
           assertRule(top, 'The discard pile is empty');
           moveCards(s, 'discard', `hand:${seat}`, [top.id]);
-          return log(s, `${who} takes ${top.up === false ? 'the face-down discard' : `the ${cardName(top.id)}`} from the discard pile`, seat, top.up === false ? 'Took discard' : `Took ${cardLabel(top.id)}`, undefined, { from: 'discard' });
+          return log(
+            s,
+            `${who} takes ${top.up === false ? 'the face-down discard' : `the ${cardName(top.id)}`} from the discard pile`,
+            seat,
+            top.up === false ? 'Took discard' : `Took ${cardLabel(top.id)}`,
+            undefined,
+            { from: 'discard' },
+          );
         }
         case 'take': {
           const what = describe(cards); // before the cards leave the table

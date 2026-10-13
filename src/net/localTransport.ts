@@ -1,10 +1,7 @@
 import type { Msg } from './protocol';
 import type { Transport } from './transport';
 
-type Envelope =
-  | { k: 'here'; from: string; reply?: boolean }
-  | { k: 'gone'; from: string }
-  | { k: 'msg'; from: string; to?: string; msg: Msg };
+type Envelope = { k: 'here'; from: string; reply?: boolean } | { k: 'gone'; from: string } | { k: 'msg'; from: string; to?: string; msg: Msg };
 
 /**
  * Connects tabs of the same browser via BroadcastChannel. Used for development, automated

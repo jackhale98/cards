@@ -34,13 +34,29 @@
 <div class="tv">
   <div class="brand">Lamplight</div>
   <p class="lead">Table screen</p>
-  <div class="code" aria-label="Pairing code">{#each code.split('') as ch, k (k)}<span>{ch}</span>{/each}</div>
+  <div class="code" aria-label="Pairing code">
+    {#each code.split('') as ch, k (k)}<span>{ch}</span>{/each}
+  </div>
   <p class="how">
     On a phone at the table, open the lobby (or the table menu), tap <b>Show on a TV</b>, and enter this code.
   </p>
   {#if !casting}
-    <form class="join" onsubmit={(e) => { e.preventDefault(); open(typed); }}>
-      <input value={typed} oninput={(e) => (typed = normaliseCode(e.currentTarget.value))} placeholder="or type a table code" aria-label="Table code" autocapitalize="characters" autocomplete="off" spellcheck="false" />
+    <form
+      class="join"
+      onsubmit={(e) => {
+        e.preventDefault();
+        open(typed);
+      }}
+    >
+      <input
+        value={typed}
+        oninput={(e) => (typed = normaliseCode(e.currentTarget.value))}
+        placeholder="or type a table code"
+        aria-label="Table code"
+        autocapitalize="characters"
+        autocomplete="off"
+        spellcheck="false"
+      />
       <button class="btn" disabled={!isValidCode(typed)}>Show table</button>
     </form>
   {/if}

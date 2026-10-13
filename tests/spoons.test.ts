@@ -5,7 +5,12 @@ import type { SpoonsData } from '../src/engine/families/spoons';
 
 type S = GameState<SpoonsData>;
 const spoons = GAMES['spoons'] as GameModule<SpoonsData>;
-const fresh = (n = 3) => spoons.setup(Array.from({ length: n }, (_, i) => ({ name: `P${i}` })), 5, {});
+const fresh = (n = 3) =>
+  spoons.setup(
+    Array.from({ length: n }, (_, i) => ({ name: `P${i}` })),
+    5,
+    {},
+  );
 const hand = (s: S, seat: number) => s.zones[`hand:${seat}`].cards.map((c) => c.id);
 const setHand = (s: S, seat: number, cards: string[]) => (s.zones[`hand:${seat}`].cards = cards.map((id) => ({ id })));
 const types = (s: S, seat: number) => spoons.actions(s, seat).map((a) => a.type);

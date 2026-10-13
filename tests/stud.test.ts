@@ -80,7 +80,11 @@ describe('seven card stud (pagat)', () => {
 
   it('bots play whole games at every level', () => {
     for (const level of [0, 1]) {
-      const s = g.setup(Array.from({ length: 5 }, (_, i) => ({ name: `B${i}`, bot: true })), 21 + level, { botLevel: level, stack: 200 });
+      const s = g.setup(
+        Array.from({ length: 5 }, (_, i) => ({ name: `B${i}`, bot: true })),
+        21 + level,
+        { botLevel: level, stack: 200 },
+      );
       let hands = 0;
       for (let i = 0; i < 4000 && s.phase !== 'gameOver' && hands < 25; i++) {
         if (s.phase === 'handOver') {

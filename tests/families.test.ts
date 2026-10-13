@@ -16,7 +16,11 @@ function playOut<D>(g: GameModule<D>, s: GameState<D>, onRound?: (s: GameState<D
     }
     if (s.phase === 'roundOver' || s.phase === 'handOver') {
       onRound?.(s);
-      g.apply(s, s.players.findIndex((p) => p.chips > 0 || !g.config.chips), { type: 'next' });
+      g.apply(
+        s,
+        s.players.findIndex((p) => p.chips > 0 || !g.config.chips),
+        { type: 'next' },
+      );
       continue;
     }
     const seat = s.players.findIndex((p) => g.bot!(s, p.seat));
@@ -42,7 +46,12 @@ describe('spades (config only)', () => {
     expect(Math.max(...s.data.scores)).toBeGreaterThanOrEqual(300);
     // winners are a partnership
     expect(s.winner!.length % 2).toBe(0);
-    expect([[0, 2], [1, 3]].some((t) => t.every((i) => s.winner!.includes(i)))).toBe(true);
+    expect(
+      [
+        [0, 2],
+        [1, 3],
+      ].some((t) => t.every((i) => s.winner!.includes(i))),
+    ).toBe(true);
   });
 
   it('cannot lead spades until broken', () => {

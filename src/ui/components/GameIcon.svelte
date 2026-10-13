@@ -15,16 +15,31 @@
   let { id, icon, size = 40 }: Props = $props();
 
   const DRAWN = new Set([
-    'holdem', 'omaha', 'hearts', 'spades', 'euchre', 'five-hundred', 'cribbage',
-    'bridge', 'gin-rummy', 'oh-hell', 'freetable', 'crazy-eights', 'rummy-500', 'president', 'canasta',
-    'five-card-draw', 'blackjack', 'cheat', 'go-fish',
+    'holdem',
+    'omaha',
+    'hearts',
+    'spades',
+    'euchre',
+    'five-hundred',
+    'cribbage',
+    'bridge',
+    'gin-rummy',
+    'oh-hell',
+    'freetable',
+    'crazy-eights',
+    'rummy-500',
+    'president',
+    'canasta',
+    'five-card-draw',
+    'blackjack',
+    'cheat',
+    'go-fish',
   ]);
 
   // Suit shapes in a 100-unit box centred on the origin.
   const SPADE =
     'M0,-44 C6,-32 46,-12 46,8 C46,22 35,30 23,30 C15,30 8,26 4,20 C5,30 9,38 16,44 L-16,44 C-9,38 -5,30 -4,20 C-8,26 -15,30 -23,30 C-35,30 -46,22 -46,8 C-46,-12 -6,-32 0,-44Z';
-  const HEART =
-    'M0,40 C-16,26 -46,6 -46,-14 C-46,-30 -34,-40 -22,-40 C-11,-40 -3,-33 0,-25 C3,-33 11,-40 22,-40 C34,-40 46,-30 46,-14 C46,6 16,26 0,40Z';
+  const HEART = 'M0,40 C-16,26 -46,6 -46,-14 C-46,-30 -34,-40 -22,-40 C-11,-40 -3,-33 0,-25 C3,-33 11,-40 22,-40 C34,-40 46,-30 46,-14 C46,6 16,26 0,40Z';
   const DIAMOND = 'M0,-46 C10,-28 24,-12 38,0 C24,12 10,28 0,46 C-10,28 -24,12 -38,0 C-24,-12 -10,-28 0,-46Z';
   const STAR = '0,-9 2.23,-3.07 8.56,-2.78 3.61,1.17 5.29,7.28 0,3.8 -5.29,7.28 -3.61,1.17 -8.56,-2.78 -2.23,-3.07';
 
@@ -215,8 +230,18 @@
       <g transform="translate(26 40) rotate(-14)">{@render cardBack()}</g>
       <g transform="translate(31 38) rotate(6)">{@render cardBack()}</g>
       <g transform="translate(44 17)">
-        <path d="M-13,-9 h26 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-14 l-6,6 l1,-6 h-7 a4,4 0 0 1 -4,-4 v-10 a4,4 0 0 1 4,-4z" fill="#000" opacity="0.3" transform="translate(0.8 1.2)" />
-        <path d="M-13,-9 h26 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-14 l-6,6 l1,-6 h-7 a4,4 0 0 1 -4,-4 v-10 a4,4 0 0 1 4,-4z" fill="#fbf8f1" stroke="#d6cbb4" stroke-width="0.8" />
+        <path
+          d="M-13,-9 h26 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-14 l-6,6 l1,-6 h-7 a4,4 0 0 1 -4,-4 v-10 a4,4 0 0 1 4,-4z"
+          fill="#000"
+          opacity="0.3"
+          transform="translate(0.8 1.2)"
+        />
+        <path
+          d="M-13,-9 h26 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-14 l-6,6 l1,-6 h-7 a4,4 0 0 1 -4,-4 v-10 a4,4 0 0 1 4,-4z"
+          fill="#fbf8f1"
+          stroke="#d6cbb4"
+          stroke-width="0.8"
+        />
         <text x="0" y="5" font-size="12" font-weight="800" text-anchor="middle" fill={RED} font-family={SERIF}>?!</text>
       </g>
     {:else if id === 'go-fish'}
