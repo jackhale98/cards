@@ -67,6 +67,10 @@ export interface ZoneState {
   peek?: number;
   /** A whole hand face up on the table (bridge's dummy): one layout as it shrinks. */
   faceUpHand?: boolean;
+  /** A stack laid out as a cascade (Kings Corners): its bottom card peeks out above the top. */
+  cascade?: boolean;
+  /** Where the pile sits on a big screen's table, [row, column] (Kings Corners' cross). */
+  grid?: [number, number];
   cards: CardRef[];
 }
 

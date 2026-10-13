@@ -129,6 +129,17 @@ export interface ZoneConfig {
    * A whole hand laid face up on the table (bridge's dummy): drawn the same way however many cards are left, so the rest don't jump about as cards are played from it.
    */
   faceUpHand?: boolean;
+  /**
+   * A stack laid out as a cascade (Kings Corners): its bottom card peeks out above the top one, and no count is shown.
+   */
+  cascade?: boolean;
+  /**
+   * Where the pile sits on the table, [row, column]: with every middle pile placed, a big screen lays them out so (a cross for Kings Corners), and a phone puts them in one row in reading order.
+   *
+   * @minItems 2
+   * @maxItems 2
+   */
+  grid?: [number, number];
 }
 export interface DealStep {
   to: string;

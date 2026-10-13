@@ -19,6 +19,8 @@ export function createState<D>(config: GameConfig, players: SetupPlayer[], seed:
       scale: z.scale,
       ...(z.peek ? { peek: z.peek } : {}),
       ...(z.faceUpHand ? { faceUpHand: true } : {}),
+      ...(z.cascade ? { cascade: true } : {}),
+      ...(z.grid ? { grid: [z.grid[0], z.grid[1]] as [number, number] } : {}),
       cards: [],
     });
     if (z.perPlayer) players.forEach((_, i) => (zones[`${z.id}:${i}`] = make(`${z.id}:${i}`, i)));

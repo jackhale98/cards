@@ -149,3 +149,29 @@ describe('bridge', () => {
     expect(levels.filter((l) => l >= 3).length).toBeGreaterThan(0);
   });
 });
+
+describe('bridge headline', () => {
+  it('names the contract cleanly when a trick has just been won (no stray "·" in front)', () => {
+    for (let seed = 1; seed < 20; seed++) {
+      let s = g.setup(bots, seed, {});
+      for (let i = 0; i < 400 && s.phase !== 'trickEnd' && s.phase !== 'gameOver'; i++) {
+        const sys = g.system?.(s);
+        const next = structuredClone(s);
+        if (sys) sys.run(next);
+        else {
+          const seat = s.players.find((p) => g.bot!(s, p.seat))?.seat ?? s.players.find((p) => g.actions(s, p.seat).some((a) => a.type === 'next'))?.seat;
+          if (seat == null) break;
+          g.apply(next, seat, g.bot!(s, seat) ?? { type: 'next' });
+        }
+        s = next;
+      }
+      if (s.phase !== 'trickEnd' || s.turn != null) continue;
+      const h = g.status(s, 0).headline!;
+      expect(h).toMatch(/^\S/);
+      expect(h.startsWith('·')).toBe(false);
+      expect(h).toMatch(/ by P\d$/);
+      return;
+    }
+    throw new Error('no deal reached the end of a trick');
+  });
+});

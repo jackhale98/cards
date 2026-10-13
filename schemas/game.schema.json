@@ -124,6 +124,17 @@
           "faceUpHand": {
             "type": "boolean",
             "description": "A whole hand laid face up on the table (bridge's dummy): drawn the same way however many cards are left, so the rest don't jump about as cards are played from it."
+          },
+          "cascade": {
+            "type": "boolean",
+            "description": "A stack laid out as a cascade (Kings Corners): its bottom card peeks out above the top one, and no count is shown."
+          },
+          "grid": {
+            "type": "array",
+            "items": { "type": "integer", "minimum": 0, "maximum": 5 },
+            "minItems": 2,
+            "maxItems": 2,
+            "description": "Where the pile sits on the table, [row, column]: with every middle pile placed, a big screen lays them out so (a cross for Kings Corners), and a phone puts them in one row in reading order."
           }
         }
       }

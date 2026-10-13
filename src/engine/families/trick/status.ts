@@ -51,7 +51,7 @@ export function trickStatus(g: TrickGame, s: S, viewer: number): GameStatus {
     else if (s.turn === viewer) headline = leading ? (d.trickNo === 0 && R.lead === 'twoOfClubs' ? 'Lead the 2♣' : 'Your lead') : 'Your turn';
     else if (ctl != null && ctl !== s.turn) headline = `${name(s, ctl)} to play from dummy`;
     else if (s.turn != null) headline = `${name(s, s.turn)} to play`;
-    if (d.bridge && d.maker != null) headline += ` · ${bridgeLabel(d.bridge, true)} by ${name(s, d.maker)}`;
+    if (d.bridge && d.maker != null) headline = [headline, `${bridgeLabel(d.bridge, true)} by ${name(s, d.maker)}`].filter(Boolean).join(' · ');
   } else if (s.phase === 'blind') {
     headline = s.turn === viewer ? 'Bid blind nil before looking at your cards, or look?' : `${name(s, s.turn!)} is deciding on blind nil`;
   } else if (s.phase === 'blindPass' || s.phase === 'blindReturn') {

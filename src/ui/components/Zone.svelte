@@ -24,6 +24,10 @@
     /** There's room for a row of cards side by side: no need to overlap them. */
     roomy?: boolean;
   }
+  /** A face-up hand's overlap: each card shows this much of the one under it (in card widths)… */
+  const STEP = 0.38;
+  /** …and a new suit this much more. */
+  const SUIT_GAP = 0.32;
   let { zone, cw, you, players, selected, selectable, ontap, onzone, zoneActive = false, place = false, fast = false, roomy = false }: Props = $props();
 
   /** Trick cards sit between the centre and the seat that played them. */
@@ -33,11 +37,24 @@
     return { x: Math.cos(angle) * cw * 0.9, y: Math.sin(angle) * cw * 0.42, rot: (rel % 2 ? 1 : -1) * (3 + rel * 2) };
   }
   const top = $derived(zone.cards[zone.cards.length - 1]);
+
+  /**
+   * A whole hand face up (bridge's dummy) keeps the width its thirteen cards took: as it's played
+   * from, the cards left grow into it, the same overlap and the same room between suits, up to a
+   * size that stays within the row (`cw` is a thirteen-card dummy's size).
+   */
+  const handCw = $derived.by(() => {
+    if (!zone.faceUpHand) return cw;
+    const n = Math.max(1, zone.cards.length);
+    const groups = zone.cards.filter((c, i) => i > 0 && c.group != null && c.group !== zone.cards[i - 1].group).length;
+    const full = 1 + 12 * STEP + 3 * SUIT_GAP;
+    return Math.round(Math.min(cw * 1.6, (cw * full) / (1 + (n - 1) * STEP + groups * SUIT_GAP)));
+  });
 </script>
 
 <div class="zone" data-zone={zone.id} data-layout={zone.layout} style:--cw="{cw}px">
   {#if zone.label && zone.layout !== 'trick'}<div class="label eyebrow" data-flip>
-      <SuitText text={zone.label} />{#if zone.layout === 'stack'}
+      <SuitText text={zone.label} />{#if zone.layout === 'stack' && !zone.cascade}
         · {zone.cards.length}{/if}
     </div>{/if}
 
@@ -45,6 +62,7 @@
     {@const below = zone.peek ? zone.cards.slice(-zone.peek, -1).filter((c) => c.up !== false && !isHidden(c.id)) : []}
     <button
       class="stack"
+      class:cascade={zone.cascade}
       style:margin-left={zone.peek ? `calc(var(--cw) * ${0.3 * (zone.peek - 1)})` : undefined}
       data-flip
       class:active={zoneActive}
@@ -52,7 +70,10 @@
       onclick={(e) => (fast && e.detail !== 0 ? undefined : !place && top && selectable?.has(top.id) ? ontap(top.id) : onzone?.())}
       disabled={!zoneActive && !(top && selectable?.has(top.id))}
     >
-      {#if zone.cards.length > 1}<div class="under"><Card id="?u" /></div>{/if}
+      {#if zone.cascade && zone.cards.length > 1}
+        <!-- a cascade: the bottom card peeks out above the top one (where the whole pile can go) -->
+        <div class="bottom"><Card id={zone.cards[0].id} /></div>
+      {:else if zone.cards.length > 1}<div class="under"><Card id="?u" /></div>{/if}
       {#if zone.cards.length > 8}<div class="under two"><Card id="?u2" /></div>{/if}
       {#each below as c, i (c.id)}
         <!-- the cards just under the top, fanned out to the left -->
@@ -88,7 +109,7 @@
       {/each}
     </div>
   {:else}
-    <div class="spread" class:handdown={zone.faceUpHand} class:roomy={roomy && !zone.faceUpHand}>
+    <div class="spread" class:handdown={zone.faceUpHand} class:roomy={roomy && !zone.faceUpHand} style:--cw={zone.faceUpHand ? `${handCw}px` : undefined}>
       {#each zone.cards as c, i (c.id)}
         <button
           class="scard"
@@ -128,6 +149,15 @@
     width: var(--cw);
     height: calc(var(--cw) * 1.4);
     padding: 0;
+  }
+  /* (room above for the bottom card, whether or not there's one yet: the pile doesn't jump) */
+  .stack.cascade {
+    margin-top: calc(var(--cw) * 0.42);
+  }
+  .stack > .bottom {
+    inset: auto;
+    left: 0;
+    top: calc(var(--cw) * -0.42);
   }
   .stack:disabled {
     cursor: default;
@@ -179,15 +209,29 @@
     padding: 0;
   }
   /* a whole hand face up (bridge's dummy): the same overlap from thirteen cards down to one, a
-     little room between suits, one row; so playing a card never moves the rest about */
+     little room between suits, one row; as it's played from, the cards left grow (smoothly) into
+     the room the others took */
   .spread.handdown {
     flex-wrap: nowrap;
   }
-  .spread.handdown .scard + .scard {
+  .spread.handdown.handdown .scard + .scard {
     margin-left: calc(var(--cw) * -0.62) !important;
   }
-  .spread.handdown .scard.newgroup {
+  .spread.handdown.handdown .scard.newgroup {
     margin-left: calc(var(--cw) * -0.3) !important;
+  }
+  .spread.handdown .scard {
+    transition: margin-left 0.3s var(--ease-out);
+  }
+  .spread.handdown :global(.card) {
+    transition:
+      width 0.3s var(--ease-out),
+      height 0.3s var(--ease-out),
+      font-size 0.3s var(--ease-out),
+      transform 0.22s var(--ease-out),
+      box-shadow 0.22s,
+      filter 0.2s,
+      opacity 0.2s;
   }
   .spread .scard.newgroup {
     margin-left: calc(var(--cw) * 0.22) !important;

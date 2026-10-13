@@ -4,8 +4,8 @@ test.setTimeout(120_000);
 
 /**
  * Bridge's dummy is a whole hand face up on the table. As the declarer plays from it, the cards
- * left keep their size and stay in one row (they used to grow, spread out and wrap at set
- * counts, so the whole dummy jumped about).
+ * left stay in one row and grow into the room the others took, never shrinking (gaps used to
+ * open and close as it wrapped at set counts, so the whole dummy jumped about).
  */
 test('the dummy keeps its look as cards are played from it', async ({ page }) => {
   await page.setViewportSize({ width: 1000, height: 461 });
@@ -38,7 +38,10 @@ test('the dummy keeps its look as cards are played from it', async ({ page }) =>
       { timeout: 90_000, intervals: [100] },
     )
     .toBeLessThanOrEqual(3);
-  // from thirteen cards down to a few: one card size, one row
-  expect(new Set(seen.flatMap((x) => x.widths)).size).toBe(1);
+  // from thirteen cards down to a few: one row, one card size at a time, and never smaller
   expect(seen.every((x) => x.rows === 1)).toBe(true);
+  expect(seen.every((x) => x.widths.length === 1)).toBe(true);
+  const sizes = [...seen].sort((a, b) => b.n - a.n).map((x) => x.widths[0]);
+  expect(sizes.every((w, i) => i === 0 || w >= sizes[i - 1])).toBe(true);
+  expect(sizes.at(-1)!).toBeGreaterThan(sizes[0]);
 });

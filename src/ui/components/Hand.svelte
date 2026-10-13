@@ -66,7 +66,7 @@
   class="hand"
   bind:clientWidth={width}
   style:--cw="{cw}px"
-  style:height="{cw * 1.4 + 26}px"
+  style:height="{cards.length ? cw * 1.4 + 26 : 0}px"
   onpointermove={move}
   onpointerup={up}
   onpointercancel={() => (drag = null)}

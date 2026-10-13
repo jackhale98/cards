@@ -65,13 +65,16 @@
    */
   const cardSizes = $derived.by(() => {
     // (a pile or two in the middle and nothing else there, as in Cheat, Spit or the slap games:
-    // they're what everyone watches, so they get the room)
-    const big = pileOnly || (centerZones.length <= 2 && !stripZones.length && centerZones.every((z) => z.layout === 'stack'));
+    // they're what everyone watches, so they get the room; so does everything laid down at a
+    // hand's end, when your own hand is empty)
+    const big = pileOnly || handEmpty || (centerZones.length <= 2 && !stripZones.length && centerZones.every((z) => z.layout === 'stack'));
     const wantCenter = Math.min(big ? 120 : 92, vh * (big ? 0.24 : 0.15), vw * (big ? 0.12 : 0.09));
-    const wantHand = handMode
-      ? // (hand mode: the middle is a pile or two at most, so the hand is bigger)
-        Math.min(168, vh * (centerZones.length ? 0.27 : 0.34), vw * 0.15)
-      : Math.min(112, vh * (pileOnly ? 0.14 : 0.2), vw * 0.11);
+    const wantHand = handEmpty
+      ? 0
+      : handMode
+        ? // (hand mode: the middle is a pile or two at most, so the hand is bigger)
+          Math.min(168, vh * (centerZones.length ? 0.27 : 0.34), vw * 0.15)
+        : Math.min(112, vh * (pileOnly ? 0.14 : 0.2), vw * 0.11);
     if (display || !headerH) return { center: wantCenter, hand: wantHand, lastFits: true };
     const above = status.headline && !side ? headH + 6 : 0;
     // (the table's padding and gaps, the middle's labels, and the hand's own: about 70px, the rest is cards;
@@ -88,10 +91,12 @@
       if (!centerZones.length) return 1.45 * wantHand * k;
       const c = wantCenter * k;
       // (a pile's card as drawn: never under the smallest readable width)
-      const zw = Math.max(MIN_CW, Math.max(34, c) * scale);
+      const zw = Math.max(MIN_CW, Math.min(rowFit, Math.max(34, c) * scale));
       // (each row: a pile and its label; between rows, a gap)
       const rows = centerRows(c);
-      return Math.max(1.6 * c, 1.4 * zw + 22) + (rows - 1) * (1.4 * zw + 30) + 1.45 * wantHand * k;
+      // (a cascade's bottom card peeks out above it)
+      const pile = (centerZones.some((z) => z.cascade) ? 1.82 : 1.4) * zw;
+      return Math.max(rowFit < Infinity ? 0 : 1.6 * c, pile + 22) + (rows - 1) * (pile + 30) + 1.45 * wantHand * k;
     };
     let k = 1;
     while (k > 0.35 && need(k) > room) k -= 0.02;
@@ -122,6 +127,7 @@
    * label (0.7rem capitals), whichever is wider, with the gap between.
    */
   function centerRows(cw: number): number {
+    if (gridded) return cross ? Math.max(...centerZones.map((z) => z.grid![0])) + 1 : 1;
     if (!mainW) return 1;
     const gap = Math.min(32, Math.max(10, vw * 0.03));
     const widths = centerZones.map((z) => {
@@ -317,6 +323,24 @@
    * everyone else's around from your left: in Palace your face-up and face-down cards (all you
    * have left to play) never sit past the edge.
    */
+  /**
+   * Piles with places on the table (Kings Corners' cross): a big screen lays them out so; a phone on
+   * its side, short of height, puts them in one row in reading order, as wide as fits.
+   */
+  const gridded = $derived(centerZones.length > 1 && centerZones.every((z) => z.grid));
+  const cross = $derived(gridded && !side);
+  const shownCenter = $derived(gridded ? [...centerZones].sort((a, b) => a.grid![0] - b.grid![0] || a.grid![1] - b.grid![1]) : centerZones);
+  /** One row of placed piles on a phone: the widest card that lets them all fit across (with a little over for a wider label). */
+  const rowFit = $derived(gridded && side && mainW ? Math.floor((mainW - (centerZones.length - 1) * 8 - 30) / centerZones.length / 1.12) : Infinity);
+  /**
+   * A whole hand face up on the table that you're playing from now (bridge's dummy, for its
+   * declarer): it takes your hand's place at the bottom, full size, and your own hand sits small in
+   * its place in the middle until it's your own turn again.
+   */
+  const playFrom = $derived(display || you < 0 ? null : (centerZones.find((z) => z.faceUpHand && z.cards.some((c) => selectable?.has(c.id))) ?? null));
+  const fanCards = $derived(playFrom ? playFrom.cards : myHand);
+  /** Your hand is empty (all laid down at a hand's end, say): the middle gets its room. */
+  const handEmpty = $derived(!display && myHandZone?.layout !== 'stack' && !fanCards.length);
   const stripZones = $derived.by(() => {
     const list = handMode ? allStripZones.filter(usable) : allStripZones;
     const rank = (z: (typeof list)[number]) => (usable(z) ? -2 : z.owner === you && you >= 0 ? -1 : z.owner == null ? n : (z.owner - Math.max(0, you) + n) % n);
@@ -570,14 +594,17 @@
         <Track track={status.track} avatars={s.players.map((_, i) => lobbySeat(i)?.avatar)} />
       </div>{/if}
     {#if !side}{@render tableStatus()}{/if}
-    <div class="zones" class:has-strip={stripZones.length > 0} use:fitHeight>
-      {#each centerZones as z (z.id)}
-        <div class="zone-slot">
+    <div class="zones" class:has-strip={stripZones.length > 0} class:cross class:row-fit={rowFit < Infinity} use:fitHeight>
+      {#each shownCenter as z (z.id)}
+        <div class="zone-slot" style:grid-row={cross ? z.grid![0] + 1 : undefined} style:grid-column={cross ? z.grid![1] + 1 : undefined}>
           <Zone
-            zone={z}
+            zone={playFrom?.id === z.id ? { ...z, id: `hand:${you}`, label: 'Your hand', cards: myHand } : z}
             cw={Math.max(
               MIN_CW,
-              Math.round(centerCw * (z.scale ?? 1) * (z.layout === 'spread' && (z.faceUpHand || z.cards.length >= 10) && !display ? 0.82 : 1)),
+              Math.min(
+                rowFit,
+                Math.round(centerCw * (z.scale ?? 1) * (z.layout === 'spread' && (z.faceUpHand || z.cards.length >= 10) && !display ? 0.82 : 1)),
+              ),
             )}
             {you}
             players={n}
@@ -696,7 +723,16 @@
             fast={!!zoneAction(myHandZone.id)?.react}
           />
         {:else}
-          <Hand cards={myHand} cw={handCw} {selected} {selectable} fresh={(s.data as any)?.received?.[you] ?? []} ontap={tap} onswipe={swipe} />
+          {#if playFrom?.label}<div class="fan-label eyebrow">{playFrom.label}</div>{/if}
+          <Hand
+            cards={fanCards}
+            cw={handCw}
+            {selected}
+            {selectable}
+            fresh={playFrom ? [] : ((s.data as any)?.received?.[you] ?? [])}
+            ontap={tap}
+            onswipe={swipe}
+          />
         {/if}
       </div>
     </footer>
@@ -1117,6 +1153,18 @@
     min-height: 0;
   }
   /* everyone's melds: beside the piles, in one row that scrolls sideways when long */
+  /* placed piles: a cross on a big screen, one tight row on a phone */
+  .zones.cross {
+    display: grid;
+    grid-auto-columns: auto;
+    gap: 6px clamp(14px, 2vw, 28px);
+    justify-items: center;
+    align-items: end;
+  }
+  .zones.row-fit {
+    flex-wrap: nowrap;
+    gap: 8px;
+  }
   .zones.has-strip {
     flex-wrap: nowrap;
     max-width: 100%;
@@ -1413,8 +1461,21 @@
     font-size: 0.75rem;
   }
   .hand-wrap {
+    position: relative;
     flex: 1;
     min-width: 0;
+  }
+  /* (whose cards the fan holds when they're not yours: "Dummy") */
+  .fan-label {
+    position: absolute;
+    z-index: 30;
+    left: 50%;
+    top: 0;
+    transform: translate(-50%, -100%);
+    padding: 1px 8px;
+    border-radius: 6px;
+    background: var(--gold);
+    color: #2a1d05;
   }
   aside {
     grid-area: actions;

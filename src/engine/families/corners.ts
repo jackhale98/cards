@@ -33,6 +33,8 @@ const PILE_NAME: Record<Pile, string> = {
   northWest: 'NW',
 };
 
+const SHORT: Record<Pile, string> = { north: 'N', east: 'E', south: 'S', west: 'W', northEast: 'NE', southEast: 'SE', southWest: 'SW', northWest: 'NW' };
+
 const red = (id: string) => 'HD'.includes(parseCard(id).suit);
 const rank = (id: string) => (parseCard(id).rank === 14 ? 1 : parseCard(id).rank); // ace low
 /** Does `card` go on `top`: one lower and the other colour. */
@@ -68,11 +70,10 @@ export function cornersFamily(config: GameConfig): GameModule<CornersData> {
     [...ids(hand(s, seat)), ...PILES.map((p) => top(s, p)).filter((c): c is string => !!c)].filter((c) => canPlace(s, seat, c, to));
 
   function labelPiles(s: S) {
-    for (const p of PILES) {
-      const cs = cards(s, p);
-      // (short labels: nine piles have to fit in two rows)
-      zone(s, p).label = cs.length > 1 ? `${PILE_NAME[p]} · ${cardLabel(cs[0])}↓` : isCorner(p) && !cs.length ? `${PILE_NAME[p]} · K` : PILE_NAME[p];
-    }
+    // short, so nine piles fit in one row on a phone; a corner wears a crown (kings only). A pile's
+    // bottom card, which decides where the whole pile can move, peeks out above its top card: the
+    // zone is a cascade
+    for (const p of PILES) zone(s, p).label = isCorner(p) ? `${SHORT[p]} ♚` : SHORT[p];
   }
 
   function startHand(s: S) {

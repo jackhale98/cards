@@ -21,6 +21,23 @@ function rig(hand: string[], piles: Record<string, string[]>, stock = ['2C', '3C
 }
 
 describe('kings corners (pagat)', () => {
+  it('lays its piles out as a cross, labelled short enough for one row on a phone', () => {
+    const s = g.setup(people(4), 3, {});
+    const piles = ['north', 'east', 'south', 'west', 'northEast', 'southEast', 'southWest', 'northWest'];
+    // a cross: the stock in the middle, sides beside it, corners diagonal
+    expect(s.zones.deck.grid).toEqual([1, 1]);
+    expect(s.zones.north.grid).toEqual([0, 1]);
+    expect(s.zones.southWest.grid).toEqual([2, 0]);
+    expect(new Set(['deck', ...piles].map((p) => String(s.zones[p].grid))).size).toBe(9);
+    // the bottom card peeks out of a pile (it's a cascade), so the label needn't name it
+    for (const p of piles) {
+      expect(s.zones[p].cascade).toBe(true);
+      expect(s.zones[p].label!.length).toBeLessThanOrEqual(4);
+    }
+    expect(s.zones.northEast.label).toBe('NE ♚');
+    expect(s.zones.north.label).toBe('N');
+  });
+
   it('deals seven each and turns up four piles', () => {
     const s = g.setup(people(3), 2, {});
     for (let i = 0; i < 3; i++) expect(s.zones[`hand:${i}`].cards).toHaveLength(7);
