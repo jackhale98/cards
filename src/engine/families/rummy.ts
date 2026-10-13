@@ -372,7 +372,7 @@ export function rummyFamily(config: GameConfig): GameModule<RummyData> {
       const d = s.data;
       const top = topDiscard(s);
       const turnName = s.turn != null ? name(s, s.turn) : '';
-      let headline = '';
+      let headline: string;
       if (s.phase === 'firstPick') headline = s.turn === viewer ? `Take the ${top ? cardLabel(top) : 'upcard'} or pass` : `${turnName} is deciding on the upcard`;
       else if (s.phase === 'draw') headline = s.turn === viewer ? (d.mustDrawStock ? 'Draw from the stock' : 'Draw from the stock or take the discard') : `${turnName} to draw`;
       else if (s.phase === 'discard') headline = s.turn === viewer ? 'Discard a card — or knock' : `${turnName} to discard`;

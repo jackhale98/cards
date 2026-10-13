@@ -512,7 +512,7 @@ export function pinochleFamily(config: GameConfig): GameModule<PinochleData> {
     status(s, viewer) {
       const d = s.data;
       const turnName = s.turn != null ? name(s, s.turn) : '';
-      let headline = '';
+      let headline: string;
       const contract = d.bidder != null && d.bid != null ? `${name(s, d.bidder)} bid ${d.bid}${d.trump ? ` in ${SUIT_SYMBOL[d.trump]}` : ''}` : '';
       if (s.phase === 'bid') headline = s.turn === viewer ? `Your bid${d.bid ? ` — ${d.bid} to beat` : ` — at least ${MIN_BID}`}` : `${turnName} to bid${d.bid ? ` · ${d.bid} so far` : ''}`;
       else if (s.phase === 'trump') headline = s.turn === viewer ? 'You won the bid: name trumps' : `${turnName} is naming trumps`;

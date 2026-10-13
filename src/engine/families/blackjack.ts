@@ -461,7 +461,7 @@ export function blackjackFamily(config: GameConfig): GameModule<BlackjackData> {
       const d = s.data;
       const dealer = dealerCards(s);
       const upTotal = dealer.length ? (zone(s, 'dealer').cards.every((c) => c.up) ? handTotal(dealer).total : value(dealer[0])) : 0;
-      let headline = '';
+      let headline: string;
       if (s.phase === 'bet') headline = d.bets[viewer] === null ? `Round ${d.round} of ${rounds(s)} · place your bet` : 'Waiting for bets…';
       else if (s.phase === 'insurance') headline = d.insurance[viewer] === null && inRound(s, viewer) ? 'The dealer shows an ace — insurance?' : 'Waiting on insurance…';
       else if (s.phase === 'play') {

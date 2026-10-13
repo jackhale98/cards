@@ -310,7 +310,7 @@
   $effect(() => {
     const el = seatsEl;
     const turn = actor;
-    void others.length, vw;
+    void [others.length, vw]; // (re-measure when these change)
     if (!el || display) return;
     const frame = requestAnimationFrame(() => {
       edges();
@@ -413,7 +413,7 @@
       {#if status.pot && !handMode}
         <div class="pot" data-flip>
           <div class="chipstack" aria-hidden="true">
-            {#each { length: Math.min(6, Math.ceil(Math.log2(status.pot + 1))) } as _, i}
+            {#each { length: Math.min(6, Math.ceil(Math.log2(status.pot + 1))) } as _, i (i)}
               <span style:bottom="{i * 4}px" style:--c={seatColor(i * 3)}></span>
             {/each}
           </div>
@@ -445,7 +445,7 @@
       <div class="banner panel">
         <button class="close" onclick={() => (bannerHidden = s.v)} aria-label="Hide">×</button>
         <h2>{status.banner.title}</h2>
-        {#each status.banner.lines as line}<p><SuitText text={line} /></p>{/each}
+        {#each status.banner.lines as line, k (k)}<p><SuitText text={line} /></p>{/each}
         {#if s.phase === 'gameOver' && tonight.length}
           <!-- top four, so a nine-player night still fits -->
           <p class="tonight">
@@ -561,7 +561,7 @@
     </div>
     {#if game.config.rulesSummary}
       <div class="eyebrow">How to play {game.config.name}</div>
-      <ul class="rules">{#each game.config.rulesSummary as r}<li>{r}</li>{/each}</ul>
+      <ul class="rules">{#each game.config.rulesSummary as r, k (k)}<li>{r}</li>{/each}</ul>
     {/if}
   </Sheet>
 {:else if sheet === 'look'}
@@ -572,17 +572,17 @@
   <Sheet title="Scores" onclose={() => (sheet = null)}>
     {#if status.scoreboard}
       <table class="scores">
-        <thead><tr><th></th>{#each status.scoreboard.columns as c}<th>{c}</th>{/each}</tr></thead>
+        <thead><tr><th></th>{#each status.scoreboard.columns as c, k (k)}<th>{c}</th>{/each}</tr></thead>
         <tbody>
-          {#each status.scoreboard.rows as r}
-            <tr class:hl={r.highlight}><td>{r.name}</td>{#each r.values as v}<td><SuitText text={v} /></td>{/each}</tr>
+          {#each status.scoreboard.rows as r, k (k)}
+            <tr class:hl={r.highlight}><td>{r.name}</td>{#each r.values as v, j (j)}<td><SuitText text={v} /></td>{/each}</tr>
           {/each}
         </tbody>
       </table>
     {:else if showChips}
       <table class="scores">
         <tbody>
-          {#each [...s.players].sort((a, b) => b.chips - a.chips) as p}
+          {#each [...s.players].sort((a, b) => b.chips - a.chips) as p (p.seat)}
             <tr><td>{p.name}</td><td>{p.chips.toLocaleString()}</td></tr>
           {/each}
         </tbody>
@@ -595,7 +595,7 @@
     {/if}
     <div class="eyebrow">Recent</div>
     <ol class="log">
-      {#each [...s.log].reverse().slice(0, 14) as l}<li><SuitText text={l.text} /></li>{/each}
+      {#each [...s.log].reverse().slice(0, 14) as l, k (k)}<li><SuitText text={l.text} /></li>{/each}
     </ol>
   </Sheet>
 {/if}

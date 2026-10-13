@@ -64,7 +64,7 @@
           <Card id={c.id} />
         </div>
       {/each}
-      {#each { length: backs } as _, i}
+      {#each { length: backs } as _, i (i)}
         <div class="mini"><Card id={`?${player.seat}.${i}`} /></div>
       {/each}
       {#if cards.length - shown.length > 1}<span class="count">{cards.length - shown.length}</span>{/if}

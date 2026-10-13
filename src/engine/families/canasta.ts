@@ -700,7 +700,7 @@ export function canastaFamily(config: GameConfig): GameModule<CanastaData> {
     status(s, viewer) {
       const d = s.data;
       const turnName = s.turn != null ? name(s, s.turn) : '';
-      let headline = '';
+      let headline: string;
       if (s.phase === 'draw') {
         if (s.turn === viewer && mustTakePile(s, viewer)) headline = 'The stock is gone: you must take the pile';
         else if (s.turn === viewer && zone(s, 'deck').cards.length === 0) headline = 'The stock is gone: take the pile, or the hand ends';

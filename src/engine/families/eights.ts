@@ -377,7 +377,7 @@ export function eightsFamily(config: GameConfig): GameModule<EightsData> {
     status(s, viewer) {
       const d = s.data;
       const turnName = s.turn != null ? name(s, s.turn) : '';
-      let headline = '';
+      let headline: string;
       if (s.phase === 'nominate') headline = s.turn === viewer ? 'An eight was turned up: call a suit' : `${turnName} is calling a suit for the eight`;
       else if (s.phase === 'play') {
         const need = d.pendingDraw ? `play a 2 or draw ${d.pendingDraw}` : `${SUIT_SYMBOL[d.suit]}${rankOf(top(s)) !== 8 ? ` or ${rankLabel(rankOf(top(s)))}` : ''} — or an 8`;

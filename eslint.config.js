@@ -25,6 +25,8 @@ export default ts.config(
       '@typescript-eslint/no-unused-vars': 'off',
       // game state is plain JSON shared across many shapes; `any` is used deliberately at the edges
       '@typescript-eslint/no-explicit-any': 'off',
+      // (it flags URLSearchParams used as a short-lived local in app.svelte.ts, never as state)
+      'svelte/prefer-svelte-reactivity': 'off',
     },
   },
 );

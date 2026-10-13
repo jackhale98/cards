@@ -252,7 +252,7 @@ export function cornersFamily(config: GameConfig): GameModule<CornersData> {
 
     status(s, viewer) {
       const d = s.data;
-      let headline = '';
+      let headline: string;
       if (s.phase === 'play') {
         const stock = zone(s, 'deck').cards.length;
         headline =

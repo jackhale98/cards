@@ -12,13 +12,13 @@
   </div>
   <div class="eyebrow">Icon</div>
   <div class="emoji">
-    {#each AVATAR_EMOJI as e}
+    {#each AVATAR_EMOJI as e (e)}
       <button class:on={e === value.emoji} onclick={() => onpick({ ...value, emoji: e })} aria-label="Avatar {e}">{e}</button>
     {/each}
   </div>
   <div class="eyebrow">Colour</div>
   <div class="colors">
-    {#each AVATAR_COLORS as c}
+    {#each AVATAR_COLORS as c (c)}
       <button class:on={c === value.color} style:--c={c} onclick={() => onpick({ ...value, color: c })} aria-label="Colour {c}"></button>
     {/each}
   </div>

@@ -222,7 +222,7 @@ export function goFishFamily(config: GameConfig): GameModule<GoFishData> {
 
     status(s, viewer) {
       const d = s.data;
-      let headline = '';
+      let headline: string;
       if (s.phase === 'play') {
         const l = d.last;
         const lastText = l

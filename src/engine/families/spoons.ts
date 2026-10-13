@@ -257,7 +257,7 @@ export function spoonsFamily(config: GameConfig): GameModule<SpoonsData> {
     status(s, viewer) {
       const d = s.data;
       const me = viewer >= 0 && !d.out[viewer];
-      let headline = '';
+      let headline: string;
       if (s.phase === 'play') {
         headline = `${'🥄'.repeat(d.spoons)}${me && d.has[viewer] ? ' · You have a spoon!' : ''}`;
       } else if (s.phase === 'roundOver' && d.loser !== null) {

@@ -74,7 +74,7 @@
 
   {#if small}
     <div class="numbers">
-      {#each { length: (a.max - a.min) / a.step + 1 } as _, i}
+      {#each { length: (a.max - a.min) / a.step + 1 } as _, i (i)}
         {@const v = a.min + i * a.step}
         <button class="num" class:on={v === value} onclick={() => set(v)}>{v}</button>
       {/each}
@@ -90,10 +90,10 @@
       aria-label="Amount slider"
     />
     <div class="chips">
-      {#each presets as p}
+      {#each presets as p, k (k)}
         <button class="chip" class:on={p.v === value} onclick={() => set(p.v)}>{p.label}</button>
       {/each}
-      {#each quickAdds(a) as c}
+      {#each quickAdds(a) as c, k (k)}
         <button class="chip add" onclick={() => set(current() + c)} disabled={current() >= a.max}>+{c.toLocaleString()}</button>
       {/each}
     </div>

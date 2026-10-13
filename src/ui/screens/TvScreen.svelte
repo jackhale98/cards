@@ -34,7 +34,7 @@
 <div class="tv">
   <div class="brand">Lamplight</div>
   <p class="lead">Table screen</p>
-  <div class="code" aria-label="Pairing code">{#each code.split('') as ch}<span>{ch}</span>{/each}</div>
+  <div class="code" aria-label="Pairing code">{#each code.split('') as ch, k (k)}<span>{ch}</span>{/each}</div>
   <p class="how">
     On a phone at the table, open the lobby (or the table menu), tap <b>Show on a TV</b>, and enter this code.
   </p>

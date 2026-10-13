@@ -245,7 +245,7 @@ export function cheatFamily(config: GameConfig): GameModule<CheatData> {
 
     status(s, viewer) {
       const d = s.data;
-      let headline = '';
+      let headline: string;
       if (s.phase === 'play') {
         const lastText = d.last ? `${name(s, d.last.seat)} said “${said(d.last.count, d.last.rank)}”` : '';
         const shown = d.reveal

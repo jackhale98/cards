@@ -15,7 +15,7 @@
     <div class="lane" style:--c={c}>
       <span class="name">{lane.label}</span>
       <div class="bar">
-        {#each marks as m}<i class="mark" style:left={pct(m)}></i>{/each}
+        {#each marks as m, k (k)}<i class="mark" style:left={pct(m)}></i>{/each}
         <div class="fill" style:width={pct(lane.score)}></div>
         <span class="peg back" style:left={pct(lane.prev)}></span>
         <span class="peg front" style:left={pct(lane.score)}></span>

@@ -11,7 +11,6 @@ export const LAMPLIGHT_CAST_APP_ID = '221DFB34';
 export const CAST_APP_ID = (import.meta.env.VITE_CAST_APP_ID as string | undefined) || LAMPLIGHT_CAST_APP_ID;
 export const CAST_NS = 'urn:x-cast:cards.lamplight';
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 declare global {
   interface Window {
     __onGCastApiAvailable?: (ok: boolean) => void;
@@ -91,7 +90,7 @@ export async function castTable(table: string, opts: { tries?: number; every?: n
       else reject(new CastError('timeout'));
     };
     const listener = (_ns: string, raw: string) => {
-      let msg: { ready?: boolean; got?: string } = {};
+      let msg: { ready?: boolean; got?: string };
       try {
         msg = typeof raw === 'string' ? JSON.parse(raw) : raw;
       } catch {

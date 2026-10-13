@@ -318,7 +318,7 @@ export function palaceFamily(config: GameConfig): GameModule<PalaceData> {
 
     status(s, viewer) {
       const d = s.data;
-      let headline = '';
+      let headline: string;
       if (s.phase === 'swap') {
         headline = viewer < 0 || d.ready[viewer] ? 'Waiting for everyone to swap…' : 'Swap hand cards with your face-up cards, then Ready';
       } else if (s.phase === 'play') {

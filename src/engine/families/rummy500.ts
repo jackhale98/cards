@@ -624,7 +624,7 @@ export function rummy500Family(config: GameConfig): GameModule<Rummy500Data> {
     status(s, viewer) {
       const d = s.data;
       const turnName = s.turn != null ? name(s, s.turn) : '';
-      let headline = '';
+      let headline: string;
       if (s.phase === 'draw') {
         const canCall = d.rummyBy != null && viewer >= 0 && viewer !== d.rummyBy && viewer !== s.turn && rummyCards(s).length > 0;
         headline = s.turn === viewer ? 'Draw — or take from the discard pile' : canCall ? `Rummy! is on — call it before ${turnName} draws` : `${turnName} to draw`;

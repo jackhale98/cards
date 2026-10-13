@@ -531,7 +531,7 @@ export function handFootFamily(config: GameConfig): GameModule<HandFootData> {
     status(s, viewer) {
       const d = s.data;
       const turnName = s.turn != null ? name(s, s.turn) : '';
-      let headline = '';
+      let headline: string;
       if (s.phase === 'draw') headline = s.turn === viewer ? 'Draw 2 — or take the pile' : `${turnName} to draw`;
       else if (s.phase === 'play') headline = s.turn === viewer ? 'Meld, then discard' : `${turnName} is playing`;
       else headline = d.result?.lines[0] ?? '';

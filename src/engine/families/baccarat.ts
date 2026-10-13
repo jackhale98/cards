@@ -252,7 +252,7 @@ export function baccaratFamily(config: GameConfig): GameModule<BaccaratData> {
 
     status(s, viewer) {
       const d = s.data;
-      let headline = '';
+      let headline: string;
       if (s.phase === 'bet') headline = d.bets[viewer] === null ? `Coup ${d.round} of ${rounds(s)} · Banker, Player or Tie?` : 'Waiting for bets…';
       else if (s.phase === 'deal') {
         const p = cards(s, 'player');

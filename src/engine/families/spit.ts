@@ -320,7 +320,7 @@ export function spitFamily(config: GameConfig): GameModule<SpitData> {
     status(s, viewer) {
       const d = s.data;
       const who = (i: number) => (i === viewer ? 'You' : name(s, i));
-      let headline = '';
+      let headline: string;
       if (s.phase === 'gameOver') headline = d.result?.lines[0] ?? '';
       else if (s.phase === 'slap')
         headline = d.slaps.length ? 'Slap!' : `${who(d.emptied!)} cleared ${d.emptied === viewer ? 'your' : 'their'} piles — slap the smaller pile!`;
