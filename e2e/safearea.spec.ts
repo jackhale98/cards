@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { poppedIn } from './wait';
 
 /**
  * An app added to the Home Screen draws under the phone's status bar and home bar; the page gets
@@ -15,8 +16,7 @@ test('sheets stay clear of the status bar and home bar (iPhone, from the Home Sc
   });
   await page.click('button[aria-label="How Lamplight works"]');
   const sheet = page.locator('.sheet').first();
-  await sheet.waitFor();
-  await page.waitForTimeout(400); // (it pops in)
+  await poppedIn(sheet);
   const box = (await sheet.boundingBox())!;
   expect(box.y).toBeGreaterThanOrEqual(47);
   expect(box.y + box.height).toBeLessThanOrEqual(844 - 34);
@@ -36,8 +36,7 @@ test('…and on its side, clear of the notch', async ({ page }) => {
   });
   await page.click('button[aria-label="How Lamplight works"]');
   const sheet = page.locator('.sheet').first();
-  await sheet.waitFor();
-  await page.waitForTimeout(400);
+  await poppedIn(sheet);
   const box = (await sheet.boundingBox())!;
   expect(box.x).toBeGreaterThanOrEqual(59);
   expect(box.x + box.width).toBeLessThanOrEqual(852 - 59);

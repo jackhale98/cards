@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { poppedIn } from './wait';
 
 // a phone in full screen with the browser's bars still showing can be this short
 test('the end-of-round summary has room on a short screen', async ({ page }) => {
@@ -15,7 +16,7 @@ test('the end-of-round summary has room on a short screen', async ({ page }) => 
   await page.locator('.sheet button.primary, .sheet button:has-text("Bet")').last().click();
   const banner = page.locator('.banner');
   await banner.waitFor({ timeout: 15000 });
-  await page.waitForTimeout(500); // (it pops in)
+  await poppedIn(banner);
   const box = (await banner.boundingBox())!;
   // on screen, and tall enough to show every line without scrolling
   expect(box.y).toBeGreaterThanOrEqual(0);

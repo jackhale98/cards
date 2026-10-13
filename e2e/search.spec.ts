@@ -11,7 +11,7 @@ test('searching the game picker narrows it, and Enter picks the best match', asy
   const top = () => search.evaluate((el) => Math.round(el.getBoundingClientRect().top));
   const y = await top();
   await search.focus();
-  await page.waitForTimeout(600);
+  await page.waitForTimeout(600); // (checking nothing moves: a smooth scroll would take this long to show)
   expect(await top()).toBe(y);
   await search.fill('rat screw');
   await expect(page.locator('.games .game')).toHaveCount(1);

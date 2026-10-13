@@ -63,8 +63,15 @@ test('on a phone on its side, the table code stays in view while scrolling the g
   await page.click('text=Start a table');
   await page.waitForURL(/#\/room\//);
   await page.locator('.lobby').waitFor();
-  await page.evaluate(() => document.querySelector('.lobby')!.scrollTo(0, 1e6));
-  await page.waitForTimeout(300);
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const lobby = document.querySelector('.lobby')!;
+        lobby.scrollTo(0, 1e6);
+        return lobby.scrollTop > 0 && lobby.scrollTop + lobby.clientHeight >= lobby.scrollHeight - 1;
+      }),
+    )
+    .toBe(true);
   const code = (await page.locator('.invite .code').boundingBox())!;
   expect(code.y).toBeGreaterThanOrEqual(0);
   expect(code.y + code.height).toBeLessThanOrEqual(393);
@@ -83,8 +90,15 @@ test('upright, the table code scrolls away with the page, leaving room for the g
   await page.click('text=Start a table');
   await page.waitForURL(/#\/room\//);
   await page.locator('.lobby').waitFor();
-  await page.evaluate(() => document.querySelector('.lobby')!.scrollTo(0, 1e6));
-  await page.waitForTimeout(300);
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const lobby = document.querySelector('.lobby')!;
+        lobby.scrollTo(0, 1e6);
+        return lobby.scrollTop > 0 && lobby.scrollTop + lobby.clientHeight >= lobby.scrollHeight - 1;
+      }),
+    )
+    .toBe(true);
   const code = (await page.locator('.invite .code').boundingBox())!;
   expect(code.y + code.height).toBeLessThan(0);
   expect(await page.locator('.invite').evaluate((el) => getComputedStyle(el).position)).toBe('static');

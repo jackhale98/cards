@@ -24,6 +24,17 @@ test('sounds follow the game, and the menu mutes them', async ({ page }) => {
   await page.click('button:has-text("Sound: on")');
   await page.keyboard.press('Escape');
   await page.evaluate(() => ((window as unknown as { __sounds: string[] }).__sounds = []));
-  await page.waitForTimeout(6000); // (bots play on; it may come round to us again)
+  // bots play on (each move would click or chip) until it comes round to us again (a chime)
+  await page.evaluate(() => {
+    // (each move shows afresh in the "last move" line)
+    const w = window as unknown as { __moves: number };
+    w.__moves = 0;
+    new MutationObserver((records) => {
+      for (const r of records) for (const n of r.addedNodes) if (n instanceof Element && n.matches('.last')) w.__moves++;
+    }).observe(document.querySelector('.table main')!, { childList: true });
+  });
+  const moves = () => page.evaluate(() => (window as unknown as { __moves: number }).__moves);
+  const ourTurn = page.locator('.headline.mine');
+  await expect.poll(async () => (await moves()) >= 2 || (await ourTurn.count()) > 0, { timeout: 15_000 }).toBe(true);
   expect(await heard()).toEqual([]);
 });

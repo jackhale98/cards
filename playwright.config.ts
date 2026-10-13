@@ -1,5 +1,8 @@
 import { defineConfig } from '@playwright/test';
 
+// (PW_PORT lets two checkouts run their browser tests side by side without sharing a server)
+const PORT = Number(process.env.PW_PORT ?? 4173);
+
 /**
  * Browser tests (`pnpm test:e2e`): every game dealt at phone, laptop and TV sizes, checked for
  * anything off-screen or any error. They run against the dev server in local mode (`?net=local`:

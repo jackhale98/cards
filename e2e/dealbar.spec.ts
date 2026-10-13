@@ -39,11 +39,10 @@ test('a long tagline in the deal bar glides along by itself', async ({ page }) =
   await expect(line).toHaveClass(/moving/);
   // not something to scroll by hand
   expect(await line.evaluate((el) => getComputedStyle(el).overflowX)).toBe('hidden');
-  await page.screenshot({ path: '/tmp/claude-0/-home-user-cards/8baea0e3-9d6d-5883-9866-3d5aca867d65/scratchpad/glide0.png' });
-  await page.waitForTimeout(4500);
-  await page.screenshot({ path: '/tmp/claude-0/-home-user-cards/8baea0e3-9d6d-5883-9866-3d5aca867d65/scratchpad/glide1.png' });
-  const x = await line.locator('.run').evaluate((el) => new DOMMatrix(getComputedStyle(el).transform).m41);
-  expect(x).toBeLessThan(0);
+  // after its opening pause it sets off by itself (the pause is 15% of a long cycle, and starts
+  // over if the line changes again, so allow it a while)
+  const x = () => line.locator('.run').evaluate((el) => new DOMMatrix(getComputedStyle(el).transform).m41);
+  await expect.poll(x, { timeout: 30_000 }).toBeLessThan(0);
   // a short line stays still
   await page.locator('[data-game="hearts"]').first().click();
   await page.click('text=+ Add bot');
