@@ -15,7 +15,8 @@ pnpm format              # Prettier rewrites files; pnpm format:check only check
 pnpm test:quick          # unit tests without the slow bot suites (seconds): use while iterating
 pnpm test                # every unit test (a couple of minutes: bots play thousands of deals)
 pnpm exec vitest run tests/hearts.test.ts -t "moon"   # one file / one test
-pnpm test:e2e            # Playwright against a dev server on :4173 (PW_CHROMIUM=<path> to reuse a browser)
+pnpm test:e2e            # Playwright against a dev server on :4173 (PW_CHROMIUM=<path> to reuse a browser),
+                         # plus e2e/csp.spec.ts on a production build with the real headers (:4174)
 pnpm -C relay check      # the relay's type check
 pnpm verify              # check + lint + format:check + test + build + relay check: run before you commit
 pnpm verify:all          # verify + e2e
@@ -76,6 +77,9 @@ docs/ADDING_A_GAME.md  how to add a game: read it before touching families or ga
 - **The relay is a dumb pipe** that never sees a card. Protocol changes go in `relay/src/index.ts`,
   `src/net/relayTransport.ts` and the `FakeRelay` in `tests/relay.test.ts` together, and must keep
   working with the other side one version behind (the relay deploys separately from the site).
+- **Scripts come only from this site** (and Google's Cast libraries): `public/_headers` sets a
+  Content-Security-Policy. Something new from another site (a script, a font, an image) needs
+  adding there, or the browser blocks it; e2e/csp.spec.ts catches it.
 - **Rules follow pagat.com.** Variants become lobby options.
 
 ## Adding a game

@@ -16,16 +16,29 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
   use: {
-    baseURL: `http://localhost:${PORT}`,
     // a failing test leaves a screenshot of what it saw (uploaded by CI)
     screenshot: 'only-on-failure',
     // (a cloud container may provide its own Chromium build)
     launchOptions: process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHROMIUM } : undefined,
   },
-  webServer: {
-    command: `pnpm exec vite --port ${PORT} --strictPort`,
-    url: `http://localhost:${PORT}`,
-    reuseExistingServer: !process.env.CI,
-    timeout: 60_000,
-  },
+  projects: [
+    { name: 'dev', testIgnore: /csp\.spec/, use: { baseURL: `http://localhost:${PORT}` } },
+    // the production build, served with the headers the real site sends (public/_headers)
+    { name: 'production', testMatch: /csp\.spec/, use: { baseURL: `http://localhost:${PORT + 1}` } },
+  ],
+  webServer: [
+    {
+      command: `pnpm exec vite --port ${PORT} --strictPort`,
+      url: `http://localhost:${PORT}`,
+      reuseExistingServer: !process.env.CI,
+      timeout: 60_000,
+    },
+    {
+      command: `pnpm build && node e2e/serve-dist.mjs ${PORT + 1}`,
+      url: `http://localhost:${PORT + 1}`,
+      // (always a fresh build: an old one would test old code)
+      reuseExistingServer: false,
+      timeout: 180_000,
+    },
+  ],
 });
