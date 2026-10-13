@@ -40,7 +40,7 @@
     grid-template-columns: minmax(3rem, 7rem) 1fr 2.2rem;
     align-items: center;
     gap: 0.5rem;
-    font-size: 0.64rem;
+    font-size: 0.72rem;
     line-height: 1.1;
   }
   .name {

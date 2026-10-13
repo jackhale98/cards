@@ -118,7 +118,7 @@
     min-width: 0;
   }
   .label {
-    font-size: 0.62rem;
+    font-size: 0.7rem;
     white-space: nowrap;
     position: relative;
     z-index: 1;

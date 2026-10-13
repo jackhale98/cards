@@ -271,9 +271,9 @@
             {/if}
             <span class="pname">
               <span class="ptext">{seat.name}</span>
-              {#if seat.host}<em>host</em>{/if}
+              <!-- (you and the host: one tag, so a short name still fits on a phone) -->
+              {#if i === mySeat}<em class="you">{seat.host ? 'you · host' : 'you'}</em>{:else if seat.host}<em>host</em>{/if}
               {#if seat.bot}<em>bot</em>{/if}
-              {#if i === mySeat}<em class="you">you</em>{/if}
               {#if seat.out && !host}<em>sitting out</em>{/if}
             </span>
             {#if !seat.bot && !seat.host}<PingDot ms={app.pings[i]} label />{/if}
@@ -573,7 +573,7 @@
   }
   .pname em {
     font-style: normal;
-    font-size: 0.65rem;
+    font-size: 0.7rem;
     font-weight: 600;
     color: var(--ink-dim);
     border: 1px solid var(--line);
@@ -718,7 +718,7 @@
   }
   .sec {
     margin-top: 0.75rem;
-    font-size: 0.68rem;
+    font-size: 0.7rem;
     letter-spacing: 0.14em;
     text-transform: uppercase;
     color: var(--gold);

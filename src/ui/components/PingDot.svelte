@@ -15,7 +15,7 @@
     display: inline-flex;
     align-items: center;
     gap: 0.25rem;
-    font-size: 0.68rem;
+    font-size: 0.7rem;
     font-weight: 600;
     color: var(--ink-dim);
     font-variant-numeric: tabular-nums;

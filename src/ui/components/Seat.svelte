@@ -85,7 +85,8 @@
   {#if cards.length}
     <div class="cards" style:--cw="{(compact ? 18 : 22) * scale}px">
       {#each shown as c (c.id)}
-        <div class="mini" in:receive={{ key: c.id }} out:send={{ key: c.id }}>
+        <!-- (face up: big enough that each corner's rank and suit can be read) -->
+        <div class="mini up" style:--cw="{30 * scale}px" in:receive={{ key: c.id }} out:send={{ key: c.id }}>
           <Card id={c.id} />
         </div>
       {/each}
@@ -167,14 +168,14 @@
   }
   .rel {
     position: absolute;
-    top: -8px;
+    top: -9px;
     left: 50%;
     transform: translateX(-50%);
     padding: 1px 7px;
     border-radius: 6px;
-    font-size: 0.56rem;
+    font-size: 0.7rem;
     font-weight: 700;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.04em;
     text-transform: uppercase;
     white-space: nowrap;
     color: var(--ink-dim);
@@ -183,8 +184,8 @@
     border: 1px solid var(--line);
   }
   .rel.now {
-    top: -0.75rem;
-    font-size: 0.62rem;
+    top: -0.8rem;
+    font-size: 0.7rem;
     color: #2a1d05;
     background: var(--c);
     border-color: transparent;
@@ -216,7 +217,7 @@
     height: 18px;
     padding: 0 4px;
     border-radius: 9px;
-    font-size: 0.62rem;
+    font-size: 0.7rem;
     display: grid;
     place-items: center;
     background: #fff;
@@ -237,7 +238,7 @@
   }
   .bot {
     margin-left: 0.3em;
-    font-size: 0.6rem;
+    font-size: 0.7rem;
     color: var(--ink-faint);
   }
   .sub {
@@ -280,6 +281,9 @@
   }
   .mini {
     margin-left: calc(var(--cw) * -0.7);
+  }
+  .mini.up + .mini.up {
+    margin-left: calc(var(--cw) * -0.55);
   }
   .mini:first-child {
     margin-left: 0;

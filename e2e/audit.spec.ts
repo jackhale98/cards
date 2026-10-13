@@ -105,7 +105,7 @@ async function check(page: Page): Promise<string[]> {
         if (r.left < -1 || r.top < -1 || r.right > W + 1 || bottom > H + 1)
           out.push(`off-screen: ${name(el)} at ${Math.round(r.left)},${Math.round(r.top)}→${Math.round(r.right)},${Math.round(r.bottom)}`);
       });
-    edge('button, .btn, .card, .headline, .last, .label, .banner, .sheet, .track, footer .me, aside, input, select');
+    edge('button, .btn, .card, .headline, .last, .label, .banner, .sheet, .track, .me, aside, input, select');
 
     // 2. no text cut off inside its box (an ellipsis or a clipped line), in anything showing
     root
@@ -140,7 +140,7 @@ async function check(page: Page): Promise<string[]> {
       const buttons = all('.table:not(.display) aside button');
       const text = all('.table:not(.display) main .headline, .table:not(.display) main .last, .table:not(.display) main .track');
       const seats = all('.table:not(.display) header .seat-slot');
-      const me = all('.table:not(.display) footer .me');
+      const me = all('.table:not(.display) .me');
       const labels = all('.table:not(.display) main .zones .label');
       const banner = document.querySelector('.banner');
       const covered = (el: Element) => banner && shown(banner) && meets(rect(el), rect(banner), 0);
@@ -151,6 +151,8 @@ async function check(page: Page): Promise<string[]> {
         ['a card in the middle and a seat', center, seats],
         ['your hand and a button', hand, buttons],
         ['your hand and your name', hand, me],
+        ['a card in the middle and your name', center, me],
+        ['the headline and your name', text, me],
         ['a button and your name', buttons, me],
         ['the headline and a seat', text, seats],
         ['a button and a seat', buttons, seats],
@@ -213,7 +215,8 @@ async function check(page: Page): Promise<string[]> {
     root.querySelectorAll('*').forEach((el) => {
       if (!shown(el) || el.closest('.scrim')) return;
       const own = [...el.childNodes].some((c) => c.nodeType === 3 && (c.textContent ?? '').trim());
-      if (!own || el.closest('.card')) return;
+      // (not the drawings on game icons or the avatars' pictures, and not inside a card: a card is measured as a whole, below)
+      if (!own || el.closest('.card, .game-icon, .av')) return;
       const px =
         parseFloat(getComputedStyle(el).fontSize) *
         (el instanceof SVGElement

@@ -72,7 +72,7 @@
     border-radius: 999px;
     border: 1px solid var(--line);
     color: var(--ink-faint);
-    font-size: 0.66rem;
+    font-size: 0.7rem;
   }
   ul {
     width: 100%;
@@ -81,7 +81,7 @@
     list-style: none;
     text-align: center;
     color: var(--ink-faint);
-    font-size: 0.66rem;
+    font-size: 0.7rem;
   }
   .dot {
     width: 0.5rem;

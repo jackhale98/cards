@@ -51,8 +51,12 @@
   const LAST_H = 26;
   let headerH = $state(0);
   let mainW = $state(0);
+  /**
+   * A phone on its side: height is what's short, so whose turn it is and the last move go in the
+   * column on the left, and the race to the target (cribbage) in the one on the right.
+   */
+  const side = $derived(!display && !handMode && vh <= 500);
   let headH = $state(0);
-  let trackH = $state(0);
   /**
    * The table's height shared out between the cards in the middle and your hand, from what's left
    * once the seats, the score track and the headline have theirs. On a short screen (a phone with
@@ -63,28 +67,40 @@
     // (a pile or two in the middle and nothing else there, as in Cheat, Spit or the slap games:
     // they're what everyone watches, so they get the room)
     const big = pileOnly || (centerZones.length <= 2 && !stripZones.length && centerZones.every((z) => z.layout === 'stack'));
-    const wantCenter = Math.min(big ? 120 : 92, vh * (status.track ? 0.13 : big ? 0.24 : 0.15), vw * (big ? 0.12 : 0.09));
+    const wantCenter = Math.min(big ? 120 : 92, vh * (big ? 0.24 : 0.15), vw * (big ? 0.12 : 0.09));
     const wantHand = handMode
       ? // (hand mode: the middle is a pile or two at most, so the hand is bigger)
         Math.min(168, vh * (centerZones.length ? 0.27 : 0.34), vw * 0.15)
       : Math.min(112, vh * (pileOnly ? 0.14 : 0.2), vw * 0.11);
     if (display || !headerH) return { center: wantCenter, hand: wantHand, lastFits: true };
-    const above = (status.track && !handMode ? trackH + 6 : 0) + (status.headline ? headH + 6 : 0);
+    const above = status.headline && !side ? headH + 6 : 0;
     // (the table's padding and gaps, the middle's labels, and the hand's own: about 70px, the rest is cards;
     // a pile is about 1.6 card widths tall with its label, a fanned hand 1.45 with its arc)
     let room = vh - headerH - above - 70;
     // the last move under the headline only when there's room for it: the cards come first
-    const lastFits = room - LAST_H >= 1.6 * 36 + 1.45 * 48;
-    if (lastFits) room -= LAST_H;
+    let lastFits = side || room - LAST_H >= 1.6 * 36 + 1.45 * 48;
+    if (lastFits && !side) room -= LAST_H;
     // (hand mode's middle is empty but for a pile you can tap)
+    // the largest share of the room that fits, both shrinking together (in small steps: a pile can't
+    // go below its smallest readable size, and the piles may wrap onto more rows as they shrink)
+    const scale = Math.max(0.3, ...centerZones.map((z) => z.scale ?? 1));
+    const need = (k: number) => {
+      if (!centerZones.length) return 1.45 * wantHand * k;
+      const c = wantCenter * k;
+      // (a pile's card as drawn: never under the smallest readable width)
+      const zw = Math.max(MIN_CW, Math.max(34, c) * scale);
+      // (each row: a pile and its label; between rows, a gap)
+      const rows = centerRows(c);
+      return Math.max(1.6 * c, 1.4 * zw + 22) + (rows - 1) * (1.4 * zw + 30) + 1.45 * wantHand * k;
+    };
     let k = 1;
-    // (piles that don't fit across wrap to another row: Kings Corners' eight, with six players)
-    for (let i = 0; i < 3; i++) {
-      // (each extra row: a pile, its label and the gap between rows, those last two in pixels)
-      const extra = centerZones.length ? centerRows(wantCenter * k) - 1 : 0;
-      const fixed = extra * (22 + Math.min(32, Math.max(10, vw * 0.03)));
-      const need = (centerZones.length ? (1.6 + 1.4 * extra) * wantCenter * k : 0) + 1.45 * wantHand * k;
-      k = need > room - fixed ? (k * Math.max(0, room - fixed)) / need : k;
+    while (k > 0.35 && need(k) > room) k -= 0.02;
+    // still too tall at the smallest sizes (Kings Corners' eight piles, six players, a phone):
+    // the last move's line gives its room to the cards
+    if (lastFits && !side && need(k) > room) {
+      lastFits = false;
+      room += LAST_H;
+      while (k < 1 && need(k + 0.02) <= room) k += 0.02;
     }
     return { center: wantCenter * k, hand: wantHand * k, lastFits };
   });
@@ -97,18 +113,26 @@
     const gap = Math.min(32, Math.max(10, vw * 0.03));
     const width = centerZones.reduce((w, z) => {
       const cw = centerCw * (z.scale ?? 1);
-      return w + gap + (z.layout === 'spread' ? z.cards.length * cw * 1.1 : z.layout === 'trick' ? 3 * cw : 1.2 * cw);
+      return w + gap + (z.layout === 'spread' ? (z.faceUpHand ? 13 : z.cards.length) * cw * 1.1 : z.layout === 'trick' ? 3 * cw : 1.2 * cw);
     }, 0);
     return width < mainW - 16;
   });
   /**
-   * How many rows the middle's piles take at card width `cw`: each about a card wide, or its
-   * label's width (0.62rem capitals), with the gap between. Only piles: anything else, one row.
+   * How many rows the middle's zones take at card width `cw`: each as wide as its cards or its
+   * label (0.7rem capitals), whichever is wider, with the gap between.
    */
   function centerRows(cw: number): number {
-    if (!mainW || !centerZones.every((z) => z.layout === 'stack')) return 1;
+    if (!mainW) return 1;
     const gap = Math.min(32, Math.max(10, vw * 0.03));
-    const widths = centerZones.map((z) => Math.max(Math.max(34, cw), ((z.label?.length ?? 0) + 4) * 6.6) + gap);
+    const widths = centerZones.map((z) => {
+      const w = Math.max(MIN_CW, Math.max(34, cw) * (z.scale ?? 1));
+      // (a whole hand face up, bridge's dummy, is measured as full all hand long: it keeps one size as
+      // it's played from, rather than growing as it wraps onto fewer rows)
+      const n = z.faceUpHand ? Math.max(13, z.cards.length) : z.cards.length;
+      // (a row of cards: side by side up to four, overlapping from five; a trick: three cards wide)
+      const cards = z.layout === 'spread' ? (n < 5 ? Math.max(1, n) * 1.1 * w : w + (n - 1) * 0.55 * w) : z.layout === 'trick' ? 3 * w : w;
+      return Math.max(cards, ((z.label?.length ?? 0) + 4) * 6.6) + gap;
+    });
     let rows = 1;
     let x = 0;
     for (const w of widths) {
@@ -125,6 +149,39 @@
   // a score track takes some height, so table cards get a little smaller with one
   const centerCw = $derived(Math.round(display ? Math.max(60, Math.min(300, vh * (status.track ? 0.18 : 0.22), vw * 0.1)) : Math.max(34, cardSizes.center)));
 
+  /**
+   * The safety net under the sizes worked out above: if the middle's cards still come out taller
+   * than the room under the headline (labels grow during play; a row wraps that wasn't expected),
+   * they're drawn smaller to fit. A transform doesn't change the layout, so measuring it can't
+   * set off another round.
+   */
+  function fitHeight(el: HTMLElement) {
+    const main = el.parentElement!;
+    // (the content's own height: the box itself may be squeezed to the room while its cards spill out)
+    const fit = () => {
+      const room = main.clientHeight - el.offsetTop;
+      const k = el.scrollHeight > room + 1 ? Math.max(0.6, room / el.scrollHeight) : 1;
+      el.style.transform = k < 1 ? `scale(${k.toFixed(3)})` : '';
+    };
+    let frame = 0;
+    const later = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(fit);
+    };
+    const ro = new ResizeObserver(later);
+    ro.observe(el);
+    ro.observe(main);
+    // (a card or a longer label changes what's inside without changing the box)
+    const mo = new MutationObserver(later);
+    mo.observe(el, { childList: true, subtree: true, characterData: true });
+    return {
+      destroy: () => {
+        cancelAnimationFrame(frame);
+        ro.disconnect();
+        mo.disconnect();
+      },
+    };
+  }
   /**
    * A row that scrolls sideways (everyone's melds, face-up cards) fades out at an edge with more
    * beyond it, so a third player's cards past the edge aren't simply missing.
@@ -448,6 +505,21 @@
 
 <svelte:window onkeydown={onkey} bind:innerWidth={vw} bind:innerHeight={vh} onfullscreenchange={() => (fullscreen = !!document.fullscreenElement)} />
 
+<!-- whose turn it is and the last move: above the middle, or (a phone on its side) in the column on the left -->
+{#snippet tableStatus()}
+  {#if status.headline}<div class="headline" class:mine={actor === you && you >= 0} bind:clientHeight={headH}><SuitText text={status.headline} /></div>{/if}
+  {#if lastMove && cardSizes.lastFits}
+    {#key lastMove.t}
+      <div class="last" aria-live="polite">
+        {#if lastMove.seat != null}
+          <AvatarBadge avatar={lobbySeat(lastMove.seat)?.avatar} name={s.players[lastMove.seat]?.name ?? ''} seat={lastMove.seat} size={16} />
+        {/if}
+        <span><SuitText text={lastMove.text} /></span>
+      </div>
+    {/key}
+  {/if}
+{/snippet}
+
 <div class="table" class:display class:handmode={handMode} bind:this={tableEl}>
   <!-- top: menu + opponents + scores -->
   <header bind:clientHeight={headerH}>
@@ -494,21 +566,11 @@
   <!-- tapping empty felt clears the selection (a touch shortcut; the Clear button is the accessible path) -->
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
   <main bind:clientWidth={mainW} onclick={(e) => !(e.target as Element).closest('button, .card') && (selected = [])}>
-    {#if status.track && !handMode}<div class="track-wrap" bind:clientHeight={trackH}>
+    {#if status.track && display}<div class="track-wrap">
         <Track track={status.track} avatars={s.players.map((_, i) => lobbySeat(i)?.avatar)} />
       </div>{/if}
-    {#if status.headline}<div class="headline" class:mine={actor === you && you >= 0} bind:clientHeight={headH}><SuitText text={status.headline} /></div>{/if}
-    {#if lastMove && cardSizes.lastFits}
-      {#key lastMove.t}
-        <div class="last" aria-live="polite">
-          {#if lastMove.seat != null}
-            <AvatarBadge avatar={lobbySeat(lastMove.seat)?.avatar} name={s.players[lastMove.seat]?.name ?? ''} seat={lastMove.seat} size={16} />
-          {/if}
-          <span><SuitText text={lastMove.text} /></span>
-        </div>
-      {/key}
-    {/if}
-    <div class="zones" class:has-strip={stripZones.length > 0}>
+    {#if !side}{@render tableStatus()}{/if}
+    <div class="zones" class:has-strip={stripZones.length > 0} use:fitHeight>
       {#each centerZones as z (z.id)}
         <div class="zone-slot">
           <Zone
@@ -591,10 +653,11 @@
     {/if}
   </main>
 
+  <!-- you: a column of your own beside the middle, above your hand, so your hand has the whole width -->
   {#if !display}
-    <!-- bottom: my hand, info and actions -->
-    <footer>
-      <div class="me">
+    <div class="me" class:side>
+      {#if side}<div class="side-status">{@render tableStatus()}</div>{/if}
+      <div class="me-own">
         {#if me}
           <div class="me-name">
             <AvatarBadge avatar={lobbySeat(you)?.avatar} name={me.name} seat={you} size={24} /><span class="mn">{me.name}</span>
@@ -610,6 +673,12 @@
           <div class="me-sub">{view.lobby.seats.some((x) => x.id === app.cid) ? 'Sitting this one out — you’re in the next game' : 'Watching'}</div>
         {/if}
       </div>
+    </div>
+  {/if}
+
+  {#if !display}
+    <!-- bottom: my hand, info and actions -->
+    <footer>
       <!-- bigger fanned cards tip further past the ends: keep them clear of the buttons -->
       <div class="hand-wrap" style:padding-inline={handMode ? `${Math.round(handCw * 0.3)}px` : undefined}>
         {#if myHandZone?.layout === 'stack'}
@@ -632,6 +701,18 @@
       </div>
     </footer>
     <aside>
+      {#if status.track && !display}
+        <!-- (the board is on a TV, and in the scores: here just the numbers, in the race to the target) -->
+        <div class="race" aria-label="Score">
+          <div class="eyebrow">To {status.track.target}</div>
+          {#each status.track.lanes as lane (lane.label)}
+            {@const lead = lane.score === Math.max(...status.track.lanes.map((l) => l.score)) && lane.score > 0}
+            <div class="race-lane" class:lead style:--c={lobbySeat(lane.seat)?.avatar?.color ?? seatColor(lane.seat)}>
+              <span class="ln">{lane.label}</span><b>{lane.score}</b>
+            </div>
+          {/each}
+        </div>
+      {/if}
       <!-- (a hand over without a result banner, e.g. everyone folded: offer the replay here) -->
       {#if view.handDone && !(showBanner && status.banner) && !replay}
         <button class="btn quiet small-btn replay-quick" onclick={() => app.showReplay(0, 0)}>Replay hand</button>
@@ -761,6 +842,7 @@
   </Sheet>
 {:else if sheet === 'scores'}
   <Sheet title="Scores" onclose={() => (sheet = null)}>
+    {#if status.track}<div class="sheet-track"><Track track={status.track} avatars={s.players.map((_, i) => lobbySeat(i)?.avatar)} /></div>{/if}
     {#if status.scoreboard}
       <table class="scores">
         <thead
@@ -803,13 +885,14 @@
     inset: 0;
     display: grid;
     /* (minmax: a long row of cards scrolls inside the middle instead of widening the screen) */
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: auto minmax(0, 1fr) auto;
     /* (minmax: the middle's cards fit its room rather than pushing the rows apart) */
     grid-template-rows: auto minmax(0, 1fr) auto;
+    /* (you beside the middle, not beside your hand: the hand gets the whole width) */
     grid-template-areas:
-      'top top'
-      'center actions'
-      'hand actions';
+      'top top top'
+      'me center actions'
+      'hand hand actions';
     padding: calc(6px + var(--safe-t)) calc(10px + var(--safe-r)) calc(4px + var(--safe-b)) calc(10px + var(--safe-l));
     gap: 4px 10px;
     /* clip, not hidden: nothing (a focused button, a card scrolled into view) can shift the table sideways */
@@ -1024,10 +1107,12 @@
     flex-shrink: 0;
   }
   .zones {
+    transform-origin: 50% 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: clamp(10px, 3vw, 32px);
+    /* (piles wrapped onto a second row sit close: height is what a phone lacks) */
+    gap: 8px clamp(10px, 3vw, 32px);
     flex-wrap: wrap;
     min-height: 0;
   }
@@ -1191,14 +1276,95 @@
     min-width: 0;
   }
   .me {
-    flex: none;
+    grid-area: me;
+    align-self: end;
     /* (room for a short name and a badge beside it: "Tester ★"; wider for a longer status,
        "0 in hand · 0 up · 3 down", so it takes two lines rather than four) */
-    width: max-content;
-    min-width: clamp(100px, 14vw, 150px);
-    max-width: clamp(130px, 24vw, 220px);
-    padding-bottom: 8px;
+    min-width: clamp(90px, 13vw, 140px);
+    max-width: clamp(120px, 22vw, 200px);
+    padding-bottom: 2px;
     font-size: 0.8rem;
+  }
+  .sheet-track {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 0.8rem;
+  }
+  /* a phone on its side: whose turn it is at the top of the column, you at the bottom */
+  .me.side {
+    align-self: stretch;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 6px;
+    min-height: 0;
+    max-width: clamp(130px, 24vw, 210px);
+  }
+  .side-status {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    min-height: 0;
+  }
+  .side-status .headline {
+    text-align: left;
+    font-size: 0.78rem;
+    padding: 0.3rem 0.6rem;
+    border-radius: 12px;
+    -webkit-line-clamp: 5;
+    line-clamp: 5;
+  }
+  .side-status .last {
+    align-items: flex-start;
+    margin-top: 0;
+  }
+  .side-status .last span {
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    -webkit-box-orient: vertical;
+  }
+  aside > .race {
+    flex: none;
+  }
+  .race {
+    margin-bottom: 0.5rem;
+    padding: 0.35rem 0.55rem;
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.22);
+  }
+  .race .eyebrow {
+    font-size: 0.7rem;
+  }
+  .race-lane {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: var(--ink-dim);
+  }
+  .race-lane::before {
+    content: '';
+    flex: none;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--c);
+  }
+  .race-lane .ln {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .race-lane b {
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+  }
+  .race-lane.lead b {
+    color: var(--gold);
   }
   .me-name {
     font-weight: 700;
@@ -1221,7 +1387,7 @@
     flex: 0 1 auto;
   }
   .mytag {
-    font-size: 0.65rem;
+    font-size: 0.7rem;
     background: #fff;
     color: #111;
     border-radius: 6px;

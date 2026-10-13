@@ -186,7 +186,7 @@
     overflow-wrap: anywhere;
   }
   .bar small {
-    font-size: 0.66rem;
+    font-size: 0.7rem;
     font-weight: 500;
     opacity: 0.8;
   }
@@ -349,7 +349,7 @@
     white-space: nowrap;
   }
   .target small {
-    font-size: 0.65rem;
+    font-size: 0.7rem;
     color: var(--gold);
     font-weight: 600;
     white-space: nowrap;

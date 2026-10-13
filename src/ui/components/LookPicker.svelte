@@ -100,7 +100,7 @@
     box-shadow: inset 0 0 0 1px var(--line);
   }
   .name {
-    font-size: 0.68rem;
+    font-size: 0.7rem;
     font-weight: 600;
     text-align: center;
     line-height: 1.1;

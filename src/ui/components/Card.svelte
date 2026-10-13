@@ -59,6 +59,29 @@
       opacity 0.2s;
     flex: none;
     overflow: hidden;
+    /* (its own width decides how the face is drawn: see the small card below) */
+    container-type: inline-size;
+  }
+  /* a small card (a seat's cards, a meld, a stud up-card): one big corner index you can read, and
+     none of the rest, which at this size is only clutter */
+  @container (max-width: 46px) {
+    .corner {
+      width: 2em;
+    }
+    .corner b {
+      font-size: 1.8em;
+    }
+    .corner i {
+      font-size: 1.5em;
+    }
+    .tl {
+      top: 0.25em;
+      left: 0.1em;
+    }
+    .br,
+    .center {
+      display: none;
+    }
   }
   .red {
     color: var(--card-red);
