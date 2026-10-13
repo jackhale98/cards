@@ -71,8 +71,9 @@ export function options(b: BettingState, chips: number[], seat: number): BetOpti
     minRaiseTo,
     maxRaiseTo,
     // an all-in short of a full raise doesn't reopen the betting: whoever already acted may only call or fold;
-    // and with everyone else all in (or folded) there's nobody left to raise against
-    canRaise: maxRaiseTo > b.currentBet && !b.acted[seat] && b.out.some((_, i) => i !== seat && canAct(b, i)),
+    // and a raise needs someone who could call more than the bet as it stands (not when everyone else
+    // is all in, folded, or has too few chips even to call: nobody could put in a chip of it)
+    canRaise: maxRaiseTo > b.currentBet && !b.acted[seat] && b.out.some((_, i) => i !== seat && canAct(b, i) && b.bets[i] + chips[i] > b.currentBet),
   };
 }
 

@@ -77,6 +77,24 @@ describe('betting', () => {
     expect(() => bet.act(c, stacks, 0, { type: 'raise', to: 150 })).toThrow();
   });
 
+  it('lets nobody raise when no one else could call more than the bet (a short stack still to act)', () => {
+    // (a hand PokerKit caught: on the river one player is all in for 178, the one still to act has
+    // only 115, so a raise to 316 could never be called by anybody)
+    const stacks = [178, 316, 115];
+    const b = bet.newBetting(3, [false, false, false]);
+    b.minRaise = 10;
+    bet.act(b, stacks, 0, { type: 'allin' });
+    const o = bet.options(b, stacks, 1);
+    expect(o.canRaise).toBe(false);
+    expect(o.toCall).toBe(178);
+    // with a player behind who could cover it, the raise is there
+    const deep = [178, 316, 400];
+    const c = bet.newBetting(3, [false, false, false]);
+    c.minRaise = 10;
+    bet.act(c, deep, 0, { type: 'allin' });
+    expect(bet.options(c, deep, 1).canRaise).toBe(true);
+  });
+
   it('reopens action after a raise and enforces the minimum raise', () => {
     const chips = [100, 100];
     const b = bet.newBetting(2, [false, false]);
