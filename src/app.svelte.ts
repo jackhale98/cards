@@ -4,7 +4,7 @@ import { workerBrain, type Brain } from './net/brain';
 import { Client } from './net/client';
 import { loadRules } from './games';
 import { Host, type HostSnapshot } from './net/host';
-import { AVATAR_COLORS, AVATAR_EMOJI, cleanAvatar, makeRoomCode, type Avatar, type Night, type View } from './net/protocol';
+import { AVATAR_COLORS, AVATAR_EMOJI, cleanAvatar, makeRoomCode, type Avatar, type Frame, type Night, type View } from './net/protocol';
 import type { MultiTransport, NetworkStatus } from './net/multiTransport';
 import type { RelayTransport } from './net/relayTransport';
 import { createTransport, FALLBACK_AFTER_MS, RELAY_GRACE_MS, type TransportKind } from './net/transport';
@@ -404,6 +404,11 @@ class App {
     client.onView = (v) => (this.view = v);
     client.onError = (m) => this.say(m);
     client.onPings = (p) => (this.pings = p);
+    // (an answer that comes after the replay was closed is ignored)
+    client.onFrame = (f) => {
+      if (this.replay !== null || this.replayAsked) this.replay = f;
+      this.replayAsked = false;
+    };
     client.onConnection = (c) => {
       this.connected = c;
       this.lostSince = c ? 0 : Date.now();
@@ -539,6 +544,26 @@ class App {
     await this.startClient(code, display);
   }
 
+  // ---- replays: step through a finished hand, as you saw it ---------------------------------
+
+  /** The moment of a finished hand on screen instead of the live table (null: playing live). */
+  replay = $state.raw<Frame | null>(null);
+
+  /** Show a moment of a finished hand (`hand` 0 is the latest); the host works it out. */
+  showReplay(hand: number, step: number) {
+    if (this.host) this.replay = this.host.frame(this.cid, hand, step);
+    else {
+      this.replayAsked = true;
+      this.client?.replay(hand, step);
+    }
+  }
+  private replayAsked = false;
+
+  closeReplay() {
+    this.replay = null;
+    this.replayAsked = false;
+  }
+
   act(a: Action) {
     if (this.host) {
       const err = this.host.act(this.cid, a);
@@ -564,6 +589,7 @@ class App {
     this.host = null;
     this.client = null;
     this.view = null;
+    this.closeReplay();
     this.isHost = false;
     this.currentCode = null;
     this.hostGoneSince = 0;

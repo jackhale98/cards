@@ -12,6 +12,7 @@ import {
   makeRoomCode,
   type Avatar,
   type ClientMsg,
+  type Frame,
   type HostMsg,
   type Lobby,
   type LobbySeat,
@@ -37,6 +38,13 @@ const BOT_NAMES = ['Ada', 'Bix', 'Cleo', 'Dash', 'Echo', 'Fizz', 'Gus', 'Hux', '
 export const HELLO_GAP_MS = 400;
 /** How many different seats one connection may ask for in a minute (a client keeps one id). */
 export const IDENTITIES_PER_MINUTE = 3;
+/** Finished hands kept for replay, and the most moments kept of one hand. */
+export const REPLAY_HANDS = 5;
+/** The phases a hand ends in, across the families. */
+const END_PHASES = new Set(['handOver', 'roundOver', 'gameOver']);
+export const REPLAY_STEPS = 600;
+/** Replay frames one connection may ask for a second (stepping, or playing a hand back). */
+const FRAMES_PER_SECOND = 20;
 /** Most people at one table (more than any game seats: the rest sit out and rotate in). */
 export const TABLE_MAX = 16;
 
@@ -178,6 +186,7 @@ export class Host {
       if (typeof msg.cid !== 'string' || !msg.cid || msg.cid.length > 64) return;
       return this.paced(peer, msg);
     }
+    if (msg.t === 'replay') return this.sendFrame(peer, msg.hand, msg.step);
     if (msg.t === 'act') {
       const cid = this.peers.get(peer);
       if (!cid) return;
@@ -236,6 +245,7 @@ export class Host {
 
   /** A connection has gone for good: drop its pacing (and any hello still waiting). */
   private forget(peer: string) {
+    this.framesAsked.delete(peer);
     const p = this.helloPace.get(peer);
     if (p?.timer) clearTimeout(p.timer);
     this.helloPace.delete(peer);
@@ -408,8 +418,65 @@ export class Host {
   /** Bump version, persist, send views, then schedule any automatic steps. */
   private commit() {
     this.tally();
+    this.record();
     this.broadcast();
     this.pump();
+  }
+
+  // ---- replays ------------------------------------------------------------------------------
+
+  /** Finished hands of this game, oldest first: every moment of each, as the host saw it. */
+  private hands: GameState[][] = [];
+  /** The hand being played now, so far. */
+  private recording: GameState[] | null = null;
+
+  /**
+   * Keep each moment of the hand in play, for replays. A hand ends in one of the end phases every
+   * family uses (or when the game shows a result banner); the next starts with the next deal. (Real-time games are a blur: not kept.)
+   * The states are the host's own (each move makes a new one), so keeping them costs no copying.
+   */
+  private record() {
+    const s = this.state;
+    const m = this.module;
+    if (!s || !m || m.realtime) return;
+    const ended = END_PHASES.has(s.phase) || !!m.status(s, 0).banner;
+    if (!ended) {
+      this.recording ??= [];
+      if (this.recording.length < REPLAY_STEPS && this.recording.at(-1) !== s) this.recording.push(s);
+      return;
+    }
+    if (!this.recording) return;
+    this.recording.push(s);
+    this.hands.push(this.recording);
+    if (this.hands.length > REPLAY_HANDS) this.hands.shift();
+    this.recording = null;
+  }
+
+  /**
+   * A moment of a finished hand, as `cid` saw it then: their own cards, and everyone else's only
+   * if they were shown. `hand` counts back from the latest (0); `step` is clamped to the hand.
+   */
+  frame(cid: string | null, hand: number, step: number): Frame | null {
+    const m = this.module;
+    const hands = this.hands.length;
+    if (!m || !hands || !Number.isInteger(hand) || !Number.isInteger(step)) return null;
+    const h = Math.max(0, Math.min(hands - 1, hand));
+    const frames = this.hands[hands - 1 - h];
+    const at = Math.max(0, Math.min(frames.length - 1, step));
+    const seat = this.gameSeat(cid);
+    const s = frames[at];
+    return { hand: h, hands, step: at, steps: frames.length, state: redact(m, s, seat), status: m.status(s, seat) };
+  }
+
+  /** Replay requests, a few a second per connection at most. */
+  private framesAsked = new Map<string, { second: number; n: number }>();
+  private sendFrame(peer: string, hand: unknown, step: unknown) {
+    const second = Math.floor(Date.now() / 1000);
+    const c = this.framesAsked.get(peer);
+    if (c?.second === second && ++c.n > FRAMES_PER_SECOND) return;
+    if (c?.second !== second) this.framesAsked.set(peer, { second, n: 1 });
+    const cid = this.displays.has(peer) ? null : (this.peers.get(peer) ?? null);
+    this.transport?.send({ t: 'frame', frame: this.frame(cid, Number(hand), Number(step)) }, peer);
   }
 
   /** Add a game that has just finished to tonight's tally (once; a rematch starts a new one). */
@@ -766,6 +833,8 @@ export class Host {
     this.lobby.playing = players.map((s) => s.id);
     this.lobby.started = true;
     this.history = [];
+    this.hands = [];
+    this.recording = null;
     this.state = this.module.setup(
       players.map((s) => ({ name: s.name, bot: s.bot })),
       randomSeed(),
@@ -781,6 +850,8 @@ export class Host {
     this.state = null;
     this.module = null;
     this.history = [];
+    this.hands = [];
+    this.recording = null;
     this.lobby.seats = this.lobby.seats.filter((s) => s.connected || s.host);
     // whoever sat out that game gets priority for the next one
     const played = new Set(this.lobby.playing ?? []);
@@ -821,6 +892,9 @@ export class Host {
       state: s && m ? redact(m, s, seat) : null,
       actions: s && m && seat >= 0 ? redactActions(s, seat, m.actions(s, seat)) : [],
       status: s && m ? m.status(s, seat) : null,
+      ...(s && this.hands.length ? { replays: this.hands.length } : {}),
+      // (the hand on the table has just finished: offer to replay it)
+      ...(s && this.hands.at(-1)?.at(-1) === s ? { handDone: true as const } : {}),
     };
     if (s && m?.config.undo && this.history.length && seat >= 0) view.actions.push({ type: UNDO, label: 'Undo', menu: true });
     return view;

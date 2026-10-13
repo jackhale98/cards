@@ -19,6 +19,11 @@
   // what's being played, for error reports
   $effect(() => setReportContext({ game: view?.lobby.gameId, phase: view?.state?.phase ?? (view ? 'lobby' : route.name) }));
 
+  // a replay belongs to the game being played: it closes when that game does
+  $effect(() => {
+    if (!view?.state && app.replay) app.closeReplay();
+  });
+
   // seconds spent looking for the table, for progress and troubleshooting hints
   let now = $state(Date.now());
   // (only while looking: no timer ticking all game)
@@ -70,7 +75,12 @@
   </div>
 {:else if view.state && view.lobby.started}
   {#key view.lobby.code}
-    <Table {view} display={route.name === 'display'} />
+    <!-- (replaying a finished hand: that moment on the table instead, with no moves to make) -->
+    <Table
+      view={app.replay ? { ...view, state: app.replay.state, status: app.replay.status, actions: [] } : view}
+      display={route.name === 'display'}
+      replay={app.replay}
+    />
   {/key}
 {:else}
   <Lobby {view} />

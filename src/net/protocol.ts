@@ -114,11 +114,28 @@ export interface View {
   state: GameState | null;
   actions: ActionSpec[];
   status: GameStatus | null;
+  /** Finished hands this game the host can replay (see Frame). */
+  replays?: number;
+  /** The hand on the table has just finished (it's the latest of the replays). */
+  handDone?: true;
   /**
    * "Who's there?": the host sent this to a connection that hasn't yet shown the key to the seat
    * it asked for. Not to be shown: the client answers with a hello carrying its key.
    */
   who?: true;
+}
+
+/**
+ * One moment of a finished hand, as one player saw it then (the host keeps the hands; players ask
+ * for a moment at a time). `hand` counts back from the latest (0), `step` from the deal.
+ */
+export interface Frame {
+  hand: number;
+  hands: number;
+  step: number;
+  steps: number;
+  state: GameState;
+  status: GameStatus;
 }
 
 export type ClientMsg =
@@ -138,10 +155,13 @@ export type ClientMsg =
       merge?: NightGame[];
     }
   | { t: 'act'; a: Action; seq: number }
+  /** Replay: the host answers with that moment of that hand (see Frame). */
+  | { t: 'replay'; hand: number; step: number }
   | { t: 'pong'; ts: number };
 
 export type HostMsg =
   | { t: 'view'; view: View }
+  | { t: 'frame'; frame: Frame | null }
   | { t: 'err'; msg: string; seq?: number }
   /** Heartbeat; clients answer with a pong carrying the same timestamp. */
   | { t: 'ping'; ts: number }

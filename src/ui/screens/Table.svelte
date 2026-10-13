@@ -4,7 +4,8 @@
   import { app, inviteUrl } from '../../app.svelte';
   import type { ActionSpec } from '../../engine/types';
   import { getGame } from '../../games';
-  import type { View } from '../../net/protocol';
+  import type { Frame, View } from '../../net/protocol';
+  import ReplayBar from '../components/ReplayBar.svelte';
   import ActionBar from '../components/ActionBar.svelte';
   import Hand from '../components/Hand.svelte';
   import Seat from '../components/Seat.svelte';
@@ -23,7 +24,8 @@
   import { keepAwake } from '../wakeLock';
   import TvSheet from '../components/TvSheet.svelte';
 
-  let { view, display = false }: { view: View; display?: boolean } = $props();
+  /** `replay`: a moment of a finished hand is on screen (the table shows it, quietly). */
+  let { view, display = false, replay = null }: { view: View; display?: boolean; replay?: Frame | null } = $props();
 
   const s = $derived(view.state!);
   const you = $derived(view.you);
@@ -81,7 +83,7 @@
   let lastTurn = -1;
   let lastActor = -1;
   $effect(() => {
-    if (actor === you && (lastActor !== you || s.turn !== lastTurn) && you >= 0) {
+    if (actor === you && (lastActor !== you || s.turn !== lastTurn) && you >= 0 && !replay) {
       haptic(18);
       sound('turn');
     }
@@ -230,7 +232,7 @@
   // ---- sounds: each new move on the table (on the big screen, when there is one), and the end
   let soundsOn = $state(soundOn());
   // a table screen stays quiet when someone at the table has muted it (a Chromecast has no menu)
-  const sound = (x: Sound) => (display && view.lobby.screenSound === false ? undefined : playSound(x));
+  const sound = (x: Sound) => (replay || (display && view.lobby.screenSound === false) ? undefined : playSound(x));
   const screenSoundOn = $derived(view.lobby.screenSound !== false);
   let heard = -1;
   function soundFor(e: { text: string; fromZone?: string; toZone?: string }): Sound | null {
@@ -456,6 +458,9 @@
         <button class="close" onclick={() => (bannerHidden = s.v)} aria-label="Hide">×</button>
         <h2>{status.banner.title}</h2>
         {#each status.banner.lines as line, k (k)}<p><SuitText text={line} /></p>{/each}
+        {#if view.handDone && !display && !replay}
+          <button class="btn small-btn replay-btn" onclick={() => app.showReplay(0, 0)}>Replay this hand</button>
+        {/if}
         {#if s.phase === 'gameOver' && tonight.length}
           <!-- top four, so a nine-player night still fits -->
           <p class="tonight">
@@ -514,6 +519,11 @@
       </div>
     </footer>
     <aside>
+      <!-- (a hand over without a result banner, e.g. everyone folded: offer the replay here) -->
+      {#if view.handDone && !(showBanner && status.banner) && !replay}
+        <button class="btn quiet small-btn replay-quick" onclick={() => app.showReplay(0, 0)}>Replay hand</button>
+      {/if}
+      {#if replay}<ReplayBar frame={replay} />{/if}
       <ActionBar
         actions={view.actions}
         {selected}
@@ -568,6 +578,15 @@
         >
           {app.handMode ? 'Show whole table' : 'Just my hand'}
         </button>
+      {/if}
+      {#if view.replays && !display && !replay}
+        <button
+          class="btn"
+          onclick={() => {
+            app.showReplay(0, 0);
+            sheet = null;
+          }}>Replay the last hand</button
+        >
       {/if}
       {#if !display}<button class="btn" onclick={() => (sheet = 'tv')}>Show on a TV</button>{/if}
       {#if app.isHost}<button class="btn" onclick={() => (sheet = 'look')}>Card backs & cloth</button>{/if}
@@ -966,6 +985,13 @@
     font-family: var(--font-card);
     font-size: 1.35rem;
     color: var(--gold);
+  }
+  .replay-quick {
+    margin-bottom: 0.4rem;
+    width: 100%;
+  }
+  .replay-btn {
+    margin-top: 0.5rem;
   }
   .banner p {
     margin: 0.15rem 0;

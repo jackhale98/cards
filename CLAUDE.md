@@ -39,7 +39,8 @@ src/engine/            pure TS: no DOM, no network, no UI
 src/games/<id>/game.json   a game = a family plus parameters (schemas/game.schema.json)
 src/games/index.ts     registry: game files load with the app (GameInfo), rules only when picked
                        (loadRules / rulesFor); picker sections and search
-src/net/host.ts        the authoritative host: seats, actions, bots, views, backups
+src/net/host.ts        the authoritative host: seats, actions, bots, views, backups, replays
+                       (the last few hands, each moment redacted for whoever asks: ReplayBar)
 src/net/brain.ts       where bots think: botWorker.ts (a Web Worker) in the app, inline in tests
 src/net/client.ts      a player's (or TV's) connection to the host
 src/net/protocol.ts    every message between devices
