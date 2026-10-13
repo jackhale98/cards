@@ -8,9 +8,13 @@ import { cardsLanded } from './wait';
  * builds only). At each new stage the layout is checked (anything off-screen, overlapping or with
  * its text cut off) and a screenshot kept for a person to look over.
  *
- *   AUDIT=1 AUDIT_OUT=audit pnpm exec playwright test e2e/audit.spec.ts --project=dev
+ *   pnpm audit:screens                           every game (about an hour on 4 cores)
+ *   AUDIT_GAMES=holdem,omaha pnpm audit:screens  just these (a few minutes each)
  *
- * Findings land in AUDIT_OUT/<game>-<size>.json, screenshots beside them.
+ * Audit the games a change touches; every game only when it changes the table for all of them
+ * (src/ui/screens/Table.svelte, the shared components, the theme).
+ *
+ * Findings land in AUDIT_OUT/<game>/<run>.json (default audit/), screenshots beside them.
  */
 test.skip(!process.env.AUDIT, 'the screen audit runs on request (AUDIT=1)');
 test.setTimeout(240_000);
@@ -138,9 +142,11 @@ async function check(page: Page): Promise<string[]> {
       const center = all('.table:not(.display) main .zones .card');
       const hand = all('.table:not(.display) footer .card');
       const buttons = all('.table:not(.display) aside button');
-      const text = all('.table:not(.display) main .headline, .table:not(.display) main .last, .table:not(.display) main .track');
+      // (whose turn it is and the last move: above the middle, or on a phone in the column on the left)
+      const text = all('.table:not(.display) .headline, .table:not(.display) .last, .table:not(.display) main .track');
       const seats = all('.table:not(.display) header .seat-slot');
-      const me = all('.table:not(.display) .me');
+      // (your name and status: the column's own part, below whose turn it is when that's there too)
+      const me = all('.table:not(.display) .me-own');
       const labels = all('.table:not(.display) main .zones .label');
       const banner = document.querySelector('.banner');
       const covered = (el: Element) => banner && shown(banner) && meets(rect(el), rect(banner), 0);
@@ -239,6 +245,16 @@ async function check(page: Page): Promise<string[]> {
         );
     });
 
+    // 5b. whose turn it is, in the column on the left, shows whole: not cut off by the column (the
+    // last move may give way, but only whole, never half a line)
+    document.querySelectorAll('.table:not(.display) .side-status').forEach((box) => {
+      const b = box.getBoundingClientRect();
+      box.querySelectorAll('.headline, .last').forEach((el) => {
+        const r = el.getBoundingClientRect();
+        if (r.height && r.top < b.bottom - 1 && r.bottom > b.bottom + 1) out.push(`text cut off: ${name(el)} runs past the bottom of its column`);
+      });
+    });
+
     // 6. the buttons run down beside your hand only when they don't fit beside the middle (and not
     // in a replay or hand mode, which always have them there): otherwise your hand loses its width
     const table = document.querySelector('.table:not(.display):not(.handmode)');
@@ -281,7 +297,11 @@ interface Shot {
   issues: string[];
 }
 
-async function audit(page: Page, g: GameJson, size: keyof typeof SIZES, seats: number, tag: string) {
+/**
+ * `sheets`: also the menu, save and scores sheets (once a game: they hardly change with the
+ * screen or the number of players) and `replay`, the table in a replay (once a screen size).
+ */
+async function audit(page: Page, g: GameJson, size: keyof typeof SIZES, seats: number, tag: string, { sheets = false, replay = false } = {}) {
   const shots: Shot[] = [];
   const dir = `${OUT}/${g.id}`;
   mkdirSync(dir, { recursive: true });
@@ -339,34 +359,38 @@ async function audit(page: Page, g: GameJson, size: keyof typeof SIZES, seats: n
       .first()
       .click()
       .catch(() => page.keyboard.press('Escape'));
-  await page.click('button[aria-label="Menu"]');
-  await snap('menu');
-  if (await page.locator('.sheet button:has-text("Save this game")').count()) {
-    await page.click('.sheet button:has-text("Save this game")');
-    await snap('save');
-  }
-  await close();
-  const scores = page.locator('button[aria-label="Scores and log"]');
-  if (await scores.count()) {
-    await scores.click();
-    await snap('scores');
+  if (sheets) {
+    await page.click('button[aria-label="Menu"]');
+    await snap('menu');
+    if (await page.locator('.sheet button:has-text("Save this game")').count()) {
+      await page.click('.sheet button:has-text("Save this game")');
+      await snap('save');
+    }
     await close();
+    const scores = page.locator('button[aria-label="Scores and log"]');
+    if (await scores.count()) {
+      await scores.click();
+      await snap('scores');
+      await close();
+    }
   }
-  await page.click('button[aria-label="Menu"]');
-  const replay = page.locator('.sheet button:has-text("Replay the last hand")');
-  if (await replay.count()) {
-    await replay.click();
-    await page.locator('.replay').waitFor();
-    await snap('replay');
-  } else await close();
+  if (replay) {
+    await page.click('button[aria-label="Menu"]');
+    const again = page.locator('.sheet button:has-text("Replay the last hand")');
+    if (await again.count()) {
+      await again.click();
+      await page.locator('.replay').waitFor();
+      await snap('replay');
+    } else await close();
+  }
 
   writeFileSync(`${dir}/${tag}.json`, JSON.stringify({ game: g.id, size, seats, errors, shots }, null, 1));
   expect(errors).toEqual([]);
 }
 
 for (const g of GAMES) {
-  test(`${g.name}: small screen`, async ({ page }) => audit(page, g, 'small', recommended(g), 'small'));
-  test(`${g.name}: large screen`, async ({ page }) => audit(page, g, 'large', recommended(g), 'large'));
+  test(`${g.name}: small screen`, async ({ page }) => audit(page, g, 'small', recommended(g), 'small', { sheets: true, replay: true }));
+  test(`${g.name}: large screen`, async ({ page }) => audit(page, g, 'large', recommended(g), 'large', { replay: true }));
   if (most(g) > recommended(g)) test(`${g.name}: small screen, ${most(g)} players`, async ({ page }) => audit(page, g, 'small', most(g), `small-${most(g)}p`));
   if (fewest(g) < recommended(g)) {
     test(`${g.name}: small screen, ${fewest(g)} players`, async ({ page }) => audit(page, g, 'small', fewest(g), `small-${fewest(g)}p`));

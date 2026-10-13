@@ -23,6 +23,7 @@
     "test:watch": "vitest",
     "records": "SELFPLAY=1 vitest run tests/selfplay.bench.test.ts",
     "test:e2e": "playwright test",
+    "audit:screens": "AUDIT=1 playwright test e2e/audit.spec.ts --project=dev --reporter=line",
     "verify": "pnpm check && pnpm lint && pnpm format:check && pnpm test && pnpm build && pnpm -C relay check",
     "verify:all": "pnpm verify && pnpm test:e2e"
   },

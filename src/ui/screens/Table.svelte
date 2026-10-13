@@ -2,7 +2,7 @@
   import { bugReportLink, SUPPORT_URL } from '../contact';
   import SuitText from '../components/SuitText.svelte';
   import { app, inviteUrl } from '../../app.svelte';
-  import type { ActionSpec } from '../../engine/types';
+  import type { ActionSpec, ZoneState } from '../../engine/types';
   import { getGame } from '../../games';
   import type { Frame, View } from '../../net/protocol';
   import ReplayBar from '../components/ReplayBar.svelte';
@@ -20,6 +20,7 @@
   import { flight, haptic, play, snapshot } from '../motion';
   import { play as playSound, setSound, soundOn, type Sound } from '../sound';
   import { fourColourOn, setFourColour } from '../suits';
+  import { isHidden } from '../../engine/redact';
   import { SCREEN_SOUND } from '../../net/host';
   import { seatColor } from '../seatColors';
   import { keepAwake } from '../wakeLock';
@@ -53,6 +54,7 @@
   let headerH = $state(0);
   let mainW = $state(0);
   let mainH = $state(0);
+  let meOwnH = $state(0);
   /**
    * A phone on its side: height is what's short, so whose turn it is and the last move go in the
    * column on the left, and the race to the target (cribbage) in the one on the right.
@@ -116,6 +118,13 @@
       const spare = room - need(1);
       if (spare > 0) hand = Math.min(Math.max(hand, Math.min(160, vh * 0.3, vw * 0.15)), hand + (0.8 * spare) / 1.45);
     }
+    // a phone on its side: the column on the left (whose turn it is, then you) is only as tall as
+    // the middle, so the hand stops short of squeezing it: the middle is what's left of the screen
+    // under the seats once the hand (1.4 card heights and its arc) has its share
+    if (side && meOwnH) {
+      const column = headH + 6 + meOwnH + 8;
+      hand = Math.max(0, Math.min(hand, (vh - headerH - 44 - column) / 1.4));
+    }
     return { center: wantCenter * k, hand, lastFits };
   });
   /**
@@ -146,7 +155,8 @@
       const n = z.faceUpHand ? Math.max(13, z.cards.length) : z.cards.length;
       // (a row of cards: side by side up to four, overlapping from five; a trick: three cards wide)
       const cards = z.layout === 'spread' ? (n < 5 ? Math.max(1, n) * 1.1 * w : w + (n - 1) * 0.55 * w) : z.layout === 'trick' ? 3 * w : w;
-      return Math.max(cards, ((z.label?.length ?? 0) + 4) * 6.6) + gap;
+      const label = Math.max(0, ...(z.label ?? '').split(z.base === 'showdown' ? ' · ' : '\u0000').map((l) => l.length));
+      return Math.max(cards, (label + 3) * 8.5) + gap;
     });
     let rows = 1;
     let x = 0;
@@ -170,13 +180,43 @@
    * they're drawn smaller to fit. A transform doesn't change the layout, so measuring it can't
    * set off another round.
    */
+  /**
+   * Whose turn it is, in the short column on the left of a phone: the headline always shows whole;
+   * the last move only when there's room for all of it (never half a line).
+   */
+  function fitSide(el: HTMLElement) {
+    let frame = 0;
+    const fit = () => {
+      const last = el.querySelector<HTMLElement>('.last');
+      if (!last) return;
+      last.style.display = '';
+      if (el.scrollHeight > el.clientHeight + 1) last.style.display = 'none';
+    };
+    const later = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(fit);
+    };
+    const ro = new ResizeObserver(later);
+    ro.observe(el);
+    const mo = new MutationObserver(later);
+    mo.observe(el, { childList: true, subtree: true, characterData: true });
+    later();
+    return {
+      destroy: () => {
+        cancelAnimationFrame(frame);
+        ro.disconnect();
+        mo.disconnect();
+      },
+    };
+  }
   function fitHeight(el: HTMLElement) {
     const main = el.parentElement!;
     // (the content's own height: the box itself may be squeezed to the room while its cards spill out)
     const fit = () => {
       const room = main.clientHeight - el.offsetTop;
-      const k = el.scrollHeight > room + 1 ? Math.max(0.6, room / el.scrollHeight) : 1;
-      el.style.transform = k < 1 ? `scale(${k.toFixed(3)})` : '';
+      // (too tall, or too wide: a showdown's two seven-card hands side by side on a phone)
+      const k = Math.min(1, room / Math.max(1, el.scrollHeight), main.clientWidth / Math.max(1, el.scrollWidth, el.offsetWidth));
+      el.style.transform = k < 0.999 ? `scale(${Math.max(0.6, k).toFixed(3)})` : '';
     };
     let frame = 0;
     const later = () => {
@@ -230,10 +270,31 @@
 
   const myHandZone = $derived(you >= 0 ? s.zones[`hand:${you}`] : undefined);
   const myHand = $derived(you >= 0 ? (s.zones[`hand:${you}`]?.cards ?? []) : []);
-  const allCenterZones = $derived(Object.values(s.zones).filter((z) => z.area === 'center' && !(z.hideEmpty && !z.cards.length)));
+  /**
+   * Hands turned over at a showdown (poker), laid out in the middle beside the board, labelled with
+   * who and what they hold: the cards move there from the seat (which shows none meanwhile).
+   */
+  const showdownZones = $derived(
+    (status.showdown ?? [])
+      .map(({ seat, label, zones }): ZoneState => ({
+        id: `showdown:${seat}`,
+        base: 'showdown',
+        owner: seat,
+        label,
+        visibility: 'all',
+        layout: 'spread',
+        area: 'center',
+        cards: zones.flatMap((id) => s.zones[id]?.cards ?? []),
+      }))
+      .filter((z) => z.cards.length),
+  );
+  const shownDownSeats = $derived(new Set(showdownZones.map((z) => z.owner)));
+  /** The zones whose cards are on show in the middle: not shown elsewhere meanwhile. */
+  const shownDownZones = $derived(new Set((status.showdown ?? []).flatMap((x) => x.zones)));
+  const allCenterZones = $derived([...Object.values(s.zones).filter((z) => z.area === 'center' && !(z.hideEmpty && !z.cards.length)), ...showdownZones]);
   /** Zones on the compact strip along the bottom of the table (e.g. everyone's melds). */
-  const allStripZones = $derived(Object.values(s.zones).filter((z) => z.area === 'strip' && !(z.hideEmpty && !z.cards.length)));
-  const seatZone = (seat: number) => s.zones[`hand:${seat}`]?.cards ?? [];
+  const allStripZones = $derived(Object.values(s.zones).filter((z) => z.area === 'strip' && !(z.hideEmpty && !z.cards.length) && !shownDownZones.has(z.id)));
+  const seatZone = (seat: number) => (shownDownSeats.has(seat) ? [] : (s.zones[`hand:${seat}`]?.cards ?? []));
 
   // ---- selection --------------------------------------------------------------------------
   let selected = $state<string[]>([]);
@@ -307,7 +368,32 @@
     run(slapSpec);
   }
 
+  /**
+   * Cards that came into your hand (drawn, picked up, passed to you) stay marked until you next
+   * act, so you can see what you got. Not a whole new hand being dealt: every card is new then.
+   * (Worked out here from your hand, before and after: no game has to say.)
+   */
+  let freshIds = $state<string[]>([]);
+  let handBefore: string[] | null = null;
+  $effect(() => {
+    const now = myHand.map((c) => c.id);
+    const before = handBefore;
+    handBefore = now;
+    if (replay || !before) return;
+    const had = new Set(before);
+    const gained = now.filter((id) => !had.has(id) && !isHidden(id));
+    // (a new deal: none of the old hand is left, or a few cards at most beside a lot of new ones)
+    const kept = now.length - gained.length;
+    if (gained.length && (kept === 0 || (gained.length >= 5 && kept <= 2))) {
+      freshIds = [];
+      return;
+    }
+    const still = freshIds.filter((id) => now.includes(id));
+    if (gained.length) freshIds = [...still, ...gained];
+    else if (still.length !== freshIds.length) freshIds = still;
+  });
   function run(spec: ActionSpec, amount?: number, cards = selected, seat?: number) {
+    freshIds = [];
     const timing = spec.react && status.race !== undefined ? { race: status.race, rt: Math.round(Math.max(0, performance.now() - raceSeen.at)) } : {};
     app.act({ type: spec.type, cards: spec.select ? [...cards] : undefined, amount, seat, ...timing });
     if (spec.select) selected = [];
@@ -449,7 +535,15 @@
   // ---- what just happened ------------------------------------------------------------------
   const lastEntry = $derived(s.log.at(-1));
   /** Latest player move, shown under the headline (unless the headline already says it). */
-  const lastMove = $derived(lastEntry && !(status.headline ?? '').includes(lastEntry.text) ? lastEntry : null);
+  // (not when the headline already says it, or the start of it: "Dash wins the pot (1213)" over
+  // "Dash wins the pot (1213) with two pair")
+  const lastMove = $derived(
+    lastEntry &&
+      !(status.headline ?? '').includes(lastEntry.text) &&
+      !(status.headline ?? '').split(' · ').some((part) => part && lastEntry.text.startsWith(part))
+      ? lastEntry
+      : null,
+  );
 
   // ---- sounds: each new move on the table (on the big screen, when there is one), and the end
   let soundsOn = $state(soundOn());
@@ -720,15 +814,15 @@
   <!-- you: a column of your own beside the middle, above your hand, so your hand has the whole width -->
   {#if !display}
     <div class="me" class:side>
-      {#if side}<div class="side-status">{@render tableStatus()}</div>{/if}
-      <div class="me-own">
+      {#if side}<div class="side-status" use:fitSide>{@render tableStatus()}</div>{/if}
+      <div class="me-own" bind:clientHeight={meOwnH}>
         {#if me}
           <div class="me-name">
             <AvatarBadge avatar={lobbySeat(you)?.avatar} name={me.name} seat={you} size={24} /><span class="mn">{me.name}</span>
             {#if myInfo?.tag}<span class="mytag">{myInfo.tag}</span>{/if}
           </div>
           <div class="me-sub">
-            {#if showChips}<b>{me.chips.toLocaleString()}</b> chips{/if}
+            {#if showChips}<span><b>{me.chips.toLocaleString()}</b> chips</span>{/if}
             {#if myInfo?.badge}<span class="gold"><SuitText text={myInfo.badge} /></span>{/if}
           </div>
           {#if status.hint}<div class="hint"><SuitText text={status.hint} /></div>{/if}
@@ -761,15 +855,7 @@
           />
         {:else}
           {#if playFrom?.label}<div class="fan-label eyebrow">{playFrom.label}</div>{/if}
-          <Hand
-            cards={fanCards}
-            cw={handCw}
-            {selected}
-            {selectable}
-            fresh={playFrom ? [] : ((s.data as any)?.received?.[you] ?? [])}
-            ontap={tap}
-            onswipe={swipe}
-          />
+          <Hand cards={fanCards} cw={handCw} {selected} {selectable} fresh={playFrom ? [] : freshIds} ontap={tap} onswipe={swipe} />
         {/if}
       </div>
     </footer>
@@ -1407,12 +1493,20 @@
     min-height: 0;
     max-width: clamp(130px, 24vw, 210px);
   }
+  /* (a short column: the last move gives way first, so nothing runs into your name below) */
   .side-status {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
     gap: 4px;
     min-height: 0;
+    overflow: hidden;
+  }
+  .side-status .last {
+    flex-shrink: 0;
+  }
+  .me.side > .me-own {
+    flex: none;
   }
   .side-status .headline {
     text-align: left;
@@ -1426,12 +1520,9 @@
     align-items: flex-start;
     margin-top: 0;
   }
+  /* (shown whole, or not at all: see fitSide) */
   .side-status .last span {
     white-space: normal;
-    display: -webkit-box;
-    -webkit-line-clamp: 3;
-    line-clamp: 3;
-    -webkit-box-orient: vertical;
   }
   aside > .race {
     flex: none;
@@ -1500,10 +1591,13 @@
     border-radius: 6px;
     padding: 0 4px;
   }
+  /* (chips and your status on one line where they fit: "1,111 chips · Call 63") */
   .me-sub {
     color: var(--ink-dim);
     display: flex;
-    flex-direction: column;
+    flex-wrap: wrap;
+    align-items: baseline;
+    column-gap: 0.4rem;
   }
   .me-sub b {
     color: var(--ink);

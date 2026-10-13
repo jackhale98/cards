@@ -206,15 +206,13 @@
   .dim {
     filter: brightness(0.62) saturate(0.7);
   }
-  .fresh::after {
-    content: '';
-    position: absolute;
-    top: 0.25em;
-    right: 0.25em;
-    width: 0.5em;
-    height: 0.5em;
-    border-radius: 50%;
-    background: var(--gold);
-    box-shadow: 0 0 0.4em var(--gold);
+  /* just came into your hand (drawn, picked up, passed to you): a gold edge all round and a glow,
+     so even the strip of it that shows in a crowded hand says so; and a little lift */
+  .fresh:not(.selected) {
+    transform: translateY(-8%);
+    box-shadow:
+      0 0 0 0.16em var(--gold),
+      0 0 1.1em 0.25em rgba(233, 196, 106, 0.7),
+      0 0.6em 1.2em -0.4em rgba(0, 0, 0, 0.45);
   }
 </style>

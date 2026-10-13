@@ -202,6 +202,12 @@ export interface GameStatus {
   scoreboard?: Scoreboard;
   /** A race-to-N score track (e.g. a cribbage board): one lane per player or team. */
   track?: { target: number; lanes: { label: string; seat: number; score: number; prev: number }[] };
+  /**
+   * Hands turned face up at a showdown, to show in the middle beside the board, each labelled
+   * ("Ada wins · Flush"). Only hands everyone has seen: the cards come from the zones listed (the
+   * seat's hand, and in stud its face-up cards too), which aren't shown elsewhere meanwhile.
+   */
+  showdown?: { seat: number; label: string; zones: string[] }[];
   /** Banner shown at end of a round / game. */
   banner?: { title: string; lines: string[] };
   /** Real-time games: what players are reacting to right now (changes when e.g. a card lands on the pile). */

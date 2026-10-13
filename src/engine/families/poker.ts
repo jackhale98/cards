@@ -581,8 +581,12 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
           headline = o.canCheck ? `${stageName} · your move` : `${stageName} · ${o.toCall} to call`;
           if (opening(s) && !mayOpen(s, viewer)) headline = `${stageName} · you need jacks or better to open`;
         } else headline = `${stageName} · ${name(s, s.turn)} to act`;
-      } else if (s.phase === 'handOver') headline = d.result?.lines.join(' · ') ?? 'Hand over';
-      else if (s.phase === 'gameOver') headline = 'Game over';
+      } else if (s.phase === 'handOver') {
+        // (after a showdown the hands lie in the middle, labelled with what each holds: the
+        // headline needn't say it again, just who won what)
+        const turned = s.players.some((p) => !d.b.folded[p.seat] && hand(s, p.seat).cards.length > 0 && hand(s, p.seat).cards.every((c) => c.up));
+        headline = d.result?.lines.map((l) => (turned ? l.replace(/ with [^·]*$/, '') : l)).join(' · ') ?? 'Hand over';
+      } else if (s.phase === 'gameOver') headline = 'Game over';
 
       const handName = (seat: number) => {
         const cards = cardsOf(s, seat);
@@ -593,15 +597,43 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
         return evaluate(cards, board).name;
       };
 
+      // a showdown: everyone's hand that was turned over (all face up), the winners first, beside
+      // the board (your own stays in your hand at the bottom)
+      const shownDown =
+        s.phase === 'handOver' || s.phase === 'gameOver'
+          ? s.players
+              .map((p) => p.seat)
+              .filter((i) => i !== viewer && !d.b.folded[i] && !d.b.out[i] && hand(s, i).cards.length > 0 && hand(s, i).cards.every((c) => c.up))
+              .sort((a, b) => Number(!!d.result?.winners?.includes(b)) - Number(!!d.result?.winners?.includes(a)))
+              .map((i) => {
+                const won = !!d.result?.winners?.includes(i);
+                const what = handName(i);
+                return {
+                  seat: i,
+                  label: `${name(s, i)}${won ? ' wins' : ''}${what ? ` · ${what}` : ''}`,
+                  zones: stud ? [`hand:${i}`, `up:${i}`] : [`hand:${i}`],
+                };
+              })
+          : [];
       return {
         headline,
         pot: bet.potTotal(d.b) + (d.carry ?? 0),
         seats: s.players.map((_p, i) => ({
           out: d.b.out[i] || d.b.folded[i],
-          badge: d.b.out[i] ? 'Out' : d.b.folded[i] ? 'Folded' : (d.acted?.[i] ?? (d.b.allIn[i] ? 'All in' : d.b.bets[i] ? `Bet ${d.b.bets[i]}` : undefined)),
+          // (once the hand is over its last bets are history: who won it, instead)
+          badge: d.b.out[i]
+            ? 'Out'
+            : d.b.folded[i]
+              ? 'Folded'
+              : s.phase === 'handOver' || s.phase === 'gameOver'
+                ? d.result?.winners.includes(i)
+                  ? 'Won'
+                  : undefined
+                : (d.acted?.[i] ?? (d.b.allIn[i] ? 'All in' : d.b.bets[i] ? `Bet ${d.b.bets[i]}` : undefined)),
           tag: i === d.button ? 'D' : undefined,
         })),
         hint: viewer >= 0 ? handName(viewer) : undefined,
+        showdown: shownDown.length ? shownDown : undefined,
         banner: s.phase === 'gameOver' ? { title: `${s.winner!.map((w) => name(s, w)).join(' & ')} wins it all!`, lines: d.result?.lines ?? [] } : undefined,
       };
     },

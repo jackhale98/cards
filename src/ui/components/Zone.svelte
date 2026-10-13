@@ -54,7 +54,11 @@
 
 <div class="zone" data-zone={zone.id} data-layout={zone.layout} style:--cw="{cw}px">
   {#if zone.label && zone.layout !== 'trick'}<div class="label eyebrow" data-flip>
-      <SuitText text={zone.label} />{#if zone.layout === 'stack' && !zone.cascade}
+      <!-- (a hand turned over at a showdown: who, then what, on two short lines, so the label is no
+           wider than the hand) -->
+      {#if zone.base === 'showdown'}{#each zone.label.split(' · ') as line, i (i)}<span class="line"><SuitText text={line} /></span>{/each}{:else}<SuitText
+          text={zone.label}
+        />{/if}{#if zone.layout === 'stack' && !zone.cascade}
         · {zone.cards.length}{/if}
     </div>{/if}
 
@@ -137,6 +141,10 @@
     align-items: center;
     gap: 0.35rem;
     min-width: 0;
+  }
+  .label .line {
+    display: block;
+    text-align: center;
   }
   .label {
     font-size: 0.7rem;

@@ -143,3 +143,64 @@ describe('the result at a showdown', () => {
     expect(merged).toBeGreaterThan(0);
   });
 });
+
+describe('a showdown on the table', () => {
+  /** Bots play a hand of `game` from `seed` until it ends; the state then. */
+  async function toHandOver(game: string, players: number, seed: number) {
+    const { GAMES } = await import('./games');
+    const g = GAMES[game] as GameModule<{ b: { folded: boolean[] }; result: { winners: number[] } | null }>;
+    let s = g.setup(
+      Array.from({ length: players }, (_, i) => ({ name: `P${i}`, bot: true })),
+      seed,
+      {},
+    );
+    s.options.botLevel = 0;
+    for (let i = 0; i < 2000 && s.phase !== 'handOver' && s.phase !== 'gameOver'; i++) {
+      const sys = g.system?.(s);
+      const next = structuredClone(s);
+      if (sys) sys.run(next);
+      else {
+        const seat = s.players.find((p) => g.bot!(s, p.seat))?.seat;
+        if (seat == null) break;
+        g.apply(next, seat, g.bot!(s, seat)!);
+      }
+      s = next;
+    }
+    return { g, s };
+  }
+
+  it.each([
+    ['holdem', ['hand']],
+    ['seven-card-stud', ['hand', 'up']],
+  ])('%s: the hands turned over go in the middle, winners first, labelled', async (game, zones) => {
+    let checked = 0;
+    for (let seed = 1; seed <= 40 && checked < 3; seed++) {
+      const { g, s } = await toHandOver(game, 3, seed);
+      const shown = g.status(s, -1).showdown;
+      if (!shown) continue;
+      checked++;
+      for (const x of shown) {
+        expect(s.data.b.folded[x.seat]).toBe(false);
+        expect(x.zones).toEqual(zones.map((z) => `${z}:${x.seat}`));
+        // only cards everyone has seen
+        expect(x.zones.flatMap((z) => s.zones[z].cards).every((c) => c.up !== false)).toBe(true);
+        expect(x.label).toMatch(new RegExp(`^P${x.seat}( wins)? · `));
+      }
+      const won = shown.map((x) => s.data.result!.winners.includes(x.seat));
+      expect(won).toEqual([...won].sort((a, b) => Number(b) - Number(a)));
+      // a player sees their own hand at the bottom, not again in the middle
+      for (const x of shown) expect(g.status(s, x.seat).showdown?.some((y) => y.seat === x.seat) ?? false).toBe(false);
+    }
+    expect(checked).toBeGreaterThan(0);
+  });
+
+  it('shows nothing when everyone else folded (no cards were turned over)', async () => {
+    for (let seed = 1; seed <= 60; seed++) {
+      const { g, s } = await toHandOver('holdem', 3, seed);
+      if (s.data.b.folded.filter(Boolean).length !== 2) continue;
+      expect(g.status(s, -1).showdown).toBeUndefined();
+      return;
+    }
+    throw new Error('no hand ended with everyone else folding');
+  });
+});
