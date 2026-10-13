@@ -143,8 +143,7 @@ small SQLite-backed Durable Object, counting repeats. To read them, set a secret
 → add a secret) and open `https://relay.lamplight.cards/reports?key=<that secret>`. Without the secret
 the page doesn't exist.
 
-The relay deploys separately from `relay/` (`npx wrangler deploy`, or connect the repo in
-Cloudflare with root directory `relay`). Test it locally with `npx wrangler dev` in `relay/`,
+The relay deploys separately, from `relay/`: Cloudflare builds and deploys it from `main` by itself (the repo is connected in Cloudflare with root directory `relay`; `npx wrangler deploy` there does it by hand). Keep relay protocol changes working with the site one version behind, since the two go live independently. Test it locally with `npx wrangler dev` in `relay/`,
 `node smoke.mjs`, and the app at `?relay=ws://127.0.0.1:8787` (honoured only on localhost or a dev server) (`&net=relay` to skip the public
 networks).
 
