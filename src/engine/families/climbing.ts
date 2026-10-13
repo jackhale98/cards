@@ -1,29 +1,10 @@
 import { parseCard, rankLabel } from '../cards';
 import { createState, deal, hand, ids, log, moveCards, name, placesFromScores, resetDeck, zone } from '../state';
 import { botBudget, dealUnseen, fork, playOut, searchMove, type SearchGame } from '../bots/search';
-import { assertRule, type Action, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
+import { familyRules, assertRule, type Action, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
 import { ownOnly } from '../redact';
-
-/**
- * Climbing games: play a card or a set that beats the last play, or pass; first out wins.
- * President (also Scum, Asshole). Configured from `game.json`:
- *
- * ```jsonc
- * "rules": { "family": "climbing", "style": "president", "end": { "target": 11 } }
- * ```
- * All cards are dealt. 2 is high, 3 low. A play is one card or a set of one rank; the next play must
- * be the same number of cards of a higher rank. Passing doesn't stop you playing later in the same
- * round; once everyone else passes, the pile is cleared and whoever played last leads again. Finishing order gives titles:
- * President (2 points), Vice-President (1), Citizens, Vice-Scum, Scum. From the second hand the Scum
- * hands over their 2 best cards and the President gives back any 2 (1 card between Vice-Scum and
- * Vice-President with four or more players). The holder of the 3♣ leads the first hand, the
- * President after that. First to the target wins.
- */
-export interface ClimbingRules {
-  family: 'climbing';
-  style: 'president';
-  end: { target: number };
-}
+/** This family's settings in game.json (generated from the schema). */
+export type { ClimbingRules } from '../schema.gen';
 
 export interface ClimbingData {
   handNo: number;
@@ -71,7 +52,7 @@ export function titleFor(place: number, n: number): string {
 const POINTS: Record<string, number> = { President: 2, 'Vice-President': 1 };
 
 export function climbingFamily(config: GameConfig): GameModule<ClimbingData> {
-  const R = config.rules as unknown as ClimbingRules;
+  const R = familyRules(config, 'climbing');
   const target = (s: S) => Number(s.options.target ?? R.end.target);
   const inPlay = (s: S, seat: number) => hand(s, seat).cards.length > 0;
   /** The next seat in play order (by rank after the first hand), skipping any `skip` says. */

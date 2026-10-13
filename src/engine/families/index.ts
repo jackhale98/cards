@@ -29,7 +29,9 @@ export const FAMILIES: Record<string, (config: GameConfig) => Promise<Family>> =
   spoons: () => import('./spoons').then((m) => m.spoonsFamily),
   // Gin (two players, knock) or Rummy 500 (melds on the table, any number)
   rummy: (config) =>
-    (config.rules as { style?: string }).style === '500' ? import('./rummy500').then((m) => m.rummy500Family) : import('./rummy').then((m) => m.rummyFamily),
+    config.rules?.family === 'rummy' && config.rules.style === '500'
+      ? import('./rummy500').then((m) => m.rummy500Family)
+      : import('./rummy').then((m) => m.rummyFamily),
 };
 
 /** Load a game's rules engine (the family's code, set up with the game's parameters). */

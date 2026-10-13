@@ -1,87 +1,34 @@
 import type { RngState, Seed } from './rng';
-import type { DeckSpec } from './cards';
 
 // ---------------------------------------------------------------------------
-// Game configuration (the `game.json` file of each game, see schemas/game.schema.json)
+// Game configuration: the `game.json` of each game. Its types are generated from
+// schemas/game.schema.json (pnpm gen:types), the one place the format is defined.
 // ---------------------------------------------------------------------------
 
-export type Visibility = 'all' | 'owner' | 'none';
-export type Layout = 'fan' | 'stack' | 'spread' | 'trick';
+import type { GameConfig, Rules, ZoneConfig } from './schema.gen';
+export type { DealStep, DeckSpec, GameConfig, GameOption, Rules, ZoneConfig } from './schema.gen';
+
+export type Visibility = ZoneConfig['visibility'];
+export type Layout = ZoneConfig['layout'];
 /** `strip`: a compact row along the bottom of the table that scrolls sideways (e.g. everyone's melds). */
-export type Area = 'hand' | 'center' | 'strip' | 'seat' | 'none';
+export type Area = ZoneConfig['area'];
 
-export interface ZoneConfig {
-  id: string;
-  label?: string;
-  /** One copy of this zone per seat, with ids `<id>:<seat>`. */
-  perPlayer?: boolean;
-  visibility: Visibility;
-  layout: Layout;
-  area: Area;
-  /** Don't draw the zone while it's empty. */
-  hideEmpty?: boolean;
-  /** Card size relative to other table cards (e.g. 0.6 for many small melds). */
-  scale?: number;
-  /** A stack that shows its top few cards overlapping, not just the top one (slap games). */
-  peek?: number;
-}
+/** The settings of a rules family (both kinds, for rummy: narrow by `style`). */
+export type FamilyRules<F extends Rules['family']> = Extract<Rules, { family: F }>;
 
-export interface DealStep {
-  /** Zone id to deal into. Per-player zones receive `count` cards each. */
-  to: string;
-  count: number;
-  faceUp?: boolean;
-}
-
-export interface GameConfig {
-  id: string;
-  name: string;
-  tagline: string;
-  /** Other names the game goes by, so the picker's search finds it ("ERS", "Bullshit"). */
-  aliases?: string[];
-  /** Short glyph shown on the game tile when the game has no drawing in GameIcon.svelte. */
-  icon: string;
-  /** Picker section ("Poker", "Trick-taking", …); by default it follows the rules family. */
-  category?: string;
-  /** `counts`: only these numbers of players (e.g. canasta: 2 or 4), when not every count from min to max works. */
-  players: { min: number; max: number; recommended?: number; counts?: number[] };
-  /** Seats that may be filled by bots, if the game supports them. */
-  bots?: boolean;
-  deck: DeckSpec;
-  zones: ZoneConfig[];
-  deal?: DealStep[];
-  /** Starting stack, blinds, and (draw poker) the ante. */
-  chips?: { start: number; smallBlind?: number; bigBlind?: number; ante?: number };
-  /** Hand sorting preference. */
-  sort?: { aceLow?: boolean };
-  /** Enables generic undo in the host. */
-  undo?: boolean;
-  rulesSummary?: string[];
-  /** Free-form game options shown in the lobby. */
-  options?: GameOption[];
-  /**
-   * Which family engine runs the game and how it is configured. Families: `free` (default,
-   * no rules enforced), `trick-taking`, `poker`. Each family documents its own parameters.
-   */
-  rules?: { family: string; [param: string]: unknown };
-  /**
-   * Changes for a particular number of players, keyed by the count: rule parameters merged over
-   * `rules`, and deck settings over `deck` (Hearts for three takes out the 2♦ and passes left,
-   * right, hold). The game runs with the merged config at that table size.
-   */
-  byPlayers?: Record<string, { rules?: Record<string, unknown>; deck?: DeckSpec }>;
-}
-
-export interface GameOption {
-  id: string;
-  label: string;
-  type: 'number' | 'boolean';
-  default: number | boolean;
-  min?: number;
-  max?: number;
-  step?: number;
-  /** A number option shown as named choices: the value is the index ("Easy", "Normal", "Hard"). */
-  choices?: string[];
+/**
+ * A game's rules settings, as the family it names: checked, so a family never runs on another's
+ * settings. `style` picks one kind within a family (rummy: `gin` or `500`).
+ */
+export function familyRules<F extends Rules['family'], S extends string = never>(
+  config: GameConfig,
+  family: F,
+  style?: S,
+): [S] extends [never] ? FamilyRules<F> : Extract<FamilyRules<F>, { style: S }> {
+  const r = config.rules;
+  if (r?.family !== family) throw new Error(`${config.id}: the ${family} family can't run ${r?.family ?? 'free'} rules`);
+  if (style !== undefined && (r as { style?: string }).style !== style) throw new Error(`${config.id}: expected ${family} rules in the ${style} style`);
+  return r as never;
 }
 
 // ---------------------------------------------------------------------------

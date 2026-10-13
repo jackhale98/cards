@@ -3,7 +3,7 @@ import { createState, deal, hand, log, name, nextSeat, placesFromScores, resetDe
 import { rngSalt, shuffle } from '../rng';
 import { botLevel } from '../bots/search';
 import { msUntil, REACTION_WINDOW, span } from '../lib/realtime';
-import { assertRule, type Action, type ActionSpec, type CardRef, type GameConfig, type GameModule, type GameState } from '../types';
+import { assertRule, familyRules, type Action, type ActionSpec, type CardRef, type GameConfig, type GameModule, type GameState } from '../types';
 
 /**
  * Slap games, played in real time: Slapjack and Egyptian Rat Screw (pagat.com/war/slapjack.html,
@@ -64,7 +64,7 @@ const TRIES: Record<number, number> = { 11: 1, 12: 2, 13: 3, 14: 4 };
 const RANK_WORD: Record<number, string> = { 11: 'jack', 12: 'queen', 13: 'king', 14: 'ace' };
 
 export function slapFamily(config: GameConfig): GameModule<SlapData> {
-  const style = (config.rules as { style?: string }).style === 'ers' ? 'ers' : 'slapjack';
+  const style = familyRules(config, 'slap').style;
   const ers = style === 'ers';
 
   const count = (s: S, seat: number) => hand(s, seat).cards.length;

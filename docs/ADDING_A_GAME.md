@@ -33,8 +33,12 @@ src/games/my-game/
 | `pinochle`     | Partnership auction Pinochle: bid, pass four, meld, must-beat trick play                                                                                                        | `src/engine/families/pinochle.ts`                                                                                                                                                                                |
 
 `schemas/game.schema.json` describes every parameter, so editors like VS Code give you
-autocomplete and validation as you type (each file points at it with `$schema`). `pnpm test`
-also validates every game file.
+autocomplete and validation as you type (each file points at it with `$schema`). It is the one
+definition of the format: the TypeScript types the engine uses (`src/engine/schema.gen.ts`: one
+named type per family's settings, `PokerRules`, `TrickTakingRules`…) are generated from it with
+`pnpm gen:types`. A family reads its settings with `familyRules(config, 'poker')`, which checks
+the family. `pnpm test` validates every game file, each `byPlayers` table size merged in, and
+that the generated types are up to date.
 
 **Picker section.** Games are grouped in the lobby by kind (`CATEGORIES` in `src/games/index.ts`: Poker, Casino, Trick-taking, Rummy, Shedding, Family, Speed, More), chosen from the rules family (`BY_FAMILY`, same file); set `"category"` in `game.json` to put a game somewhere else. `"aliases"` (other names people know it by) help the picker's search find it.
 
@@ -141,11 +145,13 @@ The host enforces visibility: cards a player can't see are replaced with anonymo
 
 ## When a game needs something new
 
-1. **A missing variation of an existing family** (say, Hearts with the J♦ worth −10): add a
-   parameter to that family engine and the schema. Every game in the family can then use it.
-2. **A new kind of game** (rummy melds, cribbage pegging): write a new family in
-   `src/engine/families/`, register it in `families/index.ts`, and add its parameters to the
-   schema. Families implement the `GameModule` interface in `src/engine/types.ts`.
+1. **A missing variation of an existing family** (say, Hearts with the J♦ worth −10): add the
+   parameter to the family's definition in the schema (`$defs`, with a description), run
+   `pnpm gen:types`, then use it in the family engine. Every game in the family can then use it.
+2. **A new kind of game** (rummy melds, cribbage pegging): add its settings to the schema as a new
+   `$defs` entry (`"title": "XRules"`, `family` a `const`) listed in `rules.oneOf`, run
+   `pnpm gen:types`, then write the family in `src/engine/families/`, register it in
+   `families/index.ts`. Families implement the `GameModule` interface in `src/engine/types.ts`.
 3. **A true one-off**: put a `rules.ts` that exports a `GameModule` in the game's folder. It
    overrides the family.
 
@@ -181,7 +187,8 @@ game's own rules (fix a seed, set cards straight into `s.zones[…]` for a scena
 ### Checklist
 
 1. `src/games/<id>/game.json` (copy the closest game; `$schema` gives autocomplete).
-2. Anything new in a family → its engine, `schemas/game.schema.json`, and the table above.
+2. Anything new in a family → `schemas/game.schema.json` first, `pnpm gen:types`, then its
+   engine, and the table above.
 3. A new family → `src/engine/families/<name>.ts`, registered in `families/index.ts` (a lazy
    import), its traits (bots? bot strengths? real time?) in `families/traits.ts`, and a picker
    section in `BY_FAMILY`. `tests/traits.test.ts` checks the traits against the engine.

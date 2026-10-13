@@ -1,26 +1,9 @@
 import { buildDeck, cardLabel, parseCard } from '../cards';
 import { shuffle } from '../rng';
 import { createState, hand, ids, log, moveCards, moveTop, name, placesFromScores, zone } from '../state';
-import { assertRule, type Action, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
-
-/**
- * Blackjack against the house (pagat.com/banking/blackjack.html). Configured from `game.json`:
- *
- * ```jsonc
- * "rules": { "family": "blackjack", "minBet": 10, "maxBet": 500 }
- * ```
- * Everyone bets, then gets two cards face up; the dealer (the host's phone, playing the house) gets
- * one up and a hole card. With an ace showing, players may insure for half their bet. The dealer
- * peeks under an ace or ten for blackjack. Players then hit, stand, double down (two cards only),
- * split pairs (up to four hands; split aces get one card each) or, as an option, surrender. The
- * dealer draws to 17 (standing on soft 17 unless the option says otherwise). Wins pay 1:1, a
- * blackjack 3:2, insurance 2:1; ties push. Play a set number of rounds: most chips wins.
- */
-export interface BlackjackRules {
-  family: 'blackjack';
-  minBet: number;
-  maxBet: number;
-}
+import { familyRules, assertRule, type Action, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
+/** This family's settings in game.json (generated from the schema). */
+export type { BlackjackRules } from '../schema.gen';
 
 export interface BjHand {
   cards: string[];
@@ -70,7 +53,7 @@ const value = (id: string) => Math.min(parseCard(id).rank === 14 ? 11 : parseCar
 const isBlackjack = (h: BjHand): boolean => h.cards.length === 2 && !h.split && handTotal(h.cards).total === 21;
 
 export function blackjackFamily(config: GameConfig): GameModule<BlackjackData> {
-  const R = config.rules as unknown as BlackjackRules;
+  const R = familyRules(config, 'blackjack');
   const decks = (s: S) => Number(s.options.decks ?? 2);
   const rounds = (s: S) => Number(s.options.rounds ?? 10);
   const minBet = (s: S) => Number(s.options.minBet ?? R.minBet);

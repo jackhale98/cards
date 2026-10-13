@@ -1,30 +1,11 @@
 import { parseCard, rankLabel } from '../cards';
 import { cardPoints, groupByRank, isBlackThree, isRedThree, isWild } from '../lib/canastaCards';
 import { createState, hand, ids, log, moveCards, moveTop, name, nextSeat, placesFromScores, resetDeck, showHands, zone } from '../state';
-import { assertRule, type Action, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
+import { familyRules, assertRule, type Action, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
 import { ownOnly } from '../redact';
 import { acrossTeams, sideName, soloTeams, teamIndex } from '../lib/teams';
-
-/**
- * Classic Canasta. Two to six players: two alone, three alone until someone takes the pile (then that
- * player against the other two), four as two pairs, six as three pairs. Configured from
- * `game.json`:
- *
- * ```jsonc
- * "rules": { "family": "canasta", "end": { "target": 5000 } }
- * ```
- * Two decks and four jokers; jokers and 2s are wild. Melds are sets of one rank (3+ cards, at
- * least 2 natural, at most 3 wild); seven make a canasta (500 natural, 300 mixed). Each turn: draw
- * from the stock (two cards head to head) or take the whole discard pile by melding its top card,
- * meld, then discard. Red threes are bonuses laid out at once; black threes block the pile. A side's
- * first meld must reach a minimum that rises with its score, and you need a canasta (two head to
- * head) to go out. With partners you may ask "may I go out?" (the answer binds). Once the stock is
- * empty play goes on while players take the discard (they must when it matches their side's meld).
- */
-export interface CanastaRules {
-  family: 'canasta';
-  end: { target: number };
-}
+/** This family's settings in game.json (generated from the schema). */
+export type { CanastaRules } from '../schema.gen';
 
 export interface CanastaMeld {
   team: number;
@@ -108,7 +89,7 @@ export function groupMeld(cards: string[], existing: number[] = [], existingWild
 }
 
 export function canastaFamily(config: GameConfig): GameModule<CanastaData> {
-  const R = config.rules as unknown as CanastaRules;
+  const R = familyRules(config, 'canasta');
   const target = (s: S) => Number(s.options.target ?? R.end.target);
   const twoHanded = (s: S) => s.players.length === 2;
   /** Three players: everyone alone until someone takes the pile, then that player against the other two. */

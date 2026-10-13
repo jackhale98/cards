@@ -2,26 +2,9 @@ import { cardLabel, cardName, parseCard, rankLabel, SUIT_NAME, SUIT_SYMBOL, type
 import { shuffle } from '../rng';
 import { createState, hand, ids, log, moveCards, moveTop, name, placesFromScores, resetDeck, sortHand, zone } from '../state';
 import { botBudget, dealUnseen, edge, fork, playOut, searchMove, type SearchGame } from '../bots/search';
-import { assertRule, type Action, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
-
-/**
- * Crazy Eights (pagat.com/eights/crazy8s.html). Configured from `game.json`:
- *
- * ```jsonc
- * "rules": { "family": "eights", "end": { "target": 100 } }
- * ```
- * Five cards each (seven with two players). In turn, play a card matching the rank or suit of the
- * top of the pile, or draw one card. An eight can go on anything and names the suit to follow. Say
- * "last card" when you're down to one, or draw two. When the stock runs out the pile (all but its top
- * card) is shuffled into a new stock. The first out wins the hand; the others score penalty points
- * for the cards they hold (eights 50, pictures 10, others their face value, ace 1). With the
- * `specials` option: a queen skips the next player, an ace reverses direction, a two makes the next
- * player draw two (or play another two, passing on the lot).
- */
-export interface EightsRules {
-  family: 'eights';
-  end: { target: number };
-}
+import { familyRules, assertRule, type Action, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
+/** This family's settings in game.json (generated from the schema). */
+export type { EightsRules } from '../schema.gen';
 
 export interface EightsData {
   handNo: number;
@@ -54,7 +37,7 @@ export function eightsPoints(id: string): number {
 }
 
 export function eightsFamily(config: GameConfig): GameModule<EightsData> {
-  const R = config.rules as unknown as EightsRules;
+  const R = familyRules(config, 'eights');
   const target = (s: S) => Number(s.options.target ?? R.end.target);
   const specials = (s: S) => s.options.specials !== false;
   const lastCardRule = (s: S) => s.options.lastCard !== false;

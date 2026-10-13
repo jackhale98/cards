@@ -108,7 +108,7 @@ export function roundScores(g: TrickGame, s: S): { deltas: number[]; lines: stri
     });
   } else {
     // contract (spades-style): team bid vs team tricks, nil bids scored separately
-    const nilBonus = (sc as { nil?: number }).nil ?? 100;
+    const nilBonus = sc.nil ?? 100;
     teams.forEach((t, ti) => {
       let bid = 0;
       let won = 0;
@@ -133,9 +133,9 @@ export function roundScores(g: TrickGame, s: S): { deltas: number[]; lines: stri
           newBags += won - bid;
         } else deltas[ti] -= bid * 10;
       }
-      deltas[ti] += newBags * ((sc as { overtrick?: number }).overtrick ?? 1);
+      deltas[ti] += newBags * (sc.overtrick ?? 1);
       d.bags[ti] += newBags;
-      const bags = (sc as { bags?: { every: number; penalty: number } }).bags;
+      const bags = sc.bags;
       while (bags && d.bags[ti] >= bags.every) {
         d.bags[ti] -= bags.every;
         deltas[ti] -= bags.penalty;

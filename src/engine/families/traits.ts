@@ -38,6 +38,6 @@ const BY_FAMILY: Record<string, Traits> = {
 export function traitsOf(config: GameConfig): Traits {
   const family = config.rules?.family ?? 'free';
   // (rummy: Gin's bots think harder at higher levels; Rummy 500's don't)
-  if (family === 'rummy') return T(true, (config.rules as { style?: string }).style !== '500');
+  if (config.rules?.family === 'rummy') return T(true, config.rules.style !== '500');
   return BY_FAMILY[family] ?? T(false, false);
 }

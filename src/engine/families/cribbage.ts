@@ -19,30 +19,10 @@ import {
   zone,
 } from '../state';
 import { botBudget, dealUnseen, edge, fork, playOut, searchMove, shuffled, type SearchGame } from '../bots/search';
-import { assertRule, type Action, type GameConfig, type GameModule, type GameState } from '../types';
+import { familyRules, assertRule, type Action, type GameConfig, type GameModule, type GameState } from '../types';
 import { acrossTeams, sideName, soloTeams, teamIndex } from '../lib/teams';
-
-/**
- * Cribbage family. Configured from `game.json`:
- *
- * ```jsonc
- * "rules": { "family": "cribbage", "target": 121 }
- * ```
- * 2 players: 6 cards each, 2 to the crib. 3 players: 5 each, 1 to the crib plus 1 from the deck.
- * 4 players: partners across, 5 each, 1 to the crib.
- *
- * Option `muggins` (on/off): players count their own hand and crib instead of the game scoring
- * them. Opponents then accept the count or call "muggins" with what they say it's really worth
- * (American Cribbage Congress rules 8.4 and 10):
- * - points a player misses go to the opponent who spots them (up to what was really missed);
- * - an overcount is cut back to the true value and the opponent scores the excess;
- * - a wrong muggins call gives the player the difference the caller claimed, as a penalty.
- * Pegging during the play and his heels are still scored automatically.
- */
-export interface CribbageRules {
-  family: 'cribbage';
-  target: number;
-}
+/** This family's settings in game.json (generated from the schema). */
+export type { CribbageRules } from '../schema.gen';
 
 export interface CribData {
   /** Per team (one team per player except in 4-player partnerships). */
@@ -77,7 +57,7 @@ const LAYOUT: Record<number, { deal: number; discard: number; fromDeck: number }
 };
 
 export function cribbageFamily(config: GameConfig): GameModule<CribData> {
-  const R = config.rules as unknown as CribbageRules;
+  const R = familyRules(config, 'cribbage');
   const target = (s: S) => Number(s.options.target ?? R.target);
   // four play as partners, sitting opposite
   const teamsFor = (n: number) => (n === 4 ? acrossTeams(n) : soloTeams(n));

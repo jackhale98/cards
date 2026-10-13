@@ -1,28 +1,9 @@
 import { cardName, cardOrJokerLabel, parseCard, rankLabel, SUIT_SYMBOL } from '../cards';
 import { createState, hand, ids, log, moveCards, moveTop, name, nextSeat, placesFromScores, resetDeck, showHands, zone } from '../state';
-import { assertRule, type Action, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
+import { familyRules, assertRule, type Action, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
 import { ownOnly } from '../redact';
-
-/**
- * Rummy 500 (500 Rum), 2–8 players. Configured from `game.json`:
- *
- * ```jsonc
- * "rules": { "family": "rummy", "style": "500", "end": { "target": 500 } }
- * ```
- * Deal 13 each with two players, 7 with more (two decks for five or six). Each turn: draw the top
- * of the stock, or take any card from the spread-out discard pile together with everything above
- * it (the deepest card taken must be melded this turn), then meld sets and runs, lay off on anyone's
- * melds, and discard. Every card you meld or lay off scores for you; cards left in hand count
- * against you when someone goes out. Aces are high or low (15 points, 1 in an A-2-3 run). Jokers
- * are wild (15 points) and stand for a card the player declares; it can't change afterwards. If a
- * discard leaves a card in the pile that could be melded without anyone's hand, any other player may
- * call "Rummy!" before the next draw, take it and play on from there.
- */
-export interface Rummy500Rules {
-  family: 'rummy';
-  style: '500';
-  end: { target: number };
-}
+/** This family's settings in game.json (generated from the schema). */
+export type { Rummy500Rules } from '../schema.gen';
 
 /** A meld on the table. Laid-off cards join it but score for whoever laid them off. */
 export interface TableMeld {
@@ -221,7 +202,7 @@ export function findMelds(cards: string[]): string[][] {
 }
 
 export function rummy500Family(config: GameConfig): GameModule<Rummy500Data> {
-  const R = config.rules as unknown as Rummy500Rules;
+  const R = familyRules(config, 'rummy', '500');
   const target = (s: S) => Number(s.options.target ?? R.end.target);
   const pile = (s: S) => ids(zone(s, 'discard'));
   const meldOf = (s: S, card: string) => s.data.melds.find((m) => m.cards.includes(card));

@@ -99,7 +99,7 @@ export function trickActions(g: TrickGame, s: S, seat: number): ActionSpec[] {
         },
       });
   } else if (s.phase === 'blind' && s.turn === seat) {
-    out.push({ type: 'blindNil', label: `Bid blind nil · ${((R.scoring as { nil?: number }).nil ?? 100) * 2}`, style: 'danger' });
+    out.push({ type: 'blindNil', label: `Bid blind nil · ${((R.scoring.type === 'contract' ? R.scoring.nil : undefined) ?? 100) * 2}`, style: 'danger' });
     out.push({ type: 'look', label: 'Look at my cards', style: 'primary' });
   } else if (s.phase === 'blindPass' && s.turn === seat) {
     out.push({

@@ -1,25 +1,9 @@
 import { buildDeck, cardLabel, parseCard } from '../cards';
 import { shuffle } from '../rng';
 import { createState, ids, log, moveCards, moveTop, name, placesFromScores, zone } from '../state';
-import { assertRule, type Action, type GameConfig, type GameModule, type GameState } from '../types';
-
-/**
- * Baccarat, Punto Banco style (pagat.com/banking/baccara.html). Configured from `game.json`:
- *
- * ```jsonc
- * "rules": { "family": "baccarat", "minBet": 10, "maxBet": 500 }
- * ```
- * Everyone bets on the Player hand, the Banker hand or a Tie; the house then deals both hands by
- * fixed rules, so nobody makes a choice once the bets are down. Cards count face value, aces 1,
- * tens and faces 0, and only the last digit of the total matters. A natural (8 or 9 on two cards)
- * stands. Otherwise the Player draws a third card on 0–5; the Banker draws by the standard table.
- * Player pays 1:1, Banker 1:1 less 5% commission, Tie 8:1 (Player and Banker bets push on a tie).
- */
-export interface BaccaratRules {
-  family: 'baccarat';
-  minBet: number;
-  maxBet: number;
-}
+import { familyRules, assertRule, type Action, type GameConfig, type GameModule, type GameState } from '../types';
+/** This family's settings in game.json (generated from the schema). */
+export type { BaccaratRules } from '../schema.gen';
 
 export type BaccaratSide = 'player' | 'banker' | 'tie';
 
@@ -56,7 +40,7 @@ export function bankerDraws(banker: number, third: number | null): boolean {
 const SIDE_NAME: Record<BaccaratSide, string> = { player: 'Player', banker: 'Banker', tie: 'Tie' };
 
 export function baccaratFamily(config: GameConfig): GameModule<BaccaratData> {
-  const R = config.rules as unknown as BaccaratRules;
+  const R = familyRules(config, 'baccarat');
   const decks = (s: S) => Number(s.options.decks ?? 8);
   const rounds = (s: S) => Number(s.options.rounds ?? 10);
   const minBet = (s: S) => Number(s.options.minBet ?? R.minBet);

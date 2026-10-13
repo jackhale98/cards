@@ -4,32 +4,9 @@ import * as bet from '../lib/betting';
 import { bestHand, bestWithHole, eval5, type HandValue } from '../lib/pokerEval';
 import { shuffle } from '../rng';
 import { createState, hand, ids, log, moveCards, moveTop, name, nextSeat, placesFromScores, resetDeck, zone } from '../state';
-import { assertRule, type Action, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
-
-/**
- * Poker family: no-limit betting, side pots and showdown, for community-card games (blinds, a
- * board dealt street by street), draw poker (antes, one draw) and stud (antes, a bring-in, cards
- * dealt face up and down to each player).
- *
- * ```jsonc
- * "rules": {
- *   "family": "poker",
- *   "holeCards": 2,          // cards dealt to each player (Omaha: 4; five card draw: 5)
- *   "useHole": 0,            // 0 = best five of any cards; 2 = exactly two hole cards (Omaha)
- *   "board": [3, 1, 1],      // community cards per street (flop, turn, river); [] for draw
- *   "draw": { "max": 3 },    // draw poker: everyone antes, bets, swaps up to `max` cards, bets again
- *   "stud": true             // seven card stud: two down and one up, three more up, the last down
- * }
- * ```
- */
-export interface PokerRules {
-  family: 'poker';
-  holeCards: number;
-  useHole?: number;
-  board: number[];
-  draw?: { max: number };
-  stud?: boolean;
-}
+import { familyRules, assertRule, type Action, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
+/** This family's settings in game.json (generated from the schema). */
+export type { PokerRules } from '../schema.gen';
 
 export interface PokerData {
   b: bet.BettingState;
@@ -79,7 +56,7 @@ const chipsOf = (s: S) => s.players.map((p) => p.chips);
 const writeChips = (s: S, chips: number[]) => chips.forEach((c, i) => (s.players[i].chips = c));
 
 export function pokerFamily(config: GameConfig): GameModule<PokerData> {
-  const R = config.rules as unknown as PokerRules;
+  const R = familyRules(config, 'poker');
   const draw = R.draw;
   /** Streets: one per board deal; draw poker has the betting before the draw and after it. */
   const stud = !!R.stud;

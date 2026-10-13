@@ -91,17 +91,8 @@ export const isRed = (id: string) => {
   return s === 'H' || s === 'D';
 };
 
-export interface DeckSpec {
-  /** Number of standard decks shuffled together. */
-  decks?: number;
-  jokers?: number;
-  /** Restrict to these ranks (e.g. euchre: 9–A). */
-  ranks?: number[];
-  /** Leave out specific cards (e.g. 500 drops the black fours). */
-  exclude?: string[];
-  /** Extra cards on top (six-handed 500: the 2s, 3s and red 4s of a second pack, as "2S#2"…). */
-  extra?: string[];
-}
+export type { DeckSpec } from './schema.gen';
+import type { DeckSpec } from './schema.gen';
 
 export function buildDeck(spec: DeckSpec = {}): string[] {
   const out: string[] = [];

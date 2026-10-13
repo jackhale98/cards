@@ -2,33 +2,10 @@ import { buildDeck, cardLabel, cardName, parseCard } from '../cards';
 import { bestMelds, deadwoodValue, meldOrder } from '../lib/melds';
 import { createState, cutForDeal, hand, ids, log, moveCards, moveTop, name, placesFromScores, resetDeck, zone } from '../state';
 import { botLevel } from '../bots/search';
-import { assertRule, type Action, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
+import { familyRules, assertRule, type Action, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
 import { ownOnly } from '../redact';
-
-/**
- * Rummy family, draw-and-discard style (Gin Rummy). Configured from `game.json`:
- *
- * ```jsonc
- * "rules": {
- *   "family": "rummy",
- *   "style": "gin",
- *   "handSize": 10,
- *   "knockMax": 10,                 // most deadwood you may knock with (0 = gin only)
- *   "bonuses": { "gin": 20, "bigGin": 31, "undercut": 10, "box": 20, "game": 100 },
- *   "end": { "target": 100 }
- * }
- * ```
- * Melds are found automatically (best arrangement, least deadwood), and the defender's
- * layoffs are made for them, so players only ever choose what to draw and discard.
- */
-export interface RummyRules {
-  family: 'rummy';
-  style: 'gin';
-  handSize: number;
-  knockMax: number;
-  bonuses: { gin: number; bigGin?: number; undercut: number; box?: number; game?: number };
-  end: { target: number };
-}
+/** This family's settings in game.json (generated from the schema). */
+export type { GinRules as RummyRules } from '../schema.gen';
 
 export interface RummyData {
   handNo: number;
@@ -51,7 +28,7 @@ export interface RummyData {
 type S = GameState<RummyData>;
 
 export function rummyFamily(config: GameConfig): GameModule<RummyData> {
-  const R = config.rules as unknown as RummyRules;
+  const R = familyRules(config, 'rummy', 'gin');
   const target = (s: S) => Number(s.options.target ?? R.end.target);
   const other = (seat: number) => 1 - seat;
   const topDiscard = (s: S) => zone(s, 'discard').cards.at(-1)?.id ?? null;

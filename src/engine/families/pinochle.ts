@@ -1,33 +1,9 @@
 import { cardLabel, parseCard, type Suit, SUIT_NAME, SUIT_SYMBOL } from '../cards';
 import { createState, deal, hand, ids, log, moveCards, name, nextSeat, placesFromScores, resetDeck, zone } from '../state';
-import { assertRule, type Action, type GameConfig, type GameModule, type GameState } from '../types';
+import { familyRules, assertRule, type Action, type GameConfig, type GameModule, type GameState } from '../types';
 import { sideName } from '../lib/teams';
-
-/**
- * Partnership auction Pinochle, single deck (pagat.com/marriage/pinmain.html). Configured from
- * `game.json`:
- *
- * ```jsonc
- * "rules": { "family": "pinochle", "end": { "target": 1500 } }
- * ```
- * 48 cards (two each of 9 10 J Q K A per suit), ranked A 10 K Q J 9; 12 each to four players,
- * partners across. Bidding starts at 250 and rises in tens; a pass is final, and if the other three
- * pass the dealer takes it at 250. The declarer names trumps, takes four cards from their partner
- * and passes four back. Everyone's meld goes on the table (worked out automatically):
- * - trumps: run (A 10 K Q J) 150, with an extra K or Q 190, both 230, double run 1500; royal
- *   marriage (K Q) 40; dix (9) 10 each;
- * - common marriage (K Q of another suit) 20; pinochle (Q♠ J♦) 40, double pinochle 300;
- * - arounds (one of each suit): aces 100, kings 80, queens 60, jacks 40; both of each ×10.
- * A declarer whose meld is more than 250 short of the bid is set at once (or may throw in).
- * Play: follow suit and beat the winning card if you can (unless the trick's been trumped); void,
- * you must trump, overtrumping if you can. Aces, 10s and kings taken are 10 each, the last trick 10
- * more. The declaring side making its bid scores its meld and points, otherwise loses the bid; the
- * other side scores too if it takes at least one point (saving its meld). First to 1500.
- */
-export interface PinochleRules {
-  family: 'pinochle';
-  end: { target: number };
-}
+/** This family's settings in game.json (generated from the schema). */
+export type { PinochleRules } from '../schema.gen';
 
 export interface PinochleData {
   handNo: number;
@@ -128,7 +104,7 @@ function meldCards(cards: string[], trump: Suit): string[] {
 }
 
 export function pinochleFamily(config: GameConfig): GameModule<PinochleData> {
-  const R = config.rules as unknown as PinochleRules;
+  const R = familyRules(config, 'pinochle');
   const target = (s: S) => Number(s.options.target ?? R.end.target);
   const partner = (seat: number) => (seat + 2) % 4;
   const teamName = (s: S, t: number) => sideName(s, [t, t + 2]);

@@ -1,28 +1,8 @@
 import { cardLabel, cardName, parseCard } from '../cards';
 import { createState, hand, ids, log, moveCards, moveTop, name, nextSeat, placesFromScores, resetDeck, sortHand, zone } from '../state';
-import { assertRule, type Action, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
-
-/**
- * Kings Corners (pagat.com/layout/kingscorners.html). Configured from `game.json`:
- *
- * ```jsonc
- * "rules": { "family": "corners", "end": { "target": 25 } }
- * ```
- * Seven cards each; four cards turned up around the stock start the North, East, South and West
- * piles. On your turn make any plays you like, then draw a card (which ends the turn):
- * - a card from hand onto a pile if it's one lower and the other colour (nothing goes on an ace);
- * - a king from hand into an empty corner, to start a pile there;
- * - a whole pile onto another, if its bottom card is one lower and the other colour of that top
- *   card (and a pile starting with a king may move into an empty corner);
- * - any card from hand onto an empty North, East, South or West space.
- * Play your last card to win the hand. Once the stock is gone play goes on without drawing until
- * nobody can (or will) play. Cards left in hand cost 10 for a king and 1 for others; lowest total
- * when someone reaches the target wins.
- */
-export interface CornersRules {
-  family: 'corners';
-  end: { target: number };
-}
+import { familyRules, assertRule, type Action, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
+/** This family's settings in game.json (generated from the schema). */
+export type { CornersRules } from '../schema.gen';
 
 export interface CornersData {
   handNo: number;
@@ -60,7 +40,7 @@ export const fits = (card: string, top: string) => rank(card) === rank(top) - 1 
 export const penalty = (id: string) => (parseCard(id).rank === 13 ? 10 : 1);
 
 export function cornersFamily(config: GameConfig): GameModule<CornersData> {
-  const R = config.rules as unknown as CornersRules;
+  const R = familyRules(config, 'corners');
   const target = (s: S) => Number(s.options.target ?? R.end.target);
   const cards = (s: S, p: Pile) => ids(zone(s, p));
   const top = (s: S, p: Pile) => cards(s, p).at(-1);

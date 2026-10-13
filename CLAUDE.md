@@ -12,6 +12,7 @@ pnpm dev                 # http://localhost:5173 ; ?net=local links tabs in one 
 pnpm check               # svelte-check: types for .ts and .svelte. Must be 0 errors, 0 warnings
 pnpm lint                # ESLint (bugs, not style)
 pnpm format              # Prettier rewrites files; pnpm format:check only checks
+pnpm gen:types           # regenerate src/engine/schema.gen.ts after changing the schema
 pnpm test:quick          # unit tests without the slow bot suites (seconds): use while iterating
 pnpm test                # every unit test (a couple of minutes: bots play thousands of deals)
 pnpm exec vitest run tests/hearts.test.ts -t "moon"   # one file / one test
@@ -37,6 +38,7 @@ src/engine/            pure TS: no DOM, no network, no UI
   lib/                 betting, pokerEval, trickTaking, passing, melds, cribbageScore
   bots/search.ts       Monte Carlo search bots any family can plug into
 src/games/<id>/game.json   a game = a family plus parameters (schemas/game.schema.json)
+src/engine/schema.gen.ts   the game.json types, generated from the schema (pnpm gen:types; never edit)
 src/games/index.ts     registry: game files load with the app (GameInfo), rules only when picked
                        (loadRules / rulesFor); picker sections and search
 src/net/host.ts        the authoritative host: seats, actions, bots, views, backups, replays
@@ -69,6 +71,10 @@ docs/ADDING_A_GAME.md  how to add a game: read it before touching families or ga
   host found). Treat every message as hostile input: check types and sizes before use.
 - **Rules load lazily.** UI and lobby code use `getGame(id)` (config and traits only). Only the
   host touches rules (`rulesFor`), after `loadRules`. Tests get every engine from `tests/games.ts`.
+- **The schema defines game.json.** Its types are generated (`pnpm gen:types`); a family reads
+  its settings with `familyRules(config, '<family>')`, never a cast. A new setting goes in the
+  schema first. Tests fail if the generated file is stale or a game (or a `byPlayers` size) doesn't
+  validate.
 - **Game state is plain JSON** (it's cloned, sent, persisted, sealed into backups). No classes,
   Maps or functions in `GameState`.
 - **Randomness that changes the game comes from the seeded RNG in the state** (`shuffle(arr, s)`),

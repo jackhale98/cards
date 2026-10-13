@@ -1,79 +1,10 @@
 import { buildDeck, parseCard, type Suit } from '../../cards';
 import type { PassDirection } from '../../lib/passing';
-import type { GameConfig, GameState } from '../../types';
+import { familyRules, type GameConfig, type GameState } from '../../types';
 import type { BridgeContract, Call, Contract } from './contracts';
-
-/**
- * Trick-taking family: Hearts, Spades, Oh Hell, Whist… all configured from `game.json`:
- *
- * ```jsonc
- * "rules": {
- *   "family": "trick-taking",
- *   "handSizes": "all",                 // "all" | [10, 9, 8, …] | "ladder" (1 → max → 1)
- *   "maxHand": 7,                       // cap for "ladder"
- *   "passing": { "count": 3, "cycle": ["left", "right", "across", "hold"] },
- *   "lead": "twoOfClubs",               // "twoOfClubs" | "leftOfDealer"
- *   "trump": "none",                    // "none" | "S" | "H" | "D" | "C" | "turnUp"
- *   "breaks": "H",                      // suit that can't be led until it has been played
- *   "noPointsFirstTrick": true,
- *   "teams": [[0, 2], [1, 3]],          // partnerships (default: everyone plays alone)
- *   "bidding": { "nil": true, "hook": false },  // bid number of tricks before play
- *   "scoring": { "type": "penalty", "cardPoints": { "H": 1, "QS": 13 }, "moon": true },
- *              // or { "type": "contract", "bags": { "every": 10, "penalty": 100 }, "nil": 100 }
- *              // or { "type": "exact", "bonus": 10 }    (Oh Hell: 1 a trick, +10 for an exact bid)
- *              // or { "type": "tricks" }                (1 point per trick)
- *   "end": { "target": 100, "lowWins": true }           // or { "rounds": true } for handSizes
- * }
- * ```
- */
-export interface TrickRules {
-  family: 'trick-taking';
-  handSizes?: 'all' | 'ladder' | number[];
-  maxHand?: number;
-  passing?: { count: number; cycle: PassDirection[] };
-  lead?: 'twoOfClubs' | 'leftOfDealer' | 'maker';
-  /**
-   * `chosen` = trumps are decided by the bidding (euchre, 500); `turnUp` = a card turned up from the
-   * stock (Oh Hell); `lastCard` = the dealer's own last card, shown until they play to the first
-   * trick (Whist).
-   */
-  trump?: 'none' | Suit | 'turnUp' | 'chosen' | 'lastCard';
-  breaks?: Suit;
-  noPointsFirstTrick?: boolean;
-  teams?: number[][];
-  /** The jack of trumps (right bower) and the other jack of its colour (left bower) are the top trumps. */
-  bowers?: boolean;
-  /** A joker is the highest trump (in no trumps it beats everything and is played when void). */
-  joker?: boolean;
-  /**
-   * Five-handed 500: after the kitty the contractor names a card (or plays alone); whoever holds it
-   * is their secret partner, known when the card is played.
-   */
-  callPartner?: boolean;
-  /** With a double pack, two identical cards in a trick: `later` (six-handed spades) or the first played (default) wins. */
-  duplicates?: 'later' | 'first';
-  /** Cards left over after the deal, taken by the bid winner (500) or turned up (euchre). */
-  kitty?: number;
-  bidding?:
-    | { type?: 'tricks'; nil?: boolean; hook?: boolean }
-    | { type: 'euchre'; stickTheDealer?: boolean; alone?: boolean }
-    | { type: 'auction'; schedule: 'avondale'; misere?: boolean }
-    | { type: 'bridge' };
-  scoring:
-    | { type: 'penalty'; cardPoints: Record<string, number>; moon?: boolean }
-    /** `overtrick`: points for each trick over the bid (default +1, a bag; three-handed spades −10). */
-    | { type: 'contract'; bags?: { every: number; penalty: number }; nil?: number; overtrick?: number }
-    | { type: 'exact'; bonus: number }
-    | { type: 'tricks' }
-    /** Whist: the side taking more tricks scores one a trick over six (`honours` option: A K Q J of trumps). */
-    | { type: 'whist' }
-    /** `march` (all five tricks) and `euchred` (makers fail) score 2 unless given (six-handed: 3); alone, twice that. */
-    | { type: 'euchre'; march?: number; euchred?: number }
-    | { type: 'auction'; perTrick: number; slam?: number }
-    | { type: 'bridge' };
-  /** `loseAt`: a side at or below this score loses (500: −500). */
-  end: { target?: number; lowWins?: boolean; rounds?: boolean; deals?: number; loseAt?: number };
-}
+import type { TrickTakingRules as TrickRules } from '../../schema.gen';
+/** This family's settings in game.json (generated from the schema). */
+export type { TrickTakingRules as TrickRules } from '../../schema.gen';
 
 export interface TrickData {
   round: number;
@@ -175,9 +106,9 @@ export function pointsOf(R: TrickRules, id: string): number {
 }
 
 export function trickGame(config: GameConfig): TrickGame {
-  const R = config.rules as unknown as TrickRules;
+  const R = familyRules(config, 'trick-taking');
   const deckCards = buildDeck(config.deck);
-  const trickBids = R.bidding && (!R.bidding.type || R.bidding.type === 'tricks') ? (R.bidding as { nil?: boolean; hook?: boolean }) : null;
+  const trickBids = R.bidding && (!R.bidding.type || R.bidding.type === 'tricks') ? R.bidding : null;
   return {
     config,
     R,

@@ -23,7 +23,9 @@
     },
     "aliases": {
       "type": "array",
-      "items": { "type": "string" },
+      "items": {
+        "type": "string"
+      },
       "description": "Other names the game goes by, so the picker's search finds it (\"ERS\", \"Bullshit\")."
     },
     "icon": {
@@ -31,6 +33,7 @@
       "maxLength": 4
     },
     "players": {
+      "title": "PlayerCounts",
       "type": "object",
       "required": ["min", "max"],
       "additionalProperties": false,
@@ -62,41 +65,7 @@
       "description": "Seats may be filled by bots (rules.ts must implement bot())."
     },
     "deck": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "decks": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 8
-        },
-        "jokers": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 4
-        },
-        "ranks": {
-          "type": "array",
-          "items": {
-            "type": "integer",
-            "minimum": 2,
-            "maximum": 14
-          },
-          "description": "Ace is 14."
-        },
-        "exclude": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "Card ids to leave out, e.g. [\"4S\", \"4C\"]."
-        },
-        "extra": {
-          "type": "array",
-          "items": { "type": "string" },
-          "description": "Extra cards added on top, e.g. [\"2S#2\"] (a second copy of the 2♠)."
-        }
-      }
+      "$ref": "#/$defs/DeckSpec"
     },
     "zones": {
       "type": "array",
@@ -110,6 +79,7 @@
         }
       },
       "items": {
+        "title": "ZoneConfig",
         "type": "object",
         "required": ["id", "visibility", "layout", "area"],
         "additionalProperties": false,
@@ -157,6 +127,7 @@
     "deal": {
       "type": "array",
       "items": {
+        "title": "DealStep",
         "type": "object",
         "required": ["to", "count"],
         "additionalProperties": false,
@@ -175,6 +146,7 @@
       }
     },
     "chips": {
+      "title": "ChipsConfig",
       "type": "object",
       "required": ["start"],
       "additionalProperties": false,
@@ -215,6 +187,7 @@
     "options": {
       "type": "array",
       "items": {
+        "title": "GameOption",
         "type": "object",
         "required": ["id", "label", "type", "default"],
         "additionalProperties": false,
@@ -242,7 +215,9 @@
           },
           "choices": {
             "type": "array",
-            "items": { "type": "string" },
+            "items": {
+              "type": "string"
+            },
             "description": "Show a number option as named choices; the value is the index."
           }
         }
@@ -254,640 +229,67 @@
       "required": ["family"],
       "oneOf": [
         {
-          "properties": {
-            "family": {
-              "const": "free"
-            }
-          },
-          "additionalProperties": false,
-          "description": "No rules enforced: players move cards freely."
+          "$ref": "#/$defs/FreeRules"
         },
         {
-          "description": "Trick-taking games: Hearts, Spades, Oh Hell, Whist…",
-          "required": ["family", "scoring", "end"],
-          "additionalProperties": false,
-          "properties": {
-            "family": {
-              "const": "trick-taking"
-            },
-            "handSizes": {
-              "oneOf": [
-                {
-                  "enum": ["all", "ladder"]
-                },
-                {
-                  "type": "array",
-                  "items": {
-                    "type": "integer",
-                    "minimum": 1
-                  }
-                }
-              ],
-              "description": "\"all\" deals the whole deck; \"ladder\" goes 1 → maxHand → 1; or an explicit list per round."
-            },
-            "maxHand": {
-              "type": "integer",
-              "minimum": 1
-            },
-            "passing": {
-              "type": "object",
-              "required": ["count", "cycle"],
-              "additionalProperties": false,
-              "properties": {
-                "count": {
-                  "type": "integer",
-                  "minimum": 1
-                },
-                "cycle": {
-                  "type": "array",
-                  "items": {
-                    "enum": ["left", "right", "across", "hold"]
-                  }
-                }
-              }
-            },
-            "lead": {
-              "enum": ["twoOfClubs", "leftOfDealer", "maker"]
-            },
-            "trump": {
-              "enum": ["none", "S", "H", "D", "C", "turnUp", "chosen", "lastCard"],
-              "description": "\"chosen\" = decided by the bidding (euchre, 500)."
-            },
-            "breaks": {
-              "enum": ["S", "H", "D", "C"],
-              "description": "Suit that can't be led until one has been played."
-            },
-            "noPointsFirstTrick": {
-              "type": "boolean"
-            },
-            "teams": {
-              "type": "array",
-              "items": {
-                "type": "array",
-                "items": {
-                  "type": "integer",
-                  "minimum": 0
-                }
-              }
-            },
-            "bidding": {
-              "oneOf": [
-                {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "properties": {
-                    "type": {
-                      "const": "tricks"
-                    },
-                    "nil": {
-                      "type": "boolean"
-                    },
-                    "hook": {
-                      "type": "boolean",
-                      "description": "Dealer can't make total bids equal the tricks available."
-                    }
-                  }
-                },
-                {
-                  "type": "object",
-                  "required": ["type"],
-                  "additionalProperties": false,
-                  "properties": {
-                    "type": {
-                      "const": "euchre"
-                    },
-                    "stickTheDealer": {
-                      "type": "boolean"
-                    },
-                    "alone": {
-                      "type": "boolean"
-                    }
-                  }
-                },
-                {
-                  "type": "object",
-                  "required": ["type", "schedule"],
-                  "additionalProperties": false,
-                  "properties": {
-                    "type": {
-                      "const": "auction"
-                    },
-                    "schedule": {
-                      "const": "avondale"
-                    },
-                    "misere": {
-                      "type": "boolean",
-                      "description": "Allow misère (250, over a seven) and open misère (500, any time below 10♥). Needs a `dummy` zone for the open hand."
-                    }
-                  }
-                },
-                {
-                  "type": "object",
-                  "required": ["type"],
-                  "additionalProperties": false,
-                  "properties": {
-                    "type": {
-                      "const": "bridge"
-                    }
-                  },
-                  "description": "Contract bridge auction: bids 1–7 in ♣ ♦ ♥ ♠ NT, pass, double, redouble. The declarer's partner is dummy."
-                }
-              ]
-            },
-            "scoring": {
-              "oneOf": [
-                {
-                  "type": "object",
-                  "required": ["type", "cardPoints"],
-                  "additionalProperties": false,
-                  "properties": {
-                    "type": {
-                      "const": "penalty"
-                    },
-                    "cardPoints": {
-                      "type": "object",
-                      "additionalProperties": {
-                        "type": "number"
-                      },
-                      "description": "Keys are a suit letter (every card of that suit) or a card id like \"QS\"."
-                    },
-                    "moon": {
-                      "type": "boolean"
-                    }
-                  }
-                },
-                {
-                  "type": "object",
-                  "required": ["type"],
-                  "additionalProperties": false,
-                  "properties": {
-                    "type": {
-                      "const": "contract"
-                    },
-                    "nil": {
-                      "type": "number"
-                    },
-                    "bags": {
-                      "type": "object",
-                      "required": ["every", "penalty"],
-                      "properties": {
-                        "every": {
-                          "type": "integer",
-                          "minimum": 1
-                        },
-                        "penalty": {
-                          "type": "number"
-                        }
-                      }
-                    }
-                  }
-                },
-                {
-                  "type": "object",
-                  "required": ["type", "bonus"],
-                  "additionalProperties": false,
-                  "properties": {
-                    "type": {
-                      "const": "exact"
-                    },
-                    "bonus": {
-                      "type": "number"
-                    }
-                  }
-                },
-                {
-                  "type": "object",
-                  "required": ["type"],
-                  "additionalProperties": false,
-                  "properties": {
-                    "type": {
-                      "const": "tricks"
-                    }
-                  }
-                },
-                {
-                  "type": "object",
-                  "required": ["type"],
-                  "additionalProperties": false,
-                  "description": "Whist: one point a trick over six for the side taking more; honours scored with the `honours` option.",
-                  "properties": {
-                    "type": {
-                      "const": "whist"
-                    }
-                  }
-                },
-                {
-                  "type": "object",
-                  "required": ["type"],
-                  "additionalProperties": false,
-                  "properties": {
-                    "type": {
-                      "const": "euchre"
-                    }
-                  }
-                },
-                {
-                  "type": "object",
-                  "required": ["type", "perTrick"],
-                  "additionalProperties": false,
-                  "properties": {
-                    "type": {
-                      "const": "auction"
-                    },
-                    "perTrick": {
-                      "type": "number"
-                    },
-                    "slam": {
-                      "type": "number"
-                    }
-                  }
-                },
-                {
-                  "type": "object",
-                  "required": ["type"],
-                  "additionalProperties": false,
-                  "properties": {
-                    "type": {
-                      "const": "bridge"
-                    }
-                  },
-                  "description": "Duplicate bridge scoring per deal, Chicago vulnerability."
-                }
-              ]
-            },
-            "end": {
-              "type": "object",
-              "additionalProperties": false,
-              "properties": {
-                "target": {
-                  "type": "number"
-                },
-                "lowWins": {
-                  "type": "boolean"
-                },
-                "rounds": {
-                  "type": "boolean"
-                },
-                "deals": {
-                  "type": "number",
-                  "description": "Play this many deals (option `deals` overrides)."
-                },
-                "loseAt": {
-                  "type": "number",
-                  "description": "A side at or below this score loses (500: -500)."
-                }
-              }
-            },
-            "bowers": {
-              "type": "boolean",
-              "description": "Jack of trumps and the same-colour jack are the top two trumps."
-            },
-            "joker": {
-              "type": "boolean",
-              "description": "A joker is the highest trump (500)."
-            },
-            "kitty": {
-              "type": "integer",
-              "minimum": 0,
-              "description": "Cards left undealt for the bid winner (500)."
-            }
-          }
+          "$ref": "#/$defs/TrickTakingRules"
         },
         {
-          "description": "Poker: Hold'em, Omaha (blinds and a board) or five card draw (antes and a draw).",
-          "required": ["family", "holeCards", "board"],
-          "additionalProperties": false,
-          "properties": {
-            "family": {
-              "const": "poker"
-            },
-            "holeCards": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 7
-            },
-            "useHole": {
-              "type": "integer",
-              "minimum": 0,
-              "description": "0 = any five cards; N = exactly N hole cards."
-            },
-            "board": {
-              "type": "array",
-              "items": {
-                "type": "integer",
-                "minimum": 1
-              },
-              "description": "Community cards dealt on each street ([] for draw poker)."
-            },
-            "stud": {
-              "type": "boolean",
-              "description": "Seven card stud: two cards down and one up, three more up, the last down; antes and a bring-in."
-            },
-            "draw": {
-              "type": "object",
-              "required": ["max"],
-              "additionalProperties": false,
-              "properties": {
-                "max": {
-                  "type": "integer",
-                  "minimum": 0,
-                  "maximum": 5
-                }
-              },
-              "description": "Draw poker: everyone antes, bets, swaps up to `max` cards, then bets again."
-            }
-          }
+          "$ref": "#/$defs/PokerRules"
         },
         {
-          "description": "Rummy games. Style \"gin\": two players draw and discard until someone knocks.",
-          "required": ["family", "style", "handSize", "knockMax", "bonuses", "end"],
-          "additionalProperties": false,
-          "properties": {
-            "family": {
-              "const": "rummy"
-            },
-            "style": {
-              "enum": ["gin"]
-            },
-            "handSize": {
-              "type": "integer",
-              "minimum": 3,
-              "maximum": 13
-            },
-            "knockMax": {
-              "type": "integer",
-              "minimum": 0,
-              "description": "Most deadwood you may knock with; 0 = gin only."
-            },
-            "bonuses": {
-              "type": "object",
-              "required": ["gin", "undercut"],
-              "additionalProperties": false,
-              "properties": {
-                "gin": {
-                  "type": "number"
-                },
-                "bigGin": {
-                  "type": "number"
-                },
-                "undercut": {
-                  "type": "number"
-                },
-                "box": {
-                  "type": "number"
-                },
-                "game": {
-                  "type": "number"
-                }
-              }
-            },
-            "end": {
-              "type": "object",
-              "required": ["target"],
-              "additionalProperties": false,
-              "properties": {
-                "target": {
-                  "type": "number"
-                }
-              }
-            }
-          }
+          "$ref": "#/$defs/GinRules"
         },
         {
-          "description": "Rummy 500: 2–8 players meld and lay off on the table; melded cards score, cards in hand count against you.",
-          "required": ["family", "style", "end"],
-          "additionalProperties": false,
-          "properties": {
-            "family": {
-              "const": "rummy"
-            },
-            "style": {
-              "const": "500"
-            },
-            "end": {
-              "type": "object",
-              "required": ["target"],
-              "additionalProperties": false,
-              "properties": {
-                "target": {
-                  "type": "number"
-                }
-              }
-            }
-          }
+          "$ref": "#/$defs/Rummy500Rules"
         },
         {
-          "description": "Cribbage for 2–4 players (4 = partnerships).",
-          "required": ["family", "target"],
-          "additionalProperties": false,
-          "properties": {
-            "family": {
-              "const": "cribbage"
-            },
-            "target": {
-              "type": "integer",
-              "minimum": 31,
-              "description": "Points to win (121 standard, 61 for a short game)."
-            }
-          }
+          "$ref": "#/$defs/CribbageRules"
         },
         {
-          "description": "Climbing games (President): beat the last play with the same number of higher cards, or pass; first out wins.",
-          "required": ["family", "style", "end"],
-          "additionalProperties": false,
-          "properties": {
-            "family": {
-              "const": "climbing"
-            },
-            "style": {
-              "const": "president"
-            },
-            "end": {
-              "type": "object",
-              "required": ["target"],
-              "additionalProperties": false,
-              "properties": {
-                "target": {
-                  "type": "number"
-                }
-              }
-            }
-          }
+          "$ref": "#/$defs/ClimbingRules"
         },
         {
-          "description": "Classic Canasta: partnerships (or two players) meld sets with wild 2s and jokers; seven make a canasta.",
-          "required": ["family", "end"],
-          "additionalProperties": false,
-          "properties": {
-            "family": {
-              "const": "canasta"
-            },
-            "end": {
-              "type": "object",
-              "required": ["target"],
-              "additionalProperties": false,
-              "properties": {
-                "target": {
-                  "type": "number"
-                }
-              }
-            }
-          }
+          "$ref": "#/$defs/CanastaRules"
         },
         {
-          "description": "Crazy Eights: match the rank or suit of the top card; eights are wild and call a suit.",
-          "required": ["family", "end"],
-          "additionalProperties": false,
-          "properties": {
-            "family": {
-              "const": "eights"
-            },
-            "end": {
-              "type": "object",
-              "required": ["target"],
-              "additionalProperties": false,
-              "properties": {
-                "target": {
-                  "type": "number"
-                }
-              }
-            }
-          }
+          "$ref": "#/$defs/EightsRules"
         },
         {
-          "required": ["family"],
-          "additionalProperties": false,
-          "description": "Baccarat (Punto Banco) against the house.",
-          "properties": {
-            "family": {
-              "const": "baccarat"
-            },
-            "minBet": {
-              "type": "integer"
-            },
-            "maxBet": {
-              "type": "integer"
-            }
-          }
+          "$ref": "#/$defs/BaccaratRules"
         },
         {
-          "required": ["family"],
-          "additionalProperties": false,
-          "description": "Blackjack against the house.",
-          "properties": {
-            "family": {
-              "const": "blackjack"
-            },
-            "minBet": {
-              "type": "integer"
-            },
-            "maxBet": {
-              "type": "integer"
-            }
-          }
+          "$ref": "#/$defs/BlackjackRules"
         },
         {
-          "required": ["family"],
-          "additionalProperties": false,
-          "description": "Cheat (Bullshit, I Doubt It): play face down, claim the next rank, call Cheat!",
-          "properties": {
-            "family": {
-              "const": "cheat"
-            }
-          }
+          "$ref": "#/$defs/CheatRules"
         },
         {
-          "required": ["family"],
-          "additionalProperties": false,
-          "description": "Go Fish: ask for ranks and collect books of four.",
-          "properties": {
-            "family": {
-              "const": "gofish"
-            }
-          }
+          "$ref": "#/$defs/GoFishRules"
         },
         {
-          "required": ["family"],
-          "additionalProperties": false,
-          "description": "Palace (Shithead): hand, face-up and face-down cards; beat the pile or pick it up.",
-          "properties": {
-            "family": {
-              "const": "palace"
-            }
-          }
+          "$ref": "#/$defs/PalaceRules"
         },
         {
-          "required": ["family"],
-          "additionalProperties": false,
-          "description": "Kings Corners: build down in alternating colours on eight piles around the stock.",
-          "properties": {
-            "family": {
-              "const": "corners"
-            },
-            "end": {
-              "type": "object",
-              "properties": { "target": { "type": "number" } }
-            }
-          }
+          "$ref": "#/$defs/CornersRules"
         },
         {
-          "required": ["family"],
-          "additionalProperties": false,
-          "description": "Hand and Foot: partnership canasta with a hand and a foot each, four rounds.",
-          "properties": {
-            "family": {
-              "const": "handfoot"
-            }
-          }
+          "$ref": "#/$defs/HandFootRules"
         },
         {
-          "required": ["family"],
-          "additionalProperties": false,
-          "description": "Spoons: pass cards along at once, grab a spoon on four of a kind.",
-          "properties": {
-            "family": {
-              "const": "spoons"
-            }
-          }
+          "$ref": "#/$defs/SpoonsRules"
         },
         {
-          "required": ["family"],
-          "additionalProperties": false,
-          "description": "Spit: two players race to play onto two middle piles.",
-          "properties": {
-            "family": {
-              "const": "spit"
-            }
-          }
+          "$ref": "#/$defs/SpitRules"
         },
         {
-          "required": ["family", "style"],
-          "additionalProperties": false,
-          "description": "Real-time slap games: Slapjack or Egyptian Rat Screw.",
-          "properties": {
-            "family": {
-              "const": "slap"
-            },
-            "style": {
-              "enum": ["slapjack", "ers"]
-            }
-          }
+          "$ref": "#/$defs/SlapRules"
         },
         {
-          "required": ["family", "end"],
-          "additionalProperties": false,
-          "description": "Partnership auction Pinochle (single deck, four players).",
-          "properties": {
-            "family": {
-              "const": "pinochle"
-            },
-            "end": {
-              "type": "object",
-              "properties": { "target": { "type": "number" } }
-            }
-          }
+          "$ref": "#/$defs/PinochleRules"
         }
-      ]
+      ],
+      "title": "Rules"
     },
     "byPlayers": {
       "type": "object",
@@ -897,9 +299,16 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "rules": { "type": "object" },
-            "deck": { "type": "object" }
-          }
+            "rules": {
+              "type": "object",
+              "additionalProperties": true,
+              "description": "Settings merged over `rules` at this size (the merged rules are checked against the family by tests/schema.test.ts)."
+            },
+            "deck": {
+              "$ref": "#/$defs/DeckSpec"
+            }
+          },
+          "title": "SizeOverrides"
         }
       },
       "additionalProperties": false
@@ -907,6 +316,735 @@
     "category": {
       "type": "string",
       "description": "Picker section (Poker, Casino, Trick-taking, Rummy, Shedding, Family, More). Defaults to one based on the rules family."
+    }
+  },
+  "$defs": {
+    "FreeRules": {
+      "title": "FreeRules",
+      "properties": {
+        "family": {
+          "const": "free"
+        }
+      },
+      "additionalProperties": false,
+      "description": "No rules enforced: players move cards freely."
+    },
+    "TrickTakingRules": {
+      "title": "TrickTakingRules",
+      "description": "Trick-taking games: Hearts, Spades, Oh Hell, Whist…",
+      "required": ["family", "scoring", "end"],
+      "additionalProperties": false,
+      "properties": {
+        "family": {
+          "const": "trick-taking"
+        },
+        "handSizes": {
+          "oneOf": [
+            {
+              "enum": ["all", "ladder"]
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          ],
+          "description": "\"all\" deals the whole deck; \"ladder\" goes 1 → maxHand → 1; or an explicit list per round."
+        },
+        "maxHand": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "passing": {
+          "type": "object",
+          "required": ["count", "cycle"],
+          "additionalProperties": false,
+          "properties": {
+            "count": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "cycle": {
+              "type": "array",
+              "items": {
+                "enum": ["left", "right", "across", "hold", "left2", "right2"]
+              }
+            }
+          }
+        },
+        "lead": {
+          "enum": ["twoOfClubs", "leftOfDealer", "maker"]
+        },
+        "trump": {
+          "enum": ["none", "S", "H", "D", "C", "turnUp", "chosen", "lastCard"],
+          "description": "\"chosen\" = decided by the bidding (euchre, 500)."
+        },
+        "breaks": {
+          "enum": ["S", "H", "D", "C"],
+          "description": "Suit that can't be led until one has been played."
+        },
+        "noPointsFirstTrick": {
+          "type": "boolean"
+        },
+        "teams": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "bidding": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "type": {
+                  "const": "tricks"
+                },
+                "nil": {
+                  "type": "boolean"
+                },
+                "hook": {
+                  "type": "boolean",
+                  "description": "Dealer can't make total bids equal the tricks available."
+                }
+              }
+            },
+            {
+              "type": "object",
+              "required": ["type"],
+              "additionalProperties": false,
+              "properties": {
+                "type": {
+                  "const": "euchre"
+                },
+                "stickTheDealer": {
+                  "type": "boolean"
+                },
+                "alone": {
+                  "type": "boolean"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "required": ["type", "schedule"],
+              "additionalProperties": false,
+              "properties": {
+                "type": {
+                  "const": "auction"
+                },
+                "schedule": {
+                  "const": "avondale"
+                },
+                "misere": {
+                  "type": "boolean",
+                  "description": "Allow misère (250, over a seven) and open misère (500, any time below 10♥). Needs a `dummy` zone for the open hand."
+                }
+              }
+            },
+            {
+              "type": "object",
+              "required": ["type"],
+              "additionalProperties": false,
+              "properties": {
+                "type": {
+                  "const": "bridge"
+                }
+              },
+              "description": "Contract bridge auction: bids 1–7 in ♣ ♦ ♥ ♠ NT, pass, double, redouble. The declarer's partner is dummy."
+            }
+          ]
+        },
+        "scoring": {
+          "oneOf": [
+            {
+              "type": "object",
+              "required": ["type", "cardPoints"],
+              "additionalProperties": false,
+              "properties": {
+                "type": {
+                  "const": "penalty"
+                },
+                "cardPoints": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "number"
+                  },
+                  "description": "Keys are a suit letter (every card of that suit) or a card id like \"QS\"."
+                },
+                "moon": {
+                  "type": "boolean"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "required": ["type"],
+              "additionalProperties": false,
+              "properties": {
+                "type": {
+                  "const": "contract"
+                },
+                "nil": {
+                  "type": "number"
+                },
+                "bags": {
+                  "type": "object",
+                  "required": ["every", "penalty"],
+                  "properties": {
+                    "every": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "penalty": {
+                      "type": "number"
+                    }
+                  }
+                },
+                "overtrick": {
+                  "type": "number",
+                  "description": "Points for each trick over the bid (a bag). Default 1; three-handed spades: −10."
+                }
+              }
+            },
+            {
+              "type": "object",
+              "required": ["type", "bonus"],
+              "additionalProperties": false,
+              "properties": {
+                "type": {
+                  "const": "exact"
+                },
+                "bonus": {
+                  "type": "number"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "required": ["type"],
+              "additionalProperties": false,
+              "properties": {
+                "type": {
+                  "const": "tricks"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "required": ["type"],
+              "additionalProperties": false,
+              "description": "Whist: one point a trick over six for the side taking more; honours scored with the `honours` option.",
+              "properties": {
+                "type": {
+                  "const": "whist"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "required": ["type"],
+              "additionalProperties": false,
+              "properties": {
+                "type": {
+                  "const": "euchre"
+                },
+                "march": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "Points for the makers taking all five tricks (doubled when alone). Default 2."
+                },
+                "euchred": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "Points for the defenders when the makers fall short (doubled for a lone defender). Default 2."
+                }
+              }
+            },
+            {
+              "type": "object",
+              "required": ["type", "perTrick"],
+              "additionalProperties": false,
+              "properties": {
+                "type": {
+                  "const": "auction"
+                },
+                "perTrick": {
+                  "type": "number"
+                },
+                "slam": {
+                  "type": "number"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "required": ["type"],
+              "additionalProperties": false,
+              "properties": {
+                "type": {
+                  "const": "bridge"
+                }
+              },
+              "description": "Duplicate bridge scoring per deal, Chicago vulnerability."
+            }
+          ]
+        },
+        "end": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "target": {
+              "type": "number"
+            },
+            "lowWins": {
+              "type": "boolean"
+            },
+            "rounds": {
+              "type": "boolean"
+            },
+            "deals": {
+              "type": "number",
+              "description": "Play this many deals (option `deals` overrides)."
+            },
+            "loseAt": {
+              "type": "number",
+              "description": "A side at or below this score loses (500: -500)."
+            }
+          }
+        },
+        "bowers": {
+          "type": "boolean",
+          "description": "Jack of trumps and the same-colour jack are the top two trumps."
+        },
+        "joker": {
+          "type": "boolean",
+          "description": "A joker is the highest trump (500)."
+        },
+        "kitty": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Cards left undealt for the bid winner (500)."
+        },
+        "callPartner": {
+          "type": "boolean",
+          "description": "500 for five: the contractor names a card, and whoever holds it is their secret partner, known when the card is played."
+        },
+        "duplicates": {
+          "enum": ["later", "first"],
+          "description": "With a double pack, two identical cards in a trick: `later` (six-handed spades) or the first played (default) wins."
+        }
+      }
+    },
+    "PokerRules": {
+      "title": "PokerRules",
+      "description": "Poker: Hold'em, Omaha (blinds and a board) or five card draw (antes and a draw).",
+      "required": ["family", "holeCards", "board"],
+      "additionalProperties": false,
+      "properties": {
+        "family": {
+          "const": "poker"
+        },
+        "holeCards": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 7
+        },
+        "useHole": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "0 = any five cards; N = exactly N hole cards."
+        },
+        "board": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "description": "Community cards dealt on each street ([] for draw poker)."
+        },
+        "stud": {
+          "type": "boolean",
+          "description": "Seven card stud: two cards down and one up, three more up, the last down; antes and a bring-in."
+        },
+        "draw": {
+          "type": "object",
+          "required": ["max"],
+          "additionalProperties": false,
+          "properties": {
+            "max": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 5
+            }
+          },
+          "description": "Draw poker: everyone antes, bets, swaps up to `max` cards, then bets again."
+        }
+      }
+    },
+    "GinRules": {
+      "title": "GinRules",
+      "description": "Rummy games. Style \"gin\": two players draw and discard until someone knocks.",
+      "required": ["family", "style", "handSize", "knockMax", "bonuses", "end"],
+      "additionalProperties": false,
+      "properties": {
+        "family": {
+          "const": "rummy"
+        },
+        "style": {
+          "enum": ["gin"]
+        },
+        "handSize": {
+          "type": "integer",
+          "minimum": 3,
+          "maximum": 13
+        },
+        "knockMax": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Most deadwood you may knock with; 0 = gin only."
+        },
+        "bonuses": {
+          "type": "object",
+          "required": ["gin", "undercut"],
+          "additionalProperties": false,
+          "properties": {
+            "gin": {
+              "type": "number"
+            },
+            "bigGin": {
+              "type": "number"
+            },
+            "undercut": {
+              "type": "number"
+            },
+            "box": {
+              "type": "number"
+            },
+            "game": {
+              "type": "number"
+            }
+          }
+        },
+        "end": {
+          "type": "object",
+          "required": ["target"],
+          "additionalProperties": false,
+          "properties": {
+            "target": {
+              "type": "number"
+            }
+          }
+        }
+      }
+    },
+    "Rummy500Rules": {
+      "title": "Rummy500Rules",
+      "description": "Rummy 500: 2–8 players meld and lay off on the table; melded cards score, cards in hand count against you.",
+      "required": ["family", "style", "end"],
+      "additionalProperties": false,
+      "properties": {
+        "family": {
+          "const": "rummy"
+        },
+        "style": {
+          "const": "500"
+        },
+        "end": {
+          "type": "object",
+          "required": ["target"],
+          "additionalProperties": false,
+          "properties": {
+            "target": {
+              "type": "number"
+            }
+          }
+        }
+      }
+    },
+    "CribbageRules": {
+      "title": "CribbageRules",
+      "description": "Cribbage for 2–4 players (4 = partnerships).",
+      "required": ["family", "target"],
+      "additionalProperties": false,
+      "properties": {
+        "family": {
+          "const": "cribbage"
+        },
+        "target": {
+          "type": "integer",
+          "minimum": 31,
+          "description": "Points to win (121 standard, 61 for a short game)."
+        }
+      }
+    },
+    "ClimbingRules": {
+      "title": "ClimbingRules",
+      "description": "Climbing games (President): beat the last play with the same number of higher cards, or pass; first out wins.",
+      "required": ["family", "style", "end"],
+      "additionalProperties": false,
+      "properties": {
+        "family": {
+          "const": "climbing"
+        },
+        "style": {
+          "const": "president"
+        },
+        "end": {
+          "type": "object",
+          "required": ["target"],
+          "additionalProperties": false,
+          "properties": {
+            "target": {
+              "type": "number"
+            }
+          }
+        }
+      }
+    },
+    "CanastaRules": {
+      "title": "CanastaRules",
+      "description": "Classic Canasta: partnerships (or two players) meld sets with wild 2s and jokers; seven make a canasta.",
+      "required": ["family", "end"],
+      "additionalProperties": false,
+      "properties": {
+        "family": {
+          "const": "canasta"
+        },
+        "end": {
+          "type": "object",
+          "required": ["target"],
+          "additionalProperties": false,
+          "properties": {
+            "target": {
+              "type": "number"
+            }
+          }
+        }
+      }
+    },
+    "EightsRules": {
+      "title": "EightsRules",
+      "description": "Crazy Eights: match the rank or suit of the top card; eights are wild and call a suit.",
+      "required": ["family", "end"],
+      "additionalProperties": false,
+      "properties": {
+        "family": {
+          "const": "eights"
+        },
+        "end": {
+          "type": "object",
+          "required": ["target"],
+          "additionalProperties": false,
+          "properties": {
+            "target": {
+              "type": "number"
+            }
+          }
+        }
+      }
+    },
+    "BaccaratRules": {
+      "title": "BaccaratRules",
+      "required": ["family", "minBet", "maxBet"],
+      "additionalProperties": false,
+      "description": "Baccarat (Punto Banco) against the house.",
+      "properties": {
+        "family": {
+          "const": "baccarat"
+        },
+        "minBet": {
+          "type": "integer"
+        },
+        "maxBet": {
+          "type": "integer"
+        }
+      }
+    },
+    "BlackjackRules": {
+      "title": "BlackjackRules",
+      "required": ["family", "minBet", "maxBet"],
+      "additionalProperties": false,
+      "description": "Blackjack against the house.",
+      "properties": {
+        "family": {
+          "const": "blackjack"
+        },
+        "minBet": {
+          "type": "integer"
+        },
+        "maxBet": {
+          "type": "integer"
+        }
+      }
+    },
+    "CheatRules": {
+      "title": "CheatRules",
+      "required": ["family"],
+      "additionalProperties": false,
+      "description": "Cheat (Bullshit, I Doubt It): play face down, claim the next rank, call Cheat!",
+      "properties": {
+        "family": {
+          "const": "cheat"
+        }
+      }
+    },
+    "GoFishRules": {
+      "title": "GoFishRules",
+      "required": ["family"],
+      "additionalProperties": false,
+      "description": "Go Fish: ask for ranks and collect books of four.",
+      "properties": {
+        "family": {
+          "const": "gofish"
+        }
+      }
+    },
+    "PalaceRules": {
+      "title": "PalaceRules",
+      "required": ["family"],
+      "additionalProperties": false,
+      "description": "Palace (Shithead): hand, face-up and face-down cards; beat the pile or pick it up.",
+      "properties": {
+        "family": {
+          "const": "palace"
+        }
+      }
+    },
+    "CornersRules": {
+      "title": "CornersRules",
+      "required": ["family", "end"],
+      "additionalProperties": false,
+      "description": "Kings Corners: build down in alternating colours on eight piles around the stock.",
+      "properties": {
+        "family": {
+          "const": "corners"
+        },
+        "end": {
+          "type": "object",
+          "properties": {
+            "target": {
+              "type": "number",
+              "description": "Points to win (the `target` option overrides)."
+            }
+          },
+          "required": ["target"],
+          "additionalProperties": false
+        }
+      }
+    },
+    "HandFootRules": {
+      "title": "HandFootRules",
+      "required": ["family"],
+      "additionalProperties": false,
+      "description": "Hand and Foot: partnership canasta with a hand and a foot each, four rounds.",
+      "properties": {
+        "family": {
+          "const": "handfoot"
+        }
+      }
+    },
+    "SpoonsRules": {
+      "title": "SpoonsRules",
+      "required": ["family"],
+      "additionalProperties": false,
+      "description": "Spoons: pass cards along at once, grab a spoon on four of a kind.",
+      "properties": {
+        "family": {
+          "const": "spoons"
+        }
+      }
+    },
+    "SpitRules": {
+      "title": "SpitRules",
+      "required": ["family"],
+      "additionalProperties": false,
+      "description": "Spit: two players race to play onto two middle piles.",
+      "properties": {
+        "family": {
+          "const": "spit"
+        }
+      }
+    },
+    "SlapRules": {
+      "title": "SlapRules",
+      "required": ["family", "style"],
+      "additionalProperties": false,
+      "description": "Real-time slap games: Slapjack or Egyptian Rat Screw.",
+      "properties": {
+        "family": {
+          "const": "slap"
+        },
+        "style": {
+          "enum": ["slapjack", "ers"]
+        }
+      }
+    },
+    "PinochleRules": {
+      "title": "PinochleRules",
+      "required": ["family", "end"],
+      "additionalProperties": false,
+      "description": "Partnership auction Pinochle (single deck, four players).",
+      "properties": {
+        "family": {
+          "const": "pinochle"
+        },
+        "end": {
+          "type": "object",
+          "properties": {
+            "target": {
+              "type": "number"
+            }
+          }
+        }
+      }
+    },
+    "DeckSpec": {
+      "title": "DeckSpec",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "decks": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8
+        },
+        "jokers": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4
+        },
+        "ranks": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 2,
+            "maximum": 14
+          },
+          "description": "Ace is 14."
+        },
+        "exclude": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Card ids to leave out, e.g. [\"4S\", \"4C\"]."
+        },
+        "extra": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Extra cards added on top, e.g. [\"2S#2\"] (a second copy of the 2♠)."
+        }
+      }
     }
   }
 }
