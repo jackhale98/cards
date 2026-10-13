@@ -1,4 +1,4 @@
-import { cardOrJokerLabel } from '../engine/cards';
+import { parseCard, rankLabel, SUIT_NAME } from '../engine/cards';
 import type { GameState, LogEntry } from '../engine/types';
 
 /**
@@ -58,6 +58,32 @@ export class GameRecord {
 }
 
 /**
+ * Cards in plain letters, as card records (hand histories, bridge's PBN) write them, so a
+ * spreadsheet can search and sort them and any font shows them: "AS", "10H", "QD", a joker "Joker".
+ */
+export function cardCode(id: string): string {
+  const c = parseCard(id);
+  return c.suit === 'X' ? 'Joker' : `${rankLabel(c.rank)}${c.suit}`;
+}
+
+const LETTER: Record<string, string> = { '♠': 'S', '♥': 'H', '♦': 'D', '♣': 'C' };
+
+/**
+ * The table's words, with suit symbols in letters: a card or a bid ("10♦", "1 ♠") reads "10D",
+ * "1S"; a suit on its own ("♥ broken") is spelled out ("Hearts broken").
+ */
+export function plainText(text: string): string {
+  return text
+    .replace(/JK★/g, 'Joker')
+    .replace(/\b(10|[1-9AKQJ]) ?([♠♥♦♣])/g, (_, rank: string, suit: string) => rank + LETTER[suit])
+    .replace(/[♠♥♦♣]/g, (suit) => {
+      const name = SUIT_NAME[LETTER[suit] as keyof typeof SUIT_NAME];
+      return name[0].toUpperCase() + name.slice(1);
+    })
+    .replace(/★/g, '*');
+}
+
+/**
  * One spreadsheet cell. Text that a spreadsheet would run as a formula (a player named
  * "=HYPERLINK(…)") is kept as text; commas, quotes and line breaks are quoted.
  */
@@ -74,11 +100,12 @@ function cell(v: string | number): string {
 export function toCsv(record: GameRecord, seat: number, names: string[]): string {
   const rows: (string | number)[][] = [['Hand', 'Move', 'Player', 'What happened', 'Your cards']];
   record.hands.forEach((h, i) => {
-    const mine = seat >= 0 ? (h.dealt[seat] ?? []).map(cardOrJokerLabel).join(' ') : '';
+    const mine = seat >= 0 ? (h.dealt[seat] ?? []).map(cardCode).join(' ') : '';
     rows.push([i + 1, '', '', 'Deal', mine]);
-    h.moves.forEach((m, j) => rows.push([i + 1, j + 1, m.seat != null ? (names[m.seat] ?? '') : '', m.text, '']));
-    for (const line of h.result) rows.push([i + 1, '', '', `Result: ${line}`, '']);
+    h.moves.forEach((m, j) => rows.push([i + 1, j + 1, m.seat != null ? (names[m.seat] ?? '') : '', plainText(m.text), '']));
+    for (const line of h.result) rows.push([i + 1, '', '', `Result: ${plainText(line)}`, '']);
   });
-  // (the byte-order mark tells Excel the file is UTF-8, so ♠♥♦♣ come through)
+  // (cards and suits are plain letters; the byte-order mark tells Excel the file is UTF-8, for
+  // names with accents and the like)
   return '\uFEFF' + rows.map((r) => r.map(cell).join(',')).join('\r\n') + '\r\n';
 }

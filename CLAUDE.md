@@ -29,7 +29,7 @@ pnpm verify:all          # verify + e2e
 src/engine/            pure TS: no DOM, no network, no UI
   types.ts             GameConfig, GameState, GameModule (setup/actions/apply/system/bot/status/redactData/standings)
   state.ts             zone helpers, log(), standings helpers
-  cards.ts rng.ts      card ids ("7C", "10H", "XA" jokers), decks; the dice: sfc32, 128 bits of
+  cards.ts rng.ts      card ids ("7C", "TH" for the ten, "XA" jokers), decks; the dice: sfc32, 128 bits of
                        state in GameState.rng, seeded from crypto (tests/shuffle.test.ts checks fairness)
   redact.ts            what each viewer may see: placeholders for unseen cards
   validate.ts          checkAction: an incoming action against the specs that were offered

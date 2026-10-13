@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cardOrJokerLabel } from '../src/engine/cards';
 import { Client } from '../src/net/client';
+import { cardCode, plainText } from '../src/net/gameRecord';
 import { Host } from '../src/net/host';
 import { GAMES } from './games';
 import { Bus, MemTransport } from './netHarness';
@@ -68,7 +68,7 @@ describe('saving a game as a spreadsheet', () => {
     const rows = parse(host.exportCsv('h')!);
     expect(rows[0]).toEqual(['Hand', 'Move', 'Player', 'What happened', 'Your cards']);
     const hand1 = rows.filter((r) => r[0] === '1');
-    expect(hand1[0].slice(3)).toEqual(['Deal', dealt.map(cardOrJokerLabel).join(' ')]);
+    expect(hand1[0].slice(3)).toEqual(['Deal', dealt.map(cardCode).join(' ')]);
     // every card played once: 13 tricks of 4, each its own row (never taken twice)
     const plays = hand1.filter((r) => /\b(plays|leads)\b/.test(r[3]));
     expect(plays).toHaveLength(52);
@@ -114,12 +114,24 @@ describe('saving a game as a spreadsheet', () => {
     host.setGame('hearts');
     for (let i = 0; i < 2; i++) host.addBot();
     host.start();
-    const annDealt = host.state!.zones['hand:1'].cards.map((c) => cardOrJokerLabel(c.id)).join(' ');
+    const annDealt = host.state!.zones['hand:1'].cards.map((c) => cardCode(c.id)).join(' ');
     let got: string | null = null;
     ann.onExport = (csv) => (got = csv);
     ann.exportGame();
     const deal = parse(got!).find((r) => r[3] === 'Deal')!;
     expect(deal[4]).toBe(annDealt);
+    host.close();
+  });
+
+  it('writes cards and suits in plain letters, for searching and any font', () => {
+    expect(['AS', 'TH', 'QD#2', 'XA'].map(cardCode)).toEqual(['AS', '10H', 'QD', 'Joker']);
+    expect(plainText('Bix plays 10♦ — 10')).toBe('Bix plays 10D — 10');
+    expect(plainText('Cleo bids 1 ♠ (40)')).toBe('Cleo bids 1S (40)');
+    expect(plainText('♥ broken')).toBe('Hearts broken');
+    expect(plainText('Q♥ turned up, then JK★')).toBe('QH turned up, then Joker');
+    const host = hearts();
+    play(host, 1);
+    expect(host.exportCsv('h')!).not.toMatch(/[♠♥♦♣★]/);
     host.close();
   });
 
