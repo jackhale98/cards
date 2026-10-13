@@ -86,7 +86,7 @@
       {/each}
     </div>
   {:else}
-    <div class="spread">
+    <div class="spread" class:handdown={zone.faceUpHand}>
       {#each zone.cards as c, i (c.id)}
         <button
           class="scard"
@@ -172,6 +172,17 @@
   .scard {
     position: relative;
     padding: 0;
+  }
+  /* a whole hand face up (bridge's dummy): the same overlap from thirteen cards down to one, a
+     little room between suits, one row; so playing a card never moves the rest about */
+  .spread.handdown {
+    flex-wrap: nowrap;
+  }
+  .spread.handdown .scard + .scard {
+    margin-left: calc(var(--cw) * -0.62) !important;
+  }
+  .spread.handdown .scard.newgroup {
+    margin-left: calc(var(--cw) * -0.3) !important;
   }
   .spread .scard.newgroup {
     margin-left: calc(var(--cw) * 0.22) !important;

@@ -65,6 +65,8 @@ export interface ZoneState {
   hideEmpty?: boolean;
   scale?: number;
   peek?: number;
+  /** A whole hand face up on the table (bridge's dummy): one layout as it shrinks. */
+  faceUpHand?: boolean;
   cards: CardRef[];
 }
 

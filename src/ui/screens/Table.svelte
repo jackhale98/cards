@@ -431,7 +431,7 @@
         <div class="zone-slot">
           <Zone
             zone={z}
-            cw={Math.round(centerCw * (z.scale ?? 1) * (z.layout === 'spread' && z.cards.length >= 10 && !display ? 0.82 : 1))}
+            cw={Math.round(centerCw * (z.scale ?? 1) * (z.layout === 'spread' && (z.faceUpHand || z.cards.length >= 10) && !display ? 0.82 : 1))}
             {you}
             players={n}
             {selected}

@@ -125,6 +125,10 @@ export interface ZoneConfig {
    * A stack that shows its top few face-up cards overlapping, not just the top one (slap games).
    */
   peek?: number;
+  /**
+   * A whole hand laid face up on the table (bridge's dummy): drawn the same way however many cards are left, so the rest don't jump about as cards are played from it.
+   */
+  faceUpHand?: boolean;
 }
 export interface DealStep {
   to: string;

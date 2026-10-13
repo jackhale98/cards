@@ -12,7 +12,7 @@
     { "id": "deck", "visibility": "none", "layout": "stack", "area": "none" },
     { "id": "kitty", "visibility": "none", "layout": "stack", "area": "none" },
     { "id": "hand", "perPlayer": true, "visibility": "owner", "layout": "fan", "area": "hand" },
-    { "id": "dummy", "label": "Open hand", "visibility": "all", "layout": "spread", "area": "center", "hideEmpty": true },
+    { "id": "dummy", "label": "Open hand", "visibility": "all", "layout": "spread", "area": "center", "hideEmpty": true, "faceUpHand": true },
     { "id": "trick", "label": "Trick", "visibility": "all", "layout": "trick", "area": "center" },
     { "id": "taken", "perPlayer": true, "visibility": "none", "layout": "stack", "area": "none" }
   ],

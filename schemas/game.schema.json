@@ -120,6 +120,10 @@
             "minimum": 2,
             "maximum": 4,
             "description": "A stack that shows its top few face-up cards overlapping, not just the top one (slap games)."
+          },
+          "faceUpHand": {
+            "type": "boolean",
+            "description": "A whole hand laid face up on the table (bridge's dummy): drawn the same way however many cards are left, so the rest don't jump about as cards are played from it."
           }
         }
       }
