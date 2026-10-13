@@ -22,7 +22,10 @@ describe('real-time host', () => {
 
   it('bots act on their own timers, without waiting for each other', () => {
     // (a fixed deal: with some deals a jack is slapped early and the person is up again sooner)
-    vi.spyOn(crypto, 'getRandomValues').mockImplementationOnce((a) => (((a as Uint32Array)[0] = 7), a));
+    // (and fixed bot reaction times)
+    let r = 1;
+    vi.spyOn(Math, 'random').mockImplementation(() => ((r = (r * 48271) % 2147483647) - 1) / 2147483646);
+    vi.spyOn(crypto, 'getRandomValues').mockImplementationOnce((a) => (((a as Uint32Array)[0] = 3), a));
     const host = game('slapjack', 3);
     expect(state(host).turn).toBe(0);
     expect(host.act('h', { type: 'flip' })).toBeNull();
@@ -32,6 +35,7 @@ describe('real-time host', () => {
     expect(state(host).v).toBeGreaterThanOrEqual(v + 3);
     expect(state(host).log.filter((l) => /turns up/.test(l.text)).length).toBeGreaterThanOrEqual(4);
     host.close();
+    vi.restoreAllMocks();
   });
 
   it('the quicker reaction wins even when it arrives later', () => {

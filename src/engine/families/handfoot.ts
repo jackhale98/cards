@@ -3,6 +3,7 @@ import { createState, hand, ids, log, moveCards, moveTop, name, nextSeat, places
 import { assertRule, type Action, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
 import { cardPoints, groupByRank, isBlackThree, isRedThree, isWild } from '../lib/canastaCards';
 import { ownOnly } from '../redact';
+import { nextRandom } from '../rng';
 import { sideName } from '../lib/teams';
 
 /**
@@ -191,8 +192,8 @@ export function handFootFamily(config: GameConfig): GameModule<HandFootData> {
       if (!isWild(top) && !isRedThree(top)) break;
       const deck = zone(s, 'deck').cards;
       moveCards(s, 'discard', 'deck', [top]);
-      // (tucked into the middle of the stock)
-      deck.splice(Math.floor(deck.length / 2), 0, deck.pop()!);
+      // (buried at random in the stock: not at a spot everyone could count to)
+      deck.splice(Math.floor(nextRandom(s) * (deck.length - 1)), 0, deck.pop()!);
     }
     s.players.forEach((_, i) => {
       layRedThrees(s, i);

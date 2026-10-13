@@ -1,6 +1,6 @@
 import { parseCard } from '../cards';
 import { createState, deal, hand, log, name, nextSeat, placesFromScores, resetDeck, zone } from '../state';
-import { shuffle } from '../rng';
+import { rngSalt, shuffle } from '../rng';
 import { botLevel } from '../bots/search';
 import { msUntil, REACTION_WINDOW, span } from '../lib/realtime';
 import { assertRule, type Action, type ActionSpec, type CardRef, type GameConfig, type GameModule, type GameState } from '../types';
@@ -299,7 +299,7 @@ export function slapFamily(config: GameConfig): GameModule<SlapData> {
   // ---- bots ------------------------------------------------------------------------------
 
   /** A steady coin for this bot on this card (the host asks bots again and again: don't re-roll). */
-  const roll = (s: S, seat: number, salt: number) => ((((s.data.race * 7919 + seat * 104729 + salt * 31337 + (s.rng % 997)) >>> 0) * 2654435761) >>> 0) / 2 ** 32;
+  const roll = (s: S, seat: number, salt: number) => ((((s.data.race * 7919 + seat * 104729 + salt * 31337 + rngSalt(s)) >>> 0) * 2654435761) >>> 0) / 2 ** 32;
 
   return {
     config,

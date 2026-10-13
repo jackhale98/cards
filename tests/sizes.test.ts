@@ -123,6 +123,18 @@ describe('spades for three (pagat)', () => {
     });
   });
 
+  it("at three, falling to −200 loses (so a game can't drift on forever)", () => {
+    const s = spades.setup(bots(3), 5, { target: 500 });
+    s.data.scores = [-450, 120, 80];
+    // (one hand: nobody can climb from −450 to above −200 in it)
+    simulate(spades, s);
+    expect(s.data.round).toBe(0);
+    expect(s.data.scores[0]).toBeLessThanOrEqual(-200);
+    const best = Math.max(...s.data.scores);
+    expect(s.winner).toEqual([s.data.scores.indexOf(best)]);
+    expect(s.data.result!.lines.join(' ')).toMatch(/drop to -?\d+ and lose/);
+  });
+
   it('bots play whole games at three', () => {
     const s = spades.setup(bots(3), 3, { target: 200 });
     simulate(spades, s);

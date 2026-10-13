@@ -1,5 +1,5 @@
 import { buildDeck, cardName, parseCard, sortCards } from './cards';
-import { shuffle } from './rng';
+import { seedState, shuffle, type Seed } from './rng';
 import type { CardRef, DealStep, GameConfig, GameState, SetupPlayer, ZoneState } from './types';
 import { assertRule } from './types';
 
@@ -7,7 +7,7 @@ import { assertRule } from './types';
 export function createState<D>(
   config: GameConfig,
   players: SetupPlayer[],
-  seed: number,
+  seed: Seed,
   options: Record<string, number | boolean>,
   data: D,
 ): GameState<D> {
@@ -32,7 +32,7 @@ export function createState<D>(
   const s: GameState<D> = {
     game: config.id,
     v: 0,
-    rng: seed >>> 0,
+    rng: seedState(seed),
     players: players.map((p, seat) => ({ seat, name: p.name, bot: p.bot, chips: config.chips?.start ?? 0 })),
     zones,
     turn: null,

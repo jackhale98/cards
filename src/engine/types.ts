@@ -1,3 +1,4 @@
+import type { RngState, Seed } from './rng';
 import type { DeckSpec } from './cards';
 
 // ---------------------------------------------------------------------------
@@ -145,7 +146,8 @@ export interface GameState<D = unknown> {
   game: string;
   /** Monotonic version, bumped by the host on every change. */
   v: number;
-  rng: number;
+  /** The dice: four 32-bit words of RNG state (see rng.ts; a plain number in games saved before). */
+  rng: RngState | number;
   players: PlayerState[];
   zones: Record<string, ZoneState>;
   /** Seat whose turn it is, or null when nobody/everybody may act. */
@@ -254,7 +256,7 @@ export interface SetupPlayer {
 
 export interface GameModule<D = any> {
   config: GameConfig;
-  setup(players: SetupPlayer[], seed: number, options: Record<string, number | boolean>): GameState<D>;
+  setup(players: SetupPlayer[], seed: Seed, options: Record<string, number | boolean>): GameState<D>;
   /** Actions available to `seat` right now. */
   actions(s: GameState<D>, seat: number): ActionSpec[];
   /** Apply an action to a (cloned) state. Throw `RuleError` if illegal. */

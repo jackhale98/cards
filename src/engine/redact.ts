@@ -48,7 +48,7 @@ export function redact<D>(module: GameModule<D>, s: GameState<D>, viewer: number
   }
   return {
     ...s,
-    rng: 0,
+    rng: [],
     zones,
     data: module.redactData ? module.redactData(s, viewer) : s.data,
   };

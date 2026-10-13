@@ -28,7 +28,8 @@
       "rules": {
         "teams": [[0], [1], [2]],
         "lead": "twoOfClubs",
-        "scoring": { "type": "contract", "nil": 100, "overtrick": -10 }
+        "scoring": { "type": "contract", "nil": 100, "overtrick": -10 },
+        "end": { "target": 500, "loseAt": -200 }
       }
     },
     "6": {
@@ -47,7 +48,7 @@
     "Nil scores ±100; a nil player's tricks don't count towards the partner's bid but do count as bags. Every 10 bags costs 100.",
     "Blind nil: a side 100 or more behind may bid nil before looking at their cards, for ±200. Partners then swap two cards.",
     "First team to the target wins; if both sides are level, play another hand.",
-    "Three players: everyone for themselves, 17 cards each (the last card is out of play). The 2♣ leads (the 3♣ if the 2♣ is out). Make your bid for 10 a trick; each trick over it costs 10, and missing costs 10 × the bid.",
+    "Three players: everyone for themselves, 17 cards each (the last card is out of play). The 2♣ leads (the 3♣ if the 2♣ is out). Make your bid for 10 a trick; each trick over it costs 10, and missing costs 10 × the bid. Anyone falling to −200 loses, and the leader wins.",
     "Six players: three pairs, partners across; two packs without the 2♦s (102 cards), 17 each. If two identical cards fall on the same trick, the second one wins."
   ]
 }

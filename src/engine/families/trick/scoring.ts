@@ -175,6 +175,15 @@ export function endRound(g: TrickGame, s: S) {
       ? Math.max(...d.scores) >= target(g, s)
       : best >= target(g, s);
   const tied = d.scores.filter((x) => x === best).length > 1;
+  // a side down at `loseAt` ends the game: the best of the rest win (as long as they're level)
+  const loseAt = R.end.loseAt;
+  if (!reached && !lowWins && loseAt != null && d.scores.some((x) => x <= loseAt)) {
+    const teams = teamsFor(g, s.players.length);
+    for (const ti of teams.keys()) if (d.scores[ti] <= loseAt) lines.push(`${teamName(g, s, ti)} drop to ${d.scores[ti]} and lose`);
+    s.winner = teams.flatMap((t, ti) => (d.scores[ti] === best ? t : []));
+    s.phase = 'gameOver';
+    return;
+  }
   if (reached && tied && !lowWins && !R.end.rounds && !R.end.deals) {
     // sides level at the top: play another hand to settle it
     lines.push(`Level at ${best} — play another hand`);

@@ -1,6 +1,7 @@
 import { parseCard, RANK_WORDS, rankPlural } from '../cards';
 import { createState, deal, hand, ids, log, moveCards, name, nextSeat, placesFromScores, resetDeck, sortHand, zone } from '../state';
 import { botLevel } from '../bots/search';
+import { rngSalt } from '../rng';
 import { assertRule, type Action, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
 
 /**
@@ -155,7 +156,7 @@ export function cheatFamily(config: GameConfig): GameModule<CheatData> {
     // certain: more claimed than can exist besides ours
     if (level > 0 && last.count + seen(s, seat, last.rank) > total) return true;
     // one decision per bot per play (the host asks bots again and again: don't re-roll)
-    const roll = (((d.claims.length * 7919 + seat * 104729 + (s.rng % 997)) * 2654435761) >>> 0) / 2 ** 32;
+    const roll = (((d.claims.length * 7919 + seat * 104729 + rngSalt(s)) * 2654435761) >>> 0) / 2 ** 32;
     // their last cards: worth a look
     if (!hand(s, last.seat).cards.length) return roll < 0.6;
     let odds = (last.count >= 3 ? 0.25 : last.count === 2 ? 0.08 : 0.03) + seen(s, seat, last.rank) * 0.1;

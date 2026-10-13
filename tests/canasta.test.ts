@@ -119,7 +119,8 @@ describe('canasta play', () => {
 
   it('plays whole games with bots, four players and two', () => {
     for (const n of [4, 2]) {
-      const s = g.setup(bots(n), 30 + n, { target: 1500 });
+      // (to the usual 5000: a lucky deal can reach a lower target in one hand)
+      const s = g.setup(bots(n), 30 + n, { target: 5000 });
       let hands = 0;
       for (let i = 0; i < 100000 && s.phase !== 'gameOver'; i++) {
         if (s.phase === 'handOver') {
@@ -133,7 +134,7 @@ describe('canasta play', () => {
         g.apply(s, seat, g.bot!(s, seat)!);
       }
       expect(s.phase).toBe('gameOver');
-      expect(Math.max(...s.data.scores)).toBeGreaterThanOrEqual(1500);
+      expect(Math.max(...s.data.scores)).toBeGreaterThanOrEqual(5000);
       expect(hands).toBeGreaterThan(0);
     }
   });
