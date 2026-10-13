@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { dealConstrained } from '../src/engine/bots/search';
 import { parseCard } from '../src/engine/cards';
 import type { TrickData } from '../src/engine/families/trick';
@@ -142,6 +142,9 @@ describe('search bots', () => {
   });
 
   it('poker: Hard raises aces and folds rags to a big bet', () => {
+    // (the bot's own dice, fixed: it mixes its play, and this checks the mix)
+    let r = 7;
+    vi.spyOn(Math, 'random').mockImplementation(() => ((r = (r * 48271) % 2147483647) - 1) / 2147483646);
     const g = GAMES.holdem as GameModule<any>;
     const s = g.setup(bots(2), 3, { ...defaults(g), botLevel: 2 });
     const me = s.turn!;
@@ -156,5 +159,6 @@ describe('search bots', () => {
     const them = s.turn!;
     g.apply(s, them, { type: 'allin' });
     expect(g.bot!(s, me)).toEqual({ type: 'fold' });
+    vi.restoreAllMocks();
   });
 });

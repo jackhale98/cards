@@ -1,5 +1,5 @@
 import { buildDeck, parseCard } from '../cards';
-import { botBudget, botLevel, now, shuffled } from '../bots/search';
+import { botBudget, botLevel, moreSamples, now, shuffled } from '../bots/search';
 import * as bet from '../lib/betting';
 import { bestHand, bestWithHole, eval5, type HandValue } from '../lib/pokerEval';
 import { shuffle } from '../rng';
@@ -652,7 +652,7 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
     let runs = 0;
     const stop = now() + budget.ms;
     // hand values are cheap next to the search's playouts: many more deals in the same time
-    while (runs < budget.samples * 8 && (runs < 20 || now() < stop)) {
+    while (moreSamples(runs, budget.samples * 8, 20, stop)) {
       const deck = shuffled([...unseen]);
       let k = 0;
       const take = (n: number) => deck.slice(k, (k += n));
@@ -696,7 +696,7 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
     let runs = 0;
     const stop = now() + budget.ms;
     // seven-card hands cost more to value than hold'em ones: fewer deals
-    while (runs < budget.samples * 3 && (runs < 20 || now() < stop)) {
+    while (moreSamples(runs, budget.samples * 3, 20, stop)) {
       const deck = shuffled([...unseen]);
       let k = 0;
       const take = (n: number) => deck.slice(k, (k += n));

@@ -40,6 +40,14 @@ export const botBudget = (options: Record<string, number | boolean>) => BOT_LEVE
 
 const TESTING = import.meta.env?.MODE === 'test';
 
+/**
+ * Whether to draw another sample: up to `max`, at least `min`, until `stop` (a time) passes. In
+ * tests the clock is left out (exactly `max`), so a busy machine can't change a bot's answer.
+ */
+export function moreSamples(runs: number, max: number, min: number, stop: number): boolean {
+  return runs < max && (TESTING || runs < min || now() < stop);
+}
+
 export const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
 /** The best move by sampling, or null if there's nothing to decide. */
