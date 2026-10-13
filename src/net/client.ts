@@ -1,5 +1,6 @@
 import type { Action } from '../engine/types';
 import { isValidCode, type Avatar, type Frame, type HostMsg, type Night, type View } from './protocol';
+import type { ExportFormat } from './exports/formats';
 import type { Transport } from './transport';
 
 /** No word from the host (which pings every 3s) for this long means we've lost it. */
@@ -17,8 +18,8 @@ export class Client {
   onPings: (pings: (number | null)[]) => void = () => {};
   /** A moment of a finished hand, asked for with `replay` (null: there isn't one). */
   onFrame: (f: Frame | null) => void = () => {};
-  /** The game as a spreadsheet, asked for with `exportGame` (null: nothing to save). */
-  onExport: (csv: string | null) => void = () => {};
+  /** The game as a file, asked for with `exportGame` (null: nothing to save). */
+  onExport: (text: string | null) => void = () => {};
   /** When we last heard anything from the host. */
   lastHeard = 0;
   /** The host's latest sealed backup of the game (only the relay can unlock it; see backup.ts). */
@@ -72,7 +73,7 @@ export class Client {
       }
       if (msg.t === 'export') {
         if (from !== this.hostPeer) return;
-        this.onExport(typeof msg.csv === 'string' ? msg.csv : null);
+        this.onExport(typeof msg.text === 'string' ? msg.text : null);
         return;
       }
       if (msg.t === 'pings') {
@@ -160,9 +161,9 @@ export class Client {
     if (this.hostPeer) this.transport.send({ t: 'replay', hand, step }, this.hostPeer);
   }
 
-  /** Ask the host for the game so far as a spreadsheet (see Host.exportCsv). */
-  exportGame() {
-    if (this.hostPeer) this.transport.send({ t: 'export' }, this.hostPeer);
+  /** Ask the host for the game so far as a file (see Host.exportFile). */
+  exportGame(format: ExportFormat = 'csv') {
+    if (this.hostPeer) this.transport.send({ t: 'export', format }, this.hostPeer);
   }
 
   act(a: Action) {

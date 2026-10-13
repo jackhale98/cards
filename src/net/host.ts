@@ -23,6 +23,11 @@ import {
 } from './protocol';
 import { seal } from './backup';
 import { GameRecord, toCsv } from './gameRecord';
+import { recordFormats, type ExportFormat } from './exports/formats';
+import { ohh } from './exports/ohh';
+import { pbn } from './exports/pbn';
+import type { HandFormat } from './exports/types';
+import { familyRules } from '../engine/types';
 import { report } from './reports';
 import type { Transport } from './transport';
 
@@ -188,7 +193,7 @@ export class Host {
       return this.paced(peer, msg);
     }
     if (msg.t === 'replay') return this.sendFrame(peer, msg.hand, msg.step);
-    if (msg.t === 'export') return this.sendExport(peer);
+    if (msg.t === 'export') return this.sendExport(peer, msg.format);
     if (msg.t === 'act') {
       const cid = this.peers.get(peer);
       if (!cid) return;
@@ -413,7 +418,9 @@ export class Host {
       if (this.history.length > 30) this.history.shift();
     }
     this.state = next;
+    this.move = { seat, action };
     this.commit();
+    this.move = undefined;
     return null;
   }
 
@@ -436,14 +443,21 @@ export class Host {
 
   /** This game so far as CSV, for `cid`: the moves, and only their own cards. */
   exportCsv(cid: string | null): string | null {
+    return this.exportFile(cid, 'csv');
+  }
+
+  /** This game so far as a file, for `cid`: the spreadsheet, or its game's standard record. */
+  exportFile(cid: string | null, format: ExportFormat): string | null {
     const s = this.state;
     if (!s || !this.module || this.module.realtime) return null;
-    return toCsv(
-      this.gameRecord,
-      this.gameSeat(cid),
-      s.players.map((p) => p.name),
-    );
+    const seat = this.gameSeat(cid);
+    const names = s.players.map((p) => p.name);
+    if (format === 'csv') return toCsv(this.gameRecord, seat, names);
+    return this.gameRecord.write(format, seat, { names, table: this.lobby.code });
   }
+
+  /** The move being made (for the standard records: who did what), while it's committed. */
+  private move: { seat: number; action: Action } | undefined;
 
   /**
    * Keep each moment of the hand in play, for replays. A hand ends in one of the end phases every
@@ -455,14 +469,19 @@ export class Host {
     const m = this.module;
     if (!s || !m || m.realtime) return;
     const ended = END_PHASES.has(s.phase) || !!m.status(s, 0).banner;
-    this.gameRecord.note(s, ended, () => {
-      // (the result as someone watching sees it: no "you")
-      try {
-        return m.status(s, -1).banner?.lines ?? [];
-      } catch {
-        return [];
-      }
-    });
+    this.gameRecord.note(
+      s,
+      ended,
+      () => {
+        // (the result as someone watching sees it: no "you")
+        try {
+          return m.status(s, -1).banner?.lines ?? [];
+        } catch {
+          return [];
+        }
+      },
+      this.move,
+    );
     if (!ended) {
       this.recording ??= [];
       if (this.recording.length < REPLAY_STEPS && this.recording.at(-1) !== s) this.recording.push(s);
@@ -503,13 +522,14 @@ export class Host {
   }
 
   /** A player's spreadsheet of the game (counted with replay frames: a few a second at most). */
-  private sendExport(peer: string) {
+  private sendExport(peer: string, format: unknown) {
     const second = Math.floor(Date.now() / 1000);
     const c = this.framesAsked.get(peer);
     if (c?.second === second && ++c.n > FRAMES_PER_SECOND) return;
     if (c?.second !== second) this.framesAsked.set(peer, { second, n: 1 });
     const cid = this.displays.has(peer) ? null : (this.peers.get(peer) ?? null);
-    this.transport?.send({ t: 'export', csv: this.exportCsv(cid) }, peer);
+    const f: ExportFormat = format === 'pbn' || format === 'ohh' ? format : 'csv';
+    this.transport?.send({ t: 'export', format: f, text: this.exportFile(cid, f) }, peer);
   }
 
   /** Add a game that has just finished to tonight's tally (once; a rematch starts a new one). */
@@ -868,7 +888,7 @@ export class Host {
     this.history = [];
     this.hands = [];
     this.recording = null;
-    this.gameRecord = new GameRecord();
+    this.gameRecord = new GameRecord(standardFormats(this.module.config));
     this.state = this.module.setup(
       players.map((s) => ({ name: s.name, bot: s.bot })),
       randomSeed(),
@@ -991,6 +1011,16 @@ function cleanNightGame(x: unknown): NightGame | null {
     results.push({ id: id.slice(0, 64), name: name.slice(0, 20), place, points });
   }
   return { game: g.game.slice(0, 40), name: g.name.slice(0, 40), at: g.at, results };
+}
+
+/** The standard record formats a game is followed in (see exports/formats.ts). */
+function standardFormats(config: GameModule['config']): Partial<Record<ExportFormat, HandFormat<unknown>>> {
+  const out: Partial<Record<ExportFormat, HandFormat<unknown>>> = {};
+  for (const f of recordFormats(config)) {
+    if (f === 'pbn') out.pbn = pbn as HandFormat<unknown>;
+    if (f === 'ohh') out.ohh = ohh(familyRules(config, 'poker')) as HandFormat<unknown>;
+  }
+  return out;
 }
 
 function missing(id: string): never {

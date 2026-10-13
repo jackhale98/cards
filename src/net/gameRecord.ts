@@ -1,5 +1,7 @@
 import { parseCard, rankLabel, SUIT_NAME } from '../engine/cards';
-import type { GameState, LogEntry } from '../engine/types';
+import type { Action, GameState, LogEntry } from '../engine/types';
+import type { HandFormat, RecordMeta } from './exports/types';
+import type { ExportFormat } from './exports/formats';
 
 /**
  * The record of a whole game, for saving as a spreadsheet: every hand's moves (the table's log,
@@ -20,6 +22,19 @@ const MAX_MOVES = 20_000;
 export class GameRecord {
   readonly hands: RecordedHand[] = [];
   private open: RecordedHand | null = null;
+  /** The game's standard record formats (PBN, OHH), each following the hands its own way. */
+  private formats: { id: ExportFormat; format: HandFormat<unknown>; hands: unknown[] }[];
+  private prev: GameState | null = null;
+
+  constructor(formats: Partial<Record<ExportFormat, HandFormat<unknown>>> = {}) {
+    this.formats = Object.entries(formats).map(([id, format]) => ({ id: id as ExportFormat, format: format!, hands: [] }));
+  }
+
+  /** The game in one of its standard formats, for the player in `seat` (null: not this game's). */
+  write(id: ExportFormat, seat: number, meta: RecordMeta): string | null {
+    const f = this.formats.find((x) => x.id === id);
+    return f ? f.format.write(f.hands, seat, meta) : null;
+  }
   /** The last log line taken, so each line is taken once (the log only keeps the latest few). */
   private last: string | null = null;
   private moves = 0;
@@ -28,10 +43,16 @@ export class GameRecord {
    * After each change at the table: take the new log lines, and note a hand starting (its deal)
    * or ending (`ended`, with the result lines).
    */
-  note(s: GameState, ended: boolean, result: () => string[]) {
-    if (!this.open && !ended) {
+  note(s: GameState, ended: boolean, result: () => string[], move?: { seat: number; action: Action }) {
+    const opening = !this.open && !ended;
+    if (opening) {
       this.open = { dealt: s.players.map((p) => (s.zones[`hand:${p.seat}`]?.cards ?? []).map((c) => c.id)), moves: [], result: [] };
       this.hands.push(this.open);
+    }
+    // (the standard formats: a hand starts at its deal, follows each change, and ends with it)
+    for (const f of this.formats) {
+      if (opening) f.hands.push(f.format.start(s, new Date()));
+      else if (this.open && this.prev && this.prev !== s) f.format.step(f.hands[f.hands.length - 1], this.prev, s, move);
     }
     const key = (e: LogEntry) => `${e.t}|${e.text}`;
     let from = 0;
@@ -53,7 +74,12 @@ export class GameRecord {
     if (ended && this.open) {
       this.open.result = result();
       this.open = null;
+      for (const f of this.formats) {
+        const h = f.hands[f.hands.length - 1];
+        if (h) f.format.end(h, s);
+      }
     }
+    this.prev = s;
   }
 }
 

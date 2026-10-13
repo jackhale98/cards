@@ -7,13 +7,14 @@ async function expectEndShows(page: Page) {
   const gap = await line.evaluate((el) => {
     const run = el.firstElementChild as HTMLElement;
     const cycle = parseFloat(el.style.getPropertyValue('--cycle'));
-    // (70% of the way through the cycle: resting at the end)
-    run.style.animationDelay = `${-0.7 * cycle}s`;
-    run.style.animationPlayState = 'paused';
+    // (70% of the way through the cycle: resting at the end. The glide's clock is moved there and
+    // back rather than paused, which in headless Chromium can leave it stuck at the start)
+    const glide = run.getAnimations()[0];
+    const was = glide.currentTime;
+    glide.currentTime = 0.7 * cycle * 1000;
     const fade = parseFloat(getComputedStyle(el).getPropertyValue('--fade')) || 16;
     const gap = el.getBoundingClientRect().right - fade - run.getBoundingClientRect().right;
-    run.style.animationDelay = '';
-    run.style.animationPlayState = '';
+    glide.currentTime = was;
     return gap;
   });
   // all of it in view, and not slid needlessly far past the end

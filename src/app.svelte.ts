@@ -1,4 +1,5 @@
 import type { Action } from './engine/types';
+import { EXPORT_FILE, type ExportFormat } from './net/exports/formats';
 import { newBackupKey, open as openBackup } from './net/backup';
 import { workerBrain, type Brain } from './net/brain';
 import { Client } from './net/client';
@@ -560,20 +561,21 @@ class App {
   private replayAsked = false;
 
   /** Save this game so far as a spreadsheet: every move, and your own cards each deal. */
-  exportGame() {
+  exportGame(format: ExportFormat = 'csv') {
     const game = this.view?.state?.game ?? 'game';
-    const name = `lamplight-${game}-${new Date().toISOString().slice(0, 10)}.csv`;
-    const save = (csv: string | null) => {
-      if (!csv) return this.say('Nothing to save yet');
-      void import('./ui/saveFile').then((m) => m.saveFile(name, csv));
+    const file = EXPORT_FILE[format];
+    const name = `lamplight-${game}-${new Date().toISOString().slice(0, 10)}.${file.ext}`;
+    const save = (text: string | null) => {
+      if (!text) return this.say('Nothing to save yet');
+      void import('./ui/saveFile').then((m) => m.saveFile(name, text, file.type));
     };
-    if (this.host) save(this.host.exportCsv(this.cid));
+    if (this.host) save(this.host.exportFile(this.cid, format));
     else if (this.client) {
-      this.client.onExport = (csv) => {
+      this.client.onExport = (text) => {
         this.client!.onExport = () => {};
-        save(csv);
+        save(text);
       };
-      this.client.exportGame();
+      this.client.exportGame(format);
     }
   }
 

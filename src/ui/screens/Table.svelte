@@ -22,6 +22,7 @@
   import { SCREEN_SOUND } from '../../net/host';
   import { seatColor } from '../seatColors';
   import { keepAwake } from '../wakeLock';
+  import { EXPORT_LABEL, recordFormats } from '../../net/exports/formats';
   import TvSheet from '../components/TvSheet.svelte';
 
   /** `replay`: a moment of a finished hand is on screen (the table shows it, quietly). */
@@ -589,13 +590,15 @@
         >
       {/if}
       {#if !display && !game.realtime}
-        <button
-          class="btn"
-          onclick={() => {
-            app.exportGame();
-            sheet = null;
-          }}>Save this game (spreadsheet)</button
-        >
+        {#each ['csv' as const, ...recordFormats(game.config)] as format (format)}
+          <button
+            class="btn"
+            onclick={() => {
+              app.exportGame(format);
+              sheet = null;
+            }}>{EXPORT_LABEL[format]}</button
+          >
+        {/each}
       {/if}
       {#if !display}<button class="btn" onclick={() => (sheet = 'tv')}>Show on a TV</button>{/if}
       {#if app.isHost}<button class="btn" onclick={() => (sheet = 'look')}>Card backs & cloth</button>{/if}

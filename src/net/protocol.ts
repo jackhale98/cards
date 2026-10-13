@@ -157,14 +157,14 @@ export type ClientMsg =
   | { t: 'act'; a: Action; seq: number }
   /** Replay: the host answers with that moment of that hand (see Frame). */
   | { t: 'replay'; hand: number; step: number }
-  /** The game so far as a spreadsheet (CSV), as this player saw it. */
-  | { t: 'export' }
+  /** The game so far as a file (a spreadsheet, or its game's standard record), as this player saw it. */
+  | { t: 'export'; format?: 'csv' | 'pbn' | 'ohh' }
   | { t: 'pong'; ts: number };
 
 export type HostMsg =
   | { t: 'view'; view: View }
   | { t: 'frame'; frame: Frame | null }
-  | { t: 'export'; csv: string | null }
+  | { t: 'export'; format: 'csv' | 'pbn' | 'ohh'; text: string | null }
   | { t: 'err'; msg: string; seq?: number }
   /** Heartbeat; clients answer with a pong carrying the same timestamp. */
   | { t: 'ping'; ts: number }

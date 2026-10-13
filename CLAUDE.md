@@ -49,6 +49,8 @@ src/net/protocol.ts    every message between devices
 src/net/*Transport.ts  relay (ours), trystero (public WebRTC networks), local, multi (several at once)
 src/net/backup.ts      sealed backups for host handoff;  night.ts game-night tally;  reports.ts error reports
 src/net/gameRecord.ts  the whole game move by move, saved as CSV (each player gets only their own cards)
+src/net/exports/       the standard records a game can also be saved as: PBN (bridge), Open Hand History
+                       (Hold'em, Omaha); formats.ts says which game gets which
 src/ui/screens/        Home, Lobby, Table, TvScreen;  src/ui/components/  the pieces
 src/app.svelte.ts      app state, routing, starting a host or client
 relay/src/index.ts     Worker + Durable Object per table: signalling, fallback relay, takeover, reports
