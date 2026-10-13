@@ -8,9 +8,6 @@ const PORT = Number(process.env.PW_PORT ?? 4173);
  * anything off-screen or any error. They run against the dev server in local mode (`?net=local`:
  * tabs in one browser link up directly, no network needed).
  */
-// (PW_PORT: another port, e.g. to run two copies of the repo's tests side by side)
-const PORT = Number(process.env.PW_PORT ?? 4173);
-
 export default defineConfig({
   testDir: 'e2e',
   timeout: 60_000,
