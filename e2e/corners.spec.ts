@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { cardsLanded, poppedIn } from './wait';
 
 /** Kings Corners: select a card, tap the pile it goes on. */
 test('select a card, then tap the pile to play it', async ({ page }) => {
@@ -19,6 +20,9 @@ test('select a card, then tap the pile to play it', async ({ page }) => {
     const n = await handCards.count();
     /** Tap a point of the card that's really on top there. */
     const tapCard = async (i: number) => {
+      // (once the hand is still: a card just tapped slides up or back down over its neighbours)
+      await cardsLanded(page);
+      await poppedIn(page.locator('.hand'));
       const p = await handCards.nth(i).evaluate((el) => {
         const r = el.getBoundingClientRect();
         for (let y = r.bottom - 8; y > r.top; y -= 6)
