@@ -537,18 +537,22 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
       const raise = (to: number): Action => (o.maxRaiseTo > o.minRaiseTo ? { type: 'raise', amount: to } : { type: 'allin' });
       const level = botLevel(s.options);
       if (level > 0) return oddsBot(s, seat, o, level, raise);
+      // Easy: a beginner who likes to see what happens. It calls a lot (any pair, most starting
+      // hands, and a cheap look now and then with nothing), bets only a good hand and hardly ever
+      // bluffs: fun to play against, and beaten by betting your good hands into it.
       const strength = handStrength(s, seat);
-      if (strength > 0.85 && o.canRaise && r < 0.7) {
-        return raise(Math.min(o.maxRaiseTo, Math.max(o.minRaiseTo, d.b.currentBet + Math.round(pot * 0.75))));
-      }
+      const half = Math.min(o.maxRaiseTo, Math.max(o.minRaiseTo, d.b.currentBet + Math.round(pot * 0.5)));
       if (o.canCheck) {
-        if (strength > 0.6 && o.canRaise && r < 0.35) return raise(o.minRaiseTo);
+        if (o.canRaise && strength > 0.7 && r < 0.6) return raise(half);
+        if (o.canRaise && strength > 0.5 && r < 0.25) return raise(o.minRaiseTo);
         return { type: 'check' };
       }
-      const priceRatio = o.toCall / Math.max(1, pot + o.toCall);
-      if (strength > priceRatio + 0.15 || (strength > 0.3 && o.toCall <= d.bb)) return { type: 'call' };
-      // a short stack facing an all-in can only call with what it has
-      if (o.toCall >= s.players[seat].chips && strength > 0.5) return { type: 'call' };
+      if (o.canRaise && strength > 0.85 && r < 0.5) return raise(half);
+      const price = o.toCall / Math.max(1, pot + o.toCall);
+      // (most of its chips at stake: it thinks twice)
+      const big = o.toCall >= s.players[seat].chips * 0.5;
+      const keen = strength >= 0.37 || (price < 0.3 && r < 0.45);
+      if (big ? strength > 0.55 : keen) return { type: 'call' };
       return { type: 'fold' };
     },
 
@@ -693,10 +697,20 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
     return won / runs;
   }
 
+  /** Whether `seat` acts last on this street among those still able to bet (it has position). */
+  function actsLast(s: S, seat: number): boolean {
+    const d = s.data;
+    const n = s.players.length;
+    // after the first street the action starts left of the button, so the button acts last
+    const order = (x: number) => (x - d.button - 1 + n) % n;
+    return s.players.every((p) => p.seat === seat || !bet.canAct(d.b, p.seat) || order(p.seat) < order(seat));
+  }
+
   /**
    * Normal and Hard bots bet on their real chances: they call when the pot (counting some of what's
-   * still to come) pays for the risk, and bet or raise when well ahead. Hard plays the same way
-   * with a more exact estimate of its chances (more imagined deals).
+   * still to come) pays for the risk, and bet or raise when well ahead. Hard also plays like a good
+   * player: it steals the blinds from late position, bets when everyone checks to it with few left
+   * to fold (often as a bluff), and raises with a draw. Normal makes those moves now and then.
    */
   function oddsBot(s: S, seat: number, o: bet.BetOptions, level: number, raise: (to: number) => Action): Action {
     const d = s.data;
@@ -710,12 +724,29 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
     const strong = eq > Math.min(0.75, fair * 1.8);
     const good = eq > Math.min(0.6, fair * 1.3);
     const sized = (frac: number) => Math.min(o.maxRaiseTo, Math.max(o.minRaiseTo, d.b.currentBet + Math.round(pot * frac)));
+    // how often it makes a move without the cards for it: Normal now and then, Hard as a good player does
+    const nerve = level >= 2 ? 1 : 0.4;
+    const inPosition = actsLast(s, seat);
+    const postflop = d.street > 0;
+    // first in before the flop (nobody but the blinds has bet), from late position: raise to steal the blinds
+    const firstIn =
+      !postflop && !stud && d.b.currentBet === d.bb && s.players.every((p) => d.b.bets[p.seat] === 0 || d.acted[p.seat]?.endsWith(`blind ${d.b.bets[p.seat]}`));
+    if (firstIn && o.canRaise && !good) {
+      const toAct = s.players.filter((p) => p.seat !== seat && bet.canAct(d.b, p.seat) && !d.acted[p.seat]).length;
+      const late = toAct <= 2 || (rivals === 1 && seat === d.button);
+      if (late && eq > fair * 0.9 && r < 0.5 * nerve) return raise(Math.min(o.maxRaiseTo, Math.max(o.minRaiseTo, Math.round(d.bb * 2.5))));
+    }
     if (o.canCheck) {
       if (o.canRaise && strong) return raise(sized(0.66));
       if (o.canRaise && good && r < 0.5) return raise(sized(0.5));
+      // checked to it with one or two left: a bet now and then takes the pot (not too often: against
+      // a player who calls, bluffs cost more than they win; tried against Normal and Easy in tests/selfplay)
+      if (o.canRaise && postflop && rivals <= 2 && r < ((inPosition ? 0.2 : 0.1) * nerve) / rivals) return raise(sized(0.5));
       return { type: 'check' };
     }
     if (o.canRaise && strong && r < 0.6) return raise(sized(1));
+    // a draw heads-up before the river: raise, to win now or improve later
+    if (o.canRaise && postflop && d.street < lastStreet && rivals === 1 && eq > 0.3 && !good && r < 0.2 * nerve) return raise(sized(1));
     // the price of calling, counting some of what the others will put in on later streets
     const later = d.street < lastStreet ? o.toCall * rivals * 0.5 : 0;
     const price = o.toCall / Math.max(1, pot + o.toCall + later);

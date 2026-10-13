@@ -41,6 +41,19 @@ export const botBudget = (options: Record<string, number | boolean>) => BOT_LEVE
 const TESTING = import.meta.env?.MODE === 'test';
 
 /**
+ * Easy bots play like beginners: their rules of thumb, with a slip now and then (a legal move
+ * picked at random). Only at a table set to Easy (games built without the setting, as in tests,
+ * play the rules of thumb straight).
+ */
+export const EASY_SLIPS = 0.2;
+
+/** The Easy bot's move: `quick`, or now and then any one of `moves`. */
+export function easyMove(options: Record<string, number | boolean>, moves: Action[], quick: Action | null): Action | null {
+  if (options.botLevel === 0 && moves.length > 1 && Math.random() < EASY_SLIPS) return moves[Math.floor(Math.random() * moves.length)];
+  return quick;
+}
+
+/**
  * Whether to draw another sample: up to `max`, at least `min`, until `stop` (a time) passes. In
  * tests the clock is left out (exactly `max`), so a busy machine can't change a bot's answer.
  */
@@ -50,11 +63,28 @@ export function moreSamples(runs: number, max: number, min: number, stop: number
 
 export const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
-/** The best move by sampling, or null if there's nothing to decide. */
-export function searchMove<D>(game: SearchGame<D>, s: GameState<D>, seat: number, budget: SearchBudget): Action | null {
+/**
+ * How sure the search must be before it overrides the quick bot's move: the better move's lead,
+ * deal for deal, in standard errors. A few imagined deals are noisy, and the move that did best
+ * on them is often just the luckiest; the quick bots' rules are sound, so they stand unless the
+ * search clearly beats them. More deals (Hard) make it surer, so it overrides more often.
+ */
+const CONFIDENCE = 1.5;
+
+/** The same move? (Cards in any order.) */
+const sameMove = (a: Action, b: Action) =>
+  a.type === b.type && (a.amount ?? null) === (b.amount ?? null) && [...(a.cards ?? [])].sort().join() === [...(b.cards ?? [])].sort().join();
+
+/**
+ * The best move by sampling, or null if there's nothing to decide. With `quick` (the quick bot's
+ * move), the search keeps to it unless another move is clearly better (see CONFIDENCE).
+ */
+export function searchMove<D>(game: SearchGame<D>, s: GameState<D>, seat: number, budget: SearchBudget, quick?: Action | null): Action | null {
   const moves = game.candidates(s, seat);
   if (moves.length <= 1) return moves[0] ?? null;
   const total = moves.map(() => 0);
+  // each move's score on each imagined deal (they all play the same deals, so they compare pair by pair)
+  const scores: number[][] = moves.map(() => []);
   let runs = 0;
   const stop = now() + budget.ms;
   // (in tests, a set number of deals rather than a time limit, so a busy machine can't change the
@@ -72,13 +102,20 @@ export function searchMove<D>(game: SearchGame<D>, s: GameState<D>, seat: number
         // stands. Anything else is a bug in a bot or the rules: loud in tests, shrugged off at a table.
         if (!(e instanceof RuleError) && TESTING) throw e;
       }
-      total[i] += game.score(s, sim, seat);
+      const v = game.score(s, sim, seat);
+      total[i] += v;
+      scores[i].push(v);
     });
     runs++;
   }
   let best = 0;
   for (let i = 1; i < moves.length; i++) if (total[i] > total[best]) best = i;
-  return moves[best];
+  const usual = quick ? moves.findIndex((m) => sameMove(m, quick)) : -1;
+  if (usual < 0 || usual === best || runs < 2) return moves[best];
+  const diff = scores[best].map((v, k) => v - scores[usual][k]);
+  const mean = diff.reduce((a, b) => a + b, 0) / runs;
+  const sd = Math.sqrt(diff.reduce((a, b) => a + (b - mean) ** 2, 0) / (runs - 1));
+  return mean > CONFIDENCE * (sd / Math.sqrt(runs)) ? moves[best] : moves[usual];
 }
 
 /** Shuffle in place (Math.random: the search's private dice, not the game's). */

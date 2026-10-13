@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import { dealConstrained } from '../src/engine/bots/search';
+import { dealConstrained, easyMove, searchMove, type SearchGame } from '../src/engine/bots/search';
 import { parseCard } from '../src/engine/cards';
 import type { TrickData } from '../src/engine/families/trick';
 import { GAMES } from './games';
-import type { GameModule, GameState } from '../src/engine/types';
+import type { Action, GameModule, GameState } from '../src/engine/types';
 
 const bots = (n: number) => Array.from({ length: n }, (_, i) => ({ name: `B${i}`, bot: true }));
 const defaults = (g: GameModule<any>) => Object.fromEntries((g.config.options ?? []).map((o) => [o.id, o.default]));
@@ -139,6 +139,66 @@ describe('search bots', () => {
     expect(g.bot!(s, 0)).toMatchObject({ seat: 2 });
     s.options.botLevel = 1;
     expect(g.bot!(s, 0)).toMatchObject({ seat: 1 });
+  });
+
+  it('keeps to the quick bot’s move unless another is clearly better on the same imagined deals', () => {
+    // two moves: the quick bot's ("keep") scores 0; "swap" scores `edge` plus noise of size `spread`
+    const game = (edge: number, spread: number): SearchGame<{ luck: number; move: string }> => ({
+      determinize: (x) => ({ ...x, data: { luck: Math.random() * 2 - 1, move: '' } }),
+      candidates: () => [{ type: 'keep' }, { type: 'swap' }],
+      apply: (x, _seat, a) => void (x.data.move = a.type),
+      rollout: () => {},
+      score: (_before, after) => (after.data.move === 'swap' ? edge + after.data.luck * spread : 0),
+    });
+    const s = { data: { luck: 0, move: '' } } as GameState<{ luck: number; move: string }>;
+    const keep: Action = { type: 'keep' };
+    const budget = { samples: 24, ms: 1000 };
+    // a little ahead on a few noisy deals: not enough to give up a sound rule of thumb
+    const noisy = Array.from({ length: 40 }, () => searchMove(game(0.3, 6), s, 0, budget, keep)!.type);
+    expect(noisy.filter((t) => t === 'swap').length).toBeLessThan(10);
+    // clearly ahead on every deal: it swaps
+    expect(searchMove(game(2, 0.5), s, 0, budget, keep)!.type).toBe('swap');
+    // without a quick move to keep to, the best average wins as before
+    expect(searchMove(game(2, 0.5), s, 0, budget)!.type).toBe('swap');
+  });
+
+  it('Easy bots slip now and then, only at a table set to Easy', () => {
+    const moves: Action[] = [{ type: 'a' }, { type: 'b' }, { type: 'c' }];
+    const quick = moves[0];
+    const picks = (options: Record<string, number | boolean>) => Array.from({ length: 400 }, () => easyMove(options, moves, quick)!.type);
+    const easy = picks({ botLevel: 0 });
+    const slips = easy.filter((t) => t !== 'a').length / easy.length;
+    expect(slips).toBeGreaterThan(0.05);
+    expect(slips).toBeLessThan(0.3);
+    // (games set up without the setting, as in tests, play the rules of thumb straight)
+    expect(picks({}).every((t) => t === 'a')).toBe(true);
+    expect(picks({ botLevel: 1 }).every((t) => t === 'a')).toBe(true);
+  });
+
+  it('poker: Easy calls a bet with a pair rather than folding (a beginner who plays hands out)', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.99);
+    const g = GAMES.holdem as GameModule<any>;
+    const s = g.setup(bots(2), 5, { ...defaults(g), botLevel: 0 });
+    // both limp in and see the flop
+    for (let i = 0; i < 4 && s.data.street === 0; i++)
+      g.apply(s, s.turn!, g.actions(s, s.turn!).some((a) => a.type === 'check') ? { type: 'check' } : { type: 'call' });
+    expect(s.data.street).toBe(1);
+    const bettor = s.turn!;
+    const me = 1 - bettor;
+    s.zones.board.cards = [
+      { id: '9C', up: true },
+      { id: '5D', up: true },
+      { id: '2H', up: true },
+    ];
+    s.zones[`hand:${me}`].cards = [{ id: '9S' }, { id: '4C' }];
+    s.zones[`hand:${bettor}`].cards = [{ id: 'KS' }, { id: 'QD' }];
+    // a pot-sized bet into it
+    g.apply(s, bettor, { type: 'raise', amount: 20 });
+    expect(g.bot!(s, me)).toEqual({ type: 'call' });
+    // with nothing at all, it lets a big bet go
+    s.zones[`hand:${me}`].cards = [{ id: '7S' }, { id: '3C' }];
+    expect(g.bot!(s, me)).toEqual({ type: 'fold' });
+    vi.restoreAllMocks();
   });
 
   it('poker: Hard raises aces and folds rags to a big bet', () => {

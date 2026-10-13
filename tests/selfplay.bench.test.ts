@@ -6,6 +6,8 @@ import { pbn } from '../src/net/exports/pbn';
 import { EVERYONE, type HandFormat } from '../src/net/exports/types';
 import { GameRecord } from '../src/net/gameRecord';
 import { GAMES } from './games';
+import { buildDeck } from '../src/engine/cards';
+import { bestWithHole } from '../src/engine/lib/pokerEval';
 
 /**
  * Bots playing each other at chosen levels, written out as PBN (bridge) and PHH (Hold'em) with
@@ -25,6 +27,8 @@ interface Played {
   record: GameRecord;
   /** Each seat's chips at the end (poker). */
   chips: number[];
+  /** Poker heads-up: the moment both were all in with board cards still to come, if they were. */
+  allIn: GameState | null;
 }
 
 /**
@@ -51,8 +55,18 @@ function play(
   record.note(s, ended(s), () => []);
   let done = 0;
   let wasEnded = ended(s);
+  let allIn: GameState | null = null;
   const commit = (next: GameState, move?: { seat: number; action: Action }) => {
     s = next;
+    const d = s.data as { b?: { folded: boolean[]; allIn: boolean[]; out: boolean[]; committed: number[] } };
+    if (!allIn && d.b && s.zones.board && s.zones.board.cards.length < 5) {
+      const b = d.b;
+      const live = s.players.filter((p) => !b.out[p.seat] && !b.folded[p.seat]).map((p) => p.seat);
+      const shoved = live.filter((x) => b.allIn[x]);
+      const top = Math.max(0, ...shoved.map((x) => b.committed[x]));
+      // (and called: whoever isn't all in has matched it)
+      if (live.length === 2 && shoved.length && live.every((x) => b.allIn[x] || b.committed[x] >= top)) allIn = structuredClone(s);
+    }
     const e = ended(s);
     record.note(s, e, () => [], move);
     if (e && !wasEnded) done++;
@@ -85,7 +99,7 @@ function play(
     g.apply(next, move.seat, move.action);
     commit(next, move);
   }
-  return { record, chips: s.players.map((p) => p.chips) };
+  return { record, chips: s.players.map((p) => p.chips), allIn };
 }
 
 const pairs = LEVELS.flatMap((a) => LEVELS.map((b) => [a, b]));
@@ -120,20 +134,23 @@ it.skipIf(!process.env.SELFPLAY)(
       const format = phh(familyRules(g.config, 'poker')) as HandFormat<unknown>;
       const results: Record<string, number[]> = {};
       for (const [a, b] of pairs) {
-        if (a >= b) continue;
+        if (a >= b || (process.env.PAIRS && !process.env.PAIRS.split(',').includes(`${a}-${b}`))) continue;
         const files: string[] = [];
         const net: number[] = [];
-        for (let seed = 1; seed <= hands; seed++)
+        for (let seed = 1 + Number(process.env.SEED0 ?? 0); seed <= hands + Number(process.env.SEED0 ?? 0); seed++)
           for (const levels of [
             [a, b],
             [b, a],
           ]) {
             const names = levels.map((l, i) => `L${l}-${i}`);
-            const { record, chips } = play(g, names, seed, levels, 1, {}, { phh: format });
+            const { record, chips, allIn } = play(g, names, seed, levels, 1, {}, { phh: format });
             files.push(record.write('phh', EVERYONE, { names, table: 'SELF' })!);
             const start = Number(g.config.chips?.start ?? 1000);
-            // (chips won by the level-`b` bot, in big blinds)
-            net.push((chips[levels.indexOf(b)] - start) / Number(g.config.chips?.bigBlind ?? 10));
+            // chips won by the level-`b` bot, in big blinds; all in with cards to come, its fair
+            // share of the pot (its chance of winning it) rather than how the last cards fell
+            const seat = levels.indexOf(b);
+            const won = allIn ? allInShare(allIn, seat) : chips[seat] - start;
+            net.push(won / Number(g.config.chips?.bigBlind ?? 10));
           }
         writeFileSync(`${OUT}/holdem-hu-${a}v${b}.phh`, renumber(files));
         results[`${b} v ${a}`] = net;
@@ -142,6 +159,7 @@ it.skipIf(!process.env.SELFPLAY)(
         process.stderr.write(`holdem heads-up, level ${b} against ${a}: ${(mean * 100).toFixed(0)} bb/100 hands (± ${(sd * 100).toFixed(0)})\n`);
       }
       writeFileSync(`${OUT}/holdem-hu.json`, JSON.stringify(results));
+      if (process.env.PAIRS) return;
       // a full table of short stacks, for all-ins and side pots
       const files: string[] = [];
       for (let seed = 1; seed <= Math.max(1, Math.round(deals / 2)); seed++) {
@@ -154,6 +172,40 @@ it.skipIf(!process.env.SELFPLAY)(
   },
   6 * 3_600_000,
 );
+
+/**
+ * Heads-up, both all in (or one all in and called) with board cards to come: `seat`'s expected
+ * winnings, over every way the rest of the board could fall (or 3000 of them, before the flop).
+ */
+function allInShare(s: GameState, seat: number): number {
+  const d = s.data as { b: { committed: number[] } };
+  const other = 1 - seat;
+  const matched = Math.min(d.b.committed[seat], d.b.committed[other]);
+  const board = s.zones.board.cards.map((c) => c.id);
+  const holes = [seat, other].map((x) => s.zones[`hand:${x}`].cards.map((c) => c.id));
+  const seen = new Set([...board, ...holes.flat()]);
+  const rest = buildDeck({}).filter((c) => !seen.has(c));
+  const need = 5 - board.length;
+  let eq = 0;
+  let runs = 0;
+  const score = (full: string[]) => {
+    const [me, them] = holes.map((h) => bestWithHole(h, full, 0).score);
+    eq += me > them ? 1 : me === them ? 0.5 : 0;
+    runs++;
+  };
+  if (need <= 2) {
+    for (let i = 0; i < rest.length; i++)
+      if (need === 1) score([...board, rest[i]]);
+      else for (let j = i + 1; j < rest.length; j++) score([...board, rest[i], rest[j]]);
+  } else
+    for (let k = 0; k < 3000; k++) {
+      const pick = new Set<string>();
+      while (pick.size < need) pick.add(rest[Math.floor(Math.random() * rest.length)]);
+      score([...board, ...pick]);
+    }
+  // (what each put in beyond what the other matched comes back)
+  return (eq / runs) * 2 * matched - matched;
+}
 
 /** Several PHH files as one, its hands numbered [1], [2]… */
 function renumber(files: string[]): string {

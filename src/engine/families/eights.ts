@@ -1,7 +1,7 @@
 import { cardLabel, cardName, parseCard, rankLabel, SUIT_NAME, SUIT_SYMBOL, type Suit } from '../cards';
 import { shuffle } from '../rng';
 import { createState, hand, ids, log, moveCards, moveTop, name, placesFromScores, resetDeck, sortHand, zone } from '../state';
-import { botBudget, dealUnseen, edge, fork, playOut, searchMove, type SearchGame } from '../bots/search';
+import { botBudget, dealUnseen, easyMove, edge, fork, playOut, type SearchGame, searchMove } from '../bots/search';
 import { familyRules, assertRule, type Action, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
 /** This family's settings in game.json (generated from the schema). */
 export type { EightsRules } from '../schema.gen';
@@ -362,7 +362,10 @@ export function eightsFamily(config: GameConfig): GameModule<EightsData> {
 
     bot(s, seat) {
       const budget = botBudget(s.options);
-      if (budget && s.phase === 'play' && s.turn === seat) return searchMove(search, s, seat, budget) ?? quickBot(s, seat);
+      if (s.phase === 'play' && s.turn === seat)
+        return budget
+          ? (searchMove(search, s, seat, budget, quickBot(s, seat)) ?? quickBot(s, seat))
+          : easyMove(s.options, search.candidates(s, seat), quickBot(s, seat));
       return quickBot(s, seat);
     },
 

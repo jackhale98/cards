@@ -18,7 +18,7 @@ import {
   sortHand,
   zone,
 } from '../state';
-import { botBudget, dealUnseen, edge, fork, playOut, searchMove, shuffled, type SearchGame } from '../bots/search';
+import { botBudget, dealUnseen, easyMove, edge, fork, playOut, type SearchGame, searchMove, shuffled } from '../bots/search';
 import { familyRules, assertRule, type Action, type GameConfig, type GameModule, type GameState } from '../types';
 import { acrossTeams, sideName, soloTeams, teamIndex } from '../lib/teams';
 /** This family's settings in game.json (generated from the schema). */
@@ -254,6 +254,10 @@ export function cribbageFamily(config: GameConfig): GameModule<CribData> {
     const k = layout(s).discard;
     const mine = s.dealer === seat || teamOf(s, s.dealer) === teamOf(s, seat);
     const unseen = buildDeck(config.deck).filter((c) => !cards.includes(c));
+    // the other crib cards and the starter, drawn once from the cards we can't see and shared by
+    // every choice, so choices are compared on the same cribs (not each on its own luck)
+    const more = 4 - k;
+    const draws = Array.from({ length: samples }, () => shuffled([...unseen]).slice(0, more + 1));
     let best: { keep: string[]; value: number } | null = null;
     for (const drop of combos(cards, k)) {
       const keep = cards.filter((c) => !drop.includes(c));
@@ -267,13 +271,8 @@ export function cribbageFamily(config: GameConfig): GameModule<CribData> {
       const fives = drop.filter((c) => pipValue(c) === 5).length;
       let cribValue = (sum === 15 ? 2 : 0) + (pair ? 2 : 0) + fives * 1.5;
       if (samples) {
-        // the other crib cards and the starter, drawn from the cards we can't see
-        const more = 4 - k;
         let t = 0;
-        for (let i = 0; i < samples; i++) {
-          const pick = shuffled([...unseen]).slice(0, more + 1);
-          t += scoreHand([...drop, ...pick.slice(0, more)], pick[more], true).total;
-        }
+        for (const pick of draws) t += scoreHand([...drop, ...pick.slice(0, more)], pick[more], true).total;
         cribValue = t / samples;
       }
       const value = avg + (mine ? 1 : -1) * cribValue;
@@ -518,7 +517,10 @@ export function cribbageFamily(config: GameConfig): GameModule<CribData> {
     bot(s, seat) {
       const budget = botBudget(s.options);
       if (budget && s.phase === 'discard' && !s.data.discards[seat]) return { type: 'crib', cards: botDiscard(s, seat, budget.samples) };
-      if (budget && s.phase === 'peg' && s.turn === seat) return searchMove(search, s, seat, budget) ?? quickBot(s, seat);
+      if (s.phase === 'peg' && s.turn === seat)
+        return budget
+          ? (searchMove(search, s, seat, budget, quickBot(s, seat)) ?? quickBot(s, seat))
+          : easyMove(s.options, search.candidates(s, seat), quickBot(s, seat));
       return quickBot(s, seat);
     },
 

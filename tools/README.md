@@ -22,6 +22,10 @@ python tools/check_records.py records          # the checks, and a strength repo
 
 `pnpm records` takes `DEALS` (bridge deals per pairing of levels, default 12) and `HANDS`
 (heads-up Hold'em hands per pairing, each played twice with the seats swapped, default 200).
+`PAIRS=1-2` plays only those pairings of levels, and `SEED0` starts the seeds further on, so
+several runs can share out a long measurement. Heads-up poker is noisy: a hand where both are all
+in with cards to come counts each player's fair share of the pot (their chance of winning it), not
+how the last cards fell. Even so, telling two good levels apart takes many thousands of hands.
 CI runs a small version on every push (the `records` job) and keeps the files as an artifact.
 
 The files show every card, which a player's own download never does (see `EVERYONE` in

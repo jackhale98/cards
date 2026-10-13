@@ -1,6 +1,6 @@
 import { parseCard, rankLabel } from '../cards';
 import { createState, deal, hand, ids, log, moveCards, name, placesFromScores, resetDeck, zone } from '../state';
-import { botBudget, dealUnseen, fork, playOut, searchMove, type SearchGame } from '../bots/search';
+import { botBudget, dealUnseen, easyMove, fork, playOut, type SearchGame, searchMove } from '../bots/search';
 import { familyRules, assertRule, type Action, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
 import { ownOnly } from '../redact';
 /** This family's settings in game.json (generated from the schema). */
@@ -374,7 +374,10 @@ export function climbingFamily(config: GameConfig): GameModule<ClimbingData> {
 
     bot(s, seat) {
       const budget = botBudget(s.options);
-      if (budget && s.phase === 'play' && s.turn === seat) return searchMove(search, s, seat, budget) ?? quickBot(s, seat);
+      if (s.phase === 'play' && s.turn === seat)
+        return budget
+          ? (searchMove(search, s, seat, budget, quickBot(s, seat)) ?? quickBot(s, seat))
+          : easyMove(s.options, search.candidates(s, seat), quickBot(s, seat));
       return quickBot(s, seat);
     },
 

@@ -1,6 +1,6 @@
 import { createState, nextSeat, placesFromScores } from '../../state';
 import { ownOnly } from '../../redact';
-import { botBudget, searchMove } from '../../bots/search';
+import { botBudget, easyMove, searchMove } from '../../bots/search';
 import { assertRule, type GameConfig, type GameModule } from '../../types';
 import { trickActions } from './actions';
 import { applyBid, applyBid500, applyBury, applyCall, applyDecline, applyDouble, applyName, applyOrder } from './bidding';
@@ -145,7 +145,10 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
       }
       // card play is searched unless the bots are set to Easy; the other decisions use the quick rules
       const budget = botBudget(s.options);
-      if (budget && s.phase === 'play' && controller(s) === seat) return searchMove(search, s, seat, budget) ?? quickBot(g, s, seat);
+      if (s.phase === 'play' && controller(s) === seat)
+        return budget
+          ? (searchMove(search, s, seat, budget, quickBot(g, s, seat)) ?? quickBot(g, s, seat))
+          : easyMove(s.options, search.candidates(s, seat), quickBot(g, s, seat));
       return quickBot(g, s, seat);
     },
 
