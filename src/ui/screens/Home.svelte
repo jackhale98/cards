@@ -92,8 +92,8 @@
       <h4>On a TV or a big screen</h4>
       <ul>
         <li>
-          <b>Chromecast or Google TV:</b> tap <b>📺 TV</b> in the lobby (or <b>Show on a TV</b> in the table menu), then <b>Cast</b>. Cast from Chrome or Edge
-          on any device at the table — a player's Android phone, or a laptop.
+          <b>Chromecast or Google TV:</b> tap <b>TV</b> in the lobby (or <b>Show on a TV</b> in the table menu), then <b>Cast</b>. Cast from Chrome or Edge on
+          any device at the table — a player's Android phone, or a laptop.
         </li>
         <li><b>Any TV with a web browser:</b> open <b>lamplight.cards/tv</b> on it, and type the code it shows into <b>Show on a TV</b> on a phone.</li>
         <li>

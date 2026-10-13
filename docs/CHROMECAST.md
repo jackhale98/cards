@@ -57,7 +57,7 @@ set it as a build variable instead:
 1. On an Android phone or a computer, open `lamplight.cards` in **Chrome** (casting only works in
    Chrome; on iPhone use the `/tv` code instead).
 2. Make sure the phone and the Chromecast are on the **same Wi-Fi**.
-3. Start a table, then tap **📺 TV** in the lobby (or **Show on a TV** from the table menu).
+3. Start a table, then tap **TV** in the lobby (or **Show on a TV** from the table menu).
 4. Tap **Cast** and pick your Chromecast. The TV loads Lamplight and opens the table display on
    its own.
 

@@ -239,7 +239,7 @@
     <p class="small">Scan, or open the site and enter the code. Friends somewhere else can join with the invite link. Same WiFi is fastest.</p>
     <div class="row">
       <button class="btn" onclick={share}>Share invite</button>
-      <button class="btn" onclick={() => (tv = true)}>📺 TV</button>
+      <button class="btn" onclick={() => (tv = true)}>TV</button>
       <button
         class="btn quiet"
         onclick={() => {
@@ -318,7 +318,7 @@
             games and all.{/if}
         </p>
       {/if}
-      {#if lobby.displays}<p class="small">📺 Table screen connected — phones will show just your hand</p>{/if}
+      {#if lobby.displays}<p class="small">Table screen connected — phones will show just your hand</p>{/if}
     </div>
 
     {#if lobby.night?.games.length}

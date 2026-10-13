@@ -42,7 +42,7 @@ the middle of the table. It needs no accounts or app store, and there's no serve
 
 ## Showing the table on a TV
 
-From the lobby (**📺 TV**) or the table menu (**Show on a TV**):
+From the lobby (**TV**) or the table menu (**Show on a TV**):
 
 - **Any TV with a web browser** (Samsung, LG, Fire TV, a games console…): open `lamplight.cards/tv` on
   the TV. It shows a five-letter code; type it into the phone and the TV becomes the table display.

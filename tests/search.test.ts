@@ -150,6 +150,9 @@ describe('search bots', () => {
       rollout: () => {},
       score: (_before, after) => (after.data.move === 'swap' ? edge + after.data.luck * spread : 0),
     });
+    // (the imagined deals' luck from fixed dice, so the test always sees the same deals)
+    let r = 11;
+    vi.spyOn(Math, 'random').mockImplementation(() => ((r = (r * 48271) % 2147483647) - 1) / 2147483646);
     const s = { data: { luck: 0, move: '' } } as GameState<{ luck: number; move: string }>;
     const keep: Action = { type: 'keep' };
     const budget = { samples: 24, ms: 1000 };
@@ -160,6 +163,7 @@ describe('search bots', () => {
     expect(searchMove(game(2, 0.5), s, 0, budget, keep)!.type).toBe('swap');
     // without a quick move to keep to, the best average wins as before
     expect(searchMove(game(2, 0.5), s, 0, budget)!.type).toBe('swap');
+    vi.restoreAllMocks();
   });
 
   it('Easy bots slip now and then, only at a table set to Easy', () => {
