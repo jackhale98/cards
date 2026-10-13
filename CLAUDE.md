@@ -10,12 +10,14 @@ no game server: one player's device (the host) runs the rules.
 pnpm install
 pnpm dev                 # http://localhost:5173 ; ?net=local links tabs in one browser (no network)
 pnpm check               # svelte-check: types for .ts and .svelte. Must be 0 errors, 0 warnings
+pnpm lint                # ESLint (bugs, not style)
+pnpm format              # Prettier rewrites files; pnpm format:check only checks
 pnpm test:quick          # unit tests without the slow bot suites (seconds): use while iterating
 pnpm test                # every unit test (a couple of minutes: bots play thousands of deals)
 pnpm exec vitest run tests/hearts.test.ts -t "moon"   # one file / one test
 pnpm test:e2e            # Playwright against a dev server on :4173 (PW_CHROMIUM=<path> to reuse a browser)
 pnpm -C relay check      # the relay's type check
-pnpm verify              # check + test + build + relay check: run before you commit
+pnpm verify              # check + lint + format:check + test + build + relay check: run before you commit
 pnpm verify:all          # verify + e2e
 ```
 
@@ -25,7 +27,8 @@ pnpm verify:all          # verify + e2e
 src/engine/            pure TS: no DOM, no network, no UI
   types.ts             GameConfig, GameState, GameModule (setup/actions/apply/system/bot/status/redactData/standings)
   state.ts             zone helpers, log(), standings helpers
-  cards.ts rng.ts      card ids ("7C", "10H", "XA" jokers), decks; seeded mulberry32 shuffle
+  cards.ts rng.ts      card ids ("7C", "10H", "XA" jokers), decks; the dice: sfc32, 128 bits of
+                       state in GameState.rng, seeded from crypto (tests/shuffle.test.ts checks fairness)
   redact.ts            what each viewer may see: placeholders for unseen cards
   validate.ts          checkAction: an incoming action against the specs that were offered
   families/            one engine per kind of game; index.ts loads them on demand (rules.family →
