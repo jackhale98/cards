@@ -139,12 +139,16 @@ export function handFootFamily(config: GameConfig): GameModule<HandFootData> {
       under.cards = [];
       melds.forEach((m, i) => {
         if (isPile(m)) {
-          // a clean pile is topped with a red card, a dirty one with a black card, a wild one with a joker
+          // a clean pile is topped with a red card, a dirty one with a black card (a black 2 when its
+          // naturals are all red), a wild one with a joker
           const k = kindOf(m);
+          const black = (c: string) => 'SC'.includes(parseCard(c).suit);
           const topId =
             (k === 'wild'
               ? m.cards.find((c) => parseCard(c).suit === 'X')
-              : m.cards.find((c) => !isWild(c) && 'HD'.includes(parseCard(c).suit) === (k === 'clean'))) ?? m.cards[0];
+              : k === 'clean'
+                ? m.cards.find((c) => !black(c))
+                : (m.cards.find((c) => !isWild(c) && black(c)) ?? m.cards.find(black))) ?? m.cards[0];
           z.cards.push({ id: topId, up: true, group: i });
           under.cards.push(...m.cards.filter((c) => c !== topId).map((id) => ({ id, up: true })));
         } else z.cards.push(...[...m.cards.filter((c) => !isWild(c)), ...m.cards.filter(isWild)].map((id) => ({ id, up: true, group: i })));

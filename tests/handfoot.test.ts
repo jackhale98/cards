@@ -65,6 +65,15 @@ describe('hand and foot (pagat)', () => {
     expect(s.phase).toBe('play');
   });
 
+  it('a finished pile is squared up: a red card on top when clean, a black one when dirty', () => {
+    const s = rig(['5H', '5S', '5C', '4D']);
+    const pile = (rank: number, cards: string[]) => ({ team: 0, rank, cards });
+    // (a dirty pile whose naturals are all red is topped with its black 2)
+    s.data.melds = [pile(13, ['KS', 'KC', 'KH', 'KS', 'KC', 'KS', 'KC']), pile(9, ['9H', '9D', '9H', '9D', '9H', '2D', '2C'])];
+    g.apply(s, 0, { type: 'meld', cards: ['5H', '5S', '5C'] });
+    expect(ids(s, 'melds:0').slice(0, 2)).toEqual(['KH', '2C']);
+  });
+
   it('a black 3 on top blocks the pile', () => {
     const s = rig(['KH', 'KS'], { pile: ['KD', '3S'], phase: 'draw' });
     expect(g.actions(s, 0).map((a) => a.type)).toEqual(['draw']);

@@ -21,7 +21,7 @@
     "You get a 13-card hand and a 13-card foot. The foot stays face down until you've played out your hand.",
     "Each turn: draw 2, or take the pile's top 7 by melding its top card with two of that rank from your hand (two wilds for a wild). Then meld and discard.",
     "Melds are 3–7 cards of one rank, 4s to aces. 2s and jokers are wild: one in a meld of up to five cards, two in six or seven. Three or more wilds alone make a wild meld.",
-    "Seven cards make a pile: clean (no wilds) 500, dirty 300, wild 1500. You can't take the pile while your side has an unfinished meld of that rank.",
+    "Seven cards make a pile, squared up: clean (no wilds; a red card on top) 500, dirty (a black one) 300, wild (a joker) 1500. You can't take the pile while your side has an unfinished meld of that rank.",
     "Red 3s are laid out at once for +100 (−100 if still in your hand or foot at the end). Black 3s can't be melded; one on top blocks the pile.",
     "Your side's first meld must be worth 50, then 90, 120 and 150 in rounds two to four. Joker 50, 2 and A 20, K–8 10, 7–4 and black 3 5.",
     "Play out your hand and pick up your foot (straight away if you melded your last card). To go out, your side needs 2 clean, 2 dirty and 1 wild pile, everyone in their foot. Out is +100.",
