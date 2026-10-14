@@ -7,6 +7,7 @@
   import AvatarBadge from '../components/AvatarBadge.svelte';
   import AvatarPicker from '../components/AvatarPicker.svelte';
   import GameIcon from '../components/GameIcon.svelte';
+  import Loader from '../components/Loader.svelte';
   import LookPicker from '../components/LookPicker.svelte';
   import { backOf, clothOf } from '../looks';
   import NetStatus from '../components/NetStatus.svelte';
@@ -392,7 +393,7 @@
     {#if host}
       <button class="btn primary big" disabled={!!startError} onclick={deal}>Deal <span class="long">{game.config.name}</span></button>
     {:else}
-      <span class="waiting"><span class="spinner"></span> Waiting for the host…</span>
+      <span class="waiting"><Loader size={16} /> Waiting for the host…</span>
     {/if}
   </div>
 </main>
@@ -915,18 +916,5 @@
     align-items: center;
     gap: 0.6rem;
     color: var(--ink-dim);
-  }
-  .spinner {
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    border: 2px solid var(--line);
-    border-top-color: var(--gold);
-    animation: spin 0.9s linear infinite;
-  }
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
   }
 </style>

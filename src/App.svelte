@@ -1,5 +1,6 @@
 <script lang="ts">
   import { app } from './app.svelte';
+  import Loader from './ui/components/Loader.svelte';
   import Toast from './ui/components/Toast.svelte';
   import Home from './ui/screens/Home.svelte';
   import { applyLook } from './ui/looks';
@@ -62,14 +63,17 @@
   const relaysUp = $derived(app.net === 'local' ? 1 : (app.netStatus?.networks.reduce((n, x) => n + x.up, 0) ?? 0));
 </script>
 
+<!-- while a screen's code downloads (first visit only; shown after a moment, so fast loads don't flash) -->
+{#snippet waiting()}<div class="screen-wait"><Loader size={48} label="Loading" /></div>{/snippet}
+
 {#if route.name === 'home'}
   <!-- (a new invite while the home screen is open fills in its code) -->
   {#key route.code}<Home code={route.code} />{/key}
 {:else if route.name === 'tv'}
-  {#await tv() then m}<m.default />{/await}
+  {#await tv()}{@render waiting()}{:then m}<m.default />{/await}
 {:else if !view}
   <div class="connecting">
-    <div class="spinner"></div>
+    <span class="load"><Loader size={48} /></span>
     <p>Finding table <b>{route.code}</b>… <span class="secs">{waited}s</span></p>
     {#if trying}<p class="small">Looking via {trying}{relaysUp ? '' : ' (connecting…)'}</p>{/if}
     {#if waited < 12}
@@ -91,7 +95,7 @@
 {:else if view.state && view.lobby.started}
   {#key view.lobby.code}
     <!-- (replaying a finished hand: that moment on the table instead, with no moves to make) -->
-    {#await table() then m}
+    {#await table()}{@render waiting()}{:then m}
       <m.default
         view={app.replay ? { ...view, state: app.replay.state, status: app.replay.status, actions: [] } : view}
         display={route.name === 'display' || app.hostScreen}
@@ -100,7 +104,7 @@
     {/await}
   {/key}
 {:else}
-  {#await lobby() then m}<m.default {view} />{/await}
+  {#await lobby()}{@render waiting()}{:then m}<m.default {view} />{/await}
 {/if}
 
 {#if view && !app.isHost && !app.connected}
@@ -154,17 +158,20 @@
     display: flex;
     gap: 0.5rem;
   }
-  .spinner {
-    width: 34px;
-    height: 34px;
-    border-radius: 50%;
-    border: 3px solid var(--line);
-    border-top-color: var(--gold);
-    animation: spin 0.9s linear infinite;
+  /* breathing room for the loader's lift and glow */
+  .load {
+    margin-bottom: 0.8rem;
   }
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
+  .screen-wait {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    animation: appear 0.3s ease 0.4s both;
+  }
+  @keyframes appear {
+    from {
+      opacity: 0;
     }
   }
   .reconnect {

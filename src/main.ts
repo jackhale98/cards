@@ -25,3 +25,10 @@ window.addEventListener('vite:preloadError', (e) => {
 applyFourColour();
 
 mount(App, { target: document.getElementById('app')! });
+
+// the first screen (index.html) bows out now the app is drawn
+const splash = document.getElementById('splash');
+if (splash) {
+  splash.classList.add('lc-gone');
+  setTimeout(() => splash.remove(), 400);
+}
