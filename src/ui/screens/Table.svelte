@@ -92,15 +92,18 @@
     // go below its smallest readable size, and the piles may wrap onto more rows as they shrink)
     const scale = Math.max(0.3, ...centerZones.map((z) => z.scale ?? 1));
     const need = (k: number) => {
-      if (!centerZones.length) return 1.45 * wantHand * k;
       const c = wantCenter * k;
+      // (everyone's melds on a row of their own, their cards smaller, with a label: counted even
+      // when there are no piles above it, as in hand mode with a TV showing them)
+      const strip = stripZones.length ? 1.4 * Math.max(MIN_CW, c * Math.max(...stripZones.map((z) => z.scale ?? 1))) + 30 : 0;
+      if (!centerZones.length) return strip + 1.45 * wantHand * k;
       // (a pile's card as drawn: never under the smallest readable width)
       const zw = Math.max(MIN_CW, Math.min(rowFit, Math.max(34, c) * scale));
       // (each row: a pile and its label; between rows, a gap)
       const rows = centerRows(c);
       // (a cascade's bottom card peeks out above it)
       const pile = (centerZones.some((z) => z.cascade) ? 1.82 : 1.4) * zw;
-      return Math.max(rowFit < Infinity ? 0 : 1.6 * c, pile + 22) + (rows - 1) * (pile + 30) + 1.45 * wantHand * k;
+      return Math.max(rowFit < Infinity ? 0 : 1.6 * c, pile + 22) + (rows - 1) * (pile + 30) + strip + 1.45 * wantHand * k;
     };
     let k = 1;
     while (k > 0.35 && need(k) > room) k -= 0.02;
@@ -491,7 +494,7 @@
     const keep = (pct: number, size = 0) => `clamp(${size / 2 + 8}px, ${pct}%, calc(100% - ${size / 2 + 8}px))`;
     return { left: keep(50 + Math.cos(a) * 40, slotW[seat]), top: keep(50 + Math.sin(a) * 39, slotH[seat]) };
   }
-  const handCw = $derived(Math.round(Math.max(handMode ? 56 : pileOnly ? 36 : 44, cardSizes.hand)));
+  const handCw = $derived(Math.round(Math.max(handMode && !stripZones.length ? 56 : pileOnly ? 36 : 44, cardSizes.hand)));
 
   // ---- chrome -----------------------------------------------------------------------------
   let sheet = $state<'menu' | 'scores' | 'tv' | 'look' | 'save' | null>(null);
@@ -1255,6 +1258,11 @@
     color: var(--ink-dim);
     animation: lastIn 0.35s var(--ease-out);
   }
+  /* (hand mode: the middle is only as tall as it needs, so a long last move wraps rather than being cut) */
+  .table.handmode .last span {
+    white-space: normal;
+    text-align: center;
+  }
   .last span {
     white-space: nowrap;
     overflow: hidden;
@@ -1317,15 +1325,18 @@
     text-align: center;
     line-height: 1.15;
   }
+  /* the strip (everyone's melds, face-up cards) gets a row of its own under the piles, the full
+     width: beside them it was left a sliver */
   .zones.has-strip {
-    flex-wrap: nowrap;
     max-width: 100%;
+    row-gap: 6px;
   }
   .zones.has-strip > .zone-slot {
     flex: none;
   }
   .strip {
-    flex: 0 1 auto;
+    flex: 1 0 100%;
+    justify-content: safe center;
     min-width: 0;
     display: flex;
     align-items: flex-end;

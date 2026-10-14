@@ -207,9 +207,9 @@
     filter: brightness(0.62) saturate(0.7);
   }
   /* just came into your hand (drawn, picked up, passed to you): a gold edge all round and a glow,
-     so even the strip of it that shows in a crowded hand says so; and a little lift */
+     so even the strip of it that shows in a crowded hand says so (not lifted: only a card you've
+     selected rises) */
   .fresh:not(.selected) {
-    transform: translateY(-8%);
     box-shadow:
       0 0 0 0.16em var(--gold),
       0 0 1.1em 0.25em rgba(233, 196, 106, 0.7),

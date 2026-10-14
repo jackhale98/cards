@@ -301,7 +301,7 @@ interface Shot {
  * `sheets`: also the menu, save and scores sheets (once a game: they hardly change with the
  * screen or the number of players) and `replay`, the table in a replay (once a screen size).
  */
-async function audit(page: Page, g: GameJson, size: keyof typeof SIZES, seats: number, tag: string, { sheets = false, replay = false } = {}) {
+async function audit(page: Page, g: GameJson, size: keyof typeof SIZES, seats: number, tag: string, { sheets = false, replay = false, tv = false } = {}) {
   const shots: Shot[] = [];
   const dir = `${OUT}/${g.id}`;
   mkdirSync(dir, { recursive: true });
@@ -338,6 +338,14 @@ async function audit(page: Page, g: GameJson, size: keyof typeof SIZES, seats: n
   await snap('lobby');
   await page.click(`button:has-text("Deal ${g.name}")`);
   await page.locator('.table').waitFor();
+  // a TV showing the table: the phone shows just your hand and the piles you can use ("hand mode")
+  if (tv) {
+    const code = page.url().match(/#\/room\/([^/?]+)/)![1];
+    const screen = await page.context().newPage();
+    await screen.setViewportSize({ width: 1366, height: 768 });
+    await screen.goto(`/?net=local#/display/${code}`);
+    await page.locator('.table.handmode').waitFor();
+  }
 
   const seen = new Set<string>();
   const start = Date.now();
@@ -391,6 +399,7 @@ async function audit(page: Page, g: GameJson, size: keyof typeof SIZES, seats: n
 for (const g of GAMES) {
   test(`${g.name}: small screen`, async ({ page }) => audit(page, g, 'small', recommended(g), 'small', { sheets: true, replay: true }));
   test(`${g.name}: large screen`, async ({ page }) => audit(page, g, 'large', recommended(g), 'large', { replay: true }));
+  test(`${g.name}: small screen, with a TV`, async ({ page }) => audit(page, g, 'small', recommended(g), 'small-tv', { tv: true }));
   if (most(g) > recommended(g)) test(`${g.name}: small screen, ${most(g)} players`, async ({ page }) => audit(page, g, 'small', most(g), `small-${most(g)}p`));
   if (fewest(g) < recommended(g)) {
     test(`${g.name}: small screen, ${fewest(g)} players`, async ({ page }) => audit(page, g, 'small', fewest(g), `small-${fewest(g)}p`));
