@@ -7,6 +7,7 @@
   import AvatarPicker from '../components/AvatarPicker.svelte';
   import Card from '../components/Card.svelte';
   import Sheet from '../components/Sheet.svelte';
+  import { takeHomeScreenTip } from '../homeScreen';
 
   let { code: initialCode = '' }: { code?: string } = $props();
   let code = $state(normaliseCode(untrack(() => initialCode)));
@@ -26,6 +27,8 @@
   }
   let picking = $state(false);
   let about = $state(false);
+  // (once, on an iPhone in Safari; not when an invite brought them, to join is what they came for)
+  let homeTip = $state(!invited && takeHomeScreenTip());
 
   function commitName() {
     app.setName(name.trim());
@@ -204,6 +207,15 @@
       </button>
     {/if}
   </section>
+
+  {#if homeTip}
+    <aside class="home-tip panel" aria-label="Add to Home Screen">
+      <p>
+        <b>Add Lamplight to your Home Screen</b> to play full screen, like an app: tap <b>Share</b> (or ⋯), then <b>Add to Home Screen</b>.
+      </p>
+      <button class="btn" onclick={() => (homeTip = false)}>Got it</button>
+    </aside>
+  {/if}
 
   <footer>
     Devices link directly whenever they can, so on the same WiFi your game stays in the room. No accounts, no app store. · <a
@@ -445,6 +457,47 @@
     background: rgba(233, 196, 106, 0.1);
     border: 1px solid rgba(233, 196, 106, 0.35);
     color: var(--gold);
+  }
+  /* floats over the bottom of the page (the page doesn't move), clear of the home bar */
+  .home-tip {
+    position: fixed;
+    z-index: 5;
+    left: 50%;
+    bottom: calc(12px + var(--safe-b));
+    transform: translateX(-50%);
+    width: min(34rem, calc(100vw - 24px - var(--safe-l) - var(--safe-r)));
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    padding: 0.7rem 0.8rem 0.7rem 1rem;
+    background: rgba(26, 24, 14, 0.94);
+    border-color: rgba(255, 214, 140, 0.3);
+    animation: tip-in 0.35s var(--ease-out);
+  }
+  .home-tip p {
+    margin: 0;
+    font-size: 0.85rem;
+    line-height: 1.4;
+    color: var(--ink-dim);
+  }
+  .home-tip b {
+    color: var(--ink);
+  }
+  .home-tip .btn {
+    flex: none;
+    font-size: 0.85rem;
+    padding: 0.45em 0.9em;
+  }
+  @keyframes tip-in {
+    from {
+      opacity: 0;
+      transform: translate(-50%, 12px);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .home-tip {
+      animation: none;
+    }
   }
   footer {
     grid-column: 1 / -1;
