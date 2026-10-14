@@ -216,13 +216,40 @@
   }
   function fitHeight(el: HTMLElement) {
     const main = el.parentElement!;
-    // (the content's own height: the box itself may be squeezed to the room while its cards spill out)
+    // The content's own size, from where its piles sit in the layout (offset sizes: a card in
+    // flight is drawn transformed, outside its pile, and must not count, or the middle shrinks
+    // for the length of every move and springs back). The box itself may be squeezed to the room
+    // while its piles spill out of it, so it's the children that are measured.
+    const extent = () => {
+      let top = Infinity;
+      let bottom = -Infinity;
+      let left = Infinity;
+      let right = -Infinity;
+      for (const c of [...el.children] as HTMLElement[]) {
+        if (c.dataset.pinned || !c.offsetWidth) continue;
+        top = Math.min(top, c.offsetTop);
+        bottom = Math.max(bottom, c.offsetTop + c.offsetHeight);
+        left = Math.min(left, c.offsetLeft);
+        right = Math.max(right, c.offsetLeft + c.offsetWidth);
+      }
+      // (offsets are from the middle (main), as is the box's own top)
+      return Number.isFinite(top) ? { h: bottom - Math.min(top, el.offsetTop), w: right - left } : { h: 0, w: 0 };
+    };
     const fit = () => {
       const room = main.clientHeight - el.offsetTop;
+      const { h, w } = extent();
       // (too tall, or too wide: a showdown's two seven-card hands side by side on a phone)
-      const k = Math.min(1, room / Math.max(1, el.scrollHeight), main.clientWidth / Math.max(1, el.scrollWidth, el.offsetWidth));
-      el.style.transform = k < 0.999 ? `scale(${Math.max(0.6, k).toFixed(3)})` : '';
+      const k = Math.min(1, room / Math.max(1, h), main.clientWidth / Math.max(1, w, el.offsetWidth));
+      const want = Math.max(0.6, Math.min(1, k));
+      // (back to full size at once; smaller only once it's lasted a moment, so the brief overflow
+      // as a meld lands, before the sizes catch up, doesn't make the middle twitch)
+      clearTimeout(settle);
+      const set = () => (el.style.transform = want < 0.999 ? `scale(${want.toFixed(3)})` : '');
+      const now = Number(/scale\(([\d.]+)\)/.exec(el.style.transform)?.[1] ?? 1);
+      if (want >= now) set();
+      else settle = window.setTimeout(set, 250);
     };
+    let settle = 0;
     let frame = 0;
     const later = () => {
       cancelAnimationFrame(frame);
@@ -237,6 +264,7 @@
     return {
       destroy: () => {
         cancelAnimationFrame(frame);
+        clearTimeout(settle);
         ro.disconnect();
         mo.disconnect();
       },

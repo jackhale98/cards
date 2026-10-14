@@ -41,14 +41,14 @@
   /**
    * A whole hand face up (bridge's dummy) keeps the width its thirteen cards took: as it's played
    * from, the cards left grow into it, the same overlap and the same room between suits, up to a
-   * size that stays within the row (`cw` is a thirteen-card dummy's size).
+   * size that still fits the middle beside the trick (`cw` is a thirteen-card dummy's size).
    */
   const handCw = $derived.by(() => {
     if (!zone.faceUpHand) return cw;
     const n = Math.max(1, zone.cards.length);
     const groups = zone.cards.filter((c, i) => i > 0 && c.group != null && c.group !== zone.cards[i - 1].group).length;
     const full = 1 + 12 * STEP + 3 * SUIT_GAP;
-    return Math.round(Math.min(cw * 1.6, (cw * full) / (1 + (n - 1) * STEP + groups * SUIT_GAP)));
+    return Math.round(Math.min(cw * 1.45, (cw * full) / (1 + (n - 1) * STEP + groups * SUIT_GAP)));
   });
 </script>
 
