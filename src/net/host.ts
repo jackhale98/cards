@@ -135,7 +135,10 @@ export class Host {
       const mine = this.lobby.seats.find((s) => s.id === host.cid);
       if (opts.takeover && mine && hostSeat !== mine) {
         // the old host keeps their seat as a player (they can rejoin it), and we host from ours
-        if (hostSeat) hostSeat.host = false;
+        if (hostSeat) {
+          hostSeat.host = false;
+          delete hostSeat.screen;
+        }
         mine.host = true;
       } else if (hostSeat) {
         // the host may be resuming from a new browser session with a new client id
@@ -763,7 +766,7 @@ export class Host {
       bump.out = true;
     }
     while (playing().length < max) {
-      const next = seats.filter((s) => s.out && s.connected).sort((a, b) => order(b) - order(a))[0];
+      const next = seats.filter((s) => s.out && s.connected && !s.screen).sort((a, b) => order(b) - order(a))[0];
       if (!next) break;
       next.out = false;
     }
@@ -773,12 +776,37 @@ export class Host {
   setPlaying(id: string, playing: boolean) {
     if (this.lobby.started) return;
     const seat = this.lobby.seats.find((s) => s.id === id);
-    if (!seat) return;
+    if (!seat || seat.screen) return;
     seat.out = !playing;
     // someone coming in bumps a bot rather than leaving the table over-full
     const max = seatsIn(getGame(this.lobby.gameId));
     if (playing && this.lobby.seats.filter((s) => !s.out).length > max) this.dropBot();
     this.broadcast();
+  }
+
+  /** True when the host's device is the table screen rather than a player. */
+  get hostScreen() {
+    return !!this.lobby.seats.find((s) => s.host)?.screen;
+  }
+
+  /**
+   * The host plays, or their device becomes the table screen (a laptop or tablet everyone can see):
+   * then it never takes a seat in a game, and the phones switch to showing just their hands.
+   */
+  setScreen(on: boolean) {
+    if (this.lobby.started) return;
+    const me = this.lobby.seats.find((s) => s.host);
+    if (!me || !!me.screen === on) return;
+    if (on) {
+      me.screen = true;
+      me.out = true;
+      // (someone who was sitting out takes the place)
+      this.fit();
+      this.broadcast();
+    } else {
+      delete me.screen;
+      this.setPlaying(me.id, true);
+    }
   }
 
   // ---- splitting the table -----------------------------------------------------------------
@@ -928,8 +956,8 @@ export class Host {
     // whoever sat out that game gets priority for the next one
     const played = new Set(this.lobby.playing ?? []);
     for (const s of this.lobby.seats) {
-      if (!played.has(s.id) && !s.bot) s.sat = (s.sat ?? 0) + 1;
-      s.out = false;
+      if (!played.has(s.id) && !s.bot && !s.screen) s.sat = (s.sat ?? 0) + 1;
+      s.out = !!s.screen;
     }
     this.lobby.playing = undefined;
     this.fit();
@@ -978,7 +1006,8 @@ export class Host {
     const seated = new Set(this.lobby.seats.map((s) => s.id));
     // a device can reach us on several networks: count devices (client ids), not connections
     const screens = new Set([...this.displays].map((p) => this.peers.get(p)));
-    this.lobby.displays = screens.size;
+    // (the host's own device counts when it's the table screen)
+    this.lobby.displays = screens.size + (this.hostScreen ? 1 : 0);
     this.lobby.spectators = new Set([...this.peers.values()].filter((c) => !seated.has(c) && !screens.has(c))).size;
     if (this.state) this.state.v = this.v;
     this.onLocalView(this.viewFor(this.hostCid));

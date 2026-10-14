@@ -94,7 +94,7 @@
     {#await table() then m}
       <m.default
         view={app.replay ? { ...view, state: app.replay.state, status: app.replay.status, actions: [] } : view}
-        display={route.name === 'display'}
+        display={route.name === 'display' || app.hostScreen}
         replay={app.replay}
       />
     {/await}

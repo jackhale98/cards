@@ -54,6 +54,38 @@ describe('game night', () => {
     ]);
   });
 
+  it('can rank by points per game, so a late arrival isn’t ranked low for playing less', () => {
+    const g = (results: [string, number, number][]) => ({
+      game: 'hearts',
+      name: 'Hearts',
+      at: 0,
+      results: results.map(([id, place, points]) => ({ id, name: id.toUpperCase(), place, points })),
+    });
+    // a plays all three games (7 points); c joins for the last two (5 points)
+    const night = {
+      games: [
+        g([['a', 0, 3]]),
+        g([
+          ['a', 0, 3],
+          ['c', 1, 2],
+        ]),
+        g([
+          ['a', 1, 1],
+          ['c', 0, 3],
+        ]),
+      ],
+    };
+    expect(nightTotals(night).map((r) => [r.id, r.points, r.played, r.rank])).toEqual([
+      ['a', 7, 3, 0],
+      ['c', 5, 2, 1],
+    ]);
+    // per game c leads: 2.5 against a's 2.33
+    expect(nightTotals(night, 'perGame').map((r) => [r.id, r.perGame, r.rank])).toEqual([
+      ['c', 2.5, 0],
+      ['a', 7 / 3, 1],
+    ]);
+  });
+
   it('the host records each finished game once, and again after a rematch', () => {
     vi.useFakeTimers();
     const host = new Host(null, 'ABCD', { cid: 'h', name: 'Hana' });

@@ -15,7 +15,12 @@
     onreset?: () => void;
   }
   let { night, seats, onreset }: Props = $props();
-  const rows = $derived(nightTotals(night));
+  /** Rank by total points, or by points per game played (fair to anyone who joined late). */
+  let by = $state<'points' | 'perGame'>('points');
+  const rows = $derived(nightTotals(night, by));
+  // (the switch only matters once people have played different numbers of games)
+  const uneven = $derived(new Set(rows.map((r) => r.played)).size > 1);
+  const perGame = (r: { perGame: number }) => (Math.round(r.perGame * 10) / 10).toFixed(1);
   const games = $derived([...(night?.games ?? [])].reverse());
   const avatarOf = (id: string) => seats.find((s) => s.id === id)?.avatar;
   const icon = (id: string) => {
@@ -32,26 +37,39 @@
 </script>
 
 <div class="night">
+  {#if uneven}
+    <div class="by" role="group" aria-label="Rank by">
+      <button class:on={by === 'points'} aria-pressed={by === 'points'} onclick={() => (by = 'points')}>Total</button>
+      <button class:on={by === 'perGame'} aria-pressed={by === 'perGame'} onclick={() => (by = 'perGame')}>Per game</button>
+    </div>
+  {/if}
   <ol class="board">
     {#each rows as r, i (r.id)}
       <li class:lead={r.rank === 0}>
         <span class="rank">{r.rank === 0 ? '★' : r.rank + 1}</span>
         <AvatarBadge avatar={avatarOf(r.id)} name={r.name} seat={i} size={26} />
         <span class="who">{r.name}</span>
-        <span class="wins">{r.wins ? `${r.wins} win${r.wins > 1 ? 's' : ''}` : ''}</span>
-        <b>{r.points}</b>
+        <span class="wins">{r.played} game{r.played > 1 ? 's' : ''}{r.wins ? ` · ${r.wins} win${r.wins > 1 ? 's' : ''}` : ''}</span>
+        <span class="avg" class:main={by === 'perGame'} title="Points per game">{perGame(r)}<small>/game</small></span>
+        <span class="total" class:main={by === 'points'}>{r.points}</span>
       </li>
     {/each}
   </ol>
-  <ul class="games">
-    {#each games as g (g.at)}
-      <li>
-        <button class="game" onclick={() => (open = g)} aria-label="{g.name}: final scores">
-          <GameIcon id={g.game} icon={icon(g.game)} size={22} /><span>{g.name}</span><em>{gameWinners(g)}</em>
-        </button>
-      </li>
-    {/each}
-  </ul>
+  {#if games.length}
+    <!-- every game tonight, newest first: tap one for its final scores (a short list that scrolls) -->
+    <ul class="games" aria-label="Games tonight">
+      {#each games as g (g.at)}
+        <li>
+          <button class="game" onclick={() => (open = g)} aria-label="{g.name}, won by {gameWinners(g) || 'nobody'}: final scores">
+            <GameIcon id={g.game} icon={icon(g.game)} size={22} />
+            <span class="gname">{g.name}</span>
+            <em>{gameWinners(g)}</em>
+            <time>{when(g.at)}</time>
+          </button>
+        </li>
+      {/each}
+    </ul>
+  {/if}
   {#if onreset}
     {#if confirming}
       <div class="confirm">
@@ -105,13 +123,30 @@
 
 <style>
   .game {
-    display: flex;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
     align-items: center;
-    gap: 0.35rem;
-    min-height: 32px;
-    padding: 0;
+    gap: 0.5rem;
+    width: 100%;
+    min-height: 40px;
+    padding: 0.2rem 0.6rem 0.2rem 0.35rem;
     color: inherit;
     font: inherit;
+    text-align: left;
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.18);
+  }
+  .game:hover {
+    background: rgba(0, 0, 0, 0.28);
+  }
+  .gname {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .game time {
+    color: var(--ink-dim);
+    font-variant-numeric: tabular-nums;
   }
   .lines p {
     margin: 0.15rem 0;
@@ -173,7 +208,7 @@
   }
   .board li {
     display: grid;
-    grid-template-columns: 1.4rem auto 1fr auto 2.4rem;
+    grid-template-columns: 1.4rem auto minmax(0, 1fr) auto 3.4rem 2.4rem;
     align-items: center;
     gap: 0.5rem;
     padding: 0.35rem 0.6rem;
@@ -202,27 +237,53 @@
     font-size: 0.75rem;
     color: var(--ink-dim);
   }
-  .board b {
+  .avg,
+  .total {
     text-align: right;
-    font-size: 1.1rem;
     font-variant-numeric: tabular-nums;
+    color: var(--ink-dim);
+  }
+  .avg small {
+    font-size: 0.7em;
+  }
+  /* the number the board is ranked by stands out; the other is there for reference */
+  .avg.main,
+  .total.main {
+    color: var(--ink);
+    font-weight: 700;
+    font-size: 1.1rem;
+  }
+  .by {
+    align-self: flex-end;
+    display: flex;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.18);
+    padding: 2px;
+  }
+  .by button {
+    min-height: 30px;
+    padding: 0 0.8rem;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    color: var(--ink-dim);
+  }
+  .by button.on {
+    background: rgba(233, 196, 106, 0.2);
+    color: var(--gold);
+    font-weight: 700;
   }
   .games {
     list-style: none;
     margin: 0;
     padding: 0;
     display: flex;
-    flex-wrap: wrap;
-    gap: 0.35rem;
-  }
-  .games li {
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-    padding: 0.2rem 0.6rem 0.2rem 0.3rem;
-    border-radius: 999px;
-    background: rgba(0, 0, 0, 0.18);
-    font-size: 0.75rem;
+    flex-direction: column;
+    gap: 0.3rem;
+    /* about four games show; the rest scroll, so the game picker stays in reach */
+    max-height: 11rem;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    font-size: 0.8rem;
   }
   .games em {
     font-style: normal;

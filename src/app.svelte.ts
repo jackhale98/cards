@@ -301,6 +301,16 @@ class App {
     this.host?.setLook(look);
   }
 
+  /** This device hosts as the table screen (a laptop or tablet in the middle) rather than as a player. */
+  get hostScreen(): boolean {
+    return this.isHost && !!this.view?.lobby.seats.find((s) => s.host)?.screen;
+  }
+  /** The host plays, or this device is the table screen (remembered for the next table it hosts). */
+  setScreen(on: boolean) {
+    store.set('cards.hostScreen', on ? '1' : null);
+    this.host?.setScreen(on);
+  }
+
   /** Split the table (host only): these people go to a new table that `newHost` hosts. */
   split(ids: string[], newHost: string) {
     const code = this.host?.split(ids, newHost);
@@ -399,7 +409,9 @@ class App {
     else {
       const look = this.savedLook;
       if (look) host.lobby.look = look;
-      host.broadcast();
+      // (a laptop that was the table screen last time is the table screen again)
+      if (store.get('cards.hostScreen') && !split) host.setScreen(true);
+      else host.broadcast();
     }
     this.startWatching();
   }

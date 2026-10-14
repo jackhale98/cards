@@ -133,6 +133,49 @@ describe('more people than the game seats', () => {
   });
 });
 
+describe('the host as the table screen', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it('takes no seat in the game, counts as a table screen, and plays again when switched back', () => {
+    const { host, clients } = table(['Ann', 'Ben']);
+    host.setGame('gin-rummy');
+    // two seats: the host and Ann play, Ben sits out
+    expect(host.lobby.seats.filter((s) => !s.out).map((s) => s.name)).toEqual(['Hana', 'Ann']);
+    host.setScreen(true);
+    // Ben takes the host's place; the phones know a table screen is up
+    expect(host.lobby.seats.filter((s) => !s.out).map((s) => s.name)).toEqual(['Ann', 'Ben']);
+    expect(host.lobby.displays).toBe(1);
+    expect(clients[0].view!.lobby.displays).toBe(1);
+    // the host can't be dealt in by mistake while it's the screen
+    host.setPlaying('h', true);
+    expect(host.lobby.seats.find((s) => s.host)!.out).toBe(true);
+    host.start();
+    expect(host.lobby.playing).toEqual(['ann', 'ben']);
+    // the host's own view shows no hand
+    expect(host.viewFor('h').you).toBe(-1);
+    // after the game the screen stays the screen (and doesn't pile up turns sitting out)
+    host.endGame();
+    const me = host.lobby.seats.find((s) => s.host)!;
+    expect(me.out).toBe(true);
+    expect(me.sat ?? 0).toBe(0);
+    host.setScreen(false);
+    expect(host.lobby.seats.find((s) => s.host)!.out).toBe(false);
+    expect(host.lobby.displays).toBe(0);
+  });
+
+  it('a player who takes over from a host that was the table screen leaves its old seat able to play', () => {
+    const { host } = table(['Ann']);
+    host.setScreen(true);
+    const snap = { lobby: structuredClone(host.lobby), state: null, keys: {} };
+    const next = new Host(null, 'ABCD', { cid: 'ann', name: 'Ann' }, snap, { takeover: true });
+    const old = next.lobby.seats.find((s) => s.id === 'h')!;
+    expect(old.host).toBeFalsy();
+    expect(old.screen).toBeUndefined();
+    expect(next.hostScreen).toBe(false);
+  });
+});
+
 describe('splitting the table', () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());

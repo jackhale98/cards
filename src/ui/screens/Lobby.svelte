@@ -52,7 +52,8 @@
   const mySeat = $derived(lobby.seats.findIndex((s) => s.id === app.cid));
 
   // the picker: recent games first, then a section per kind of game
-  const people = $derived(lobby.seats.filter((s) => !s.bot).length);
+  // (the host's laptop as the table screen isn't a player)
+  const people = $derived(lobby.seats.filter((s) => !s.bot && !s.screen).length);
   const recent = app.recentGames
     .filter((id) => GAMES[id])
     .slice(0, 3)
@@ -81,7 +82,7 @@
   // who plays: the table can hold more people than the game seats
   const seatsMax = $derived(game.config.players.counts ? Math.max(...game.config.players.counts) : game.config.players.max);
   const playing = $derived(lobby.seats.filter((s) => !s.out).length);
-  const sittingOut = $derived(lobby.seats.filter((s) => s.out).length);
+  const sittingOut = $derived(lobby.seats.filter((s) => s.out && !s.screen).length);
   // splitting the table: anyone here but the host and bots can go
   const splittable = $derived(lobby.seats.filter((s) => !s.host && !s.bot && s.connected));
   let splitting = $state(false);
@@ -242,10 +243,10 @@
               <!-- (you and the host: one tag, so a short name still fits on a phone) -->
               {#if i === mySeat}<em class="you">{seat.host ? 'you · host' : 'you'}</em>{:else if seat.host}<em>host</em>{/if}
               {#if seat.bot}<em>bot</em>{/if}
-              {#if seat.out && !host}<em>sitting out</em>{/if}
+              {#if seat.screen}<em>table screen</em>{:else if seat.out && !host}<em>sitting out</em>{/if}
             </span>
             {#if !seat.bot && !seat.host}<PingDot ms={app.pings[i]} label />{/if}
-            {#if host && !seat.bot && (seat.out || lobby.seats.length > 1)}
+            {#if host && !seat.bot && !seat.screen && (seat.out || lobby.seats.length > 1)}
               <!-- who plays this game: tap to sit someone out, or bring them in -->
               <button
                 class="inout"
@@ -266,6 +267,16 @@
           </li>
         {/each}
       </ul>
+      {#if host}
+        <!-- the host's device plays, or is the table screen: a laptop or tablet everyone can see -->
+        <div class="this-device">
+          <span class="small">This device</span>
+          <span class="seg" role="group" aria-label="This device">
+            <button class:on={!app.hostScreen} aria-pressed={!app.hostScreen} onclick={() => app.setScreen(false)}>Plays</button>
+            <button class:on={app.hostScreen} aria-pressed={app.hostScreen} onclick={() => app.setScreen(true)}>Table screen</button>
+          </span>
+        </div>
+      {/if}
       {#if sittingOut && host}<p class="small">More people than {game.config.name} seats: whoever sits out plays the next game. Tap In / Out to choose.</p>{/if}
       {#if lobby.spectators}<p class="small">+ {lobby.spectators} watching</p>{/if}
       <button class="btn small-btn look-btn" onclick={() => (looking = true)}
@@ -780,6 +791,13 @@
   }
   .stepper button:disabled {
     opacity: 0.3;
+  }
+  .this-device {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    margin-top: 0.5rem;
   }
   .seg {
     display: inline-flex;

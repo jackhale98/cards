@@ -57,6 +57,8 @@ export interface LobbySeat {
   connected: boolean;
   /** Sitting out the next game (more people at the table than it seats); they watch instead. */
   out?: boolean;
+  /** The host's device is the table screen (a laptop or tablet in the middle): it never plays. */
+  screen?: boolean;
   /** Games this person has sat out tonight: whoever has sat out most plays next. */
   sat?: number;
 }
