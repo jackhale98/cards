@@ -500,16 +500,12 @@
   }
   const handCw = $derived(Math.round(Math.max(handMode && !stripZones.length ? 56 : pileOnly ? 36 : 44, cardSizes.hand)));
   /**
-   * Everyone's melds on the table (rummy games): the middle runs to the right-hand edge and the
-   * buttons sit beside your hand, when they fit there (compact: about 38px each) without making
-   * that row taller than the hand. Decided once a part of the game, so it doesn't jump turn to turn.
+   * Everyone's melds on the table (rummy games, stud's face-up cards): the middle runs to the
+   * right-hand edge and the buttons sit beside your hand, two across when there are three or more,
+   * so they're no taller than the hand.
    */
-  let wideOff = $state('');
-  const wideFits = $derived(view.actions.filter((a) => !a.menu).length * 44 <= handCw * 1.4 + 30);
-  $effect(() => {
-    if (stripZones.length && !wideFits && wideOff !== tallKey) wideOff = tallKey;
-  });
-  const wideMiddle = $derived(!display && !handMode && !replay && stripZones.length > 0 && wideFits && wideOff !== tallKey);
+  const wideMiddle = $derived(!display && !handMode && !replay && stripZones.length > 0);
+  const manyButtons = $derived(view.actions.filter((a) => !a.menu).length > 2);
 
   // ---- chrome -----------------------------------------------------------------------------
   let sheet = $state<'menu' | 'scores' | 'tv' | 'look' | 'save' | null>(null);
@@ -699,6 +695,7 @@
   class:handmode={handMode}
   class:tall-actions={!!replay || actionsBesideHand}
   class:wide-middle={wideMiddle}
+  class:many-buttons={wideMiddle && manyButtons}
   bind:this={tableEl}
 >
   <!-- top: menu + opponents + scores -->
@@ -1126,8 +1123,16 @@
     justify-content: flex-end;
   }
   .table.wide-middle aside :global(.bar .btn) {
-    min-height: 38px;
+    min-height: 40px;
     padding-block: 0.25em;
+  }
+  .table.many-buttons aside {
+    width: clamp(220px, 34vw, 340px);
+  }
+  .table.many-buttons aside :global(.bar) {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-content: end;
   }
   .table.handmode {
     grid-template-rows: auto auto 1fr;

@@ -12,7 +12,7 @@
     { "id": "discard", "label": "Discard", "visibility": "all", "layout": "stack", "area": "center", "scale": 0.85 },
     { "id": "hand", "perPlayer": true, "visibility": "owner", "layout": "fan", "area": "hand" },
     { "id": "foot", "perPlayer": true, "visibility": "none", "layout": "stack", "area": "none" },
-    { "id": "melds", "perPlayer": true, "visibility": "all", "layout": "spread", "area": "strip", "hideEmpty": true, "scale": 0.55 },
+    { "id": "melds", "perPlayer": true, "visibility": "all", "layout": "spread", "area": "strip", "hideEmpty": true, "scale": 0.7 },
     { "id": "stacked", "perPlayer": true, "visibility": "all", "layout": "stack", "area": "none" }
   ],
   "rules": { "family": "handfoot" },

@@ -12,7 +12,7 @@
     { "id": "deck", "label": "Stock", "visibility": "none", "layout": "stack", "area": "center" },
     { "id": "discard", "label": "Discard pile", "visibility": "all", "layout": "spread", "area": "center", "scale": 0.8 },
     { "id": "hand", "perPlayer": true, "visibility": "owner", "layout": "fan", "area": "hand" },
-    { "id": "melds", "perPlayer": true, "visibility": "all", "layout": "spread", "area": "strip", "hideEmpty": true, "scale": 0.62 }
+    { "id": "melds", "perPlayer": true, "visibility": "all", "layout": "spread", "area": "strip", "hideEmpty": true, "scale": 0.8 }
   ],
   "rules": { "family": "rummy", "style": "500", "end": { "target": 500 } },
   "options": [
