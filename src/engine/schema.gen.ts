@@ -61,7 +61,7 @@ export interface GameConfig {
   options?: GameOption[];
   rules: Rules;
   /**
-   * Changes for a particular number of players, keyed by the count ("3", "5"…): rule parameters merged over `rules`, deck settings over `deck`.
+   * Changes for a particular number of players, keyed by the count ("3", "5"…): rule parameters merged over `rules`, deck settings over `deck`, and extra how-to-play lines.
    */
   byPlayers?: {
     [k: string]: SizeOverrides;
@@ -554,4 +554,8 @@ export interface SizeOverrides {
     [k: string]: unknown;
   };
   deck?: DeckSpec;
+  /**
+   * How-to-play lines shown after `rulesSummary` only when this many play (the deck, deal or partnerships at this size).
+   */
+  rulesSummary?: string[];
 }

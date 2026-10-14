@@ -3,7 +3,7 @@
   import SuitText from '../components/SuitText.svelte';
   import { app, inviteUrl } from '../../app.svelte';
   import type { ActionSpec, ZoneState } from '../../engine/types';
-  import { getGame } from '../../games';
+  import { getGame, howToPlay } from '../../games';
   import type { Frame, View } from '../../net/protocol';
   import ReplayBar from '../components/ReplayBar.svelte';
   import ActionBar from '../components/ActionBar.svelte';
@@ -38,6 +38,7 @@
   const status = $derived(view.status!);
   const game = $derived(getGame(s.game));
   const n = $derived(s.players.length);
+  const rules = $derived(howToPlay(game.config, n));
   const showChips = $derived(!!game.config.chips);
 
   let vw = $state(innerWidth);
@@ -1062,10 +1063,10 @@
         }}>{app.isHost ? 'Close table' : 'Leave table'}</button
       >
     </div>
-    {#if game.config.rulesSummary}
+    {#if rules.length}
       <div class="eyebrow">How to play {game.config.name}</div>
       <ul class="rules">
-        {#each game.config.rulesSummary as r, k (k)}<li>{r}</li>{/each}
+        {#each rules as r, k (k)}<li>{r}</li>{/each}
       </ul>
     {/if}
   </Sheet>

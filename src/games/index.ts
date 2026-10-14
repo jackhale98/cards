@@ -132,6 +132,11 @@ export function getGame(id: string): GameInfo {
   return g;
 }
 
+/** The "How to play" lines for a table of `players`: the game's own, then any for that size. */
+export function howToPlay(config: GameConfig, players: number): string[] {
+  return [...(config.rulesSummary ?? []), ...(config.byPlayers?.[players]?.rulesSummary ?? [])];
+}
+
 /** Lower case, no accents or apostrophes ("Hold'em" → "holdem"), words split on anything else. */
 const fold = (text: string) =>
   text

@@ -308,7 +308,7 @@
     },
     "byPlayers": {
       "type": "object",
-      "description": "Changes for a particular number of players, keyed by the count (\"3\", \"5\"…): rule parameters merged over `rules`, deck settings over `deck`.",
+      "description": "Changes for a particular number of players, keyed by the count (\"3\", \"5\"…): rule parameters merged over `rules`, deck settings over `deck`, and extra how-to-play lines.",
       "patternProperties": {
         "^[0-9]+$": {
           "type": "object",
@@ -321,6 +321,13 @@
             },
             "deck": {
               "$ref": "#/$defs/DeckSpec"
+            },
+            "rulesSummary": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "How-to-play lines shown after `rulesSummary` only when this many play (the deck, deal or partnerships at this size)."
             }
           },
           "title": "SizeOverrides"

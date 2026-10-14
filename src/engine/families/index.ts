@@ -57,7 +57,7 @@ function bySize(config: GameConfig, make: Family): GameModule {
   const built = new Map<number, GameModule>();
   const forSize = (n: number): GameModule => {
     const v = config.byPlayers?.[n];
-    if (!v) return base;
+    if (!v?.rules && !v?.deck) return base; // a size with only its own how-to-play lines
     if (!built.has(n)) {
       const rules = { ...config.rules!, ...(v.rules ?? {}) } as GameConfig['rules'];
       built.set(n, make({ ...config, rules, deck: { ...config.deck, ...(v.deck ?? {}) } }));
