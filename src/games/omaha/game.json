@@ -20,8 +20,11 @@
     { "id": "bigBlind", "label": "Big blind", "type": "number", "default": 10, "min": 2, "max": 1000, "step": 2 }
   ],
   "rulesSummary": [
-    "Like Texas Hold'em, but you get four hole cards.",
-    "Your hand must use exactly two hole cards and exactly three board cards.",
-    "No-limit betting over four rounds; best hand at showdown takes the pot."
+    "Win everyone's chips. Run out and you're out; the last player with chips wins.",
+    "The two players left of the dealer post the small and big blinds (with two players, the dealer posts the small one). Everyone gets four cards face down.",
+    "Four rounds of betting: before the flop, after the flop (3 shared cards), after the turn (1 more) and after the river (1 more). No limit: bet up to all your chips.",
+    "Your hand must use exactly two of your cards and exactly three from the board. Four ♥ on the board make no flush unless you hold two ♥.",
+    "Best to worst: straight flush, four of a kind, full house, flush, straight, three of a kind, two pair, pair, high card. Aces are high, or low in A-2-3-4-5.",
+    "The last player in, or the best hand at the showdown, takes the pot. Ties split it."
   ]
 }

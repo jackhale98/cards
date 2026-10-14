@@ -28,9 +28,11 @@ export function roundScores(g: TrickGame, s: S): { deltas: number[]; lines: stri
     const best = won.indexOf(Math.max(...won));
     deltas[best] = won[best] - 6;
     lines.push(`${teamName(g, s, best)} take ${won[best]} tricks: ${won[best] - 6} over the book`);
-    // honours (an option): 4 for all of A K Q J of trumps, 2 for three — not for a side already at 4
+    // honours (an option): 4 for all of A K Q J of trumps, 2 for three — not for a side already at 4.
+    // Tricks score first, so honours never count once the other side's tricks have won the game.
     const h = d.honours;
-    if (s.options.honours && h && d.scores[h.team] < target(g, s) - 1) {
+    const tricksWin = d.scores[best] + deltas[best] >= target(g, s);
+    if (s.options.honours && h && d.scores[h.team] < target(g, s) - 1 && (h.team === best || !tricksWin)) {
       const pts = h.count === 4 ? 4 : 2;
       deltas[h.team] += pts;
       lines.push(`${teamName(g, s, h.team)} held ${h.count} honours: +${pts}`);

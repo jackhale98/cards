@@ -49,6 +49,13 @@ describe('seven card stud (pagat)', () => {
     expect(raise.amount!.min).toBe(10);
   });
 
+  it('completing the bring-in is a full bet: the next raise is at least the smallest bet again', () => {
+    const s = g.setup(people(4), 3, {});
+    g.apply(s, s.turn!, { type: 'raise', amount: 10 });
+    const raise = g.actions(s, s.turn!).find((a) => a.type === 'raise')!;
+    expect(raise.amount!.min).toBe(20);
+  });
+
   it('if everyone calls the bring-in the street ends; then the best hand showing bets first', () => {
     const s = g.setup(people(3), 5, {});
     callAround(s);

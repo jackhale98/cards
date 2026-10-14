@@ -14,19 +14,38 @@
     { "id": "melds", "perPlayer": true, "visibility": "all", "layout": "spread", "area": "strip", "hideEmpty": true, "scale": 0.7 }
   ],
   "rules": { "family": "canasta", "end": { "target": 5000 } },
-  "byPlayers": { "6": { "deck": { "decks": 3, "jokers": 2 } } },
+  "byPlayers": {
+    "4": {
+      "rulesSummary": ["Partners sit across, 11 cards each."]
+    },
+    "3": {
+      "rulesSummary": [
+        "Three players: 13 cards each; draw two, discard one. Everyone plays alone until someone takes the pile.",
+        "Whoever takes the pile first stays alone, and the other two become partners for the hand (melds joined, red 3s kept apart). Scores are kept per player."
+      ]
+    },
+    "2": {
+      "rulesSummary": ["Head to head: 15 cards each. Draw two and discard one. You need two canastas to go out."]
+    },
+    "6": {
+      "rulesSummary": [
+        "Three pairs, partners across. Three decks and six jokers, 13 cards each. A side needs two canastas to go out.",
+        "Red 3s: 100 each, but five are 1,000 and all six 1,200."
+      ],
+      "deck": { "decks": 3, "jokers": 2 }
+    }
+  },
   "options": [{ "id": "target", "label": "Play to", "type": "number", "default": 5000, "min": 1500, "max": 10000, "step": 500 }],
   "rulesSummary": [
-    "Two decks and four jokers. Partners sit across (or play two head to head). Jokers and 2s are wild; red 3s are laid out at once as bonuses.",
-    "Each turn draw from the stock (two cards head to head), or take the whole discard pile by melding its top card. Then meld and discard.",
-    "Melds are 3+ cards of one rank with at least 2 natural cards and no more than 3 wild. Seven cards make a canasta: 500 if natural, 300 if mixed.",
-    "A wild card in the pile freezes it: then you need a natural pair of the top card to take it (also until your side has melded). A black 3 on top blocks the pile.",
-    "Your side's first meld must be worth 50 (90 from 1500, 120 from 3000; 15 below zero). Only the top card of the pile counts towards it.",
-    "You need a canasta (two head to head) to go out: meld everything, or all but one card and discard it. Going out is worth 100, or 200 concealed (melding your whole hand in one turn, with a canasta of your own and nothing added to partner's melds — no minimum needed).",
-    "With partners, you may ask “May I go out?” right after drawing. The answer binds: yes means you must, no means you can't this turn.",
-    "When the stock runs out, play goes on as long as players take the discard — and you must take it if it matches your side's meld and isn't frozen. A red 3 drawn as the last card ends the play.",
-    "Red 3s score 100 each (800 for all four), but count against a side that hasn't melded. Cards left in hand count against you. First to 5000 wins.",
-    "Three players: 13 cards each, draw two and discard one. Everyone plays alone until someone takes the discard pile: they stay alone, and the other two become partners for the hand (their melds put together, red 3s kept apart). Scores are kept per player; pagat plays to 7,500.",
-    "Six players: three pairs, partners across; three packs and six jokers, 13 cards each. A side needs two canastas to go out. Red 3s: four are 400, five 1,000, all six 1,200. Pagat plays to 7,500."
+    "Meld cards of one rank and build canastas of seven. Two decks and four jokers.",
+    "Each turn: draw, or take the whole discard pile by melding its top card. Then meld and discard.",
+    "Jokers and 2s are wild. A meld is 3+ cards of one rank with at least 2 naturals and at most 3 wilds. Seven cards make a canasta: 500 natural, 300 mixed.",
+    "Red 3s are laid out at once and replaced. Black 3s can only be melded when going out (no wilds). One on top blocks the pile for the next player.",
+    "To take the pile, meld its top card with a natural pair, or one natural and a wild, or add it to your side's meld. Frozen (a wild or a turned-up red 3 in it), or before your side has melded: you need a natural pair.",
+    "Your side's first meld must be worth 50 (90 from 1500, 120 from 3000, 15 below zero). Joker 50, 2 and A 20, K–8 10, 7–4 and black 3 5. From the pile, only its top card counts.",
+    "You need a canasta to go out: meld everything, or all but one and discard it. Out is 100, or 200 concealed (whole hand in one turn, own canasta, nothing earlier; no minimum if you drew).",
+    "With a partner, you may ask “May I go out?” after drawing, before melding from your hand. The answer binds: yes means you must (if you can), no means you can't.",
+    "When the stock runs out, play goes on while players take the discard. You must take it if it isn't frozen and matches your side's meld. A red 3 drawn last ends play.",
+    "Score melds, canasta bonuses and red 3s (100 each, 800 for all four; minus if your side hasn't melded). Cards in hand count against you. At the target (5000 unless changed), the highest score wins."
   ]
 }

@@ -33,15 +33,30 @@
     "end": { "target": 500, "loseAt": -500 }
   },
   "byPlayers": {
+    "4": {
+      "rulesSummary": ["Partners sit across. 43 cards: 4s up to aces (no black 4s), plus the joker."]
+    },
     "3": {
+      "rulesSummary": [
+        "33 cards: 7s up to aces, plus the joker. Everyone scores alone; the contractor plays against the other two together, who each score 10 for every trick they take."
+      ],
       "deck": { "ranks": [7, 8, 9, 10, 11, 12, 13, 14], "exclude": [], "jokers": 1 },
       "rules": { "teams": [[0], [1], [2]] }
     },
     "5": {
+      "rulesSummary": [
+        "53 cards: a full pack and the joker. Everyone scores alone.",
+        "After the kitty, the contractor calls a card (not the joker or a bower): whoever holds it is a secret partner until it's played. Or choose Play alone. Misère is always alone.",
+        "Made with a partner, each of you wins half the bid; alone, all of it. Failed, you each lose the same. Each opponent scores 10 a trick."
+      ],
       "deck": { "ranks": [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14], "exclude": [], "jokers": 1 },
       "rules": { "teams": [[0], [1], [2], [3], [4]], "callPartner": true }
     },
     "6": {
+      "rulesSummary": [
+        "Two teams of three, sitting alternately. 63 cards: a full pack and the joker, plus the 2s, 3s and red 4s of a second pack.",
+        "Two identical cards in a trick: the first one played wins. In misère both partners sit out."
+      ],
       "deck": {
         "ranks": [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14],
         "exclude": [],
@@ -61,15 +76,13 @@
     { "id": "bidToWin", "label": "Only win by making a bid", "type": "boolean", "default": true }
   ],
   "rulesSummary": [
-    "Partners sit across. 43 cards (4s to aces without the black 4s, plus a joker): 10 each and a kitty of 3.",
-    "Bid how many tricks (6–10) your team will take and in which suit or no trumps. Values follow the Avondale table: 6♠ is 40, each suit up is +20, each trick +100 (10 NT is 520).",
-    "The winner takes the kitty, discards 3 and leads. Trumps: joker, right bower (jack of trumps), left bower (other jack of that colour), then A K Q…",
-    "In no trumps the joker has no suit: it wins any trick, can only be played when you can't follow suit, and can be led by calling a suit not yet led (others must follow it). A contractor holding it may instead make it the top card of a suit before the first lead.",
-    "Misère (250, only over a seven): take no tricks at all, playing alone with no trumps. Open misère (500, any time): the same, with your hand face up after the first trick. A contractor holding the joker gives it a suit; a defender who can't follow suit must play it.",
-    "Make it and score the bid (all 10 tricks is at least 250); fail and lose it. Opponents score 10 per trick (nothing against misère).",
-    "Win by reaching 500 with a bid you make — points on defence alone don't win. Fall to −500 and you lose.",
-    "Three players: 33 cards (7s to aces and the joker), 10 each and a kitty of 3. The highest bidder plays alone against the other two, who play together; everyone keeps their own score, and each opponent scores 10 for every trick they take.",
-    "Six players: two teams of three, sitting alternately. 63 cards: a full pack and the joker, plus the 2s, 3s and red 4s of a second pack; if two identical cards fall on the same trick, the first one played wins. In a misère both partners sit out.",
-    "Five players: a full pack and the joker (53 cards). After taking the kitty, the contractor calls a card (not the joker or a bower) — whoever holds it is their partner, kept secret until that card is played — or plays alone. Made with a partner, each wins half the bid; alone, all of it. Each opponent scores 10 a trick. Misère is always alone."
+    "Win the bid, then take at least the tricks you named. First to 500 with a bid they make wins.",
+    "10 cards each and 3 face down in the kitty. Bid how many tricks (6–10) you'll take, in a trump suit or no trumps (NT). Once you pass you're out. Nobody bids? New deal.",
+    "Bid values: 6♠ 40, then ♣ ♦ ♥ NT 20 more each; every extra trick adds 100 (7♠ 140 … 10 NT 520). Each bid must beat the last; misère ranks just above the sevens, open misère between 10♦ and 10♥.",
+    "The winner takes the kitty, discards 3 and leads. Follow suit if you can. Trumps from the top: joker, right bower (J of trumps), left bower (other J of that colour), A K Q 10…",
+    "In NT the joker has no suit and wins any trick. Play it only when you can't follow, or lead it by calling a suit not yet led. A contractor holding it may first make it the top card of a suit (in misère they must).",
+    "Misère (250, only over a seven): take no tricks, in NT, playing alone. Open misère (500, over anything below 10♥): the same, hand face up after trick 1. A defender who can't follow must play the joker.",
+    "Make it: score the bid (all 10 tricks: at least 250). Fail: lose the bid. Opponents score 10 a trick (nothing against misère).",
+    "Reaching 500 on defence alone doesn't win: you need a bid you make (a lobby option). Fall to −500 and you lose."
   ]
 }

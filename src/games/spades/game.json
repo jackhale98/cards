@@ -27,7 +27,14 @@
     "end": { "target": 500 }
   },
   "byPlayers": {
+    "4": {
+      "rulesSummary": ["Partners sit across: your two bids added up are your side's contract."]
+    },
     "3": {
+      "rulesSummary": [
+        "Three players: everyone for themselves, 17 cards each (one card is out of play). The 2♣ leads (the 3♣ if the 2♣ is out).",
+        "Each trick over your bid costs 10 instead of being a bag. Anyone who falls to −200 loses, and the leader wins."
+      ],
       "rules": {
         "teams": [[0], [1], [2]],
         "lead": "twoOfClubs",
@@ -36,6 +43,9 @@
       }
     },
     "6": {
+      "rulesSummary": [
+        "Three pairs, partners across: your two bids added up are your side's contract. Two packs without the 2♦s, 17 cards each. If two identical cards land on one trick, the later one wins."
+      ],
       "deck": { "decks": 2, "exclude": ["2D"] },
       "rules": {
         "teams": [
@@ -52,13 +62,12 @@
     { "id": "blindNil", "label": "Blind nil (100 behind)", "type": "boolean", "default": true }
   ],
   "rulesSummary": [
-    "Partners sit across from each other. Everyone bids how many tricks they'll take; 0 is nil.",
-    "Follow suit if you can. Spades are trump and can't be led until one has been played (unless you hold nothing else).",
-    "Make your team's bid: 10 × bid, plus 1 per extra trick (a bag). Miss it: −10 × bid.",
-    "Nil scores ±100; a nil player's tricks don't count towards the partner's bid but do count as bags. Every 10 bags costs 100.",
-    "Blind nil: a side 100 or more behind may bid nil before looking at their cards, for ±200. Partners then swap two cards.",
-    "First team to the target wins; if both sides are level, play another hand.",
-    "Three players: everyone for themselves, 17 cards each (the last card is out of play). The 2♣ leads (the 3♣ if the 2♣ is out). Make your bid for 10 a trick; each trick over it costs 10, and missing costs 10 × the bid. Anyone falling to −200 loses, and the leader wins.",
-    "Six players: three pairs, partners across; two packs without the 2♦s (102 cards), 17 each. If two identical cards fall on the same trick, the second one wins."
+    "Each player bids how many tricks they'll take. Bid 0 for nil: you aim to take no tricks.",
+    "Follow suit if you can; if not, play anything. Spades are always trump: the highest spade wins, or else the highest card of the suit led.",
+    "Spades can't be led until one has been played, unless you hold only spades.",
+    "Make your bid: 10 for each trick bid, plus 1 for each extra trick (a bag). Miss it: lose 10 for each trick bid.",
+    "Nil scores +100 if you take no tricks, −100 if you take any. A nil player's tricks don't help the partner's bid, but they count as bags. Every 10 bags costs 100.",
+    "Blind nil (partners only; it can be turned off in the lobby): a side 100 or more behind may bid nil before looking, for ±200. Your partner gives you 2 cards, then you give 2 back.",
+    "When anyone reaches the target (500 unless changed), the highest score wins. If the top scores are level, play another hand."
   ]
 }

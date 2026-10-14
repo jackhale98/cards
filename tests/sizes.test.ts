@@ -60,6 +60,7 @@ describe('hearts for three and five (pagat)', () => {
     expect(ids(s, `hand:${s.turn}`)).toContain('3C');
     const lead = hearts.actions(s, s.turn!).find((a) => a.type === 'play')!.select!.cards;
     expect(lead).toEqual(['3C']);
+    expect(hearts.status(s, s.turn!).headline).toBe('Lead the 3♣');
     // the third deal passes two to the left
     const t = hearts.setup(bots(5), 3, {});
     for (let r = 0; r < 2; r++) {
@@ -485,4 +486,42 @@ describe('500 for five (pagat): a called partner', () => {
     simulate(five, s, 300000);
     expect(s.phase).toBe('gameOver');
   }, 240000);
+});
+
+describe('partners across a table of six', () => {
+  const people = (n: number) => Array.from({ length: n }, (_, i) => ({ name: `P${i}` }));
+
+  it('spades: a blind nil bidder swaps cards with their partner three seats away', () => {
+    const g = GAMES.spades as GameModule<TrickData>;
+    const s = g.setup(people(6), 3, { blindNil: true });
+    s.data.scores = [250, 100, 250];
+    s.phase = 'roundOver';
+    g.apply(s, 0, { type: 'next' });
+    expect(s.phase).toBe('blind');
+    const blind = s.turn!;
+    const partner = (blind + 3) % 6;
+    g.apply(s, blind, { type: 'blindNil' });
+    expect(s.turn).toBe(partner);
+    const give = ids(s, `hand:${partner}`).slice(0, 2);
+    expect(g.actions(s, partner)[0].label).toBe(`Give 2 to P${blind}`);
+    g.apply(s, partner, { type: 'blindGive', cards: give });
+    expect(ids(s, `hand:${blind}`)).toEqual(expect.arrayContaining(give));
+    expect(s.turn).toBe(blind);
+    g.apply(s, blind, { type: 'blindGive', cards: ids(s, `hand:${blind}`).slice(-2) });
+    for (let i = 0; i < 6; i++) expect(ids(s, `hand:${i}`)).toHaveLength(17);
+  });
+
+  it('euchre: every defender may defend alone', () => {
+    const g = GAMES.euchre as GameModule<TrickData>;
+    const s = g.setup(bots(6), 1, { defendAlone: true });
+    for (let i = 0; i < 200 && s.phase !== 'defend'; i++) {
+      const sys = g.system?.(s);
+      if (sys) sys.run(s);
+      else g.apply(s, s.turn!, g.bot!(s, s.turn!)!);
+    }
+    expect(s.phase).toBe('defend');
+    const makers = [0, 2, 4].includes(s.data.maker!) ? [0, 2, 4] : [1, 3, 5];
+    const asked = [s.turn!, ...(s.data.defToAsk ?? [])];
+    expect(new Set(asked)).toEqual(new Set([0, 1, 2, 3, 4, 5].filter((i) => !makers.includes(i))));
+  });
 });

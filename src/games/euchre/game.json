@@ -30,7 +30,13 @@
     "end": { "target": 10 }
   },
   "byPlayers": {
+    "4": {
+      "rulesSummary": ["Partners sit across. The pack is 9s to aces (24 cards)."]
+    },
     "6": {
+      "rulesSummary": [
+        "Two teams of three, sitting alternately; the pack is 7s to aces (32 cards), the 8s and 7s lowest. Going alone, both your partners sit out. All five tricks or a euchre scores 3 (6 alone)."
+      ],
       "deck": { "ranks": [7, 8, 9, 10, 11, 12, 13, 14] },
       "rules": {
         "teams": [
@@ -46,12 +52,12 @@
     { "id": "defendAlone", "label": "Defenders may go alone", "type": "boolean", "default": false }
   ],
   "rulesSummary": [
-    "Partners sit across. Five cards each from a 24-card deck (9 to A); the next card is turned up.",
-    "Going round, each player may order up the turned card as trumps (the dealer picks it up and discards) or pass. If all pass, anyone may name another suit; the dealer is stuck and must name one if it gets back to them.",
-    "Trumps rank: jack of trumps (right bower), the other jack of the same colour (left bower — it counts as a trump), then A K Q 10 9.",
-    "Whoever makes trumps may go alone: their partner sits out and the player on the lone player's left leads. Otherwise the player left of the dealer leads.",
-    "The suit turned down can't be named in the second round.",
-    "Makers need 3 tricks: 1 point, all 5: 2 points, alone and all 5: 4. Fail and the other team scores 2 (euchred; 4 if a lone defender does it). First to 10.",
-    "Six players: two teams of three, sitting alternately, with the 7s and 8s added (32 cards). Going alone, both your partners sit out. All five tricks or a euchre scores 3 (6 alone)."
+    "Five cards each from a short pack, and the next card is turned up. The side that makes trumps needs 3 of the 5 tricks.",
+    "Round one: each player in turn may order up the turned card's suit as trumps, or pass. If it's ordered up, the dealer picks the card up and discards one.",
+    "Round two, if all passed: the card is turned down and each player may name another suit or pass. If it gets back to the dealer, they're stuck and must name one.",
+    "Trumps rank: jack of trumps (right bower), the other jack of that colour (left bower, which counts as a trump), then A K Q 10 9. Other suits run A K Q J 10 9.",
+    "The player left of the dealer leads. Follow suit if you can; if not, play anything. The highest trump wins, or else the highest card of the suit led.",
+    "Go alone: your partner sits out (the dealer doesn't pick up if it's them), and the player on your left leads. If defenders may go alone (a lobby option), a lone defender leads.",
+    "Makers with 3 or 4 tricks score 1, with all 5 score 2 (4 alone). Makers who fall short are euchred: the other side scores 2 (4 for a lone defender). First to the target (10 unless changed) wins."
   ]
 }

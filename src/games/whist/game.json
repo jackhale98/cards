@@ -29,10 +29,11 @@
     { "id": "honours", "label": "Score honours", "type": "boolean", "default": false }
   ],
   "rulesSummary": [
-    "Four players, partners sitting across. All 52 cards are dealt, 13 each.",
-    "The dealer's last card is turned face up: its suit is trumps. The dealer picks it up on playing to the first trick.",
-    "The player left of the dealer leads. Follow suit if you can; otherwise play anything, trump or not. The highest trump wins, or else the highest card of the suit led.",
-    "The side that takes more tricks scores 1 point for each trick over six. First side to 5 wins (7 or 10 for a longer game).",
-    "Option, honours: the side dealt all four of A K Q J of trumps scores 4, three of them 2 — but not a side already one point from winning."
+    "Four players, partners across, 13 cards each. Win as many tricks as you can for your side.",
+    "The dealer's last card is turned face up: its suit is trumps. It stays face up until the dealer plays to the first trick.",
+    "The player left of the dealer leads. Follow suit if you can; if not, play anything. The highest trump wins, or else the highest card of the suit led.",
+    "The side with more tricks scores 1 point for each trick over six.",
+    "Honours (a lobby option): the side dealt all four of A K Q J of trumps scores 4, three of them 2. A side one point short of winning can't score honours.",
+    "First side to the target (5 unless changed) wins."
   ]
 }

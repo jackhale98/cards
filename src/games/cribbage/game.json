@@ -24,12 +24,23 @@
     { "id": "muggins", "label": "Count your own hands (muggins)", "type": "boolean", "default": false }
   ],
   "rulesSummary": [
-    "Low cut deals first. Two players get six cards and discard two to the dealer's crib; three or four get five and discard one (with three, one card from the deck joins the crib). Four play as partners across.",
-    "The player left of the dealer cuts for a starter (a jack gives the dealer 2 — his heels).",
-    "Pegging: take turns playing, keeping a running count up to 31. Score 15s and 31s (2), pairs (2/6/12) and runs (in any order, among the cards played since the count restarted).",
-    "Can't play without passing 31? Say Go. The last player to play scores 1 (2 for exactly 31), then the count restarts.",
-    "The show: each hand counts with the starter — fifteens 2 each, pairs, runs, a flush (4 in hand, or 5 with the starter), and nobs (the jack of the starter's suit).",
-    "The dealer then counts the crib, which only scores a flush if all five match. First to 121 wins, even mid-hand; a loser short of 91 is skunked. The loser deals the next game.",
-    "Muggins option: you count your own hand and crib. Opponents accept, or call muggins and say what it's really worth: they take any points you missed, and an overcount is cut back with the excess going to them. Call it wrongly and the counter gets the difference."
-  ]
+    "First to 121 wins — even in the middle of a hand, so every point counts. You score in the pegging and again in the show.",
+    "Everyone discards to the crib, an extra hand that scores for the dealer. Then a starter is cut: a jack gives the dealer 2 (his heels).",
+    "Pegging: take turns playing a card, keeping a running count up to 31. Make 15 or 31 for 2. Score pairs (2, three of a kind 6, four 12) and runs of 3+ among the last cards played, in any order.",
+    "Can't play without passing 31? Say Go. Whoever played last scores 1 (2 for exactly 31), then the count starts again from 0.",
+    "The show, from the dealer's left: each hand counts with the starter. Every 15 is 2, plus pairs, runs, a flush (4 in hand, 5 with the starter) and nobs (1 for the jack of the starter's suit).",
+    "The dealer counts last, then the crib, which only scores a flush if all five cards match. The deal moves left each hand. A loser short of 91 is skunked; the loser deals the next game.",
+    "Muggins (a lobby option): count your own hand and crib. Opponents accept, or call Muggins! with the true total: they take points you missed or overcounted. A wrong call gives you the difference."
+  ],
+  "byPlayers": {
+    "2": {
+      "rulesSummary": ["Six cards each: put two in the crib."]
+    },
+    "3": {
+      "rulesSummary": ["Five cards each: put one in the crib, and one from the deck joins it. Everyone scores alone."]
+    },
+    "4": {
+      "rulesSummary": ["Partners sit across and score together. Five cards each: put one in the crib."]
+    }
+  }
 }

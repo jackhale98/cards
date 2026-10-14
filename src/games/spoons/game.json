@@ -15,10 +15,11 @@
   ],
   "rules": { "family": "spoons" },
   "rulesSummary": [
-    "Everyone holds four cards. The spoons in the middle are shown at the top: one fewer than there are players.",
-    "There are no turns. The dealer picks up from the deck and everyone else from the cards passed to them. Pick up one, keep four, and pass one to your left (swipe it up). The last player discards.",
-    "Collect four of a kind and quietly grab a spoon. Nobody is told, so keep an eye on the spoons!",
-    "Once a spoon is gone, anyone may grab one. Grab the first spoon without four of a kind and you get a letter.",
-    "Whoever is left without a spoon gets a letter: S, P, O, O, N. Spell SPOON and you're out. The last player in wins."
+    "Be the last player in. Each round, whoever ends up without a spoon gets a letter: S, P, O, O, N. Spell SPOON and you're out.",
+    "Everyone holds four cards. There's one spoon fewer than players.",
+    "No turns: the dealer picks up from the deck, everyone else picks up what's passed to them. Pick up one, then pass one on to your left. The player on the dealer's right discards.",
+    "Get four of a kind and grab a spoon. Nobody is told, so keep an eye on the spoons!",
+    "Once a spoon is gone, anyone may grab one, four of a kind or not. Whoever is left without one gets a letter.",
+    "Grab the first spoon without four of a kind and you get the letter instead, and the round ends."
   ]
 }

@@ -23,10 +23,11 @@
     { "id": "decks", "label": "Decks in the shoe", "type": "number", "default": 8, "min": 1, "max": 8, "step": 1 }
   ],
   "rulesSummary": [
-    "Punto Banco: everyone plays against the house. Bet on the Player hand, the Banker hand, or a Tie. Nobody holds cards; the house deals both hands by fixed rules.",
+    "Everyone bets against the house on which hand wins each coup: Player, Banker or Tie. Nobody holds cards; the house deals and draws by fixed rules.",
     "Aces count 1, two to nine their number, tens and faces 0. Only the last digit counts: 7 and 8 make 5. Closest to 9 wins.",
-    "Each hand gets two cards. An 8 or 9 is a natural and both stand. Otherwise the Player draws a third card on 0 to 5 and stands on 6 or 7.",
-    "If the Player stood, the Banker draws on 0 to 5. If the Player drew, the Banker draws on 0–2; on 3 unless the Player's third card was an 8; on 4 against a 2–7; on 5 against a 4–7; on 6 against a 6 or 7; and stands on 7.",
-    "Player pays 1:1, Banker 1:1 less 5% commission, Tie 8:1 (Player and Banker bets are returned on a tie). Most chips after the last round wins."
+    "Each hand gets two cards. An 8 or 9 is a natural and both stand. Otherwise the Player draws a third card on 0–5 and stands on 6 or 7.",
+    "If the Player stood, the Banker draws on 0–5. If the Player drew, the Banker draws on 0–2; on 3 unless that card was an 8; on 4 against 2–7; on 5 against 4–7; on 6 against 6–7.",
+    "One bet a coup. Player pays 1:1, Banker 1:1 less 5% (rounded down), Tie 8:1. On a tie, Player and Banker bets come back.",
+    "Most chips after the last coup wins."
   ]
 }

@@ -17,12 +17,14 @@
   "rules": { "family": "pinochle", "end": { "target": 1500 } },
   "options": [{ "id": "target", "label": "Play to", "type": "number", "default": 1500, "min": 500, "max": 3000, "step": 250 }],
   "rulesSummary": [
-    "48 cards: two each of A, 10, K, Q, J and 9 in every suit, ranked in that order (the 10 beats the king). Partners sit across; 12 cards each.",
-    "Bid in tens from 250. Once you pass you're out; if the other three pass, the dealer takes it at 250.",
-    "The winning bidder names trumps, takes four cards from their partner and passes four back.",
-    "Everyone's meld goes on the table. In trumps: run (A 10 K Q J) 150, royal marriage 40, each 9 (dix) 10. Other marriages 20; pinochle (Q♠ J♦) 40, double 300; aces around 100, kings 80, queens 60, jacks 40 (both of each: ×10).",
-    "If the bidders' meld plus all 250 points in play can't reach the bid, they're set at once. The declarer may also throw the hand in.",
-    "Play: follow suit and beat the winning card if you can; if you can't follow, trump — higher than any trump already played, if you can.",
-    "Aces, 10s and kings taken score 10 each, the last trick 10 more. Make your bid and score meld plus points; fail and lose the bid. The other side scores too, if it takes at least one point. First to 1500."
+    "Partners sit across. Score meld and counters; first side to 1500 wins (both past it: the bidding side wins).",
+    "48 cards: two each of A 10 K Q J 9 in every suit, ranked in that order (the 10 beats the king). 12 cards each.",
+    "Bid in tens from 250; once you pass you're out. If the other three pass, the dealer is stuck at 250. The winner names trumps, gets 4 cards from their partner and passes 4 back.",
+    "Meld in trumps: run (A 10 K Q J) 150, with an extra K or Q 190, with both 230, double run 1500; royal marriage (K Q) 40; each 9 (dix) 10.",
+    "Any suit: marriage (K Q) 20; pinochle (Q♠ J♦) 40, double 300; one of each suit: aces 100, kings 80, queens 60, jacks 40 (two of each: ×10). A card can count in melds of different kinds.",
+    "If the bidders' meld plus all 250 trick points can't reach the bid, they're set at once. The bidder may also throw it in: lose the bid, and the other side scores its meld.",
+    "The bidder leads. Follow suit and beat the winning card if you can; if you can't follow, trump — higher than any trump already played, if you can.",
+    "Aces, 10s and kings taken are 10 each, the last trick 10 more. Bidders who reach the bid score meld plus points; fall short and lose the bid.",
+    "The other side scores its points, but keeps its meld only if it takes a counter or the last trick (a meld of only dix always counts)."
   ]
 }

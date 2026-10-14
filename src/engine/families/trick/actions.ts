@@ -7,7 +7,7 @@ import { botBid } from './bots';
 import { ALL_BIDS, bidLabel, contractLabel, MISERE, NAMEABLE, OPEN_MISERE, SUIT_BIDS } from './contracts';
 import { callable } from './deal';
 import { jokerLeadSuits, legalCards, suitless } from './play';
-import { controller, sourceZone } from './sides';
+import { controller, partnersOf, sourceZone } from './sides';
 import type { S, TrickGame } from './types';
 
 /** Which way this hand's pass goes, and to whom: "Left → Ann". */
@@ -104,14 +104,14 @@ export function trickActions(g: TrickGame, s: S, seat: number): ActionSpec[] {
   } else if (s.phase === 'blindPass' && s.turn === seat) {
     out.push({
       type: 'blindGive',
-      label: `Give 2 to ${name(s, (seat + 2) % s.players.length)}`,
+      label: `Give 2 to ${name(s, partnersOf(g, s, seat)[0])}`,
       style: 'primary',
       select: { min: 2, max: 2, cards: ids(hand(s, seat)) },
     });
   } else if (s.phase === 'blindReturn' && s.turn === seat) {
     out.push({
       type: 'blindGive',
-      label: `Give 2 back to ${name(s, (seat + 2) % s.players.length)}`,
+      label: `Give 2 back to ${name(s, partnersOf(g, s, seat)[0])}`,
       style: 'primary',
       select: { min: 2, max: 2, cards: ids(hand(s, seat)) },
     });

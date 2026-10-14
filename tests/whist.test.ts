@@ -72,6 +72,28 @@ describe('whist (pagat)', () => {
     throw new Error('no deal with honours in 60 seeds');
   });
 
+  it('tricks score before honours: a side whose tricks reach the target wins, whatever the other held', () => {
+    for (let seed = 1; seed < 200; seed++) {
+      const s = g.setup(bots(4), seed, { honours: true });
+      const h = s.data.honours;
+      if (!h) continue;
+      const trial = structuredClone(s);
+      playOut(trial);
+      const won = [0, 1].map((t) => trial.data.tricks[t] + trial.data.tricks[t + 2]);
+      const best = won[0] > won[1] ? 0 : 1;
+      if (best === h.team) continue;
+      // the trick winners need one point; the honours side, at 3, would pass them with honours added
+      s.data.scores[best] = 4;
+      s.data.scores[h.team] = 3;
+      playOut(s);
+      expect(s.phase).toBe('gameOver');
+      expect(s.winner!.sort()).toEqual([best, best + 2]);
+      expect(s.data.scores[h.team]).toBe(3);
+      return;
+    }
+    throw new Error('no deal where the other side held honours');
+  });
+
   it('bots play whole games to 5', () => {
     const s = g.setup(bots(4), 4, {});
     for (let i = 0; i < 5000 && s.phase !== 'gameOver'; i++) {

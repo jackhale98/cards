@@ -29,9 +29,20 @@
     { "id": "exactOnly", "label": "Only exact bids score", "type": "boolean", "default": false }
   ],
   "rulesSummary": [
-    "The first deal is 10 cards each (fewer with 6 or 7 players), then one fewer each round down to one, then back up.",
-    "The card turned up after the deal sets trumps. Bid exactly how many tricks you'll take.",
-    "The dealer bids last and can't make the bids add up to the number of tricks.",
-    "Score 1 point per trick, plus 10 for hitting your bid exactly. Highest total after the last deal wins."
-  ]
+    "Everyone plays for themselves. Bid exactly how many tricks you'll take: no more, no less.",
+    "The first deal is 10 cards each (fewer if the lobby says so), then one fewer each deal down to 1, then back up.",
+    "The next card is turned up: its suit is trumps.",
+    "Bidding starts left of the dealer. The dealer bids last and can't make the bids add up to the number of tricks, so someone always misses.",
+    "The player left of the dealer leads. Follow suit if you can; if not, play anything. The highest trump wins, or else the highest card of the suit led.",
+    "Score 1 point per trick, plus 10 if you took exactly your bid. If only exact bids score (a lobby option), a miss scores nothing.",
+    "Highest total after the last deal wins."
+  ],
+  "byPlayers": {
+    "6": {
+      "rulesSummary": ["Six players: the first deal is 8 cards at most."]
+    },
+    "7": {
+      "rulesSummary": ["Seven players: the first deal is 7 cards at most."]
+    }
+  }
 }

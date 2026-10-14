@@ -21,12 +21,27 @@
     { "id": "rummy", "label": "Rummy! calls", "type": "boolean", "default": true }
   ],
   "rulesSummary": [
-    "Deal 7 cards each (13 with two players). Each turn, draw from the stock — or take any card from the discard pile along with every card on top of it.",
-    "If you take more than the top card, you must meld the deepest one this turn.",
-    "Meld sets (3–4 of a rank, different suits) and runs (3+ in a suit; ace high or low, not both), and lay off on anyone's melds. Then discard.",
-    "Jokers are wild: say which card each one stands for (it can't change later). A set still can't have more than four cards.",
-    "Rummy! If a discard leaves a card in the pile that could be melded or laid off without anyone's hand, any other player may call Rummy! before the next draw: they take the pile down to it, must meld it, and play carries on from them.",
-    "Cards you meld or lay off score for you: aces and jokers 15 (an ace is 1 in A-2-3), faces 10, others their number. When someone goes out, cards left in hand count against you.",
-    "First past 500 wins. Two decks (four jokers) are used for five or more players."
-  ]
+    "Score points by melding. Seven cards each (13 with two players).",
+    "Each turn, draw from the stock or take from the discard pile: any card plus every card above it. Take more than the top card and you must meld or lay off that deepest one this turn; take just the top card and you can't discard it again.",
+    "Meld sets (3–4 of a rank, different suits) and runs (3+ in one suit; ace high or low, not both). Lay off on anyone's melds, then discard.",
+    "Jokers (a lobby option) are wild: say which card each one stands for. It can't change later.",
+    "Rummy! (a lobby option): if a discard leaves a pile card that could be melded without anyone's hand, anyone but the discarder and the next player may call it before the next draw. They take the pile down to it, must meld that card, and play goes on from them.",
+    "Go out by melding all your cards, with or without a final discard. If the stock runs out, the hand ends when the player to move won't take from the pile.",
+    "Cards you meld or lay off score for you: aces and jokers 15 (an ace is 1 in A-2-3), faces 10, others their number. Cards left in your hand count against you.",
+    "When someone reaches 500, the highest score wins. A tie at the top plays on."
+  ],
+  "byPlayers": {
+    "5": {
+      "rulesSummary": ["Five or more players: two decks shuffled together."]
+    },
+    "6": {
+      "rulesSummary": ["Five or more players: two decks shuffled together."]
+    },
+    "7": {
+      "rulesSummary": ["Five or more players: two decks shuffled together."]
+    },
+    "8": {
+      "rulesSummary": ["Five or more players: two decks shuffled together."]
+    }
+  }
 }

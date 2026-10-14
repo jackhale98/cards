@@ -26,9 +26,13 @@
   },
   "options": [{ "id": "deals", "label": "Deals", "type": "number", "default": 4, "min": 4, "max": 16, "step": 4 }],
   "rulesSummary": [
-    "Partners sit across. The dealer calls first: bid a number of tricks over six (1–7) in a suit or no trumps (♣ < ♦ < ♥ < ♠ < NT), pass, double an opponent's bid, or redouble their double. Three passes after a bid end the auction.",
-    "The first of the winning side to name the final suit is declarer. The player on their left leads; then declarer's partner lays their hand face up as dummy, and declarer plays both hands.",
-    "Duplicate scoring each deal: tricks bid count 20 (♣ ♦), 30 (♥ ♠) or 40 then 30 (NT); 100+ is a game bonus, plus slam bonuses. Going down gives the defenders 50 or 100 a trick (more if doubled).",
-    "Chicago rotation over four deals: nobody, then the dealer's side, then everyone is vulnerable. Highest total wins."
+    "Partners sit across, 13 cards each. Bid a contract with your partner, then make it, or stop the other side making theirs.",
+    "The dealer calls first. A bid is tricks over six (1–7) in a suit or no trumps. It must beat the last bid: a higher number, or the same number in a higher suit (♣ < ♦ < ♥ < ♠ < NT).",
+    "You may also pass, double an opponent's bid, or redouble when your side's bid is doubled. Three passes after a bid end the auction; four passes to start mean a new deal.",
+    "Declarer is whoever on the winning side first named the final suit. The player on their left leads; then declarer's partner lays down their hand as dummy, and declarer plays both.",
+    "Follow suit if you can. The highest trump wins, or else the highest card of the suit led.",
+    "Each deal scores on its own. Tricks bid count 20 (♣ ♦), 30 (♥ ♠), or 40 for the first and 30 after (NT); extra tricks count too. 100 or more for tricks bid (doubling counts) earns a game bonus, less than that 50; bidding 6 or 7 earns a slam bonus.",
+    "Going down gives the other side 50 a trick, or 100 if you're vulnerable (more if doubled).",
+    "Vulnerable: nobody on deal 1, the side not dealing on deals 2 and 3, everyone on deal 4, then it repeats. Highest total after the last deal wins."
   ]
 }

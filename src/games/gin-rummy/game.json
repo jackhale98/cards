@@ -27,13 +27,12 @@
     { "id": "bigGin", "label": "Big gin (+31)", "type": "boolean", "default": false }
   ],
   "rulesSummary": [
-    "Ten cards each; the low cut deals. The non-dealer may take the first upcard, then the dealer; if both refuse, the non-dealer draws from the stock.",
-    "Each turn, draw from the stock or take the top discard, then discard one card (not the one you just took).",
-    "Melds are sets (3–4 of a rank) or runs (3+ in a suit, ace low). Everything else is deadwood (faces 10, ace 1).",
-    "Knock when your deadwood is 10 or less. Your opponent lays off what they can on your melds (not after gin).",
-    "Lower deadwood scores the difference. An undercut (equal or lower) scores the difference +10; gin (no deadwood) scores +20.",
-    "If nobody knocks before the last two cards of the stock, the hand is void. The winner of each hand deals the next.",
-    "First to the target gets 100 (200 if the loser didn't score), plus 20 for every hand each player won.",
-    "Your melds are arranged for you automatically — the hint shows your deadwood."
+    "Ten cards each. Make melds: sets (3 or 4 of a rank) or runs (3+ in a row in one suit; ace low, so A-2-3 but not Q-K-A). Other cards are deadwood: faces 10, ace 1, others their number.",
+    "First the non-dealer may take the upcard, then the dealer. After that, each turn draw from the stock or take the top discard, then discard (not the card you just took).",
+    "Knock when your deadwood after discarding is 10 or less. Your opponent then lays off deadwood on your melds (not after gin). Your melds are arranged for you.",
+    "Lower deadwood scores the difference. If your opponent ties or beats you, that's an undercut: they score the difference +10. Gin (no deadwood) scores their deadwood +20 and can't be undercut.",
+    "If a discard leaves only two cards in the stock, the hand is void. The winner of each hand deals the next.",
+    "At the target, the player who reached it gets 100 (200 if the other never scored), and each player adds 20 per hand won. Highest total wins.",
+    "Lobby options: 25-point bonuses make gin, undercut and each hand won 25. Big gin lets you go out with all 11 cards melded after drawing, for +31."
   ]
 }

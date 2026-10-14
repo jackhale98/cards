@@ -16,9 +16,24 @@
   ],
   "rules": { "family": "cheat" },
   "rulesSummary": [
-    "Also called Bullshit or I Doubt It. All the cards are dealt (two decks for seven or more players).",
-    "In turn, put one or more cards face down on the pile and say they are the next rank: aces, then twos, threes … kings, then aces again. You don't have to tell the truth.",
-    "Before the next player plays, anyone may call Cheat! The cards are turned up: if any isn't the rank that was said, the player takes the whole pile; if they were all true, the caller takes it.",
-    "Play carries on from the left of whoever was challenged. The first player to get rid of all their cards — and survive any challenge to that last play — wins."
-  ]
+    "Get rid of all your cards. All the cards are dealt, so some players may have one more.",
+    "In turn, put 1 to 4 cards face down on the pile and say they're the next rank: aces, twos, threes … kings, then aces again. You must play even with none of that rank. Lying is fine.",
+    "Before the next player plays, anyone may press Cheat! The cards are turned up: if any isn't the rank said, the player takes the whole pile; if they were all true, the caller takes it.",
+    "After a challenge, play goes on from the left of whoever was challenged, with the next rank.",
+    "Play your last cards and anyone may still call Cheat! until the next player plays on or lets you win. Survive that and you win."
+  ],
+  "byPlayers": {
+    "7": {
+      "rulesSummary": ["Seven or more players: two decks shuffled together, and you may play up to 8 cards at once."]
+    },
+    "8": {
+      "rulesSummary": ["Seven or more players: two decks shuffled together, and you may play up to 8 cards at once."]
+    },
+    "9": {
+      "rulesSummary": ["Seven or more players: two decks shuffled together, and you may play up to 8 cards at once."]
+    },
+    "10": {
+      "rulesSummary": ["Seven or more players: two decks shuffled together, and you may play up to 8 cards at once."]
+    }
+  }
 }

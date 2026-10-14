@@ -17,12 +17,31 @@
   ],
   "rules": { "family": "handfoot" },
   "rulesSummary": [
-    "Four play as two partnerships, partners across; six as two teams of three, alternate seats; two, three or five each play for themselves. One more deck than players, jokers in. Everyone gets a 13-card hand and a 13-card foot, kept face down until the hand is played out.",
-    "Each turn: draw 2 from the stock, or take the top 7 of the discard pile by melding its top card with two of the same rank from your hand. Then meld and discard.",
-    "Melds are 3 to 7 cards of one rank (4s to aces). 2s and jokers are wild: one in a meld of up to five cards, two in six or seven. Three or more wilds can make a wild meld.",
-    "Seven cards make a pile: clean (no wilds) 500, dirty 300, wild 1500. Red 3s are laid out at once for 100; black 3s can't be melded and block the pile.",
-    "Your side's first meld must be worth 50, then 90, 120 and 150 in rounds two to four.",
-    "Play out your hand and you pick up your foot. To go out your side needs 2 clean, 2 dirty and 1 wild pile, with every partner in their foot. Going out is worth 100.",
-    "Melded cards score their value; cards left in hand or foot count against you. Highest total after four rounds wins."
-  ]
+    "Score the most over four rounds by building piles (melds of seven). One more deck than players, jokers in.",
+    "You get a 13-card hand and a 13-card foot. The foot stays face down until you've played out your hand.",
+    "Each turn: draw 2, or take the pile's top 7 by melding its top card with two of that rank from your hand (two wilds for a wild). Then meld and discard.",
+    "Melds are 3–7 cards of one rank, 4s to aces. 2s and jokers are wild: one in a meld of up to five cards, two in six or seven. Three or more wilds alone make a wild meld.",
+    "Seven cards make a pile: clean (no wilds) 500, dirty 300, wild 1500. You can't take the pile while your side has an unfinished meld of that rank.",
+    "Red 3s are laid out at once for +100 (−100 if still in your hand or foot at the end). Black 3s can't be melded; one on top blocks the pile.",
+    "Your side's first meld must be worth 50, then 90, 120 and 150 in rounds two to four. Joker 50, 2 and A 20, K–8 10, 7–4 and black 3 5.",
+    "Play out your hand and pick up your foot (straight away if you melded your last card). To go out, your side needs 2 clean, 2 dirty and 1 wild pile, everyone in their foot. Out is +100.",
+    "Melded cards score their value, plus piles and red 3s. Cards left in hand and foot count against you. If the stock is empty and the player to move doesn't take the pile, the round ends. Highest total after four rounds wins."
+  ],
+  "byPlayers": {
+    "2": {
+      "rulesSummary": ["Everyone plays for themselves."]
+    },
+    "3": {
+      "rulesSummary": ["Everyone plays for themselves."]
+    },
+    "4": {
+      "rulesSummary": ["Two partnerships, partners across."]
+    },
+    "5": {
+      "rulesSummary": ["Everyone plays for themselves."]
+    },
+    "6": {
+      "rulesSummary": ["Two teams of three, in alternate seats."]
+    }
+  }
 }

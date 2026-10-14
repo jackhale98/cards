@@ -15,11 +15,10 @@
   "rules": { "family": "slap", "style": "slapjack" },
   "options": [{ "id": "timer", "label": "Time limit", "type": "number", "choices": ["None", "5 min", "10 min", "15 min"], "default": 0 }],
   "rulesSummary": [
-    "All the cards are dealt face down, one pile each. Nobody looks at their cards.",
-    "In turn, tap your pile to turn its top card face up onto the middle.",
-    "When a jack turns up, slap it! Tap the pile, press Slap, or hit the space bar. The quickest hand takes the whole pile, shuffled under their own. Speed is timed on your own screen, so a slow connection doesn't cost you.",
-    "Slap anything else and you pay a card to whoever turned it up.",
-    "Run out of cards and you can still slap the next jack to get back in. Miss it and you're out.",
-    "Win by collecting every card, or set a time limit and the most cards wins."
+    "Win every card. All the cards are dealt face down, one pile each. In turn, turn over your top card onto the middle.",
+    "When a jack turns up, slap it! Tap the pile, press Slap!, or hit the space bar. The quickest hand takes the whole pile, shuffled under their own, and turns up next.",
+    "Slap anything else and you pay a card to whoever turned it up (unless that was you), and you can't slap that card again.",
+    "Out of cards? Slap the next jack to get back in. Miss it and you're out.",
+    "With a time limit (a lobby option), the most cards wins."
   ]
 }

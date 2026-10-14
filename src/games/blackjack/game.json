@@ -25,10 +25,13 @@
     { "id": "surrender", "label": "Allow surrender", "type": "boolean", "default": false }
   ],
   "rulesSummary": [
-    "Everyone plays against the dealer (the house). Place a bet, then you get two cards face up; the dealer gets one up and one down.",
+    "Everyone plays against the dealer. Most chips after the last round wins.",
     "Cards count their number, faces 10, aces 1 or 11. Get closer to 21 than the dealer without going over.",
-    "Hit for another card or stand. Double down on your first two cards: double the bet, take exactly one more card. Split a pair into two hands (up to four; split aces get one card each).",
-    "With an ace showing, you may insure for half your bet (pays 2:1 if the dealer has blackjack). The dealer checks for blackjack under an ace or ten.",
-    "The dealer draws to 17. A win pays 1:1, blackjack (ace and a ten on the first two cards) pays 3:2, a tie is a push. Most chips after the last round wins."
+    "Bet, then get two cards face up; the dealer gets one up, one down. With an ace or ten up, the dealer checks for blackjack: if it's there you lose, unless you have one too.",
+    "Hit for another card or stand. Over 21 is bust: you lose straight away, even if the dealer busts later.",
+    "On your first two cards: Double (double the bet, take exactly one card) or Split two cards of equal value into two hands, up to four. Split aces get one card each and can't be split again.",
+    "Ace showing: you may insure for half your bet. It pays 2:1 if the dealer has blackjack.",
+    "The dealer draws to 17 and stands on soft 17 (or hits it: a lobby option). A win pays 1:1, blackjack (an ace and a ten-card) 3:2, and a tie is a push.",
+    "Surrender (a lobby option): as your first move, give up the hand and get half your bet back."
   ]
 }

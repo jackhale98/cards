@@ -21,8 +21,12 @@
   ],
   "rules": { "family": "poker", "holeCards": 2, "useHole": 0, "board": [3, 1, 1] },
   "rulesSummary": [
-    "Each player gets two hole cards. Five shared cards come out: the flop (3), turn and river.",
-    "Bet, call, raise or fold in four rounds. No limit: you can go all in at any time.",
-    "Best five of the seven cards (your two and the board — you may use one, both or neither of yours) wins the pot. Ties split it."
+    "Win everyone's chips. Run out and you're out; the last player with chips wins.",
+    "The two players left of the dealer post the small and big blinds (with two players, the dealer posts the small one). Everyone gets two cards face down.",
+    "Four rounds of betting: before the flop, after the flop (3 shared cards), after the turn (1 more) and after the river (1 more). Fold, check, call, bet or raise.",
+    "No limit: bet up to all your chips. A raise is at least the big blind, or the last raise. All in for less? You can only win what you matched (a side pot).",
+    "Your hand is the best five of seven cards: your two plus the board. Use both, one or neither.",
+    "Best to worst: straight flush, four of a kind, full house, flush, straight, three of a kind, two pair, pair, high card. Aces are high, or low in A-2-3-4-5.",
+    "The last player in, or the best hand at the showdown, takes the pot. Ties split it."
   ]
 }

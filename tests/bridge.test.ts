@@ -129,8 +129,8 @@ describe('bridge', () => {
       }
       expect(s.phase).toBe('gameOver');
       expect(deals).toBe(3);
-      // dealers 3, 0, 1, 2: deal 2 → dealer 0's side (team 0), deal 3 → dealer 1's side (team 1)
-      expect(vuls).toEqual(['[false,false]', '[true,false]', '[false,true]', '[true,true]']);
+      // dealers 3, 0, 1, 2: deal 2 → the side not dealing (team 1), deal 3 → team 0, as pagat has it
+      expect(vuls).toEqual(['[false,false]', '[false,true]', '[true,false]', '[true,true]']);
       expect(s.data.scores.some((x) => x > 0)).toBe(true);
     }
   });

@@ -7,7 +7,7 @@ import { assertRule, familyRules, type Action, type ActionSpec, type CardRef, ty
 
 /**
  * Slap games, played in real time: Slapjack and Egyptian Rat Screw (pagat.com/war/slapjack.html,
- * pagat.com/war/egyptian_ratscrew.html). Configured from `game.json`:
+ * pagat.com/war/egyptrat.html). Configured from `game.json`:
  *
  * ```jsonc
  * "rules": { "family": "slap", "style": "slapjack" }   // or "ers"

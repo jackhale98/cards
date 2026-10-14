@@ -22,9 +22,12 @@
     { "id": "bigBlind", "label": "Smallest bet (bring-in is half)", "type": "number", "default": 10, "min": 2, "max": 1000, "step": 2 }
   ],
   "rulesSummary": [
-    "Everyone antes and gets two cards face down and one face up. The lowest card showing must bring it in for half the smallest bet (ties go by suit: clubs lowest, then diamonds, hearts, spades).",
-    "Fourth, fifth and sixth street: one more card face up to each player still in, then a round of betting. Seventh street: a last card face down, and a final round.",
-    "From fourth street on, the best hand showing bets first. No limit: you can go all in at any time.",
-    "At the showdown, the best five of your seven cards wins the pot. Ties split it."
+    "Win everyone's chips. Run out and you're out; the last player with chips wins.",
+    "Everyone antes and gets two cards face down and one face up. The lowest card showing (aces high; ties ♣, ♦, ♥, ♠ from lowest) must bring it in for half the smallest bet.",
+    "The others may fold, call the bring-in, or complete it to the smallest bet or more. No limit: bet up to all your chips.",
+    "Fourth, fifth and sixth street: one more card face up each, then betting. Seventh street: a last card face down and a final round.",
+    "From fourth street, the best hand showing bets first (pairs and trips count; straights and flushes don't). Ties: nearest the dealer's left.",
+    "Best to worst: straight flush, four of a kind, full house, flush, straight, three of a kind, two pair, pair, high card. Aces are high, or low in A-2-3-4-5.",
+    "The best five of your seven cards wins the pot. Ties split it."
   ]
 }

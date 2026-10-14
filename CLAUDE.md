@@ -38,7 +38,8 @@ src/engine/            pure TS: no DOM, no network, no UI
   validate.ts          checkAction: an incoming action against the specs that were offered
   families/            one engine per kind of game; index.ts loads them on demand (rules.family →
                        engine), traits.ts says which have bots / real-time play without loading them
-  lib/                 betting, pokerEval, trickTaking, passing, melds, cribbageScore
+  lib/                 betting, pokerEval, trickTaking, passing, melds, cribbageScore, teams,
+                       realtime (the speed games), canastaCards
   bots/search.ts       Monte Carlo search bots any family can plug into
 src/games/<id>/game.json   a game = a family plus parameters (schemas/game.schema.json)
 src/engine/schema.gen.ts   the game.json types, generated from the schema (pnpm gen:types; never edit)
@@ -101,8 +102,10 @@ docs/ADDING_A_GAME.md  how to add a game: read it before touching families or ga
 ## Adding a game
 
 Usually one JSON file. Follow the checklist at the end of `docs/ADDING_A_GAME.md`: game.json,
-any new family parameters (engine + schema), `tests/engine.test.ts` and `tests/picker.test.ts`
-(they list every game), the game's own test, then `pnpm verify`. Bots, privacy, schema and the
+any new family parameters (engine + schema), its How to play lines (`rulesSummary`, plus
+`byPlayers.<n>.rulesSummary` for other table sizes; they must say what the engine does),
+`tests/engine.test.ts` and `tests/picker.test.ts` (they list every game), the game's own test,
+then `pnpm verify`. Bots, privacy, schema and the
 browser layout tests cover a new game automatically.
 
 ## Tests

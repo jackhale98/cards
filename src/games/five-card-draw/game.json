@@ -22,10 +22,12 @@
     { "id": "aceFour", "label": "Draw four when keeping an ace", "type": "boolean", "default": false }
   ],
   "rulesSummary": [
-    "Everyone antes, then gets five cards. Betting starts left of the dealer (no limit; the smallest bet is the ante).",
-    "If everyone checks, the cards are thrown in and the pot stays for the next deal — everyone antes again.",
-    "The draw: starting left of the dealer, each player still in discards up to three cards and gets replacements — or stands pat.",
-    "A second round of betting, begun by the player who opened, then the best five-card hand wins. Ties split the pot.",
-    "Options: jacks or better to open (no bet until someone holds a pair of jacks or better); draw four if you keep an ace."
+    "Win everyone's chips. Run out and you're out; the last player with chips wins.",
+    "Everyone antes and gets five cards. Betting starts left of the dealer. No limit: bet up to all your chips; the smallest bet is the ante.",
+    "If everyone checks, the cards are thrown in, the pot stays, and everyone antes again for a new deal.",
+    "The draw: swap up to three cards for new ones, or keep them all. With “draw four” (a lobby option), you may swap four if you keep an ace.",
+    "A second round of betting, started by whoever opened, then the best five-card hand wins. Ties split the pot.",
+    "Best to worst: straight flush, four of a kind, full house, flush, straight, three of a kind, two pair, pair, high card. Aces are high, or low in A-2-3-4-5.",
+    "Jacks or better (a lobby option): you can't bet first without a pair of jacks or better."
   ]
 }

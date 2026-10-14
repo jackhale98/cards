@@ -53,9 +53,10 @@ export function startRound(g: TrickGame, s: S) {
     d.bridge = null;
     d.dummy = null;
     d.dummyUp = false;
-    // Chicago: nobody, dealer's side, dealer's side, everybody
+    // Chicago as pagat plays it now: nobody, then the side not dealing on deals 2 and 3 (as on
+    // duplicate boards 2 and 3), then everybody. The original game had the dealer's side instead.
     const k = d.round % 4;
-    d.vul = teamsFor(g, n).map((t) => k === 3 || ((k === 1 || k === 2) && t.includes(s.dealer)));
+    d.vul = teamsFor(g, n).map((t) => k === 3 || ((k === 1 || k === 2) && !t.includes(s.dealer)));
   }
   if (g.euchreBids && zone(s, 'deck').cards.length) {
     moveTop(s, 'deck', 'upcard', 1, { up: true });
@@ -175,7 +176,7 @@ export function beforePlay(g: TrickGame, s: S) {
   }
   if (g.euchreBids?.alone && s.options.defendAlone && !d.defendAsked) {
     d.defendAsked = true;
-    const defenders = [1, 2, 3, 4].map((k) => (s.dealer + k) % s.players.length).filter((i) => teamOf(g, s, i) !== teamOf(g, s, d.maker!));
+    const defenders = s.players.map((_, k) => (s.dealer + 1 + k) % s.players.length).filter((i) => teamOf(g, s, i) !== teamOf(g, s, d.maker!));
     d.defToAsk = defenders;
     s.phase = 'defend';
     s.turn = defenders[0];

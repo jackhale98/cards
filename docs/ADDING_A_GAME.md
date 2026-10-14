@@ -119,6 +119,20 @@ crib plus 1 from the deck; 4: partners, 5 cards, 1 to the crib). Scoring lives i
 `src/engine/lib/cribbageScore.ts`. A family can show a race-to-N board by returning
 `status.track` (the cribbage pegboard uses it).
 
+## How to play
+
+`rulesSummary` is the **How to play** list in the table menu. Players read it on a phone, often
+mid-game, and the table already offers only legal moves and a tip saying what to do now
+("Pass 3 cards to your left"), so it needn't walk through procedure. Give a newcomer what they
+need to play well and not be surprised:
+
+- In this order: the goal, the deal, a turn, what beats what, scoring, the end of the game.
+- Usually 4–8 lines of one or two short sentences each (`tests/howToPlay.test.ts` caps the length).
+- Use the words on the game's buttons and tips, and card symbols (2♣, Q♠).
+- Say what the engine does. Where a rule depends on a lobby option, say "(a lobby option)".
+- Rules for one table size (its deck, deal or partnerships) go in `byPlayers.<n>.rulesSummary`,
+  shown after the main list only when that many play.
+
 ## Telling players what happened
 
 Call `log(s, text, seat, short)` in your engine for every player action. **Only name cards that
@@ -137,8 +151,13 @@ Zones are where cards live. Every game needs a `deck` zone.
 | `perPlayer`  | one copy per seat, with ids `hand:0`, `hand:1`, …                                                                          |
 | `visibility` | `all` (face up for everyone), `owner` (only that seat), `none` (nobody, e.g. the deck)                                     |
 | `layout`     | `fan` (a hand), `stack` (a pile showing its top card), `spread` (a row), `trick` (cards placed toward whoever played them) |
-| `area`       | `hand` (bottom of your screen), `center` (the table), `none` (not drawn)                                                   |
+| `area`       | `hand` (bottom of your screen), `center` (the table), `strip` (a sideways-scrolling row), `seat` (by its owner), `none`    |
 | `hideEmpty`  | don't draw the zone while it's empty (e.g. hands laid face up at the end of Gin)                                           |
+| `scale`      | card size relative to other table cards (`0.8` for melds)                                                                  |
+| `peek`       | a stack showing its top few cards overlapping (the slap games)                                                             |
+| `faceUpHand` | a whole hand laid face up on the table (bridge's dummy), drawn the same however many cards are left                        |
+| `cascade`    | a stack whose bottom card peeks out above the top one (Kings Corners)                                                      |
+| `grid`       | `[row, column]` for a middle pile: a big screen lays the piles out so (Kings Corners' cross); a phone keeps one row        |
 
 The host enforces visibility: cards a player can't see are replaced with anonymous placeholders
 **before** anything is sent over the network.
@@ -178,6 +197,7 @@ Several suites pick up a new game by themselves:
   a player names a card hidden from them. A family keeping private cards in `data` needs
   `redactData`.
 - `e2e/layout.spec.ts`: the game is dealt in a real browser at phone, laptop and TV sizes.
+- `tests/howToPlay.test.ts`: every game has How to play lines, short enough to read on a phone.
 
 Two lists name every game and need the new one added: `tests/engine.test.ts` (all ids) and
 `tests/picker.test.ts` (ids per picker section). Then add `tests/<id>.test.ts` with the
@@ -193,8 +213,11 @@ game's own rules (fix a seed, set cards straight into `s.zones[…]` for a scena
    import), its traits (bots? bot strengths? real time?) in `families/traits.ts`, and a picker
    section in `BY_FAMILY`. `tests/traits.test.ts` checks the traits against the engine.
 4. Optional: a picker drawing in `src/ui/components/GameIcon.svelte`.
-5. `tests/engine.test.ts`, `tests/picker.test.ts`, `tests/<id>.test.ts`; then `pnpm verify`.
-6. The game list in `README.md`.
+5. `rulesSummary` (see How to play above), with `byPlayers` lines for other table sizes.
+6. `tests/engine.test.ts`, `tests/picker.test.ts`, `tests/<id>.test.ts`; then `pnpm verify`.
+7. `AUDIT_GAMES=<id> pnpm audit:screens`: the screen audit deals and plays it at phone, tablet and
+   TV sizes and reports overlaps, cut-off text and small targets.
+8. The game list in `README.md`.
 
 ## Game night standings
 

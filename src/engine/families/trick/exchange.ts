@@ -52,7 +52,7 @@ export function applyBlindGive(g: TrickGame, s: S, seat: number, a: Action) {
   const cards = a.cards ?? [];
   const own = ids(hand(s, seat));
   assertRule(cards.length === 2 && new Set(cards).size === 2 && cards.every((c) => own.includes(c)), 'Choose 2 cards');
-  const to = (seat + 2) % s.players.length;
+  const to = partnersOf(g, s, seat)[0];
   moveCards(s, `hand:${seat}`, `hand:${to}`, cards);
   d.received[to] = cards;
   log(s, `${name(s, seat)} passes 2 cards to ${name(s, to)}`, seat, 'Passed 2');

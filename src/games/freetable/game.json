@@ -23,11 +23,12 @@
   ],
   "rules": { "family": "free" },
   "rulesSummary": [
-    "No rules enforced: deal, draw, play, discard and bet however your game works.",
-    "Rummy-style: lay down melds in front of you and add to anyone's melds. Tap the discard pile to take its top card.",
-    "Pass… sends selected cards face down to the player on your left, right, or anyone you choose.",
-    "The ••• menu has more: discard face down, put cards on the bottom or top of the deck, flip, deal, shuffle, bet.",
-    "Tap cards to select or deselect them, then pick an action. Swipe a card up to play it face up. ✕ Clear, or a tap on the felt, deselects everything.",
-    "Undo is available for everyone, so mistakes are cheap."
+    "No rules and no turns: deal, draw, play, discard and bet however your game works. Anyone can do anything at any time.",
+    "Tap cards to select them, then pick an action. Swipe a card up to play it face up. ✕ Clear, or a tap on the felt, deselects everything.",
+    "Tap the deck to draw and the discard pile to take its top card. Take picks up any cards you select on the table.",
+    "Rummy-style: Lay down meld puts cards in front of you. To add to anyone's meld, select your cards and one card of that meld, then Add to meld.",
+    "Pass… puts selected cards into another player's hand: your left, your right, or anyone you choose.",
+    "The ••• menu has more: play or discard face down, put cards on the deck, flip, turn up the top card, deal, shuffle, sort, bet, take the pot, and Collect & shuffle all.",
+    "Undo (in •••) takes back the last move, whoever made it."
   ]
 }

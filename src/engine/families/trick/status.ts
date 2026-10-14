@@ -4,8 +4,8 @@ import type { GameStatus } from '../../types';
 import { dirLabel } from './actions';
 import { auctionState, callLabel } from './bidding';
 import { bidOf, bridgeLabel, contractLabel } from './contracts';
-import { suitless } from './play';
-import { active, controller, teamName, teamOf, teamsFor } from './sides';
+import { openerOf, suitless } from './play';
+import { active, controller, partnersOf, teamName, teamOf, teamsFor } from './sides';
 import type { S, TrickGame } from './types';
 
 /** What each player sees of the game: the headline, seat badges, scoreboard and banner. */
@@ -48,13 +48,14 @@ export function trickStatus(g: TrickGame, s: S, viewer: number): GameStatus {
     const leading = zone(s, 'trick').cards.length === 0;
     const ctl = controller(s);
     if (ctl === viewer && s.turn !== viewer) headline = leading ? 'Lead from dummy' : 'Play from dummy';
-    else if (s.turn === viewer) headline = leading ? (d.trickNo === 0 && R.lead === 'twoOfClubs' ? 'Lead the 2♣' : 'Your lead') : 'Your turn';
+    else if (s.turn === viewer)
+      headline = leading ? (d.trickNo === 0 && R.lead === 'twoOfClubs' ? `Lead the ${cardOrJokerLabel(openerOf(s))}` : 'Your lead') : 'Your turn';
     else if (ctl != null && ctl !== s.turn) headline = `${name(s, ctl)} to play from dummy`;
     else if (s.turn != null) headline = `${name(s, s.turn)} to play`;
   } else if (s.phase === 'blind') {
     headline = s.turn === viewer ? 'Bid blind nil before looking at your cards, or look?' : `${name(s, s.turn!)} is deciding on blind nil`;
   } else if (s.phase === 'blindPass' || s.phase === 'blindReturn') {
-    headline = s.turn === viewer ? `Pass 2 cards to ${name(s, (viewer + 2) % s.players.length)}` : `${name(s, s.turn!)} is passing 2 cards`;
+    headline = s.turn === viewer ? `Pass 2 cards to ${name(s, partnersOf(g, s, viewer)[0])}` : `${name(s, s.turn!)} is passing 2 cards`;
   } else if (s.phase === 'defend') {
     headline = s.turn === viewer ? 'Defend alone, or play with your partner?' : `${name(s, s.turn!)} may defend alone`;
   } else if (s.phase === 'callPartner') {

@@ -17,11 +17,16 @@
   "rules": { "family": "climbing", "style": "president", "end": { "target": 11 } },
   "options": [{ "id": "target", "label": "Play to", "type": "number", "default": 11, "min": 3, "max": 21, "step": 2 }],
   "rulesSummary": [
-    "All cards are dealt. 2 is the highest card, then A, K, Q… down to 3. The holder of the 3♣ leads the first hand.",
-    "Play one card, or a set of the same rank. The next play must be the same number of cards and higher. Or pass — you can still play later in the same round. Nobody wins tricks: the aim is to run out of cards.",
-    "When everyone else passes, the pile is cleared and whoever played last leads again. Get rid of all your cards to go out.",
-    "First out is President (2 points), next Vice-President (1). Last is the Scum, and next-to-last the Vice-Scum.",
-    "Players then reseat in order of rank, so play goes President, Vice-President, … Scum. The Scum deals.",
-    "Next hand the Scum gives the President their 2 best cards and gets 2 of the President's choosing back (1 card between Vice-Scum and Vice-President). The President leads. First to 11 points wins."
-  ]
+    "Be first to get rid of all your cards. Everything is dealt. 2 is the highest card, then A K Q … down to 3.",
+    "Whoever holds the 3♣ leads the first hand. Play one card or a set of one rank. Each play after must be the same number of cards and higher. Or pass — you can still play later in the same round.",
+    "When everyone else passes, the pile is cleared and whoever played last leads anything. Nothing beats a 2.",
+    "First out is President (2 points), next Vice-President (1). Last is the Scum, next-to-last the Vice-Scum. First to 11 points wins; a tie at the top plays on.",
+    "Next hand, play goes in order of rank, from the President round to the Scum. The Scum deals.",
+    "The Scum hands the President their 2 best cards and gets 2 of the President's choice back (1 card between Vice-Scum and Vice-President). Then the President leads."
+  ],
+  "byPlayers": {
+    "3": {
+      "rulesSummary": ["With three there are no Vices: the middle player is a Citizen and scores nothing. Only the Scum and the President swap cards."]
+    }
+  }
 }

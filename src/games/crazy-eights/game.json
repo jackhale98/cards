@@ -20,10 +20,26 @@
     { "id": "lastCard", "label": "Say “last card”", "type": "boolean", "default": true }
   ],
   "rulesSummary": [
-    "Five cards each (seven with two players). On your turn, play a card matching the rank or suit of the top of the pile — or draw one card (you may draw even if you could play).",
-    "An eight can go on anything: call the suit the next player must follow (or they play another eight). A turned-up eight lets the dealer call the suit.",
-    "Special cards (option): a queen skips the next player, an ace reverses direction, a two makes the next player draw two — unless they play another two, passing on the lot.",
-    "Down to one card? Say “last card!” before the next player moves, or draw two. When the stock runs out the pile (but its top card) is shuffled into a new one.",
-    "First out wins the hand. Everyone else scores the cards they hold: eights 50, pictures 10, others their number (ace 1). When someone reaches the target, the lowest score wins."
-  ]
+    "Be first to play out your hand. Five cards each (seven with two players); one card turned up starts the pile.",
+    "On your turn, play a card matching the rank or suit of the top card, or draw one card, which ends your turn. You may draw even if you could play.",
+    "An 8 goes on anything: call the suit the next player must follow (or they play another 8). A turned-up 8 lets the dealer call the suit.",
+    "Specials (a lobby option, on unless changed): Q skips the next player, A reverses direction, 2 makes the next player draw two unless they play a 2, which passes on the lot (an 8 can't). They count when turned up too.",
+    "Last card (a lobby option): when you go down to one card, tap Last card! before the next player moves, or draw two.",
+    "When the stock runs out, the pile (except its top card) is shuffled into a new one. If nobody can play or draw, the hand ends.",
+    "Everyone but the winner scores the cards they hold: 8s 50, pictures 10, others their number (ace 1). When someone reaches the target, the lowest score wins."
+  ],
+  "byPlayers": {
+    "2": {
+      "rulesSummary": ["With two players, a Q gives you another turn and an A does nothing."]
+    },
+    "6": {
+      "rulesSummary": ["Six or more players: two decks shuffled together."]
+    },
+    "7": {
+      "rulesSummary": ["Six or more players: two decks shuffled together."]
+    },
+    "8": {
+      "rulesSummary": ["Six or more players: two decks shuffled together."]
+    }
+  }
 }

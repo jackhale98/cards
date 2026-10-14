@@ -6,7 +6,7 @@ import { msUntil, REACTION_WINDOW, span } from '../lib/realtime';
 import { assertRule, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
 
 /**
- * Spoons, in real time (pagat.com/commerce/spoons.html). Configured from `game.json`:
+ * Spoons, in real time (pagat.com/passing/pig.html). Configured from `game.json`:
  *
  * ```jsonc
  * "rules": { "family": "spoons" }

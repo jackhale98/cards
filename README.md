@@ -4,15 +4,25 @@
 One person hosts, everyone else scans a QR code, and each phone shows that player's hand plus
 the middle of the table. It needs no accounts or app store, and there's no server to pay for.
 
-- **Games are plain JSON config files** run by family engines (trick-taking, poker, rummy,
-  canasta, climbing, cribbage, eights, blackjack, baccarat, cheat, go fish, free table). Included: Texas Hold'em, Omaha, Five Card Draw (antes, one draw; jacks-or-better option), Seven Card Stud (bring-in, up cards on the table), Blackjack (against the house: double, split, insurance), Baccarat (Punto Banco), Cheat, Go Fish, Hearts (moon shooter's choice), Spades (nil, blind nil, bags),
-  Oh Hell, Gin Rummy, Rummy 500 (jokers, Rummy! calls), Canasta (may I go out?, play after the stock), President,
-  Cribbage (with a pegboard; auto scoring or count-your-own with muggins), Euchre (bowers, going alone), 500 (Avondale bids, misère and open misère, kitty, joker),
-  Contract Bridge (full auction, dummy, duplicate scoring with Chicago vulnerability), Whist, Crazy Eights (eights call a suit, last card, Q/A/2 specials),
-  and a rules-free **Free Table** for any game.
+- **30 games, each a plain JSON config file** run by a family engine (trick-taking, poker, rummy,
+  canasta, hand and foot, pinochle, climbing, palace, eights, corners, cribbage, blackjack, baccarat,
+  cheat, go fish, slap, spit, spoons, free table):
+  - _Poker:_ Texas Hold'em, Omaha, Five Card Draw (jacks-or-better option), Seven Card Stud (bring-in, up cards on the table).
+  - _Casino:_ Blackjack (double, split, insurance, surrender option), Baccarat (Punto Banco).
+  - _Trick-taking:_ Contract Bridge (full auction, dummy, duplicate scoring with Chicago vulnerability), Euchre (bowers,
+    going alone), 500 (Avondale bids, misère and open misère, kitty, joker), Hearts (moon shooter's choice), Oh Hell,
+    Pinochle (auction, passing, meld), Spades (nil, blind nil, bags), Whist (honours option).
+  - _Rummy:_ Canasta (may I go out?, play after the stock), Gin Rummy, Hand and Foot, Rummy 500 (jokers, Rummy! calls).
+  - _Shedding:_ Cheat, Crazy Eights (eights call a suit, last card, Q/A/2 specials), Palace (Shithead), President.
+  - _Family:_ Go Fish, Kings Corners. _Speed,_ played in real time: Egyptian Rat Screw, Slapjack, Spit, Spoons.
+  - _More:_ Cribbage (auto scoring or count-your-own with muggins), and a rules-free **Free Table** for any game.
 - **Other table sizes, as pagat gives them:** Hearts for 3–5, Spades for 3, 4 or 6, 500 for 3–6 (a called
-  secret partner with five), Euchre for 4 or 6, Canasta for 2–4 or 6, Hand and Foot for 2–6. A game's
-  `byPlayers` in game.json changes its deck and rules for a given number of players.
+  secret partner with five), Euchre for 4 or 6, Canasta for 2–4 or 6, Hand and Foot for 2–6, Cribbage for
+  2–4, and two decks for big tables of Cheat, Crazy Eights and Rummy 500. A game's `byPlayers` in
+  game.json changes its deck and rules for a given number of players.
+- **How to play** is in every table's menu: a few short lines on the goal, a turn, scoring and the
+  end, plus the rules for the number of players seated. The tip at the top says what to do right now,
+  and only legal moves are offered.
 - **Rules follow [pagat.com](https://www.pagat.com)**, with common variants as lobby options (25-point gin bonuses, defending alone in euchre, Oh Hell's short ladder…).
 - **Always know what just happened:** the last move appears under the headline, pops up as a
   bubble on that player's seat, and poker seats show each player's action this street.
@@ -33,11 +43,14 @@ the middle of the table. It needs no accounts or app store, and there's no serve
   Full screen from the table menu on Android; on iPhone, Share → Add to Home Screen opens it full screen.
 - **Table display:** put a tablet or laptop in the middle as the shared board (`Use this device as the table display`). While one is connected, phones switch to _hand mode_: a bigger hand and your own info, with only the piles you can tap right now (switch back from the menu).
 - **Friends far away:** the invite link works over the internet too (through the Lamplight relay), so someone in another city can join the table live.
-- **Game night:** every finished game adds to a running scoreboard for the evening (3 / 2 / 1 points for the podium, partners share), shown in the lobby, on the game-over screen and in the scores sheet. The host can start a new night.
+- **Game night:** every finished game adds to a running scoreboard for the evening (3 / 2 / 1 points for the podium, partners share), shown in the lobby, on the game-over screen and in the scores sheet; tap a game to see its final scores. The host can start a new night.
 - **Big groups:** everyone who joins gets a seat at the table, even past what the game seats. The
   host taps **In / Out** to choose who plays; the rest watch, and whoever sat out plays the next game.
   **Split the table** sends a group off to a table of their own (one of their phones hosts it) with
   tonight's scoreboard, and **Everyone back** brings them home with their games added to the tally.
+- **Look back:** step through the last few hands as you saw them (replay), and save a whole game as a
+  spreadsheet (CSV, only your own cards), or as a bridge PBN file or poker Open Hand History.
+- **Four-colour suits** (♣ green, ♦ blue) for anyone who wants them, from the table menu on each phone.
 - **Resilient:** a refreshed phone keeps its seat, and a refreshed host resumes the game.
 
 ## Showing the table on a TV
@@ -114,6 +127,7 @@ pnpm test         # engine, rules, networking and schema tests
 pnpm test:quick   # the same without the slow bot-strength and bot-legality suites
 pnpm test:e2e     # every game dealt in a real browser at phone, laptop and TV sizes
 pnpm check        # type check
+pnpm lint         # ESLint;  pnpm format rewrites files with Prettier
 pnpm build        # static site in dist/
 pnpm verify       # all of the above but e2e, plus the relay's type check (verify:all adds e2e)
 ```
@@ -158,15 +172,17 @@ src/
     lib/        betting (side pots), pokerEval, trickTaking, passing, melds, cribbageScore, teams, realtime, canastaCards
     bots/       search: Monte Carlo sampling bots any family can use
   games/        one folder per game: game.json (+ optional rules.ts escape hatch); index.ts
-                is the registry, picker sections and search
+                is the registry, picker sections, search and How to play
   net/          host (authoritative), client, protocol; transports (relay, public WebRTC
                 networks, local, multi); backup (host handoff), night (game-night tally),
-                cast and tvPair (TV), reports (anonymous error reports)
+                cast and tvPair (TV), reports (anonymous error reports), brain + botWorker
+                (bots think off the main thread), gameRecord + exports/ (CSV, PBN, OHH)
   ui/           Svelte 5 screens and components, motion, sound, looks
   app.svelte.ts app state and routing
 relay/          Cloudflare Worker + Durable Objects: the connection relay and error reports
 schemas/        JSON schema for game.json
-tests/          Vitest suites       e2e/   Playwright browser tests
+tests/          Vitest suites       e2e/   Playwright browser tests and the screen audit
+tools/          Python checks of our records with endplay (bridge) and PokerKit (poker)
 ```
 
 Adding a game is usually a single JSON file. See **[docs/ADDING_A_GAME.md](docs/ADDING_A_GAME.md)**.

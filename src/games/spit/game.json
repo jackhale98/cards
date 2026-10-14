@@ -18,11 +18,11 @@
   ],
   "rules": { "family": "spit" },
   "rulesSummary": [
-    "Each player gets half the deck and lays out five piles of 1 to 5 cards. The top cards (your hand here) are face up. The rest of your cards are your spit pile.",
-    "Both call Spit! to turn a card from each spit pile onto the middle. Then there are no turns: play any of your top cards onto either middle pile if it's one rank up or down. Ace and king are next to each other. Tap a card, then a pile, or swipe it up.",
-    "When you play a top card, the card beneath turns up. A top card can move into an empty space.",
-    "When neither of you can go, both call Spit! again.",
-    "Clear your five piles and both race to slap a middle pile. Whoever slaps first takes that pile, so slap the smaller one! The other player takes the other. Gather up, lay out again and play another round.",
-    "With fewer than 15 cards you lay out what you can and have no spit pile. Clear your piles with no spit pile left and you win."
+    "Get rid of all your cards. Each player gets half the deck and lays out five piles of 1 to 5 cards, top cards face up. The rest is your face-down spit pile.",
+    "Both press Spit! to turn a spit card onto each middle pile. Then there are no turns: play any top card onto either middle pile if it's one rank up or down. Suits don't matter, and A and K are next to each other.",
+    "Playing a top card turns up the one beneath. Move a top card into an empty space to turn up another.",
+    "When neither of you can go, both press Spit! again. If nobody has spit cards left, each takes the middle pile on their side and you lay out again.",
+    "Clear all five piles while you still have spit cards and you both race to slap a middle pile: the first slap gets the pile they chose, the other player the other one. Slap the smaller one! Your leftover cards plus that pile make your next layout.",
+    "With 15 cards or fewer you lay out what you can and have no spit pile, so your opponent spits for both. Clear your piles with no spit cards left and you win."
   ]
 }

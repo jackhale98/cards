@@ -489,6 +489,8 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
       } catch (e) {
         assertRule(false, (e as Error).message);
       }
+      // stud: completing the bring-in is a full bet, so the next raise is at least that much again
+      if (stud && betBefore < d.bb && d.b.currentBet >= d.bb) d.b.minRaise = Math.max(d.b.minRaise, d.b.currentBet);
       writeChips(s, chips);
       const put = d.b.bets[seat];
       const raised = put > betBefore;

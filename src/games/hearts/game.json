@@ -24,19 +24,25 @@
     "end": { "target": 100, "lowWins": true }
   },
   "byPlayers": {
-    "3": { "deck": { "exclude": ["2D"] }, "rules": { "passing": { "count": 3, "cycle": ["left", "right", "hold"] } } },
+    "3": {
+      "rulesSummary": ["Three players: the 2♦ is out, 17 cards each. Passes go left, right, then none."],
+      "deck": { "exclude": ["2D"] },
+      "rules": { "passing": { "count": 3, "cycle": ["left", "right", "hold"] } }
+    },
     "5": {
+      "rulesSummary": ["Five players: the 2♣ and 2♦ are out, 10 cards each, and the 3♣ leads. Some passes go two seats to the left or right."],
       "deck": { "exclude": ["2D", "2C"] },
       "rules": { "passing": { "count": 3, "cycle": ["left", "right", "left2", "hold", "left", "right", "right2", "hold"] } }
     }
   },
   "options": [{ "id": "target", "label": "Play to", "type": "number", "default": 100, "min": 25, "max": 200, "step": 25 }],
   "rulesSummary": [
-    "Pass three cards (left, right, across, then no pass), then play 13 tricks.",
-    "Three players: the 2♦ is taken out, 17 cards each, and the passes go left, right, then none. Five: the 2♦ and 2♣ are out, 10 each, and the 3♣ leads; passes go left, right, two to the left, none, left, right, two to the right, none.",
-    "Follow suit if you can. The 2♣ leads the first trick; hearts can't be led until broken (unless you hold nothing else).",
-    "No hearts or Q♠ on the first trick, unless you have nothing else to play.",
-    "Each heart is 1 point, the Q♠ is 13. Lowest score wins when someone reaches the target.",
-    "Take all 26 points to shoot the moon: take 26 off your own score, or give everyone else 26 — your choice."
+    "Avoid taking hearts and the Q♠. Lowest score wins.",
+    "Before each hand, pass 3 cards. The direction changes every hand, and some hands have no pass.",
+    "Follow suit if you can; if not, play anything. There are no trumps: the highest card of the suit led wins.",
+    "The 2♣ leads the first trick. Nobody may play a heart or the Q♠ on it unless they have nothing else.",
+    "Hearts can't be led until a heart has been played (the Q♠ doesn't count), unless you hold only hearts.",
+    "Each heart you take is 1 point, the Q♠ is 13. Take all 26 to shoot the moon: take 26 off your score, or give everyone else 26. You choose.",
+    "When someone reaches the target (100 unless changed), the lowest score wins."
   ]
 }

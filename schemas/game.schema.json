@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://github.com/jackhale98/cards/schemas/game.schema.json",
   "title": "Card game definition",
-  "description": "Declarative setup for a game in src/games/<id>/game.json. Add a rules.ts beside it to enforce rules; without one the game runs on the Free Table engine.",
+  "description": "Declarative setup for a game in src/games/<id>/game.json: its `rules` block picks a family engine and sets its parameters (a rules.ts beside it can replace the family for a true one-off).",
   "type": "object",
   "required": ["id", "name", "tagline", "icon", "players", "deck", "zones", "rules"],
   "additionalProperties": false,
@@ -62,7 +62,7 @@
     },
     "bots": {
       "type": "boolean",
-      "description": "Seats may be filled by bots (rules.ts must implement bot())."
+      "description": "Seats may be filled by bots (the engine must implement bot())."
     },
     "deck": {
       "$ref": "#/$defs/DeckSpec"
@@ -197,7 +197,8 @@
       "type": "array",
       "items": {
         "type": "string"
-      }
+      },
+      "description": "How to play, in the table menu: short lines on the goal, the deal, a turn, scoring and the end (docs/ADDING_A_GAME.md). Rules for one table size go in `byPlayers`."
     },
     "options": {
       "type": "array",

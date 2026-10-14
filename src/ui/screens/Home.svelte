@@ -108,12 +108,16 @@
       <ul>
         <li>Tap your avatar to pick an emoji and colour.</li>
         <li>The host chooses the <b>card backs and table cloth</b> for everyone (🎴 in the lobby, or the table menu mid-game).</li>
+        <li>Prefer ♦ blue and ♣ green? Turn on <b>Four-colour suits</b> in the table menu.</li>
       </ul>
 
       <h4>Good to know</h4>
       <ul>
         <li>Refresh or lose signal and you keep your seat. If the host's phone drops out, any player can <b>take over hosting</b> and the game carries on.</li>
-        <li>Rules follow <a href="https://www.pagat.com" target="_blank" rel="noreferrer">pagat.com</a>; each game's rules are in its table menu.</li>
+        <li>
+          Rules follow <a href="https://www.pagat.com" target="_blank" rel="noreferrer">pagat.com</a>. Each game's <b>How to play</b> is in its table menu, and the
+          tip at the top always says what to do next.
+        </li>
         <li>No accounts, no ads, nothing to install.</li>
         <li>
           If something breaks, Lamplight sends an anonymous report — the error and the kind of device, never your cards, name or table — so it can be fixed.

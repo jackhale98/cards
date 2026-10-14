@@ -26,7 +26,7 @@ export type Rules =
   | PinochleRules;
 
 /**
- * Declarative setup for a game in src/games/<id>/game.json. Add a rules.ts beside it to enforce rules; without one the game runs on the Free Table engine.
+ * Declarative setup for a game in src/games/<id>/game.json: its `rules` block picks a family engine and sets its parameters (a rules.ts beside it can replace the family for a true one-off).
  */
 export interface GameConfig {
   $schema?: string;
@@ -43,7 +43,7 @@ export interface GameConfig {
   icon: string;
   players: PlayerCounts;
   /**
-   * Seats may be filled by bots (rules.ts must implement bot()).
+   * Seats may be filled by bots (the engine must implement bot()).
    */
   bots?: boolean;
   deck: DeckSpec;
@@ -57,6 +57,9 @@ export interface GameConfig {
     aceLow?: boolean;
   };
   undo?: boolean;
+  /**
+   * How to play, in the table menu: short lines on the goal, the deal, a turn, scoring and the end (docs/ADDING_A_GAME.md). Rules for one table size go in `byPlayers`.
+   */
   rulesSummary?: string[];
   options?: GameOption[];
   rules: Rules;

@@ -23,11 +23,12 @@
   "rules": { "family": "corners", "end": { "target": 25 } },
   "options": [{ "id": "target", "label": "Play to", "type": "number", "default": 25, "min": 10, "max": 100, "step": 5 }],
   "rulesSummary": [
-    "Seven cards each. Four cards turned up around the stock start the North, East, South and West piles.",
-    "On your turn make as many plays as you like, then draw a card to end your turn.",
+    "Be first to play out your hand. Seven cards each; four cards turned up around the stock start the North, East, South and West piles.",
+    "On your turn make as many plays as you like, then draw a card to end your turn. Once the stock is gone, just end your turn.",
     "Play a card onto a pile if it's one lower and the other colour (a red 6 on a black 7). Aces are low: nothing goes on an ace.",
-    "Kings go into the empty corners to start new piles. Any card can fill an empty North, East, South or West space.",
-    "Move a whole pile onto another when its bottom card fits on that pile's top card. Select a card, then tap the pile it goes on.",
-    "Play your last card to win the hand. Others score a penalty: 10 for each king left, 1 for any other card. Lowest total wins when someone reaches the target."
+    "Kings go into the empty corners to start new piles. Any card from your hand can fill an empty North, East, South or West space.",
+    "Move a whole pile onto another when its bottom card fits that pile's top card, or into an empty corner if it starts with a king. Select its top card, then tap where it goes.",
+    "The hand ends when someone plays their last card, or when the stock is gone and nobody plays in a full round.",
+    "Cards left in hand are penalty points: 10 for a king, 1 for any other card. When someone reaches the target, the lowest total wins."
   ]
 }

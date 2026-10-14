@@ -16,10 +16,16 @@
   "rules": { "family": "gofish" },
   "options": [{ "id": "allBooks", "label": "Play until every book is made", "type": "boolean", "default": false }],
   "rulesSummary": [
-    "Five cards each (seven with two players); the rest make the pond.",
-    "On your turn, pick a card and ask another player for that rank. If they have any, they hand them all over and you ask again.",
-    "If not — “Go fish!” — draw from the pond. Drew the rank you asked for? Show it and go again. Otherwise the turn passes left.",
-    "Four of a kind is a book: it goes down at once. The game ends when someone runs out of cards or the pond runs dry, and the most books wins.",
-    "Option: play until every book is made — an empty hand draws five more, and once the pond is empty a wrong guess just passes the turn."
-  ]
+    "Collect books: all four cards of a rank. Five cards each; the rest make the pond.",
+    "On your turn, pick a card from your hand and ask another player for that rank. If they have any, they hand them all over and you ask again.",
+    "If not, “Go fish!”: draw from the pond. Drew the rank you asked for? Go again. Otherwise the turn passes left.",
+    "A book goes down as soon as you hold all four.",
+    "The game ends when anyone runs out of cards or the pond runs dry. Most books wins; a tie shares the win.",
+    "Play until every book is made (a lobby option): an empty hand draws five more, and once the pond is empty a wrong guess just passes the turn."
+  ],
+  "byPlayers": {
+    "2": {
+      "rulesSummary": ["Two players get seven cards each."]
+    }
+  }
 }
