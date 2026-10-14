@@ -426,7 +426,7 @@
   const cross = $derived(gridded && !side);
   const shownCenter = $derived(gridded ? [...centerZones].sort((a, b) => a.grid![0] - b.grid![0] || a.grid![1] - b.grid![1]) : centerZones);
   /** One row of placed piles on a phone: the widest card that lets them all fit across (with a little over for a wider label). */
-  const rowFit = $derived(gridded && side && mainW ? Math.floor((mainW - (centerZones.length - 1) * 8 - 30) / centerZones.length / 1.12) : Infinity);
+  const rowFit = $derived(gridded && side && mainW ? Math.floor((mainW - (centerZones.length - 1) * 6 - 30) / centerZones.length / 1.12) : Infinity);
   /**
    * A whole hand face up on the table that you're playing from now (bridge's dummy, for its
    * declarer): it takes your hand's place at the bottom, full size, and your own hand sits small in
@@ -1308,7 +1308,14 @@
   }
   .zones.row-fit {
     flex-wrap: nowrap;
-    gap: 8px;
+    gap: 6px;
+  }
+  /* (a label wider than its pile wraps under it, "Stock ·" over "19": the row is as wide as its piles) */
+  .zones.row-fit :global(.label) {
+    white-space: normal;
+    max-width: calc(var(--cw) * 1.5);
+    text-align: center;
+    line-height: 1.15;
   }
   .zones.has-strip {
     flex-wrap: nowrap;

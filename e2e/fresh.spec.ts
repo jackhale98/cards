@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 
-/** A card you draw is marked in your hand (so you can see what you got) until you next act. */
-test('a drawn card is marked until you play', async ({ page }) => {
+/** A card you draw or pick up is marked in your hand (so you can see what you got) until you next act. */
+test('a drawn card is marked until you next act', async ({ page }) => {
   await page.setViewportSize({ width: 852, height: 393 });
   await page.goto('/?net=local');
   await page.fill('input[aria-label="Your name"]', 'Tester');
@@ -21,8 +21,12 @@ test('a drawn card is marked until you play', async ({ page }) => {
   }
   await expect(fresh).toHaveCount(1);
   await expect(page.locator('.hand .slot')).toHaveCount(11);
-  // discard it ourselves: the mark goes
-  await page.locator('.hand .slot:has(.card.fresh)').click({ position: { x: 12, y: 40 } });
+  // discard ourselves (another card: one just taken from the discard pile can't go straight back):
+  // the mark goes
+  await page
+    .locator('.hand .slot[aria-disabled="false"]:not(:has(.card.fresh))')
+    .first()
+    .click({ position: { x: 12, y: 40 } });
   await page.click('aside button:has-text("Discard")');
   await expect(page.locator('.hand .slot')).toHaveCount(10);
   await expect(fresh).toHaveCount(0);
