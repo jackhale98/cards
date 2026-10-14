@@ -1,7 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-/** A pretend Chromecast session: the TV ignores messages until it has "loaded", then answers. */
-function fakeCast(opts: { requestError?: string; loadAfter?: number }) {
+/**
+ * A pretend Chromecast session: the TV ignores messages until it has "loaded", then answers.
+ * `requestErrors`: what Chrome answers each request for a session with, in turn (then success);
+ * `rejoinAfter`: Chrome is already rejoining the TV in the background, done after that long.
+ */
+function fakeCast(opts: { requestError?: string; requestErrors?: string[]; loadAfter?: number; rejoinAfter?: number }) {
   const listeners: ((ns: string, msg: string) => void)[] = [];
   let sent = 0;
   let loaded = false;
@@ -15,11 +19,28 @@ function fakeCast(opts: { requestError?: string; loadAfter?: number }) {
     removeMessageListener: vi.fn(),
   };
   let current: typeof session | null = null;
+  let state = opts.rejoinAfter != null ? 'SESSION_STARTING' : 'NO_SESSION';
+  const changed: ((e: { sessionState: string }) => void)[] = [];
+  const errors = [...(opts.requestErrors ?? [])];
   const ctx = {
     getCurrentSession: () => current,
-    requestSession: () => (opts.requestError ? Promise.reject(opts.requestError) : ((current = session), Promise.resolve(undefined))),
+    getSessionState: () => state,
+    requestSession: vi.fn(() => {
+      const err = opts.requestError ?? errors.shift();
+      if (err) return Promise.reject(err);
+      current = session;
+      return Promise.resolve(undefined);
+    }),
+    addEventListener: (_type: string, l: (e: { sessionState: string }) => void) => changed.push(l),
+    removeEventListener: () => {},
     setOptions: () => {},
   };
+  if (opts.rejoinAfter != null)
+    setTimeout(() => {
+      current = session;
+      state = 'SESSION_RESUMED';
+      changed.forEach((l) => l({ sessionState: state }));
+    }, opts.rejoinAfter);
   const win = {
     chrome: { cast: { AutoJoinPolicy: { ORIGIN_SCOPED: 'origin' } } },
     cast: { framework: { CastContext: { getInstance: () => ctx } } },
@@ -28,7 +49,7 @@ function fakeCast(opts: { requestError?: string; loadAfter?: number }) {
   // loading Google's script: say it's ready straight away
   vi.stubGlobal('document', { createElement: () => ({}), head: { append: () => win.__onGCastApiAvailable?.(true) } });
   setTimeout(() => (loaded = true), opts.loadAfter ?? 0);
-  return { session, sent: () => sent, ready: () => listeners.forEach((l) => l('ns', JSON.stringify({ ready: true }))) };
+  return { session, ctx, sent: () => sent, ready: () => listeners.forEach((l) => l('ns', JSON.stringify({ ready: true }))) };
 }
 
 describe('casting the table to a TV', () => {
@@ -72,6 +93,41 @@ describe('casting the table to a TV', () => {
     const p = castTable('BZMSP', { every: 1000, tries: 5 });
     const check = expect(p).rejects.toThrow(/didn’t answer/);
     await vi.advanceTimersByTimeAsync(6000);
+    await check;
+  });
+
+  it('waits for Chrome to finish rejoining a TV already showing Lamplight, and uses it', async () => {
+    const tv = fakeCast({ rejoinAfter: 1000 });
+    const { castTable } = await import('../src/net/cast');
+    const p = castTable('BZMSP', { every: 1000 });
+    await vi.advanceTimersByTimeAsync(1500);
+    await p;
+    expect(tv.ctx.requestSession).not.toHaveBeenCalled();
+  });
+
+  it('when Chrome says a request is already going (invalid_parameter), uses the session it starts', async () => {
+    const tv = fakeCast({ requestErrors: ['invalid_parameter'], rejoinAfter: 800 });
+    tv.ctx.getSessionState = () => 'NO_SESSION'; // (the earlier request doesn't show as starting)
+    const { castTable } = await import('../src/net/cast');
+    const p = castTable('BZMSP', { every: 1000 });
+    await vi.advanceTimersByTimeAsync(1500);
+    await p;
+    expect(tv.ctx.requestSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('…or asks once more, and says so plainly if that fails too', async () => {
+    const tv = fakeCast({ requestErrors: ['invalid_parameter'] });
+    const { castTable } = await import('../src/net/cast');
+    const p = castTable('BZMSP', { every: 1000, settle: 500 });
+    await vi.advanceTimersByTimeAsync(1500);
+    await p;
+    expect(tv.ctx.requestSession).toHaveBeenCalledTimes(2);
+    vi.resetModules();
+    fakeCast({ requestErrors: ['invalid_parameter', 'invalid_parameter'] });
+    const again = await import('../src/net/cast');
+    const q = again.castTable('BZMSP', { settle: 500 });
+    const check = expect(q).rejects.toThrow(/still connecting to the TV/);
+    await vi.advanceTimersByTimeAsync(1000);
     await check;
   });
 

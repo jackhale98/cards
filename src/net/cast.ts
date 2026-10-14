@@ -51,6 +51,7 @@ export const CAST_ERRORS: Record<string, string> = {
   extension_missing: 'Casting needs Chrome',
   api_not_initialized: 'Casting isn’t ready yet — try again in a second',
   load_media_failed: 'The TV couldn’t open Lamplight',
+  invalid_parameter: 'Your phone is still connecting to the TV — try again in a moment',
 };
 
 export class CastError extends Error {
@@ -67,16 +68,21 @@ export class CastError extends Error {
  * it's listening is lost, so the code is sent again until the TV confirms it (it also asks for it
  * as soon as it's ready).
  */
-export async function castTable(table: string, opts: { tries?: number; every?: number } = {}): Promise<void> {
+export async function castTable(table: string, opts: { tries?: number; every?: number; settle?: number } = {}): Promise<void> {
   if (!(await castAvailable())) throw new CastError('extension_missing');
   const ctx = window.cast.framework.CastContext.getInstance();
+  // (Chrome rejoins a TV still showing Lamplight by itself, in the background: let it finish, and
+  // use that session)
+  if (!ctx.getCurrentSession() && ctx.getSessionState?.() === 'SESSION_STARTING') await settled(ctx, opts.settle ?? 3000);
   if (!ctx.getCurrentSession()) {
-    // (rejects with Chrome's error code; some versions resolve with it instead)
-    const err = await ctx.requestSession().then(
-      (e: unknown) => e,
-      (e: unknown) => e ?? 'cancel',
-    );
-    if (err) throw new CastError(typeof err === 'string' ? err : String((err as { code?: string }).code ?? err));
+    let err = await request(ctx);
+    // "invalid_parameter": another request for a session is still going (that rejoin, Android's
+    // own cast menu): once it's done, the session it started, or one more try
+    if (err === 'invalid_parameter') {
+      await settled(ctx, opts.settle ?? 3000);
+      if (!ctx.getCurrentSession()) err = await request(ctx);
+    }
+    if (err && !ctx.getCurrentSession()) throw new CastError(err);
   }
   const session = ctx.getCurrentSession();
   if (!session) throw new CastError('session_error');
@@ -102,6 +108,32 @@ export async function castTable(table: string, opts: { tries?: number; every?: n
     session.addMessageListener(CAST_NS, listener);
     const timer = setInterval(() => (--left > 0 ? void send() : done(false)), opts.every ?? 1500);
     void send();
+  });
+}
+
+/** Ask Chrome for a session (its picker): Chrome's error code, or nothing once there's a session. */
+async function request(ctx: any): Promise<string | undefined> {
+  // (rejects with Chrome's error code; some versions resolve with it instead)
+  const err = await ctx.requestSession().then(
+    (e: unknown) => e,
+    (e: unknown) => e ?? 'cancel',
+  );
+  if (!err) return undefined;
+  return typeof err === 'string' ? err : String((err as { code?: string }).code ?? err);
+}
+
+/** Until a session being started (or rejoined) has started or failed, or `ms` has passed. */
+function settled(ctx: any, ms: number): Promise<void> {
+  const type = window.cast.framework.CastContextEventType?.SESSION_STATE_CHANGED ?? 'sessionstatechanged';
+  return new Promise((resolve) => {
+    const done = () => {
+      clearTimeout(timer);
+      ctx.removeEventListener?.(type, changed);
+      resolve();
+    };
+    const changed = (e: { sessionState?: string }) => e.sessionState !== 'SESSION_STARTING' && done();
+    const timer = setTimeout(done, ms);
+    ctx.addEventListener?.(type, changed);
   });
 }
 
