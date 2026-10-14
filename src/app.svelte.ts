@@ -22,6 +22,19 @@ export type Route =
   /** A TV waiting to be paired with a table (`/tv`, or a Chromecast at `/?cast=1`). */
   | { name: 'tv' };
 
+/** The lobby buttons (see App.controls). */
+export interface TableControls {
+  setGame(id: string): void;
+  setOption(id: string, value: number | boolean): void;
+  addBot(): void;
+  setPlaying(id: string, on: boolean): void;
+  moveSeat(id: string, dir: -1 | 1): void;
+  removeSeat(id: string): void;
+  start(): void;
+  endGame(): void;
+  setLook(look: { back: string; cloth: string }): void;
+}
+
 const store = {
   get(k: string) {
     try {
@@ -607,6 +620,39 @@ class App {
   closeReplay() {
     this.replay = null;
     this.replayAsked = false;
+  }
+
+  /**
+   * The table's lobby buttons on this device: the host's own, or (while the host's device is the
+   * table screen) those of the player holding the controls, sent to the host. Null for everyone else.
+   */
+  get controls(): TableControls | null {
+    const host = this.host;
+    if (host)
+      return {
+        setGame: (id) => host.setGame(id),
+        setOption: (id, value) => host.setOption(id, value),
+        addBot: () => host.addBot(),
+        setPlaying: (id, on) => host.setPlaying(id, on),
+        moveSeat: (id, dir) => host.moveSeat(id, dir),
+        removeSeat: (id) => host.removeSeat(id),
+        start: () => host.start(),
+        endGame: () => host.endGame(),
+        setLook: (look) => this.setLook(look),
+      };
+    const client = this.client;
+    if (!client || !this.view || this.view.lobby.captain !== this.cid) return null;
+    return {
+      setGame: (id) => client.lobbyOp({ op: 'game', id }),
+      setOption: (id, value) => client.lobbyOp({ op: 'option', id, value }),
+      addBot: () => client.lobbyOp({ op: 'bot' }),
+      setPlaying: (id, on) => client.lobbyOp({ op: 'playing', id, on }),
+      moveSeat: (id, dir) => client.lobbyOp({ op: 'move', id, dir }),
+      removeSeat: (id) => client.lobbyOp({ op: 'remove', id }),
+      start: () => client.lobbyOp({ op: 'deal' }),
+      endGame: () => client.lobbyOp({ op: 'end' }),
+      setLook: (look) => client.lobbyOp({ op: 'look', ...look }),
+    };
   }
 
   act(a: Action) {

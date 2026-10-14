@@ -3,7 +3,7 @@ import { randomSeed } from '../engine/rng';
 import { nightPoints, standingsOf } from '../engine/state';
 import { RuleError, type Action, type GameModule, type GameState } from '../engine/types';
 import { checkAction } from '../engine/validate';
-import { getGame, GAMES, loadRules, rulesFor } from '../games';
+import { getGame, GAMES, loadRules, rulesFor, startProblem } from '../games';
 import { inlineBrain, type Brain, type Pick } from './brain';
 import {
   AVATAR_COLORS,
@@ -198,6 +198,7 @@ export class Host {
     }
     if (msg.t === 'replay') return this.sendFrame(peer, msg.hand, msg.step);
     if (msg.t === 'export') return this.sendExport(peer, msg.format);
+    if (msg.t === 'lobby') return this.lobbyOp(this.peers.get(peer), msg.op);
     if (msg.t === 'act') {
       const cid = this.peers.get(peer);
       if (!cid) return;
@@ -800,12 +801,94 @@ export class Host {
     if (on) {
       me.screen = true;
       me.out = true;
+      // someone at the table runs it from their phone (the host can pick who)
+      this.lobby.captain = undefined;
       // (someone who was sitting out takes the place)
       this.fit();
       this.broadcast();
     } else {
       delete me.screen;
+      delete this.lobby.captain;
       this.setPlaying(me.id, true);
+    }
+  }
+
+  /** The player whose phone runs the table while the host's device is the table screen (null: none). */
+  get captain(): string | null {
+    if (!this.hostScreen) return null;
+    const seat = this.lobby.seats.find((s) => s.id === this.lobby.captain);
+    return seat && !seat.bot && !seat.host ? seat.id : null;
+  }
+
+  /** The host hands the table's controls to someone at the table. */
+  setCaptain(id: string) {
+    const seat = this.lobby.seats.find((s) => s.id === id);
+    if (!this.hostScreen || !seat || seat.bot || seat.host) return;
+    this.lobby.captain = id;
+    this.broadcast();
+  }
+
+  /**
+   * A lobby button pressed on the phone of the player holding the controls. Only theirs is
+   * obeyed, and everything is checked as if it came from anyone (it travels over the network):
+   * a game we have, an option that game has with a value it allows, bots only to remove.
+   */
+  private lobbyOp(cid: string | undefined, op: unknown) {
+    if (!cid || cid !== this.captain || !op || typeof op !== 'object') return;
+    const o = op as Record<string, unknown>;
+    const str = (v: unknown) => (typeof v === 'string' && v.length <= 64 ? v : null);
+    switch (o.op) {
+      case 'game': {
+        const id = str(o.id);
+        if (id && GAMES[id]) this.setGame(id);
+        return;
+      }
+      case 'option': {
+        const id = str(o.id);
+        const opt = getGame(this.lobby.gameId).config.options?.find((x) => x.id === id);
+        if (this.lobby.started || !opt || !id) return;
+        if (opt.type === 'boolean' && typeof o.value === 'boolean') return this.setOption(id, o.value);
+        const v = o.value;
+        if (opt.type === 'number' && typeof v === 'number' && Number.isFinite(v)) {
+          const min = opt.min ?? 0;
+          const top = opt.choices ? opt.choices.length - 1 : (opt.max ?? Infinity);
+          // (on the option's own steps: a choice's index, or min + a whole number of steps)
+          const step = opt.choices ? 1 : (opt.step ?? 1);
+          if (v >= min && v <= top && Number.isInteger(Math.round(((v - min) / step) * 1e6) / 1e6)) this.setOption(id, v);
+        }
+        return;
+      }
+      case 'bot':
+        if (!this.lobby.started) this.addBot();
+        return;
+      case 'playing': {
+        const id = str(o.id);
+        if (id && typeof o.on === 'boolean') this.setPlaying(id, o.on);
+        return;
+      }
+      case 'move': {
+        const id = str(o.id);
+        if (id && (o.dir === 1 || o.dir === -1)) this.moveSeat(id, o.dir);
+        return;
+      }
+      case 'remove': {
+        // (only bots: who is at the table is the host's call)
+        const id = str(o.id);
+        if (id && this.lobby.seats.some((s) => s.id === id && s.bot)) this.removeSeat(id);
+        return;
+      }
+      case 'deal':
+        if (!this.lobby.started) this.start();
+        return;
+      case 'end':
+        if (this.lobby.started) this.endGame();
+        return;
+      case 'look': {
+        const back = str(o.back);
+        const cloth = str(o.cloth);
+        if (back && cloth) this.setLook({ back, cloth });
+        return;
+      }
     }
   }
 
@@ -906,13 +989,7 @@ export class Host {
   }
 
   canStart(): string | null {
-    const g = getGame(this.lobby.gameId);
-    const n = this.players().length;
-    if (n < g.config.players.min) return `${g.config.name} needs at least ${g.config.players.min} players`;
-    if (n > g.config.players.max) return `${g.config.name} seats ${g.config.players.max} — choose who sits out`;
-    const counts = g.config.players.counts;
-    if (counts && !counts.includes(n)) return `${g.config.name} is for ${counts.join(' or ')} players`;
-    return null;
+    return startProblem(this.lobby.gameId, this.players().length);
   }
 
   start() {
@@ -1002,6 +1079,8 @@ export class Host {
 
   broadcast() {
     this.v++;
+    // while the host is the table screen someone holds the controls: the first person here, unless the host picks
+    if (this.hostScreen && !this.captain) this.lobby.captain = this.lobby.seats.find((s) => !s.bot && !s.host && s.connected)?.id;
     // (people sitting out are at the table: not counted as watching)
     const seated = new Set(this.lobby.seats.map((s) => s.id));
     // a device can reach us on several networks: count devices (client ids), not connections

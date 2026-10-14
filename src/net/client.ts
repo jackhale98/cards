@@ -1,5 +1,5 @@
 import type { Action } from '../engine/types';
-import { isValidCode, type Avatar, type Frame, type HostMsg, type Night, type View } from './protocol';
+import { isValidCode, type Avatar, type Frame, type HostMsg, type LobbyOp, type Night, type View } from './protocol';
 import type { ExportFormat } from './exports/formats';
 import type { Transport } from './transport';
 
@@ -164,6 +164,12 @@ export class Client {
   /** Ask the host for the game so far as a file (see Host.exportFile). */
   exportGame(format: ExportFormat = 'csv') {
     if (this.hostPeer) this.transport.send({ t: 'export', format }, this.hostPeer);
+  }
+
+  /** A lobby button, from the player holding the controls while the host's device is the table screen. */
+  lobbyOp(op: LobbyOp) {
+    if (!this.hostPeer) return this.onError('Not connected to the host yet');
+    this.transport.send({ t: 'lobby', op }, this.hostPeer);
   }
 
   act(a: Action) {

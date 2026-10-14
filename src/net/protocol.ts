@@ -109,6 +109,8 @@ export interface Lobby {
   splits?: SplitTable[];
   /** Sound on the table screens (TV, Chromecast): off when someone at the table mutes it. */
   screenSound?: boolean;
+  /** While the host's device is the table screen: the player whose phone runs the table (lobby and menu). */
+  captain?: string;
   /** The table's card back and cloth, chosen by the host (ids from ui/looks.ts). */
   look?: { back: string; cloth: string };
 }
@@ -169,7 +171,21 @@ export type ClientMsg =
   | { t: 'replay'; hand: number; step: number }
   /** The game so far as a file (a spreadsheet, or its game's standard record), as this player saw it. */
   | { t: 'export'; format?: 'csv' | 'pbn' | 'ohh' }
-  | { t: 'pong'; ts: number };
+  | { t: 'pong'; ts: number }
+  /** From the player holding the controls while the host's device is the table screen (see Lobby.captain). */
+  | { t: 'lobby'; op: LobbyOp };
+
+/** What the player holding the controls may do: the host's lobby buttons, and back to the lobby. */
+export type LobbyOp =
+  | { op: 'game'; id: string }
+  | { op: 'option'; id: string; value: number | boolean }
+  | { op: 'bot' }
+  | { op: 'playing'; id: string; on: boolean }
+  | { op: 'move'; id: string; dir: -1 | 1 }
+  | { op: 'remove'; id: string }
+  | { op: 'deal' }
+  | { op: 'end' }
+  | { op: 'look'; back: string; cloth: string };
 
 export type HostMsg =
   | { t: 'view'; view: View }

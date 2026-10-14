@@ -132,6 +132,16 @@ export function getGame(id: string): GameInfo {
   return g;
 }
 
+/** Why a game can't be dealt to `n` players yet (null: it can). */
+export function startProblem(gameId: string, n: number): string | null {
+  const g = getGame(gameId);
+  if (n < g.config.players.min) return `${g.config.name} needs at least ${g.config.players.min} players`;
+  if (n > g.config.players.max) return `${g.config.name} seats ${g.config.players.max} — choose who sits out`;
+  const counts = g.config.players.counts;
+  if (counts && !counts.includes(n)) return `${g.config.name} is for ${counts.join(' or ')} players`;
+  return null;
+}
+
 /** The "How to play" lines for a table of `players`: the game's own, then any for that size. */
 export function howToPlay(config: GameConfig, players: number): string[] {
   return [...(config.rulesSummary ?? []), ...(config.byPlayers?.[players]?.rulesSummary ?? [])];

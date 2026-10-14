@@ -1,7 +1,7 @@
 <script lang="ts">
   import { marquee } from '../marquee';
   import { app, inviteUrl } from '../../app.svelte';
-  import { CATEGORIES, categoryOf, GAME_LIST, getGame, GAMES, misfit, playersText, searchGames } from '../../games';
+  import { CATEGORIES, categoryOf, GAME_LIST, getGame, GAMES, misfit, playersText, searchGames, startProblem } from '../../games';
   import type { GameInfo } from '../../games';
   import type { View } from '../../net/protocol';
   import AvatarBadge from '../components/AvatarBadge.svelte';
@@ -20,8 +20,11 @@
 
   const lobby = $derived(view.lobby);
   const game = $derived(getGame(lobby.gameId));
+  // the host's own device; the lobby buttons (the host's, or the player holding the controls while the host is the table screen)
   const host = $derived(view && app.host);
-  const startError = $derived(view && host ? host.canStart() : null);
+  const ctl = $derived(view && app.controls);
+  const captain = $derived(lobby.seats.find((s) => s.id === lobby.captain));
+  const startError = $derived(ctl ? startProblem(lobby.gameId, lobby.seats.filter((s) => !s.out).length) : null);
   const joinUrl = $derived(inviteUrl(lobby.code));
 
   let qr = $state('');
@@ -66,14 +69,14 @@
   function searchKey(e: KeyboardEvent) {
     if (e.key === 'Escape') query = '';
     if (e.key === 'Enter' && found.length) {
-      host?.setGame(found[0].config.id);
+      ctl?.setGame(found[0].config.id);
       (e.currentTarget as HTMLInputElement).blur();
     }
   }
   const jump = (name: string) => sectionEls[name]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   function deal() {
     app.noteGame(lobby.gameId);
-    host?.start();
+    ctl?.start();
   }
   let picking = $state(false);
   let tv = $state(false);
@@ -108,7 +111,7 @@
 
 {#snippet tile(g: GameInfo)}
   {@const why = misfit(g, people)}
-  <button class="game" data-game={g.config.id} class:active={g.config.id === lobby.gameId} class:misfit={!!why} onclick={() => host?.setGame(g.config.id)}>
+  <button class="game" data-game={g.config.id} class:active={g.config.id === lobby.gameId} class:misfit={!!why} onclick={() => ctl?.setGame(g.config.id)}>
     <span class="gicon"><GameIcon id={g.config.id} icon={g.config.icon} size={40} /></span>
     <span class="gname">{g.config.name}</span>
     <span class="gmeta">
@@ -127,17 +130,17 @@
         {#if o.choices}
           <span class="seg">
             {#each o.choices as c, i (c)}
-              <button class:on={Number(lobby.options[o.id]) === i} disabled={!host} onclick={() => host?.setOption(o.id, i)}>{c}</button>
+              <button class:on={Number(lobby.options[o.id]) === i} disabled={!ctl} onclick={() => ctl?.setOption(o.id, i)}>{c}</button>
             {/each}
           </span>
         {:else if o.type === 'number'}
           <span class="stepper">
-            <button disabled={!host} onclick={() => host?.setOption(o.id, Math.max(o.min ?? 0, Number(lobby.options[o.id]) - (o.step ?? 1)))}>−</button>
+            <button disabled={!ctl} onclick={() => ctl?.setOption(o.id, Math.max(o.min ?? 0, Number(lobby.options[o.id]) - (o.step ?? 1)))}>−</button>
             <b>{lobby.options[o.id]}</b>
-            <button disabled={!host} onclick={() => host?.setOption(o.id, Math.min(o.max ?? 1e9, Number(lobby.options[o.id]) + (o.step ?? 1)))}>+</button>
+            <button disabled={!ctl} onclick={() => ctl?.setOption(o.id, Math.min(o.max ?? 1e9, Number(lobby.options[o.id]) + (o.step ?? 1)))}>+</button>
           </span>
         {:else}
-          <input type="checkbox" disabled={!host} checked={!!lobby.options[o.id]} onchange={(e) => host?.setOption(o.id, e.currentTarget.checked)} />
+          <input type="checkbox" disabled={!ctl} checked={!!lobby.options[o.id]} onchange={(e) => ctl?.setOption(o.id, e.currentTarget.checked)} />
         {/if}
       </label>
     {/each}
@@ -148,13 +151,13 @@
   <Sheet title={game.config.name} onclose={() => (settings = false)}>
     <p class="small">{game.config.tagline}</p>
     {#if game.config.options?.length}{@render optionList()}{/if}
-    {#if !host}<p class="small">The host chooses the settings.</p>{/if}
+    {#if !ctl}<p class="small">{captain ? `${captain.name} chooses` : 'The host chooses'} the settings.</p>{/if}
   </Sheet>
 {/if}
 
 {#if looking}
   <Sheet title="The table's look" onclose={() => (looking = false)}>
-    <LookPicker look={lobby.look} onpick={host ? (l) => app.setLook(l) : undefined} />
+    <LookPicker look={lobby.look} onpick={ctl ? (l) => ctl.setLook(l) : undefined} />
   </Sheet>
 {/if}
 
@@ -224,11 +227,11 @@
     <div class="block">
       <div class="head">
         <div class="eyebrow">Playing · {playing}/{seatsMax}{sittingOut ? ` · ${sittingOut} sitting out` : ''}</div>
-        {#if host && game.bot && playing < seatsMax}
-          <button class="btn small-btn" onclick={() => host.addBot()}>+ Add bot</button>
+        {#if ctl && game.bot && playing < seatsMax}
+          <button class="btn small-btn" onclick={() => ctl.addBot()}>+ Add bot</button>
         {/if}
       </div>
-      <ul class="players" style:--row={host ? '16rem' : null}>
+      <ul class="players" style:--row={ctl ? '16rem' : null}>
         {#each lobby.seats as seat, i (seat.id)}
           <li class:me={i === mySeat} class:offline={!seat.connected} class:out={seat.out}>
             {#if i === mySeat}
@@ -243,25 +246,27 @@
               <!-- (you and the host: one tag, so a short name still fits on a phone) -->
               {#if i === mySeat}<em class="you">{seat.host ? 'you · host' : 'you'}</em>{:else if seat.host}<em>host</em>{/if}
               {#if seat.bot}<em>bot</em>{/if}
-              {#if seat.screen}<em>table screen</em>{:else if seat.out && !host}<em>sitting out</em>{/if}
+              {#if seat.screen}<em>table screen</em>{:else if seat.out && !ctl}<em>sitting out</em>{/if}
+              {#if seat.id === lobby.captain}<em class="captain">runs the table</em>{/if}
             </span>
             {#if !seat.bot && !seat.host}<PingDot ms={app.pings[i]} label />{/if}
-            {#if host && !seat.bot && !seat.screen && (seat.out || lobby.seats.length > 1)}
+            {#if ctl && !seat.bot && !seat.screen && (seat.out || lobby.seats.length > 1)}
               <!-- who plays this game: tap to sit someone out, or bring them in -->
               <button
                 class="inout"
                 class:on={!seat.out}
-                onclick={() => host.setPlaying(seat.id, !!seat.out)}
+                onclick={() => ctl.setPlaying(seat.id, !!seat.out)}
                 aria-label={seat.out ? `Deal ${seat.name} in` : `Sit ${seat.name} out`}
               >
                 {seat.out ? 'Out' : 'In'}
               </button>
             {/if}
-            {#if host}
+            {#if ctl}
               <span class="ctl">
-                <button onclick={() => host.moveSeat(seat.id, -1)} disabled={i === 0} aria-label="Move up">↑</button>
-                <button onclick={() => host.moveSeat(seat.id, 1)} disabled={i === lobby.seats.length - 1} aria-label="Move down">↓</button>
-                {#if !seat.host}<button onclick={() => host.removeSeat(seat.id)} aria-label="Remove">×</button>{/if}
+                <button onclick={() => ctl.moveSeat(seat.id, -1)} disabled={i === 0} aria-label="Move up">↑</button>
+                <button onclick={() => ctl.moveSeat(seat.id, 1)} disabled={i === lobby.seats.length - 1} aria-label="Move down">↓</button>
+                <!-- (who is at the table is the host's call; the player running it can remove bots) -->
+                {#if !seat.host && (host || seat.bot)}<button onclick={() => ctl.removeSeat(seat.id)} aria-label="Remove">×</button>{/if}
               </span>
             {/if}
           </li>
@@ -276,8 +281,17 @@
             <button class:on={app.hostScreen} aria-pressed={app.hostScreen} onclick={() => app.setScreen(true)}>Table screen</button>
           </span>
         </div>
+        {#if app.hostScreen && people > 0}
+          <!-- someone's phone runs the table too, so nobody has to walk over to the screen -->
+          <label class="this-device">
+            <span class="small">Runs the table from their phone</span>
+            <select value={lobby.captain ?? ''} onchange={(e) => host.setCaptain(e.currentTarget.value)}>
+              {#each lobby.seats.filter((x) => !x.bot && !x.host) as x (x.id)}<option value={x.id}>{x.name}</option>{/each}
+            </select>
+          </label>
+        {/if}
       {/if}
-      {#if sittingOut && host}<p class="small">More people than {game.config.name} seats: whoever sits out plays the next game. Tap In / Out to choose.</p>{/if}
+      {#if sittingOut && ctl}<p class="small">More people than {game.config.name} seats: whoever sits out plays the next game. Tap In / Out to choose.</p>{/if}
       {#if lobby.spectators}<p class="small">+ {lobby.spectators} watching</p>{/if}
       <button class="btn small-btn look-btn" onclick={() => (looking = true)}
         >🎴 {backOf(lobby.look?.back).name} backs · {clothOf(lobby.look?.cloth).name}</button
@@ -309,7 +323,7 @@
 
     <div class="block">
       <div class="eyebrow">Game</div>
-      {#if !host}
+      {#if !ctl}
         <div class="chosen">
           <span class="gicon"><GameIcon id={game.config.id} icon={game.config.icon} size={44} /></span>
           <div>
@@ -318,7 +332,7 @@
           </div>
         </div>
       {/if}
-      {#if host}
+      {#if ctl}
         <label class="search">
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"
             ><circle cx="11" cy="11" r="6.5" stroke="currentColor" stroke-width="2" fill="none" /><path
@@ -378,7 +392,7 @@
       <b>{game.config.name}</b>
       <!-- a long line glides along by itself rather than being cut off -->
       {#key `${game.config.id}|${startError}|${changed}`}
-        {#if host && startError}<span class="small warn-text line" use:marquee
+        {#if ctl && startError}<span class="small warn-text line" use:marquee
             ><span class="run">{startError}{game.bot ? ' — add bots to fill seats' : ''}</span></span
           >
         {:else}<span class="small line" use:marquee
@@ -389,10 +403,10 @@
     {#if game.config.options?.length}
       <button class="btn" onclick={() => (settings = true)} aria-label="Settings">⚙ <span class="long">Settings</span></button>
     {/if}
-    {#if host}
+    {#if ctl}
       <button class="btn primary big" disabled={!!startError} onclick={deal}>Deal <span class="long">{game.config.name}</span></button>
     {:else}
-      <span class="waiting"><span class="spinner"></span> Waiting for the host…</span>
+      <span class="waiting"><span class="spinner"></span> Waiting for {captain ? captain.name : 'the host'}…</span>
     {/if}
   </div>
 </main>
@@ -791,6 +805,20 @@
   }
   .stepper button:disabled {
     opacity: 0.3;
+  }
+  .players em.captain {
+    color: var(--gold);
+  }
+  .this-device select {
+    min-height: 34px;
+    max-width: 50%;
+    border-radius: 999px;
+    padding: 0 0.6rem;
+    background: rgba(0, 0, 0, 0.25);
+    color: var(--ink);
+    border: 1px solid var(--line);
+    font: inherit;
+    font-size: 0.85rem;
   }
   .this-device {
     display: flex;

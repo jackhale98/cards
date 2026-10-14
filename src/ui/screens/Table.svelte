@@ -1037,7 +1037,7 @@
       {/if}
       {#if !display && !game.realtime}<button class="btn" onclick={() => (sheet = 'save')}>Save this game</button>{/if}
       {#if !display}<button class="btn" onclick={() => (sheet = 'tv')}>Show on a TV</button>{/if}
-      {#if app.isHost}<button class="btn" onclick={() => (sheet = 'look')}>Card backs & cloth</button>{/if}
+      {#if app.controls}<button class="btn" onclick={() => (sheet = 'look')}>Card backs & cloth</button>{/if}
       <button
         class="btn"
         onclick={() => {
@@ -1045,11 +1045,11 @@
           app.say('Invite link copied');
         }}>Copy invite link</button
       >
-      {#if app.isHost}
+      {#if app.controls}
         <button
           class="btn"
           onclick={() => {
-            app.host?.endGame();
+            app.controls?.endGame();
             sheet = null;
           }}>Back to lobby</button
         >
@@ -1091,7 +1091,7 @@
   </Sheet>
 {:else if sheet === 'look'}
   <Sheet title="The table's look" onclose={() => (sheet = null)}>
-    <LookPicker look={view.lobby.look} onpick={app.isHost ? (l) => app.setLook(l) : undefined} />
+    <LookPicker look={view.lobby.look} onpick={app.controls ? (l) => app.controls?.setLook(l) : undefined} />
   </Sheet>
 {:else if sheet === 'scores'}
   <Sheet title="Scores" onclose={() => (sheet = null)}>

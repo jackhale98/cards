@@ -164,6 +164,73 @@ describe('the host as the table screen', () => {
     expect(host.lobby.displays).toBe(0);
   });
 
+  it('hands the controls to a player: their phone runs the lobby, and only theirs', () => {
+    const { host, clients } = table(['Ann', 'Ben']);
+    const [ann, ben] = clients;
+    host.setScreen(true);
+    // the first person here runs the table; everyone can see who
+    expect(host.lobby.captain).toBe('ann');
+    expect(ben.view!.lobby.captain).toBe('ann');
+    ann.lobbyOp({ op: 'game', id: 'hearts' });
+    expect(host.lobby.gameId).toBe('hearts');
+    ann.lobbyOp({ op: 'option', id: 'target', value: 50 });
+    expect(host.lobby.options.target).toBe(50);
+    ann.lobbyOp({ op: 'bot' });
+    ann.lobbyOp({ op: 'bot' });
+    expect(host.lobby.seats.filter((x) => x.bot)).toHaveLength(2);
+    // Ben's phone isn't obeyed
+    ben.lobbyOp({ op: 'game', id: 'spades' });
+    ben.lobbyOp({ op: 'deal' });
+    expect(host.lobby.gameId).toBe('hearts');
+    expect(host.lobby.started).toBe(false);
+    ann.lobbyOp({ op: 'deal' });
+    expect(host.lobby.started).toBe(true);
+    expect(host.lobby.playing).not.toContain('h');
+    ann.lobbyOp({ op: 'end' });
+    expect(host.lobby.started).toBe(false);
+    // the host can pass the controls on
+    host.setCaptain('ben');
+    ben.lobbyOp({ op: 'game', id: 'spades' });
+    expect(host.lobby.gameId).toBe('spades');
+    ann.lobbyOp({ op: 'game', id: 'hearts' });
+    expect(host.lobby.gameId).toBe('spades');
+  });
+
+  it('checks everything from the phone holding the controls, as from anyone on the network', () => {
+    const { host, clients } = table(['Ann', 'Ben']);
+    const [ann] = clients;
+    // with the host playing, nobody else runs the table
+    ann.lobbyOp({ op: 'game', id: 'hearts' });
+    expect(host.lobby.gameId).toBe('holdem');
+    host.setScreen(true);
+    host.setGame('hearts');
+    const send = (op: unknown) => ann.lobbyOp(op as never);
+    send({ op: 'game', id: 'nope' });
+    send({ op: 'game', id: { toString: () => 'spades' } });
+    expect(host.lobby.gameId).toBe('hearts');
+    // an option the game has, a value it allows, on its steps
+    send({ op: 'option', id: 'target', value: 1e9 });
+    send({ op: 'option', id: 'target', value: 62.5 });
+    send({ op: 'option', id: 'target', value: '75' });
+    send({ op: 'option', id: 'made-up', value: 1 });
+    expect(host.lobby.options.target).toBe(100);
+    expect(Object.keys(host.lobby.options)).not.toContain('made-up');
+    // only bots can be removed from the phone: who is at the table is the host's call
+    send({ op: 'remove', id: 'ben' });
+    expect(host.lobby.seats.map((x) => x.id)).toContain('ben');
+    send({ op: 'move', id: 'ben', dir: 5 });
+    send({ op: 'look', back: 3, cloth: null });
+    send({ op: 'whatever' });
+    send(null);
+    expect(host.lobby.seats.map((x) => x.id)).toEqual(['h', 'ann', 'ben']);
+    expect(host.lobby.look).toBeUndefined();
+    // and switched back to playing, the controls go back to the host alone
+    host.setScreen(false);
+    expect(host.lobby.captain).toBeUndefined();
+    send({ op: 'game', id: 'spades' });
+    expect(host.lobby.gameId).toBe('hearts');
+  });
+
   it('a player who takes over from a host that was the table screen leaves its old seat able to play', () => {
     const { host } = table(['Ann']);
     host.setScreen(true);
