@@ -133,6 +133,10 @@ export interface ZoneConfig {
    */
   faceUpHand?: boolean;
   /**
+   * A pile spread out card by card that keeps growing (rummy 500's discard pile): on a table screen it keeps room for this many cards, overlapped the same from the first and more as it passes that, so the piles beside it don't slide about.
+   */
+  reserve?: number;
+  /**
    * A stack laid out as a cascade (Kings Corners): its bottom card peeks out above the top one, and no count is shown.
    */
   cascade?: boolean;

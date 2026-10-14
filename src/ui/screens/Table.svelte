@@ -184,7 +184,13 @@
   /** No card on the table narrower than this: below it the corner's rank and suit can't be read. */
   const MIN_CW = 30;
   // a score track takes some height, so table cards get a little smaller with one
-  const centerCw = $derived(Math.round(display ? Math.max(60, Math.min(300, vh * (status.track ? 0.18 : 0.22), vw * 0.1)) : Math.max(34, cardSizes.center)));
+  /** A game with a strip of melds: on a table screen its piles give up some room to everyone's melds. */
+  const hasStrip = $derived(Object.values(s.zones).some((z) => z.area === 'strip'));
+  const centerCw = $derived(
+    Math.round(
+      display ? Math.max(60, Math.min(300, vh * (status.track ? 0.18 : hasStrip ? 0.14 : 0.22), vw * (hasStrip ? 0.07 : 0.1))) : Math.max(34, cardSizes.center),
+    ),
+  );
 
   /**
    * The safety net under the sizes worked out above: if the middle's cards still come out taller
@@ -235,6 +241,8 @@
         if (c.dataset.pinned || !c.offsetWidth) continue;
         top = Math.min(top, c.offsetTop);
         bottom = Math.max(bottom, c.offsetTop + c.offsetHeight);
+        // (a table screen's strip may reach past the middle's sides on purpose: its height counts, not its width)
+        if (c.dataset.wide) continue;
         left = Math.min(left, c.offsetLeft);
         right = Math.max(right, c.offsetLeft + c.offsetWidth);
       }
@@ -246,7 +254,17 @@
       const { h, w } = extent();
       // (too tall, or too wide: a showdown's two seven-card hands side by side on a phone)
       const k = Math.min(1, room / Math.max(1, h), main.clientWidth / Math.max(1, w, el.offsetWidth));
-      const want = Math.max(0.6, Math.min(1, k));
+      // (a table screen lets the middle run a few percent past its box into the oval, rather than
+      // shrink everything by a hair and back as melds land)
+      const want = display && k >= 0.96 ? 1 : Math.max(0.6, Math.min(1, k));
+      // (a table screen's strip of melds: the height from its top to the foot of the middle, which
+      // stripFit sizes the melds to fill; read at full size, as the scale would shrink it)
+      const strip = el.querySelector<HTMLElement>(':scope > .strip, :scope > .strip-room');
+      if (strip && display) {
+        const now = Number(/scale\(([\d.]+)\)/.exec(el.style.transform)?.[1] ?? 1);
+        const space = Math.floor(main.clientHeight - (strip.getBoundingClientRect().top - main.getBoundingClientRect().top) / now - 8);
+        if (Math.abs(space - stripSpace) >= 4) stripSpace = space;
+      }
       // the dummy's cards grow as it empties: only into the height that's spare, not past it
       const card = el.querySelector<HTMLElement>('.handdown .scard');
       if (card?.offsetHeight) {
@@ -518,6 +536,70 @@
       .sort((a, b) => a.r - b.r || a.i - b.i)
       .map((x) => x.z);
   });
+  /**
+   * A table screen can't be scrolled, so there the strip (everyone's melds) wraps into rows across
+   * the middle, with cards small enough that the longest set of melds fits a row. Through a hand
+   * they only get smaller (once, as melds outgrow the row), never back and forth.
+   */
+  /** The height a table screen's strip of melds has, measured (see fitHeight). */
+  let stripSpace = $state(0);
+  const unitsOf = (z: { cards: { group?: number }[] }) =>
+    // (in the strip each card past the first shows 0.65 of a card; a new meld starts 0.67 further on)
+    1 + Math.max(0, z.cards.length - 1) * 0.65 + z.cards.filter((c, i) => i > 0 && c.group != null && c.group !== z.cards[i - 1].group).length * 0.67;
+  const stripFit = $derived.by(() => {
+    if (!display || !stripZones.length || !mainW || !mainH) return Infinity;
+    const rem = tvRem;
+    // (the strip may reach a little past the middle's sides: lower down, the oval is wider)
+    const across = mainW * 1.2;
+    // the height left under the headline and the row of piles (and clear of the seat at the bottom)
+    // (measured once it's on screen; until then, a fair guess)
+    const room = stripSpace > 0 ? stripSpace : mainH - (centerCw * 1.4 + 2 * rem) - 5 * rem;
+    if (room < 60) return Infinity;
+    const units = stripZones.map(unitsOf);
+    const largest = Math.round(centerCw * Math.max(...stripZones.map((z) => z.scale ?? 1)));
+    // the biggest cards that let everyone's melds pack into rows that fit across and down; a long
+    // run of melds (a team's in Hand and Foot) wraps onto more lines of its own
+    for (let cw = largest; cw > MIN_CW; cw -= 2) {
+      // (each set of melds sits on its own panel, a little wider than its cards)
+      const pad = 1.6 * rem;
+      let height = 0;
+      let rowH = 0;
+      let x = 0;
+      for (const u of units) {
+        const w = u * cw + pad;
+        const lines = Math.ceil(w / across);
+        // (each panel: its lines of cards, a label above them and its padding)
+        const h = lines * cw * 1.4 + (lines - 1) * 0.3 * rem + 2.2 * rem;
+        if (lines > 1 || (x && x + 24 + w > across)) {
+          height += rowH ? rowH + 0.6 * rem : 0;
+          rowH = 0;
+          x = 0;
+        }
+        rowH = Math.max(rowH, h);
+        x = lines > 1 ? across : x + (x ? 24 : 0) + w;
+      }
+      height += rowH;
+      if (height <= room) return cw;
+    }
+    return MIN_CW;
+  });
+  const stripCards = $derived(stripZones.reduce((t, z) => t + z.cards.length, 0));
+  let stripKeep = $state({ cards: 0, cw: Infinity });
+  $effect(() => {
+    const cards = stripCards;
+    const fit = stripFit;
+    // (fewer cards in the melds than before: a new hand, so start afresh)
+    if (cards < stripKeep.cards) stripKeep = { cards, cw: fit };
+    else if (fit < stripKeep.cw) stripKeep = { cards, cw: fit };
+    else if (cards !== stripKeep.cards) stripKeep.cards = cards;
+  });
+  const stripCw = (z: { scale?: number }) => Math.max(MIN_CW, Math.min(Math.round(centerCw * (z.scale ?? 1)), display ? stripKeep.cw : Infinity));
+  /**
+   * A table screen keeps a place for the strip from the deal: the middle then fills from the top,
+   * so the piles don't jump up when the first meld goes down (the strip grows downwards).
+   */
+  const stripRoom = $derived(display && !stripZones.length && hasStrip);
+
   // ---- table screen -----------------------------------------------------------------------
   /** On a table screen everything sized in rem grows with the screen (1rem = this many px). */
   // (a little smaller with lots of players, so seats don't collide around the oval)
@@ -733,6 +815,9 @@
         <span><SuitText text={lastMove.text} /></span>
       </div>
     {/key}
+  {:else if display}
+    <!-- (a table screen keeps the line's room when there's no last move: the piles below stay put) -->
+    <div class="last" aria-hidden="true" style:visibility="hidden">&nbsp;</div>
   {/if}
 {/snippet}
 
@@ -794,7 +879,7 @@
         <Track track={status.track} avatars={s.players.map((_, i) => lobbySeat(i)?.avatar)} />
       </div>{/if}
     {#if !side}{@render tableStatus()}{/if}
-    <div class="zones" class:has-strip={stripZones.length > 0} class:cross class:row-fit={rowFit < Infinity} use:fitHeight>
+    <div class="zones" class:has-strip={stripZones.length > 0 || stripRoom} class:cross class:row-fit={rowFit < Infinity} use:fitHeight>
       {#each shownCenter as z (playFrom?.id === z.id ? `mine:${z.id}` : z.id)}
         <div
           class="zone-slot"
@@ -822,6 +907,7 @@
             fast={!!zoneAction(z.id)?.react}
             {roomy}
             {growTo}
+            steady={display}
           />
         </div>
       {/each}
@@ -838,12 +924,15 @@
           </div>
         </div>
       {/if}
-      {#if stripZones.length}
-        <div class="strip" use:edgeFade>
+      {#if stripRoom}
+        <!-- (where everyone's melds will go, kept from the deal) -->
+        <div class="strip-room" aria-hidden="true"></div>
+      {:else if stripZones.length}
+        <div class="strip" data-wide={display || undefined} use:edgeFade>
           {#each stripZones as z (z.id)}
             <Zone
               zone={z}
-              cw={Math.max(MIN_CW, Math.round(centerCw * (z.scale ?? 1)))}
+              cw={stripCw(z)}
               {you}
               players={n}
               {selected}
@@ -1273,6 +1362,12 @@
     inset: 17% 21%;
     gap: 0.6rem;
   }
+  /* (with a strip of melds that grows through the hand, the middle fills from the top: the piles
+     stay put as it grows, instead of the whole middle re-centring) */
+  .table.display main:has(.zones.has-strip) {
+    justify-content: flex-start;
+    padding-top: 1rem;
+  }
   .table.display .headline {
     font-size: 1.15rem;
     padding: 0.4rem 1.2rem;
@@ -1464,11 +1559,75 @@
   .strip > :global(*) {
     flex: none;
   }
+  /* each player's melds (or face-up cards) on a panel of their own, so it's plain whose are whose */
+  .strip > :global(.zone) {
+    padding: 0.25rem 0.5rem 0.4rem;
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.16);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+  }
   .strip :global(.spread) {
     flex-wrap: nowrap;
   }
   .strip :global(.spread .scard + .scard) {
     margin-left: calc(var(--cw) * -0.45);
+  }
+  /* a table screen can't be scrolled: the melds wrap into rows instead (sized to fit: see stripFit) */
+  /* (before the first meld: just its place, under the piles) */
+  .strip-room {
+    flex: 1 0 100%;
+  }
+  /* (and a long run of melds wraps onto more lines within its panel) */
+  .table.display .strip :global(.spread) {
+    flex-wrap: wrap;
+    row-gap: 0.3rem;
+  }
+  .table.display .strip > :global(.zone) {
+    max-width: 100%;
+  }
+  /* the labels over the piles in the middle (their counts and hints change all game) keep a
+     steady width, so the row doesn't re-centre each time one gets longer or shorter */
+  .table.display .zones > .zone-slot :global(.zone > .label) {
+    min-width: calc(var(--cw) * 1.8);
+    text-align: center;
+  }
+  /* (the headline stays on one line, reaching into the oval if it must, and the pot keeps room
+     for a few more digits: neither pushes the piles about as it changes) */
+  .table.display .headline {
+    white-space: nowrap;
+  }
+  .table.display .pot {
+    min-width: 9rem;
+    justify-content: center;
+  }
+  .table.display .strip {
+    flex: 1 0 120%;
+    flex-wrap: wrap;
+    overflow: visible;
+    margin-inline: -10%;
+    row-gap: 0.6rem;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+  /* …and a pile spread out card by card that keeps growing (a zone's `reserve`: rummy 500's
+     discard pile) keeps room for that many cards, overlapped the same way from the first, filling
+     from the left: it grows without the piles beside it sliding about */
+  .table.display .zones > .zone-slot :global(.spread.reserve) {
+    min-width: calc(var(--cw) * (1 + (var(--reserve) - 1) * 0.65));
+    justify-content: flex-start;
+  }
+  .table.display .zones > .zone-slot :global(.spread.reserve .scard + .scard) {
+    margin-left: calc(var(--cw) * -0.45);
+  }
+  /* (past eight cards they overlap more, so the pile still fits its room up to about nineteen) */
+  .table.display .zones > .zone-slot :global(.spread.reserve:has(> :nth-child(9)) .scard + .scard) {
+    margin-left: calc(var(--cw) * -0.65);
+  }
+  .table.display .zones > .zone-slot :global(.spread.reserve:has(> :nth-child(12)) .scard + .scard) {
+    margin-left: calc(var(--cw) * -0.8);
+  }
+  .table.display .zones > .zone-slot :global(.spread.reserve:has(> :nth-child(17)) .scard + .scard) {
+    margin-left: calc(var(--cw) * -0.85);
   }
   .pot {
     display: flex;

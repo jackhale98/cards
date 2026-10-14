@@ -25,6 +25,8 @@
     roomy?: boolean;
     /** The widest a face-up hand's cards may grow and still fit the middle's height. */
     growTo?: number;
+    /** A table screen's pile in the middle: its label keeps the widest it has been (its count and hint change all game), so the row doesn't re-centre as it changes. */
+    steady?: boolean;
   }
   /** A face-up hand's overlap: each card shows this much of the one under it (in card widths)… */
   const STEP = 0.38;
@@ -46,6 +48,7 @@
     fast = false,
     roomy = false,
     growTo = Infinity,
+    steady = false,
   }: Props = $props();
 
   /** Trick cards sit between the centre and the seat that played them. */
@@ -53,6 +56,26 @@
     const rel = ((by ?? 0) - Math.max(0, you) + players) % players;
     const angle = Math.PI / 2 + (rel * 2 * Math.PI) / players;
     return { x: Math.cos(angle) * cw * 0.9, y: Math.sin(angle) * cw * 0.42, rot: (rel % 2 ? 1 : -1) * (3 + rel * 2) };
+  }
+  /** Keep the widest a label has been (while `on`): it widens when its text grows, and never narrows. */
+  function holdWidth(el: HTMLElement, on: boolean) {
+    let widest = 0;
+    const ro = new ResizeObserver(() => {
+      if (!on || el.offsetWidth <= widest) return;
+      widest = el.offsetWidth;
+      el.style.minWidth = `${widest}px`;
+    });
+    ro.observe(el);
+    return {
+      update(v: boolean) {
+        on = v;
+        if (!on) {
+          widest = 0;
+          el.style.minWidth = '';
+        }
+      },
+      destroy: () => ro.disconnect(),
+    };
   }
   const top = $derived(zone.cards[zone.cards.length - 1]);
   const under = $derived.by(() => {
@@ -96,7 +119,7 @@
 </script>
 
 <div class="zone" data-zone={zone.id} data-layout={zone.layout} style:--cw="{cw}px">
-  {#if zone.label && zone.layout !== 'trick'}<div class="label eyebrow" data-flip>
+  {#if zone.label && zone.layout !== 'trick'}<div class="label eyebrow" data-flip use:holdWidth={steady}>
       <!-- (a hand turned over at a showdown: who, then what, on two short lines, so the label is no
            wider than the hand) -->
       {#if zone.base === 'showdown'}{#each zone.label.split(' · ') as line, i (i)}<span class="line"><SuitText text={line} /></span>{/each}{:else}<SuitText
@@ -162,7 +185,14 @@
       {/each}
     </div>
   {:else}
-    <div class="spread" class:handdown={zone.faceUpHand} class:roomy={roomy && !zone.faceUpHand} style:--cw={zone.faceUpHand ? `${handCw}px` : undefined}>
+    <div
+      class="spread"
+      class:handdown={zone.faceUpHand}
+      class:reserve={!!zone.reserve}
+      class:roomy={roomy && !zone.faceUpHand}
+      style:--cw={zone.faceUpHand ? `${handCw}px` : undefined}
+      style:--reserve={zone.reserve}
+    >
       {#each zone.cards as c, i (c.id)}
         <button
           class="scard"

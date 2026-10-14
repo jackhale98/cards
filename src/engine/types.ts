@@ -69,6 +69,8 @@ export interface ZoneState {
   faceUpHand?: boolean;
   /** A stack laid out as a cascade (Kings Corners): its bottom card peeks out above the top. */
   cascade?: boolean;
+  /** A pile spread card by card that keeps growing: room kept for this many cards on a table screen. */
+  reserve?: number;
   /** Where the pile sits on a big screen's table, [row, column] (Kings Corners' cross). */
   grid?: [number, number];
   cards: CardRef[];

@@ -20,6 +20,7 @@ export function createState<D>(config: GameConfig, players: SetupPlayer[], seed:
       ...(z.peek ? { peek: z.peek } : {}),
       ...(z.faceUpHand ? { faceUpHand: true } : {}),
       ...(z.cascade ? { cascade: true } : {}),
+      ...(z.reserve ? { reserve: z.reserve } : {}),
       ...(z.grid ? { grid: [z.grid[0], z.grid[1]] as [number, number] } : {}),
       cards: [],
     });
