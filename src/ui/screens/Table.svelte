@@ -558,6 +558,37 @@
     // (in the strip each card past the first shows 0.65 of a card; a new meld starts 0.67 further on)
     return 1 + Math.max(0, z.cards.length - 1) * 0.65 + starts * 0.67;
   };
+  /**
+   * How tall everyone's melds stand with cards `cw` wide, each set on its own panel, the panels
+   * packed into rows `across` wide (a long run of melds wraps onto more lines of its own).
+   */
+  function packedHeight(
+    units: number[],
+    labelW: number[],
+    cw: number,
+    across: number,
+    rem: number,
+    { gap, pad, extra }: { gap: number; pad: number; extra: number },
+  ) {
+    // (each set of melds sits on its own panel, a little wider (`pad`) and taller (`extra`, its label
+    // and padding) than its cards)
+    let height = 0;
+    let rowH = 0;
+    let x = 0;
+    for (const [i, u] of units.entries()) {
+      const w = Math.max(u * cw, labelW[i]) + pad;
+      const lines = Math.ceil(w / across);
+      const h = lines * cw * 1.4 + (lines - 1) * 0.3 * rem + extra;
+      if (lines > 1 || (x && x + gap + w > across)) {
+        height += rowH ? rowH + 0.6 * rem : 0;
+        rowH = 0;
+        x = 0;
+      }
+      rowH = Math.max(rowH, h);
+      x = lines > 1 ? across : x + (x ? gap : 0) + w;
+    }
+    return height + rowH;
+  }
   const stripFit = $derived.by(() => {
     if (!display || !stripZones.length || !mainW || !mainH) return Infinity;
     const rem = tvRem;
@@ -573,28 +604,8 @@
     const largest = Math.round(centerCw * Math.max(...stripZones.map((z) => z.scale ?? 1)));
     // the biggest cards that let everyone's melds pack into rows that fit across and down; a long
     // run of melds (a team's in Hand and Foot) wraps onto more lines of its own
-    for (let cw = largest; cw > MIN_CW; cw -= 2) {
-      // (each set of melds sits on its own panel, a little wider than its cards)
-      const pad = 1.6 * rem;
-      let height = 0;
-      let rowH = 0;
-      let x = 0;
-      for (const [i, u] of units.entries()) {
-        const w = Math.max(u * cw, labelW[i]) + pad;
-        const lines = Math.ceil(w / across);
-        // (each panel: its lines of cards, a label above them and its padding)
-        const h = lines * cw * 1.4 + (lines - 1) * 0.3 * rem + 2.5 * rem;
-        if (lines > 1 || (x && x + 24 + w > across)) {
-          height += rowH ? rowH + 0.6 * rem : 0;
-          rowH = 0;
-          x = 0;
-        }
-        rowH = Math.max(rowH, h);
-        x = lines > 1 ? across : x + (x ? 24 : 0) + w;
-      }
-      height += rowH;
-      if (height <= room) return cw;
-    }
+    for (let cw = largest; cw > MIN_CW; cw -= 2)
+      if (packedHeight(units, labelW, cw, across, rem, { gap: 24, pad: 1.6 * rem, extra: 2.5 * rem }) <= room) return cw;
     return MIN_CW;
   });
   const stripCards = $derived(stripZones.reduce((t, z) => t + z.cards.length, 0));
@@ -645,8 +656,26 @@
 
   // ---- chrome -----------------------------------------------------------------------------
   let sheet = $state<'menu' | 'scores' | 'tv' | 'look' | 'save' | 'spread' | null>(null);
-  // (as big as a short screen allows, the hand below kept small)
-  const spreadCw = $derived(Math.max(MIN_CW, Math.min(60, Math.round(vh * 0.12))));
+  /** The room the full-screen melds have (above your hand), measured. */
+  let spreadW = $state(0);
+  let spreadH = $state(0);
+  /**
+   * Everyone's melds full screen: the biggest cards that let them all fit the room, so a few melds
+   * fill the screen; only past a readable smallest size does the page scroll.
+   */
+  const spreadCw = $derived.by(() => {
+    if (sheet !== 'spread' || !spreadW || !spreadH || !allStripZones.length) return 44;
+    const units = allStripZones.map(unitsOf);
+    const labelW = allStripZones.map((z) => (z.label?.length ?? 0) * 0.56 * 16);
+    const room = spreadH - 12;
+    // (a pile stands up to 12px taller than one card, its count badge hanging a little below)
+    const extra = 32 + (allStripZones.some((z) => z.piles) ? 16 : 0);
+    for (let cw = Math.min(140, Math.round(room / 1.4 - 30)); cw > 40; cw -= 2)
+      if (packedHeight(units, labelW, cw, spreadW - 4, 16, { gap: 10, pad: 18, extra }) <= room) return cw;
+    return 40;
+  });
+  // (your hand under them stays small: the melds are what you're looking at)
+  const spreadHandCw = $derived(Math.max(MIN_CW, Math.min(52, Math.round(vh * 0.1))));
   // (nothing left to show: the full-screen view of the melds closes itself, e.g. at a new hand)
   $effect(() => {
     if (sheet === 'spread' && !allStripZones.length) sheet = null;
@@ -1101,7 +1130,7 @@
 
 {#if sheet === 'spread'}
   <Sheet title="On the table" full onclose={() => (sheet = null)}>
-    <div class="spread-all">
+    <div class="spread-all" bind:clientWidth={spreadW} bind:clientHeight={spreadH}>
       {#each allStripZones as z (z.id)}
         <Zone
           zone={z}
@@ -1120,7 +1149,7 @@
     </div>
     <!-- (your hand and your moves, so you can meld and lay off from here) -->
     <div class="spread-dock">
-      <div class="spread-hand"><Hand cards={myHand} cw={Math.round(spreadCw * 0.85)} {selected} {selectable} ontap={tap} onswipe={swipe} /></div>
+      <div class="spread-hand"><Hand cards={myHand} cw={spreadHandCw} {selected} {selectable} ontap={tap} onswipe={swipe} /></div>
       <div class="spread-acts">
         <ActionBar
           actions={view.actions}
@@ -1670,6 +1699,13 @@
   .spread-all :global(.piles) {
     flex-wrap: wrap;
     row-gap: 0.3rem;
+  }
+  /* (the same overlap however long the melds, as spreadCw reckons, and a gap before each meld) */
+  .spread-all :global(.spread.spread .scard + .scard) {
+    margin-left: calc(var(--cw) * -0.45) !important;
+  }
+  .spread-all :global(.spread.spread .scard.newgroup) {
+    margin-left: calc(var(--cw) * 0.22) !important;
   }
   .spread-dock {
     display: flex;

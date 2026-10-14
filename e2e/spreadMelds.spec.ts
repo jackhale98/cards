@@ -4,7 +4,7 @@ test.setTimeout(120_000);
 
 /**
  * On a phone the melds are a sliver under the piles: a button opens everyone's melds full screen,
- * with your hand and your moves below them, so you can play from there.
+ * as big as fits, with your hand and your moves below them, so you can play from there.
  */
 test('on a phone the melds open full screen and you can play from there', async ({ page }) => {
   await page.setViewportSize({ width: 852, height: 393 });
@@ -33,6 +33,13 @@ test('on a phone the melds open full screen and you can play from there', async 
   await expect(sheet.locator('.spread-all > .zone')).toHaveCount(await page.locator('.strip > .zone').count());
   const box = (await sheet.boundingBox())!;
   expect(box.width).toBeGreaterThan(800);
+  // the cards are as big as the room allows: the melds only scroll once they're at their smallest
+  const fit = await sheet.evaluate((el) => {
+    const all = el.querySelector('.spread-all')!;
+    return { over: all.scrollHeight - all.clientHeight, cw: el.querySelector('.spread-all .card')!.getBoundingClientRect().width };
+  });
+  if (fit.over > 1) expect(fit.cw).toBeLessThanOrEqual(41);
+  else expect(fit.cw).toBeGreaterThan(41);
   // your hand and your moves are there too
   const hand = sheet.locator('.hand .slot');
   const held = await hand.count();

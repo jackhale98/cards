@@ -28,12 +28,19 @@ test('on a table screen every meld shows and the piles hold still', async ({ con
     const b = (await stock.boundingBox())!;
     return [Math.round(b.x), Math.round(b.y)];
   };
-  const start = await at();
+  let start = await at();
   let melds = 0;
-  for (let i = 0; i < 400 && melds < 2; i++) {
+  for (let i = 0; i < 1200 && melds < 2; i++) {
     const phase = await host.evaluate(() => (window as unknown as { __phase: () => string }).__phase());
-    if (/handOver|roundOver|gameOver/.test(phase)) break;
+    if (phase === 'gameOver') break;
     await host.evaluate(() => (window as unknown as { __botMove: () => unknown }).__botMove());
+    // (a hand can end with only one player's melds down: deal the next, and measure from there)
+    if (phase === 'handOver') {
+      await expect.poll(() => host.evaluate(() => (window as unknown as { __phase: () => string }).__phase())).not.toBe('handOver');
+      await tv.waitForTimeout(800);
+      start = await at();
+      continue;
+    }
     // the stock never slides more than a couple of pixels
     const now = await at();
     expect(Math.abs(now[0] - start[0]) + Math.abs(now[1] - start[1]), `move ${i}`).toBeLessThanOrEqual(3);
