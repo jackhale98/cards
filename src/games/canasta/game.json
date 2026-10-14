@@ -39,7 +39,7 @@
   "rulesSummary": [
     "Meld cards of one rank and build canastas of seven. Two decks and four jokers.",
     "Each turn: draw, or take the whole discard pile by melding its top card. Then meld and discard.",
-    "Jokers and 2s are wild. A meld is 3+ cards of one rank with at least 2 naturals and at most 3 wilds. Seven cards make a canasta: 500 natural, 300 mixed.",
+    "Jokers and 2s are wild. A meld is 3+ cards of one rank with at least 2 naturals and at most 3 wilds. Seven cards make a canasta, squared up: 500 natural (a red card on top), 300 mixed (a black one).",
     "Red 3s are laid out at once and replaced. Black 3s can only be melded when going out (no wilds). One on top blocks the pile for the next player.",
     "To take the pile, meld its top card with a natural pair, or one natural and a wild, or add it to your side's meld. Frozen (a wild or a turned-up red 3 in it), or before your side has melded: you need a natural pair.",
     "Your side's first meld must be worth 50 (90 from 1500, 120 from 3000, 15 below zero). Joker 50, 2 and A 20, K–8 10, 7–4 and black 3 5. From the pile, only its top card counts.",

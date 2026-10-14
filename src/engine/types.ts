@@ -46,6 +46,11 @@ export interface CardRef {
   /** Draw dimmed (e.g. deadwood). */
   dim?: boolean;
   /**
+   * In a zone of `piles`: squared up with the rest of its group into one pile, whatever its rank
+   * (a finished canasta; the group's last card shows on top).
+   */
+  square?: boolean;
+  /**
    * Opaque key, renewed every time the card moves. Lets a face-down card on the table keep a
    * stable placeholder (so it animates smoothly) without linking it to where it came from.
    */

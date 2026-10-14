@@ -544,14 +544,14 @@
    */
   /** The height a table screen's strip of melds has, measured (see fitHeight). */
   let stripSpace = $state(0);
-  const unitsOf = (z: { piles?: boolean; cards: { id: string; group?: number }[] }) => {
+  const unitsOf = (z: { piles?: boolean; cards: { id: string; group?: number; square?: boolean }[] }) => {
     const starts = z.cards.filter((c, i) => i > 0 && c.group != null && c.group !== z.cards[i - 1].group).length;
     // (as piles: one card's width a meld, and half a card for each of another rank fanned beside it)
     if (z.piles) {
       let odd = 0;
       z.cards.forEach((c, i) => {
         const first = z.cards.findIndex((x) => x.group === c.group);
-        if (i !== first && parseCard(c.id).rank !== parseCard(z.cards[first].id).rank) odd++;
+        if (i !== first && !c.square && parseCard(c.id).rank !== parseCard(z.cards[first].id).rank) odd++;
       });
       return 1 + starts * 1.22 + odd * 0.45;
     }

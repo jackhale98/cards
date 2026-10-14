@@ -80,15 +80,17 @@
   }
   /**
    * Melds drawn as piles (`zone.piles`, canasta's): each meld's cards of its first card's rank
-   * squared into one pile with a count, and any others in it (wild cards) fanned beside it.
+   * squared into one pile with a count, and any others in it (wild cards) fanned beside it; a
+   * finished one (`square`) all in the pile.
    */
   const piles = $derived.by(() => {
     if (!zone.piles) return [];
     const out: { key: string; same: typeof zone.cards; odd: typeof zone.cards }[] = [];
     for (const c of zone.cards) {
       const last = out.at(-1);
+      // (a new pile once the group changes)
       if (last && c.group === last.same[0].group) {
-        (parseCard(c.id).rank === parseCard(last.same[0].id).rank ? last.same : last.odd).push(c);
+        (c.square || parseCard(c.id).rank === parseCard(last.same[0].id).rank ? last.same : last.odd).push(c);
       } else out.push({ key: c.id, same: [c], odd: [] });
     }
     return out;

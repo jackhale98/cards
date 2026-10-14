@@ -188,6 +188,28 @@ describe('canasta (pagat audit)', () => {
     expect(() => g.apply(s, 0, { type: 'addWild', cards: ['2H#2', 'X2#1'], amount: 9 })).toThrow();
   });
 
+  it('a finished canasta is squared up: a red card on top when natural, a black one when mixed', () => {
+    const s = rig(['2H', 'KD#2', '4C', '4D'], ['8C'], {
+      melds: [meld(0, 13, ['KS', 'KH', 'KD', 'KC', 'KS#2', 'KC#2']), meld(0, 9, ['9H', '9D', '9H#2', '9D#2', '2C', 'X1#1'])],
+      melded: [true, false, true, false],
+    });
+    g.apply(s, 0, { type: 'draw' });
+    // (not yet a canasta: each card where it is, the wild one beside the nines)
+    expect(s.zones['melds:0'].cards.some((c) => c.square)).toBe(false);
+    g.apply(s, 0, { type: 'meld', cards: ['KD#2'] });
+    g.apply(s, 0, { type: 'addWild', cards: ['2H'], amount: 9 });
+    const pile = (rank: string) => s.zones['melds:0'].cards.filter((c) => c.id.startsWith(rank) || (rank === '9' && /^2|^X/.test(c.id)));
+    const kings = pile('K');
+    expect(kings).toHaveLength(7);
+    expect(kings.every((c) => c.square)).toBe(true);
+    expect(kings.at(-1)!.id).toMatch(/^K[HD]/);
+    const nines = pile('9');
+    expect(nines).toHaveLength(7);
+    expect(nines.every((c) => c.square)).toBe(true);
+    // (all its naturals are red: a black wild two goes on top)
+    expect(nines.at(-1)!.id).toBe('2C');
+  });
+
   it('“may I go out?” — a no forbids going out, a yes makes you', () => {
     const canasta = meld(0, 13, ['KS', 'KH', 'KD', 'KC', 'KS#2', 'KH#2', 'KD#2']);
     const no = rig(['QS', 'QH', 'QD', '4C', '4H'], ['8C'], { melds: [canasta], melded: [true, false, true, false] }, ['4D']);

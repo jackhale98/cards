@@ -129,14 +129,26 @@ export function canastaFamily(config: GameConfig): GameModule<CanastaData> {
     hand(s, seat).cards.sort((a, b) => key(a.id) - key(b.id) || a.id.localeCompare(b.id));
   }
 
-  /** Lay each side's melds out in front of it: red threes, then melds by rank, canastas first. */
+  /**
+   * Lay each side's melds out in front of it: red threes, then melds by rank, canastas first. A
+   * finished canasta is squared up (pagat): a red card on top for a natural one, a black one for mixed.
+   */
   function relayout(s: S) {
     for (const t of sides(s).map((_, i) => i)) {
       const z = zone(s, meldZone(t));
       const melds = teamMelds(s, t).sort((a, b) => Number(isCanasta(b)) - Number(isCanasta(a)) || b.rank - a.rank);
       z.cards = [
         ...redsOf(s, t).map((id) => ({ id, up: true, group: 0 })),
-        ...melds.flatMap((m) => [...m.cards.filter((c) => !isWild(c)), ...m.cards.filter(isWild)].map((id) => ({ id, up: true, group: m.rank }))),
+        ...melds.flatMap((m) => {
+          const cards = [...m.cards.filter((c) => !isWild(c)), ...m.cards.filter(isWild)];
+          if (!isCanasta(m)) return cards.map((id) => ({ id, up: true, group: m.rank }));
+          const red = (c: string) => 'HD'.includes(parseCard(c).suit);
+          const black = (c: string) => 'SC'.includes(parseCard(c).suit);
+          // (a natural of the meld's rank when there is one; a mixed canasta of red naturals is topped with a black 2)
+          const top = isNatural(m) ? cards.find(red) : (cards.find((c) => !isWild(c) && black(c)) ?? cards.find(black));
+          const order = top ? [...cards.filter((c) => c !== top), top] : cards;
+          return order.map((id) => ({ id, up: true, group: m.rank, square: true }));
+        }),
       ];
       const n = canastas(s, t);
       z.label = `${teamName(s, t)}${n ? ` · ${n} canasta${n > 1 ? 's' : ''}` : ''}`;
