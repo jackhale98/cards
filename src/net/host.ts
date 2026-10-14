@@ -18,6 +18,7 @@ import {
   type LobbySeat,
   type Msg,
   type Night,
+  type NightFinal,
   type NightGame,
   type View,
 } from './protocol';
@@ -550,6 +551,7 @@ export class Host {
       name: m.config.name,
       at: Date.now(),
       results: this.players().map((seat, i) => ({ id: seat.id, name: seat.name, place: places[i], points: nightPoints(places[i], places) })),
+      final: finalScores(m, s),
     });
   }
 
@@ -1012,6 +1014,52 @@ export class Host {
   }
 }
 
+/** A finished game's own scores, as someone watching sees them (nothing private: it's over). */
+function finalScores(m: GameModule, s: GameState): NightFinal | undefined {
+  try {
+    const st = m.status(s, -1);
+    const board =
+      st.scoreboard ??
+      (m.config.chips
+        ? {
+            columns: ['Chips'],
+            rows: [...s.players]
+              .sort((a, b) => b.chips - a.chips)
+              .map((p) => ({ name: p.name, values: [p.chips.toLocaleString()], highlight: !!s.winner?.includes(p.seat) })),
+          }
+        : null);
+    const out = cleanFinal({
+      columns: board?.columns ?? [],
+      rows: board?.rows.map((r) => ({ ...r, values: r.values.map(String) })) ?? [],
+      lines: st.banner?.lines ?? [],
+    });
+    return out && (out.rows.length || out.lines.length) ? out : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** A game's final scores, size-limited and checked (they come from another device on a merge). */
+function cleanFinal(x: unknown): NightFinal | undefined {
+  if (!x || typeof x !== 'object') return undefined;
+  const f = x as Record<string, unknown>;
+  const strs = (a: unknown, n: number, len: number) =>
+    Array.isArray(a)
+      ? a
+          .slice(0, n)
+          .filter((v): v is string => typeof v === 'string')
+          .map((v) => v.slice(0, len))
+      : [];
+  const rows = Array.isArray(f.rows)
+    ? f.rows.slice(0, TABLE_MAX).flatMap((r) => {
+        if (!r || typeof r !== 'object') return [];
+        const { name, values, highlight } = r as Record<string, unknown>;
+        return typeof name === 'string' ? [{ name: name.slice(0, 40), values: strs(values, 8, 24), ...(highlight === true ? { highlight: true } : {}) }] : [];
+      })
+    : [];
+  return { columns: strs(f.columns, 8, 24), rows, lines: strs(f.lines, 12, 120) };
+}
+
 /** A finished game from another device, checked field by field (it goes into everyone's tally). */
 function cleanNightGame(x: unknown): NightGame | null {
   if (!x || typeof x !== 'object') return null;
@@ -1025,7 +1073,8 @@ function cleanNightGame(x: unknown): NightGame | null {
     if (!Number.isFinite(place) || !Number.isFinite(points)) return null;
     results.push({ id: id.slice(0, 64), name: name.slice(0, 20), place, points });
   }
-  return { game: g.game.slice(0, 40), name: g.name.slice(0, 40), at: g.at, results };
+  const final = cleanFinal(g.final);
+  return { game: g.game.slice(0, 40), name: g.name.slice(0, 40), at: g.at, results, ...(final ? { final } : {}) };
 }
 
 /** The standard record formats a game is followed in (see exports/formats.ts). */

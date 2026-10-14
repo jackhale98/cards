@@ -70,6 +70,10 @@ describe('game night', () => {
     finish(1);
     finish(1); // more updates while the game-over screen is up: still one game
     expect(host.lobby.night!.games).toHaveLength(1);
+    // the game's own final scores are kept with it, to look back at later
+    const final = host.lobby.night!.games[0].final!;
+    expect(final.rows.map((r) => r.name).sort()).toEqual(['Hana', host.lobby.seats[1].name].sort());
+    expect(final.rows.every((r) => r.values.length > 0 && r.values.every((v) => typeof v === 'string'))).toBe(true);
     expect(host.lobby.night!.games[0].results.map((r) => [r.id, r.place, r.points])).toEqual([
       ['h', 1, 0],
       [host.lobby.seats[1].id, 0, 3],
@@ -128,5 +132,26 @@ describe('game night', () => {
       );
       expect(g.standings!(s)).toHaveLength(n);
     }
+  });
+
+  it('final scores from another table are size-limited and checked before they join the tally', () => {
+    const host = new Host(null, 'ABCD', { cid: 'h', name: 'Hana' });
+    (host as any).lobby.splits = [{ code: 'WXYZ' }];
+    const long = 'x'.repeat(500);
+    (host as any).mergeBack('WXYZ', [
+      {
+        game: 'hearts',
+        name: 'Hearts',
+        at: 5,
+        results: [{ id: 'a', name: 'Ada', place: 0, points: 3 }],
+        final: { columns: ['Total', 7], rows: [{ name: long, values: [long, 9, 'ok'] }, 'junk'], lines: [long, { evil: 1 }] },
+      },
+    ]);
+    const f = host.lobby.night!.games[0].final!;
+    expect(f.columns).toEqual(['Total']);
+    expect(f.rows).toHaveLength(1);
+    expect(f.rows[0].name.length).toBeLessThanOrEqual(40);
+    expect(f.rows[0].values).toEqual(['x'.repeat(24), 'ok']);
+    expect(f.lines).toEqual(['x'.repeat(120)]);
   });
 });

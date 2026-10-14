@@ -20,6 +20,7 @@
   import { flight, haptic, play, snapshot } from '../motion';
   import { play as playSound, setSound, soundOn, type Sound } from '../sound';
   import { fourColourOn, setFourColour } from '../suits';
+  import { marquee } from '../marquee';
   import { fade, fly } from 'svelte/transition';
   import { cubicIn, cubicOut } from 'svelte/easing';
   import { isHidden } from '../../engine/redact';
@@ -194,17 +195,8 @@
     let frame = 0;
     const fit = () => {
       const last = el.querySelector<HTMLElement>('.last');
-      const head = el.querySelector<HTMLElement>('.headline');
       if (last) last.style.display = '';
-      if (head) head.style.setProperty('-webkit-line-clamp', '');
       if (last && el.scrollHeight > el.clientHeight + 1) last.style.display = 'none';
-      // still too tall (a phone's fonts a touch bigger than planned for): the headline keeps the
-      // lines that fit and ends in "…", rather than being cut through the middle of a line
-      if (head && el.scrollHeight > el.clientHeight + 1) {
-        const line = parseFloat(getComputedStyle(head).lineHeight) || 18;
-        const lines = String(Math.max(1, Math.floor((el.clientHeight - (head.offsetHeight - head.clientHeight) - 10) / line)));
-        head.style.setProperty('-webkit-line-clamp', lines);
-      }
     };
     const later = () => {
       cancelAnimationFrame(frame);
@@ -718,7 +710,9 @@
 
 <!-- whose turn it is and the last move: above the middle, or (a phone on its side) in the column on the left -->
 {#snippet tableStatus()}
-  {#if status.headline}<div class="headline" class:mine={actor === you && you >= 0} bind:clientHeight={headH}><SuitText text={status.headline} /></div>{/if}
+  {#if status.headline}<div class="headline" class:mine={actor === you && you >= 0} bind:clientHeight={headH}>
+      {#if side}<span class="tip" use:marquee><span class="run"><SuitText text={status.headline} /></span></span>{:else}<SuitText text={status.headline} />{/if}
+    </div>{/if}
   {#if lastMove && cardSizes.lastFits}
     {#key lastMove.t}
       <div class="last" aria-live="polite">
@@ -1623,13 +1617,51 @@
   .me.side > .me-own {
     flex: none;
   }
+  /* one line: a tip too long for the column glides along it (see marquee), never cut short */
   .side-status .headline {
+    display: block;
+    max-width: 100%;
     text-align: left;
     font-size: 0.78rem;
     padding: 0.3rem 0.6rem;
-    border-radius: 12px;
-    -webkit-line-clamp: 5;
-    line-clamp: 5;
+    border-radius: 999px;
+  }
+  .tip {
+    display: block;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  .tip .run {
+    display: inline-block;
+  }
+  .tip:global(.moving) {
+    --fade: 14px;
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 0.4rem, #000 calc(100% - var(--fade)), transparent);
+    mask-image: linear-gradient(to right, transparent, #000 0.4rem, #000 calc(100% - var(--fade)), transparent);
+    padding-left: 0.4rem;
+    margin-left: -0.4rem;
+  }
+  .tip:global(.moving) .run {
+    /* a few passes then rest (battery); tapping it, or a new tip, plays it again */
+    animation: glide var(--cycle) ease-in-out 3;
+  }
+  @keyframes glide {
+    0%,
+    15% {
+      transform: translateX(0);
+    }
+    65%,
+    80% {
+      transform: translateX(var(--over));
+    }
+    100% {
+      transform: translateX(0);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .tip:global(.moving) .run {
+      animation: none;
+    }
   }
   .side-status .last {
     align-items: flex-start;

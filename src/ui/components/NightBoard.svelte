@@ -4,6 +4,9 @@
   import AvatarBadge from './AvatarBadge.svelte';
   import GameIcon from './GameIcon.svelte';
   import { getGame } from '../../games';
+  import type { NightGame } from '../../net/protocol';
+  import Sheet from './Sheet.svelte';
+  import SuitText from './SuitText.svelte';
 
   interface Props {
     night: Night | undefined;
@@ -23,6 +26,9 @@
     }
   };
   let confirming = $state(false);
+  /** A finished game opened to see its own final scores. */
+  let open = $state<NightGame | null>(null);
+  const when = (at: number) => new Date(at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 </script>
 
 <div class="night">
@@ -39,7 +45,11 @@
   </ol>
   <ul class="games">
     {#each games as g (g.at)}
-      <li><GameIcon id={g.game} icon={icon(g.game)} size={22} /><span>{g.name}</span><em>{gameWinners(g)}</em></li>
+      <li>
+        <button class="game" onclick={() => (open = g)} aria-label="{g.name}: final scores">
+          <GameIcon id={g.game} icon={icon(g.game)} size={22} /><span>{g.name}</span><em>{gameWinners(g)}</em>
+        </button>
+      </li>
     {/each}
   </ul>
   {#if onreset}
@@ -61,7 +71,93 @@
   {/if}
 </div>
 
+{#if open}
+  <Sheet title="{open.name} · {when(open.at)}" onclose={() => (open = null)}>
+    {#if open.final?.lines.length}
+      <div class="lines">
+        {#each open.final.lines as line, k (k)}<p><SuitText text={line} /></p>{/each}
+      </div>
+    {/if}
+    {#if open.final?.rows.length}
+      <table class="final">
+        {#if open.final.columns.length}<thead
+            ><tr
+              ><th></th>{#each open.final.columns as c, k (k)}<th>{c}</th>{/each}</tr
+            ></thead
+          >{/if}
+        <tbody>
+          {#each open.final.rows as r, k (k)}
+            <tr class:hl={r.highlight}
+              ><td>{r.name}</td>{#each r.values as v, j (j)}<td><SuitText text={v} /></td>{/each}</tr
+            >
+          {/each}
+        </tbody>
+      </table>
+    {/if}
+    <!-- (where each finished tonight, and the points it earned on the night's board) -->
+    <ol class="places">
+      {#each [...open.results].sort((a, b) => a.place - b.place) as r (r.id)}
+        <li><span class="rank">{r.place === 0 ? '★' : r.place + 1}</span><span class="who">{r.name}</span><span class="pts">+{r.points} tonight</span></li>
+      {/each}
+    </ol>
+  </Sheet>
+{/if}
+
 <style>
+  .game {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-height: 32px;
+    padding: 0;
+    color: inherit;
+    font: inherit;
+  }
+  .lines p {
+    margin: 0.15rem 0;
+    color: var(--ink-dim);
+  }
+  .final {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0.6rem 0;
+    font-variant-numeric: tabular-nums;
+  }
+  .final th {
+    font-size: 0.72rem;
+    color: var(--ink-dim);
+    font-weight: 600;
+    text-align: right;
+  }
+  .final td {
+    padding: 0.3rem 0.4rem;
+    text-align: right;
+    border-top: 1px solid var(--line);
+  }
+  .final td:first-child {
+    text-align: left;
+  }
+  .final tr.hl td {
+    color: var(--gold);
+    font-weight: 700;
+  }
+  .places {
+    list-style: none;
+    margin: 0.4rem 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 0.85rem;
+  }
+  .places li {
+    display: grid;
+    grid-template-columns: 1.4rem 1fr auto;
+    gap: 0.5rem;
+  }
+  .places .pts {
+    color: var(--ink-dim);
+  }
   .night {
     display: flex;
     flex-direction: column;

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { marquee } from '../marquee';
   import { app, inviteUrl } from '../../app.svelte';
   import { CATEGORIES, categoryOf, GAME_LIST, getGame, GAMES, misfit, playersText, searchGames } from '../../games';
   import type { GameInfo } from '../../games';
@@ -99,39 +100,6 @@
     if (!going.length || !newHost) return;
     app.split(going, newHost);
     splitting = false;
-  }
-  /**
-   * A line too long for its space glides along by itself: a pause at the start, slowly across to
-   * the end, a pause, and back. How far it goes (and so how long it takes) is measured here. It
-   * rests after a few passes (battery); a tap plays it again.
-   */
-  function marquee(el: HTMLElement) {
-    const run = el.firstElementChild as HTMLElement;
-    const SPEED = 30; // px a second
-    const update = () => {
-      const moving = run.offsetWidth > el.clientWidth + 2;
-      el.classList.toggle('moving', moving);
-      // far enough that the last letter ends up clear of the soft right edge (and the padding)
-      const css = getComputedStyle(el);
-      const room = el.clientWidth - parseFloat(css.paddingLeft) - parseFloat(css.paddingRight);
-      const fade = parseFloat(css.getPropertyValue('--fade')) || 0;
-      const over = moving ? Math.ceil(run.offsetWidth - room + fade) : 0;
-      el.style.setProperty('--over', `${-over}px`);
-      // the glide out takes half the cycle
-      el.style.setProperty('--cycle', `${Math.max(6, (over / SPEED) * 2).toFixed(1)}s`);
-    };
-    const replay = () => run.getAnimations?.().forEach((a) => (a.cancel(), a.play()));
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(el);
-    ro.observe(run);
-    el.addEventListener('pointerdown', replay);
-    return {
-      destroy: () => {
-        ro.disconnect();
-        el.removeEventListener('pointerdown', replay);
-      },
-    };
   }
   /** How many options differ from the game's defaults. */
   const changed = $derived((game.config.options ?? []).filter((o) => lobby.options[o.id] !== undefined && lobby.options[o.id] !== o.default).length);

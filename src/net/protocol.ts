@@ -74,6 +74,14 @@ export interface NightGame {
   at: number;
   /** Everyone who played, by lobby seat id (so moving seats doesn't matter). */
   results: { id: string; name: string; place: number; points: number }[];
+  /** The game's own final scores, as anyone watching saw them (its scoreboard, and the result). */
+  final?: NightFinal;
+}
+
+export interface NightFinal {
+  columns: string[];
+  rows: { name: string; values: string[]; highlight?: boolean }[];
+  lines: string[];
 }
 
 /** Game night: finished games at this table, for a running scoreboard. */
