@@ -128,7 +128,8 @@
     // under the seats once the hand (1.4 card heights and its arc) has its share
     if (side && meOwnH) {
       const column = headH + 6 + meOwnH + 8;
-      hand = Math.max(0, Math.min(hand, (vh - headerH - 44 - column) / 1.4));
+      // (12px to spare: fonts differ a little from phone to phone)
+      hand = Math.max(0, Math.min(hand, (vh - headerH - 56 - column) / 1.4));
     }
     return { center: wantCenter * k, hand, lastFits };
   });
@@ -193,9 +194,17 @@
     let frame = 0;
     const fit = () => {
       const last = el.querySelector<HTMLElement>('.last');
-      if (!last) return;
-      last.style.display = '';
-      if (el.scrollHeight > el.clientHeight + 1) last.style.display = 'none';
+      const head = el.querySelector<HTMLElement>('.headline');
+      if (last) last.style.display = '';
+      if (head) head.style.setProperty('-webkit-line-clamp', '');
+      if (last && el.scrollHeight > el.clientHeight + 1) last.style.display = 'none';
+      // still too tall (a phone's fonts a touch bigger than planned for): the headline keeps the
+      // lines that fit and ends in "…", rather than being cut through the middle of a line
+      if (head && el.scrollHeight > el.clientHeight + 1) {
+        const line = parseFloat(getComputedStyle(head).lineHeight) || 18;
+        const lines = String(Math.max(1, Math.floor((el.clientHeight - (head.offsetHeight - head.clientHeight) - 10) / line)));
+        head.style.setProperty('-webkit-line-clamp', lines);
+      }
     };
     const later = () => {
       cancelAnimationFrame(frame);
