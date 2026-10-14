@@ -116,7 +116,16 @@ export class Host {
     restore?: HostSnapshot,
     /** `takeover`: this device is a player taking over from a host that has gone. */
     /** `brain`: where bots think (by default right here; the app gives a background worker). */
-    opts: { backupKey?: string; takeoverToken?: string; takeover?: boolean; night?: Night; parent?: string; brain?: Brain } = {},
+    opts: {
+      backupKey?: string;
+      takeoverToken?: string;
+      takeover?: boolean;
+      night?: Night;
+      parent?: string;
+      brain?: Brain;
+      /** A split-off table starts on the game (and settings) the table it came from was on. */
+      game?: { id: string; options: Record<string, number | boolean> };
+    } = {},
   ) {
     this.brain = opts.brain ?? inlineBrain();
     this.brain.onError = (e, game, phase) => {
@@ -152,10 +161,11 @@ export class Host {
       // (a game saved before people could sit out: everyone at the table is in it)
       if (this.state && !this.lobby.playing) this.lobby.playing = this.lobby.seats.map((s) => s.id);
     } else {
+      const carried = carriedGame(opts.game);
       this.lobby = {
         code,
-        gameId: 'holdem',
-        options: defaultOptions(GAMES.holdem),
+        gameId: carried?.id ?? 'holdem',
+        options: carried?.options ?? defaultOptions(GAMES.holdem),
         seats: [{ id: host.cid, name: host.name, avatar: host.avatar, host: true, connected: true }],
         spectators: 0,
         started: false,
@@ -905,7 +915,17 @@ export class Host {
     if (!going.some((s) => s.id === newHost)) return null;
     const code = makeRoomCode();
     const night = this.lobby.night ?? { games: [] };
-    for (const s of going) this.sendTo(s.id, { t: 'move', code, host: s.id === newHost, night: s.id === newHost ? night : undefined, parent: this.lobby.code });
+    // (the new host starts on this table's game and settings: they can pick another)
+    const game = { id: this.lobby.gameId, options: { ...this.lobby.options } };
+    for (const s of going)
+      this.sendTo(s.id, {
+        t: 'move',
+        code,
+        host: s.id === newHost,
+        night: s.id === newHost ? night : undefined,
+        game: s.id === newHost ? game : undefined,
+        parent: this.lobby.code,
+      });
     this.lobby.seats = this.lobby.seats.filter((s) => !going.includes(s));
     this.lobby.splits = [...(this.lobby.splits ?? []), { code, names: going.map((s) => s.name) }];
     this.fit();
@@ -1197,6 +1217,23 @@ function standardFormats(config: GameModule['config']): Partial<Record<ExportFor
 
 function missing(id: string): never {
   throw new Error(`The rules for ${id} aren't loaded (loadRules first)`);
+}
+
+/**
+ * The game a split-off table starts on (it came over the network, so only a game we have, and
+ * only that game's own settings with values of the right kind; the rest are its defaults).
+ */
+function carriedGame(game: unknown): { id: string; options: Record<string, number | boolean> } | null {
+  if (!game || typeof game !== 'object') return null;
+  const { id, options } = game as { id?: unknown; options?: unknown };
+  if (typeof id !== 'string' || !Object.hasOwn(GAMES, id)) return null;
+  const given = options && typeof options === 'object' ? (options as Record<string, unknown>) : {};
+  const out = defaultOptions(GAMES[id]);
+  for (const o of GAMES[id].config.options ?? []) {
+    const v = given[o.id];
+    if (typeof v === typeof o.default && (typeof v !== 'number' || Number.isFinite(v))) out[o.id] = v as number | boolean;
+  }
+  return { id, options: out };
 }
 
 export function defaultOptions(g: { config: GameModule['config'] }): Record<string, number | boolean> {

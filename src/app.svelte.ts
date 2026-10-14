@@ -267,7 +267,7 @@ class App {
   /** Code of a room this device just created (so sync() hosts it rather than joining). */
   private pendingHostCode: string | null = null;
   /** Hosting a table split off from another: tonight's tally so far, and where it came from. */
-  private pendingSplit: { code: string; night?: Night; parent?: string } | null = null;
+  private pendingSplit: { code: string; night?: Night; parent?: string; game?: { id: string; options: Record<string, number | boolean> } } | null = null;
   /** Heading back to the table we split off from (`to`), with the games we played meanwhile. */
   private returning: { to: string; from: string; night: Night } | null = null;
 
@@ -275,14 +275,21 @@ class App {
    * The host split the table (or our split-off table is heading back): go to the other table, as
    * its host if we were picked to host it.
    */
-  private moveTable(m: { code: string; host?: boolean; night?: Night; parent?: string; back?: boolean }) {
+  private moveTable(m: {
+    code: string;
+    host?: boolean;
+    night?: Night;
+    parent?: string;
+    back?: boolean;
+    game?: { id: string; options: Record<string, number | boolean> };
+  }) {
     const from = this.currentCode;
     if (!from || m.code === from) return;
     if (m.back && m.night) this.returning = { to: m.code, from, night: m.night };
     if (m.host) {
       store.set('cards.host', null);
       this.pendingHostCode = m.code;
-      this.pendingSplit = { code: m.code, night: m.night, parent: m.parent };
+      this.pendingSplit = { code: m.code, night: m.night, parent: m.parent, game: m.game };
       this.say(`You're hosting a new table, ${m.code} — your group is on its way`);
     } else this.say(m.back ? `Back to table ${m.code}` : `Moving to table ${m.code}`);
     this.go(`/room/${m.code}`);
@@ -399,6 +406,7 @@ class App {
       takeover: how.takeover,
       night: split?.night,
       parent: split?.parent,
+      game: split?.game,
     });
     host.onPings = (p) => (this.pings = p);
     host.onLocalError = (m) => this.say(m);

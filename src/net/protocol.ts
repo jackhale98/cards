@@ -202,7 +202,16 @@ export type HostMsg =
    * Split the table: go to table `code` — as its host (`host`), taking tonight's tally along — or
    * head back to the table this one split off from (`back`).
    */
-  | { t: 'move'; code: string; host?: boolean; night?: Night; parent?: string; back?: boolean };
+  | {
+      t: 'move';
+      code: string;
+      host?: boolean;
+      night?: Night;
+      parent?: string;
+      back?: boolean;
+      /** For the new host of a split-off table: the game (and settings) this table was on, to start from. */
+      game?: { id: string; options: Record<string, number | boolean> };
+    };
 
 export type Msg = ClientMsg | HostMsg;
 

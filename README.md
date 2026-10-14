@@ -47,7 +47,7 @@ the middle of the table. It needs no accounts or app store, and there's no serve
 - **Big groups:** everyone who joins gets a seat at the table, even past what the game seats. The
   host taps **In / Out** to choose who plays; the rest watch, and whoever sat out plays the next game.
   **Split the table** sends a group off to a table of their own (one of their phones hosts it) with
-  tonight's scoreboard, and **Everyone back** brings them home with their games added to the tally.
+  tonight's scoreboard, ready to deal the same game (or pick another), and **Everyone back** brings them home with their games added to the tally.
 - **Look back:** step through the last few hands as you saw them (replay), and save a whole game as a
   spreadsheet (CSV, only your own cards), or as a bridge PBN file or poker Open Hand History.
 - **Four-colour suits** (♣ green, ♦ blue) for anyone who wants them, from the table menu on each phone.

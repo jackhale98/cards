@@ -26,7 +26,14 @@ export class Client {
   backup: { blob: string; v: number; token?: string } | null = null;
   onBackup: (b: { blob: string; v: number; token?: string }) => void = () => {};
   /** The host is splitting the table (or sending a split-off table back): go to this one. */
-  onMove: (m: { code: string; host?: boolean; night?: Night; parent?: string; back?: boolean }) => void = () => {};
+  onMove: (m: {
+    code: string;
+    host?: boolean;
+    night?: Night;
+    parent?: string;
+    back?: boolean;
+    game?: { id: string; options: Record<string, number | boolean> };
+  }) => void = () => {};
   /** Back from a table that split off: its code and finished games, sent with each hello. */
   returning: { from: string; night: Night } | null = null;
   private seq = 0;

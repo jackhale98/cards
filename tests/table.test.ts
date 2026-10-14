@@ -252,17 +252,33 @@ describe('splitting the table', () => {
     const moves: unknown[] = [];
     clients.forEach((c, i) => (c.onMove = (m) => moves.push([i, m])));
     host.lobby.night = { games: [{ game: 'hearts', name: 'Hearts', at: 1, results: [] }] };
+    host.setGame('hearts');
+    host.setOption('target', 50);
     const code = host.split(['ben', 'cal'], 'cal')!;
     expect(code).toMatch(/^[A-Z]{5}$/);
+    // the new host gets tonight's tally, and the game this table was on to start from
     expect(moves).toEqual([
       [1, { t: 'move', code, host: false, parent: 'MAIN' }],
-      [2, { t: 'move', code, host: true, night: host.lobby.night, parent: 'MAIN' }],
+      [2, { t: 'move', code, host: true, night: host.lobby.night, game: { id: 'hearts', options: { ...host.lobby.options } }, parent: 'MAIN' }],
     ]);
     expect(host.lobby.seats.map((s) => s.name)).toEqual(['Hana', 'Ann']);
     expect(host.lobby.splits).toEqual([{ code, names: ['Ben', 'Cal'] }]);
     // the host can't be sent away, and needs one of the group to host
     expect(host.split(['h'], 'h')).toBeNull();
     expect(host.split(['ann'], 'ben')).toBeNull();
+  });
+
+  it('the split-off table starts on the game it came from, with only that game’s settings', () => {
+    const side = new Host(null, 'SIDE', { cid: 'cal', name: 'Cal' }, undefined, { game: { id: 'hearts', options: { target: 50 } } });
+    expect(side.lobby.gameId).toBe('hearts');
+    expect(side.lobby.options.target).toBe(50);
+    // (it came over the network: a game we don't have, or settings of the wrong kind, are left out)
+    const odd = new Host(null, 'ODD', { cid: 'cal', name: 'Cal' }, undefined, {
+      game: { id: 'hearts', options: { target: '50', made: 1, constructor: 3 } as unknown as Record<string, number> },
+    });
+    expect(odd.lobby.options.target).toBe(100);
+    expect(Object.keys(odd.lobby.options)).not.toContain('made');
+    expect(new Host(null, 'NONE', { cid: 'cal', name: 'Cal' }, undefined, { game: { id: 'toString', options: {} } }).lobby.gameId).toBe('holdem');
   });
 
   it('the split-off table starts with the tally, and heads back with its games', () => {
