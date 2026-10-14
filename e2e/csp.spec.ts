@@ -17,6 +17,8 @@ test('the security policy lets a whole game through, and blocks injected scripts
   const violations = await watchCsp(page);
   const res = await page.goto('/?net=local');
   expect(res?.headers()['content-security-policy']).toContain("script-src 'self'");
+  // Cloudflare Pages adds its Web Analytics script to every page: the policy lets it run
+  expect(res?.headers()['content-security-policy']).toMatch(/script-src [^;]*https:\/\/static\.cloudflareinsights\.com/);
   await page.setViewportSize({ width: 852, height: 393 });
   await page.fill('input[aria-label="Your name"]', 'Hana');
   await page.click('text=Start a table');
@@ -60,4 +62,9 @@ test('the security policy lets a whole game through, and blocks injected scripts
   });
   expect(await page.evaluate(() => (window as unknown as { __pwned?: number }).__pwned)).toBeUndefined();
   expect((await violations()).some((v) => v.startsWith('script-src'))).toBe(true);
+});
+
+test('robots.txt is a real robots file, not the app', async ({ request }) => {
+  const res = await request.get('/robots.txt');
+  expect(await res.text()).toMatch(/^User-agent: \*$/m);
 });

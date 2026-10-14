@@ -31,7 +31,7 @@
   let typed = $state('');
 </script>
 
-<div class="tv">
+<main class="tv">
   <div class="brand">Lamplight</div>
   <p class="lead">Table screen</p>
   <div class="code" aria-label="Pairing code">
@@ -60,7 +60,7 @@
       <button class="btn" disabled={!isValidCode(typed)}>Show table</button>
     </form>
   {/if}
-</div>
+</main>
 
 <style>
   .tv {

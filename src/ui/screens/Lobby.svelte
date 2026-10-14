@@ -196,7 +196,7 @@
   </Sheet>
 {/if}
 
-<div class="lobby">
+<main class="lobby">
   <section class="invite panel">
     <div class="eyebrow">Table code</div>
     <div class="code">
@@ -384,7 +384,7 @@
       <span class="waiting"><span class="spinner"></span> Waiting for the host…</span>
     {/if}
   </div>
-</div>
+</main>
 
 <style>
   .lobby {

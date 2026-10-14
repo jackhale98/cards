@@ -2,15 +2,16 @@
 # once; Vite puts a content hash in every file name under /assets, so those are cached forever
 # ("! Cache-Control" drops the value from the /* rule, since matching rules are merged).
 #
-# Content-Security-Policy: the browser runs scripts only from this site (and Google's Cast
-# libraries, for casting to a TV; the Chromecast receiver is this same page at /?cast=1), never
-# inline or injected ones, so a bug or a bad dependency can't pull in someone else's code.
+# Content-Security-Policy: the browser runs scripts only from this site (plus Google's Cast
+# libraries, for casting to a TV, the Chromecast receiver being this same page at /?cast=1; and
+# Cloudflare Web Analytics, which Pages adds to every page), never inline or injected ones, so a
+# bug or a bad dependency can't pull in someone else's code.
 # Connections are left open to any https/wss host: the backup networks (Nostr, MQTT and torrent
 # relays) are many and change; ws://localhost:8008 is how a Chromecast talks to itself.
 # Checked against a production build by e2e/csp.spec.ts.
 /*
   Cache-Control: public, max-age=0, must-revalidate
-  Content-Security-Policy: default-src 'self'; script-src 'self' https://www.gstatic.com; worker-src 'self'; style-src 'self' 'unsafe-inline' https://www.gstatic.com https://fonts.googleapis.com; img-src 'self' data: blob: https://www.gstatic.com; font-src 'self' data: https://fonts.gstatic.com; media-src 'self' data: blob:; connect-src 'self' https: wss: ws://localhost:8008; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self' https://www.gstatic.com https://static.cloudflareinsights.com; worker-src 'self'; style-src 'self' 'unsafe-inline' https://www.gstatic.com https://fonts.googleapis.com; img-src 'self' data: blob: https://www.gstatic.com; font-src 'self' data: https://fonts.gstatic.com; media-src 'self' data: blob:; connect-src 'self' https: wss: ws://localhost:8008; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()

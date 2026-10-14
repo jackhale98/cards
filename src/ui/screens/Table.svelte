@@ -888,7 +888,7 @@
 
   <!-- you: a column of your own beside the middle, above your hand, so your hand has the whole width -->
   {#if !display}
-    <div class="me" class:side>
+    <section class="me" class:side aria-label="You">
       {#if side}<div class="side-status" use:fitSide>{@render tableStatus()}</div>{/if}
       <div class="me-own" bind:clientHeight={meOwnH}>
         {#if me}
@@ -906,7 +906,7 @@
           <div class="me-sub">{view.lobby.seats.some((x) => x.id === app.cid) ? 'Sitting this one out — you’re in the next game' : 'Watching'}</div>
         {/if}
       </div>
-    </div>
+    </section>
   {/if}
 
   {#if !display}

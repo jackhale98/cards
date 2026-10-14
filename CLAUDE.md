@@ -94,7 +94,8 @@ docs/ADDING_A_GAME.md  how to add a game: read it before touching families or ga
 - **The relay is a dumb pipe** that never sees a card. Protocol changes go in `relay/src/index.ts`,
   `src/net/relayTransport.ts` and the `FakeRelay` in `tests/relay.test.ts` together, and must keep
   working with the other side one version behind (the relay deploys separately from the site).
-- **Scripts come only from this site** (and Google's Cast libraries): `public/_headers` sets a
+- **Scripts come only from this site** (and Google's Cast libraries, and the Web Analytics script
+  Cloudflare Pages adds): `public/_headers` sets a
   Content-Security-Policy. Something new from another site (a script, a font, an image) needs
   adding there, or the browser blocks it; e2e/csp.spec.ts catches it.
 - **Rules follow pagat.com.** Variants become lobby options.

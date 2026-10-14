@@ -2,14 +2,29 @@
   import { app } from './app.svelte';
   import Toast from './ui/components/Toast.svelte';
   import Home from './ui/screens/Home.svelte';
-  import Lobby from './ui/screens/Lobby.svelte';
-  import Table from './ui/screens/Table.svelte';
-  import TvScreen from './ui/screens/TvScreen.svelte';
   import { applyLook } from './ui/looks';
   import { setReportContext } from './net/reports';
 
   $effect(() => {
     void app.sync();
+  });
+
+  // The lobby, table and TV screens load when first needed, so the home screen is quick to open
+  // on a phone; once it's up, they load in the background so starting or joining a table is instant.
+  let lobbyP: Promise<typeof import('./ui/screens/Lobby.svelte')> | undefined;
+  let tableP: Promise<typeof import('./ui/screens/Table.svelte')> | undefined;
+  let tvP: Promise<typeof import('./ui/screens/TvScreen.svelte')> | undefined;
+  const lobby = () => (lobbyP ??= import('./ui/screens/Lobby.svelte'));
+  const table = () => (tableP ??= import('./ui/screens/Table.svelte'));
+  const tv = () => (tvP ??= import('./ui/screens/TvScreen.svelte'));
+  $effect(() => {
+    const later = () => {
+      void lobby();
+      void table();
+      void import('./net/host');
+    };
+    const t = setTimeout(() => ('requestIdleCallback' in window ? requestIdleCallback(later, { timeout: 4000 }) : later()), 1500);
+    return () => clearTimeout(t);
   });
 
   const route = $derived(app.route);
@@ -51,7 +66,7 @@
   <!-- (a new invite while the home screen is open fills in its code) -->
   {#key route.code}<Home code={route.code} />{/key}
 {:else if route.name === 'tv'}
-  <TvScreen />
+  {#await tv() then m}<m.default />{/await}
 {:else if !view}
   <div class="connecting">
     <div class="spinner"></div>
@@ -76,14 +91,16 @@
 {:else if view.state && view.lobby.started}
   {#key view.lobby.code}
     <!-- (replaying a finished hand: that moment on the table instead, with no moves to make) -->
-    <Table
-      view={app.replay ? { ...view, state: app.replay.state, status: app.replay.status, actions: [] } : view}
-      display={route.name === 'display'}
-      replay={app.replay}
-    />
+    {#await table() then m}
+      <m.default
+        view={app.replay ? { ...view, state: app.replay.state, status: app.replay.status, actions: [] } : view}
+        display={route.name === 'display'}
+        replay={app.replay}
+      />
+    {/await}
   {/key}
 {:else}
-  <Lobby {view} />
+  {#await lobby() then m}<m.default {view} />{/await}
 {/if}
 
 {#if view && !app.isHost && !app.connected}

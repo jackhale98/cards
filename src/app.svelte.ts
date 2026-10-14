@@ -4,7 +4,7 @@ import { newBackupKey, open as openBackup } from './net/backup';
 import { workerBrain, type Brain } from './net/brain';
 import { Client } from './net/client';
 import { loadRules } from './games';
-import { Host, type HostSnapshot } from './net/host';
+import type { Host, HostSnapshot } from './net/host';
 import { AVATAR_COLORS, AVATAR_EMOJI, cleanAvatar, makeRoomCode, type Avatar, type Frame, type Night, type View } from './net/protocol';
 import type { MultiTransport, NetworkStatus } from './net/multiTransport';
 import type { RelayTransport } from './net/relayTransport';
@@ -364,6 +364,9 @@ class App {
       }
       if (this.currentCode !== code) return this.transport?.leave();
     }
+    // (the host's code loads when a table is first hosted: the home screen doesn't need it)
+    const { Host } = await import('./net/host');
+    if (this.currentCode !== code) return this.transport?.leave();
     const split = this.pendingSplit?.code === code ? this.pendingSplit : null;
     this.pendingSplit = null;
     const host = new Host(this.transport, code, { cid: this.cid, name: this.name || 'Host', avatar: this.avatar, key: seatKey() }, restore, {

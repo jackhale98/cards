@@ -131,7 +131,7 @@
   </Sheet>
 {/if}
 
-<div class="home">
+<main class="home">
   <button class="info" onclick={() => (about = true)} aria-label="How Lamplight works">
     <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
       <circle cx="12" cy="12" r="9.2" fill="none" stroke="currentColor" stroke-width="1.6" />
@@ -215,7 +215,7 @@
     · <a href={gameRequestLink()}>Request a game</a>
     · <a href={SUPPORT_URL} target="_blank" rel="noreferrer">🍺 Support Lamplight</a>
   </footer>
-</div>
+</main>
 
 <style>
   .info {
@@ -449,7 +449,7 @@
   footer {
     grid-column: 1 / -1;
     text-align: center;
-    font-size: 0.72rem;
+    font-size: 0.8rem;
     color: var(--ink-faint);
   }
   footer a {
