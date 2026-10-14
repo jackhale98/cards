@@ -3,6 +3,7 @@
   import type { ZoneState } from '../../engine/types';
   import { receive, send } from '../motion';
   import { isHidden } from '../../engine/redact';
+  import { parseCard } from '../../engine/cards';
   import Card from './Card.svelte';
 
   interface Props {
@@ -77,6 +78,21 @@
       destroy: () => ro.disconnect(),
     };
   }
+  /**
+   * Melds drawn as piles (`zone.piles`, canasta's): each meld's cards of its first card's rank
+   * squared into one pile with a count, and any others in it (wild cards) fanned beside it.
+   */
+  const piles = $derived.by(() => {
+    if (!zone.piles) return [];
+    const out: { key: string; same: typeof zone.cards; odd: typeof zone.cards }[] = [];
+    for (const c of zone.cards) {
+      const last = out.at(-1);
+      if (last && c.group === last.same[0].group) {
+        (parseCard(c.id).rank === parseCard(last.same[0].id).rank ? last.same : last.odd).push(c);
+      } else out.push({ key: c.id, same: [c], odd: [] });
+    }
+    return out;
+  });
   const top = $derived(zone.cards[zone.cards.length - 1]);
   const under = $derived.by(() => {
     const n = zone.cards.length;
@@ -184,6 +200,33 @@
         </div>
       {/each}
     </div>
+  {:else if zone.piles}
+    <div class="piles">
+      {#each piles as p (p.key)}
+        <div class="pile">
+          <div class="stack" style:--n={p.same.length} aria-label="{p.same.length} cards">
+            {#each p.same as c, k (c.id)}
+              <button
+                class="scard"
+                style:--k={Math.min(k, 6)}
+                onclick={() => ontap(c.id)}
+                disabled={!selectable?.has(c.id)}
+                in:receive={{ key: c.id }}
+                out:send={{ key: c.id }}
+              >
+                <Card id={c.id} selected={selected.includes(c.id)} dim={c.dim} />
+              </button>
+            {/each}
+            {#if p.same.length > 1}<span class="count">{p.same.length}</span>{/if}
+          </div>
+          {#each p.odd as c (c.id)}
+            <button class="scard odd" onclick={() => ontap(c.id)} disabled={!selectable?.has(c.id)} in:receive={{ key: c.id }} out:send={{ key: c.id }}>
+              <Card id={c.id} selected={selected.includes(c.id)} dim={c.dim} />
+            </button>
+          {/each}
+        </div>
+      {/each}
+    </div>
   {:else}
     <div
       class="spread"
@@ -213,6 +256,57 @@
 </div>
 
 <style>
+  /* melds as piles: a squared pile per meld (each card a hair further up and along, so it reads as
+     a stack), its count on the corner, and any cards of another rank fanned beside it */
+  .piles {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: flex-end;
+    gap: calc(var(--cw) * 0.22);
+  }
+  .pile {
+    display: flex;
+    align-items: flex-end;
+  }
+  .stack {
+    position: relative;
+    width: var(--cw);
+    height: calc(var(--cw) * 1.4);
+    margin-top: calc(min(var(--n) - 1, 6) * 2px);
+  }
+  .stack .scard {
+    position: absolute;
+    left: 0;
+    top: 0;
+    padding: 0;
+    transform: translate(calc(var(--k) * 2px), calc(var(--k) * -2px));
+  }
+  .count {
+    position: absolute;
+    left: calc(var(--cw) * -0.08);
+    bottom: calc(var(--cw) * -0.08);
+    z-index: 8;
+    min-width: 1.5em;
+    padding: 0.05em 0.35em;
+    border-radius: 999px;
+    background: var(--gold);
+    color: #1a1408;
+    font-size: max(11px, calc(var(--cw) * 0.22));
+    font-weight: 800;
+    line-height: 1.3;
+    text-align: center;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+    pointer-events: none;
+  }
+  .pile .odd {
+    position: relative;
+    padding: 0;
+    margin-left: calc(var(--cw) * -0.6);
+  }
+  .pile .stack + .odd {
+    margin-left: calc(var(--cw) * -0.5);
+  }
   .zone {
     position: relative;
     display: flex;

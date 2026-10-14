@@ -146,18 +146,20 @@ that player's seat, e.g. `log(s, 'Riley raises to 60', seat, 'Raise to 60')`.
 
 Zones are where cards live. Every game needs a `deck` zone.
 
-| field        | meaning                                                                                                                    |
-| ------------ | -------------------------------------------------------------------------------------------------------------------------- |
-| `perPlayer`  | one copy per seat, with ids `hand:0`, `hand:1`, …                                                                          |
-| `visibility` | `all` (face up for everyone), `owner` (only that seat), `none` (nobody, e.g. the deck)                                     |
-| `layout`     | `fan` (a hand), `stack` (a pile showing its top card), `spread` (a row), `trick` (cards placed toward whoever played them) |
-| `area`       | `hand` (bottom of your screen), `center` (the table), `strip` (a sideways-scrolling row), `seat` (by its owner), `none`    |
-| `hideEmpty`  | don't draw the zone while it's empty (e.g. hands laid face up at the end of Gin)                                           |
-| `scale`      | card size relative to other table cards (`0.8` for melds)                                                                  |
-| `peek`       | a stack showing its top few cards overlapping (the slap games)                                                             |
-| `faceUpHand` | a whole hand laid face up on the table (bridge's dummy), drawn the same however many cards are left                        |
-| `cascade`    | a stack whose bottom card peeks out above the top one (Kings Corners)                                                      |
-| `grid`       | `[row, column]` for a middle pile: a big screen lays the piles out so (Kings Corners' cross); a phone keeps one row        |
+| field        | meaning                                                                                                                                              |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `perPlayer`  | one copy per seat, with ids `hand:0`, `hand:1`, …                                                                                                    |
+| `visibility` | `all` (face up for everyone), `owner` (only that seat), `none` (nobody, e.g. the deck)                                                               |
+| `layout`     | `fan` (a hand), `stack` (a pile showing its top card), `spread` (a row), `trick` (cards placed toward whoever played them)                           |
+| `area`       | `hand` (bottom of your screen), `center` (the table), `strip` (everyone's melds, a row; a phone opens it full screen), `seat` (by its owner), `none` |
+| `hideEmpty`  | don't draw the zone while it's empty (e.g. hands laid face up at the end of Gin)                                                                     |
+| `scale`      | card size relative to other table cards (`0.8` for melds)                                                                                            |
+| `peek`       | a stack showing its top few cards overlapping (the slap games)                                                                                       |
+| `faceUpHand` | a whole hand laid face up on the table (bridge's dummy), drawn the same however many cards are left                                                  |
+| `cascade`    | a stack whose bottom card peeks out above the top one (Kings Corners)                                                                                |
+| `grid`       | `[row, column]` for a middle pile: a big screen lays the piles out so (Kings Corners' cross); a phone keeps one row                                  |
+| `reserve`    | a spread that keeps room for this many cards from the start, so the piles beside it don't shift as it grows                                          |
+| `piles`      | melds drawn as piles: cards of one rank stacked with a count, the odd ones (wild cards) fanned beside (Canasta)                                      |
 
 The host enforces visibility: cards a player can't see are replaced with anonymous placeholders
 **before** anything is sent over the network.

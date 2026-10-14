@@ -133,6 +133,10 @@ export interface ZoneConfig {
    */
   faceUpHand?: boolean;
   /**
+   * Melds of one rank (canasta's): each drawn as one squared pile with a count, its first card on top, and any cards of another rank in it (wild cards) fanned beside it, instead of every card in a row.
+   */
+  piles?: boolean;
+  /**
    * A pile spread out card by card that keeps growing (rummy 500's discard pile): on a table screen it keeps room for this many cards, overlapped the same from the first and more as it passes that, so the piles beside it don't slide about.
    */
   reserve?: number;

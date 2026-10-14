@@ -11,7 +11,7 @@
     { "id": "deck", "label": "Stock", "visibility": "none", "layout": "stack", "area": "center", "scale": 0.85 },
     { "id": "discard", "label": "Discard", "visibility": "all", "layout": "stack", "area": "center", "scale": 0.85 },
     { "id": "hand", "perPlayer": true, "visibility": "owner", "layout": "fan", "area": "hand" },
-    { "id": "melds", "perPlayer": true, "visibility": "all", "layout": "spread", "area": "strip", "hideEmpty": true, "scale": 0.7 }
+    { "id": "melds", "perPlayer": true, "visibility": "all", "layout": "spread", "area": "strip", "hideEmpty": true, "scale": 0.7, "piles": true }
   ],
   "rules": { "family": "canasta", "end": { "target": 5000 } },
   "byPlayers": {

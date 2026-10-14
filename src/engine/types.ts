@@ -71,6 +71,8 @@ export interface ZoneState {
   cascade?: boolean;
   /** A pile spread card by card that keeps growing: room kept for this many cards on a table screen. */
   reserve?: number;
+  /** Melds of one rank drawn as squared piles with a count (canasta's), cards of another rank fanned beside. */
+  piles?: boolean;
   /** Where the pile sits on a big screen's table, [row, column] (Kings Corners' cross). */
   grid?: [number, number];
   cards: CardRef[];

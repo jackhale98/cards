@@ -24,6 +24,7 @@
   import { fade, fly } from 'svelte/transition';
   import { cubicIn, cubicOut } from 'svelte/easing';
   import { isHidden } from '../../engine/redact';
+  import { parseCard } from '../../engine/cards';
   import { SCREEN_SOUND } from '../../net/host';
   import { seatColor } from '../seatColors';
   import { keepAwake } from '../wakeLock';
@@ -543,9 +544,20 @@
    */
   /** The height a table screen's strip of melds has, measured (see fitHeight). */
   let stripSpace = $state(0);
-  const unitsOf = (z: { cards: { group?: number }[] }) =>
+  const unitsOf = (z: { piles?: boolean; cards: { id: string; group?: number }[] }) => {
+    const starts = z.cards.filter((c, i) => i > 0 && c.group != null && c.group !== z.cards[i - 1].group).length;
+    // (as piles: one card's width a meld, and half a card for each of another rank fanned beside it)
+    if (z.piles) {
+      let odd = 0;
+      z.cards.forEach((c, i) => {
+        const first = z.cards.findIndex((x) => x.group === c.group);
+        if (i !== first && parseCard(c.id).rank !== parseCard(z.cards[first].id).rank) odd++;
+      });
+      return 1 + starts * 1.22 + odd * 0.45;
+    }
     // (in the strip each card past the first shows 0.65 of a card; a new meld starts 0.67 further on)
-    1 + Math.max(0, z.cards.length - 1) * 0.65 + z.cards.filter((c, i) => i > 0 && c.group != null && c.group !== z.cards[i - 1].group).length * 0.67;
+    return 1 + Math.max(0, z.cards.length - 1) * 0.65 + starts * 0.67;
+  };
   const stripFit = $derived.by(() => {
     if (!display || !stripZones.length || !mainW || !mainH) return Infinity;
     const rem = tvRem;
@@ -556,6 +568,8 @@
     const room = stripSpace > 0 ? stripSpace : mainH - (centerCw * 1.4 + 2 * rem) - 5 * rem;
     if (room < 60) return Infinity;
     const units = stripZones.map(unitsOf);
+    // (a panel is at least as wide as its label: small capitals, about half a rem a letter)
+    const labelW = stripZones.map((z) => (z.label?.length ?? 0) * 0.56 * rem);
     const largest = Math.round(centerCw * Math.max(...stripZones.map((z) => z.scale ?? 1)));
     // the biggest cards that let everyone's melds pack into rows that fit across and down; a long
     // run of melds (a team's in Hand and Foot) wraps onto more lines of its own
@@ -565,11 +579,11 @@
       let height = 0;
       let rowH = 0;
       let x = 0;
-      for (const u of units) {
-        const w = u * cw + pad;
+      for (const [i, u] of units.entries()) {
+        const w = Math.max(u * cw, labelW[i]) + pad;
         const lines = Math.ceil(w / across);
         // (each panel: its lines of cards, a label above them and its padding)
-        const h = lines * cw * 1.4 + (lines - 1) * 0.3 * rem + 2.2 * rem;
+        const h = lines * cw * 1.4 + (lines - 1) * 0.3 * rem + 2.5 * rem;
         if (lines > 1 || (x && x + 24 + w > across)) {
           height += rowH ? rowH + 0.6 * rem : 0;
           rowH = 0;
@@ -630,7 +644,13 @@
   const manyButtons = $derived(view.actions.filter((a) => !a.menu).length > 2);
 
   // ---- chrome -----------------------------------------------------------------------------
-  let sheet = $state<'menu' | 'scores' | 'tv' | 'look' | 'save' | null>(null);
+  let sheet = $state<'menu' | 'scores' | 'tv' | 'look' | 'save' | 'spread' | null>(null);
+  // (as big as a short screen allows, the hand below kept small)
+  const spreadCw = $derived(Math.max(MIN_CW, Math.min(60, Math.round(vh * 0.12))));
+  // (nothing left to show: the full-screen view of the melds closes itself, e.g. at a new hand)
+  $effect(() => {
+    if (sheet === 'spread' && !allStripZones.length) sheet = null;
+  });
   let bannerHidden = $state<number | null>(null);
   const showBanner = $derived(!!status.banner && bannerHidden !== s.v);
   // (remembered for the visit, so a new table doesn't ask again)
@@ -929,6 +949,10 @@
         <div class="strip-room" aria-hidden="true"></div>
       {:else if stripZones.length}
         <div class="strip" data-wide={display || undefined} use:edgeFade>
+          {#if !display && !replay}
+            <!-- (a phone's strip is a sliver: everyone's melds full screen, to browse and play onto) -->
+            <button class="spread-open" onclick={() => (sheet = 'spread')} aria-label="See it all, full screen" title="See it all, full screen">⤢</button>
+          {/if}
           {#each stripZones as z (z.id)}
             <Zone
               zone={z}
@@ -1075,7 +1099,45 @@
   </div>
 {/if}
 
-{#if sheet === 'tv'}
+{#if sheet === 'spread'}
+  <Sheet title="On the table" full onclose={() => (sheet = null)}>
+    <div class="spread-all">
+      {#each allStripZones as z (z.id)}
+        <Zone
+          zone={z}
+          cw={spreadCw}
+          {you}
+          players={n}
+          {selected}
+          {selectable}
+          ontap={tap}
+          zoneActive={!!zoneAction(z.id)}
+          place={!!zoneAction(z.id)?.select}
+          onzone={zoneAction(z.id) ? () => run(zoneAction(z.id)!) : undefined}
+          fast={!!zoneAction(z.id)?.react}
+        />
+      {/each}
+    </div>
+    <!-- (your hand and your moves, so you can meld and lay off from here) -->
+    <div class="spread-dock">
+      <div class="spread-hand"><Hand cards={myHand} cw={Math.round(spreadCw * 0.85)} {selected} {selectable} ontap={tap} onswipe={swipe} /></div>
+      <div class="spread-acts">
+        <ActionBar
+          actions={view.actions}
+          {selected}
+          pot={status.pot}
+          onact={(spec, amount, seat) => run(spec, amount, selected, seat)}
+          onclear={() => (selected = [])}
+          seatInfo={(seat) => ({
+            name: s.players[seat]?.name ?? '',
+            avatar: lobbySeat(seat)?.avatar,
+            relation: seatRelation(you, seat, n),
+          })}
+        />
+      </div>
+    </div>
+  </Sheet>
+{:else if sheet === 'tv'}
   <TvSheet table={view.lobby.code} onclose={() => (sheet = null)} />
 {/if}
 
@@ -1571,6 +1633,68 @@
   }
   .strip :global(.spread .scard + .scard) {
     margin-left: calc(var(--cw) * -0.45);
+  }
+  .spread-open {
+    position: sticky;
+    left: 0;
+    z-index: 3;
+    align-self: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    font-size: 1.1rem;
+    color: var(--ink);
+    background: rgba(8, 26, 20, 0.85);
+    background: color-mix(in srgb, var(--felt-3) 85%, transparent);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.15);
+  }
+  /* everyone's melds full screen: panels that wrap, the page scrolling down */
+  .spread-all {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    gap: 10px;
+    padding: 4px 2px 8px;
+  }
+  .spread-all > :global(.zone) {
+    max-width: 100%;
+    padding: 0.25rem 0.5rem 0.4rem;
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.16);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+  }
+  .spread-all :global(.spread),
+  .spread-all :global(.piles) {
+    flex-wrap: wrap;
+    row-gap: 0.3rem;
+  }
+  .spread-dock {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+    padding-top: 6px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  .spread-hand {
+    flex: 1;
+    min-width: 0;
+  }
+  .spread-acts {
+    flex: none;
+    width: min(15rem, 38vw);
+    max-height: 7.5rem;
+  }
+  /* (the moves in a row that wraps, beside the hand, rather than a tall column) */
+  .spread-acts :global(.bar) {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-content: flex-end;
+  }
+  .spread-acts :global(.bar .btn) {
+    flex: 1 1 6rem;
   }
   /* a table screen can't be scrolled: the melds wrap into rows instead (sized to fit: see stripFit) */
   /* (before the first meld: just its place, under the piles) */

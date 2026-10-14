@@ -125,6 +125,10 @@
             "type": "boolean",
             "description": "A whole hand laid face up on the table (bridge's dummy): drawn the same way however many cards are left, so the rest don't jump about as cards are played from it."
           },
+          "piles": {
+            "type": "boolean",
+            "description": "Melds of one rank (canasta's): each drawn as one squared pile with a count, its first card on top, and any cards of another rank in it (wild cards) fanned beside it, instead of every card in a row."
+          },
           "reserve": {
             "type": "integer",
             "minimum": 2,
