@@ -69,9 +69,17 @@ describe('hand and foot (pagat)', () => {
     const s = rig(['5H', '5S', '5C', '4D']);
     const pile = (rank: number, cards: string[]) => ({ team: 0, rank, cards });
     // (a dirty pile whose naturals are all red is topped with its black 2)
-    s.data.melds = [pile(13, ['KS', 'KC', 'KH', 'KS', 'KC', 'KS', 'KC']), pile(9, ['9H', '9D', '9H', '9D', '9H', '2D', '2C'])];
+    s.data.melds = [pile(13, ['KS', 'KC', 'KH', 'KS#2', 'KC#2', 'KS#3', 'KC#3']), pile(9, ['9H', '9D', '9H#2', '9D#2', '9H#3', '2D', '2C'])];
     g.apply(s, 0, { type: 'meld', cards: ['5H', '5S', '5C'] });
-    expect(ids(s, 'melds:0').slice(0, 2)).toEqual(['KH', '2C']);
+    const z = s.zones['melds:0'].cards;
+    // (all seven in the pile, with its count; its top card last)
+    const shown = (k: number) => z.slice(k * 7, k * 7 + 7);
+    expect(shown(0).every((c) => c.square)).toBe(true);
+    expect(shown(0).at(-1)!.id).toBe('KH');
+    expect(shown(1).every((c) => c.square)).toBe(true);
+    expect(shown(1).at(-1)!.id).toBe('2C');
+    // an unfinished meld isn't squared up
+    expect(z.slice(14).some((c) => c.square)).toBe(false);
   });
 
   it('a black 3 on top blocks the pile', () => {

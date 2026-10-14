@@ -129,14 +129,12 @@ export function handFootFamily(config: GameConfig): GameModule<HandFootData> {
     return p.clean >= NEED.clean && p.dirty >= NEED.dirty && p.wild >= NEED.wild && teamSeats(s, team).every((i) => s.data.footTaken[i]);
   }
 
-  /** Lay out a side: red 3s, unfinished melds in full, finished piles as their top card (the rest squared up beneath). */
+  /** Lay out a side: red 3s, unfinished melds in full, finished piles squared up under their top card. */
   function relayout(s: S) {
     for (const t of teams(s)) {
       const z = zone(s, meldZ(t));
-      const under = zone(s, `stacked:${t}`);
       const melds = teamMelds(s, t).sort((a, b) => Number(isPile(b)) - Number(isPile(a)) || b.rank - a.rank);
       z.cards = [...s.data.red3[t].map((id) => ({ id, up: true, group: -1 }))];
-      under.cards = [];
       melds.forEach((m, i) => {
         if (isPile(m)) {
           // a clean pile is topped with a red card, a dirty one with a black card (a black 2 when its
@@ -149,8 +147,8 @@ export function handFootFamily(config: GameConfig): GameModule<HandFootData> {
               : k === 'clean'
                 ? m.cards.find((c) => !black(c))
                 : (m.cards.find((c) => !isWild(c) && black(c)) ?? m.cards.find(black))) ?? m.cards[0];
-          z.cards.push({ id: topId, up: true, group: i });
-          under.cards.push(...m.cards.filter((c) => c !== topId).map((id) => ({ id, up: true })));
+          const rest = m.cards.filter((_, j) => j !== m.cards.indexOf(topId));
+          z.cards.push(...[...rest.filter((c) => !isWild(c)), ...rest.filter(isWild), topId].map((id) => ({ id, up: true, group: i, square: true })));
         } else z.cards.push(...[...m.cards.filter((c) => !isWild(c)), ...m.cards.filter(isWild)].map((id) => ({ id, up: true, group: i })));
       });
       const p = piles(s, t);
