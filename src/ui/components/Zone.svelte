@@ -53,6 +53,13 @@
     return { x: Math.cos(angle) * cw * 0.9, y: Math.sin(angle) * cw * 0.42, rot: (rel % 2 ? 1 : -1) * (3 + rel * 2) };
   }
   const top = $derived(zone.cards[zone.cards.length - 1]);
+  const under = $derived.by(() => {
+    const n = zone.cards.length;
+    // (not where it's already drawn: fanned out beside the top, or as a cascade's peeking bottom card)
+    if (zone.peek || (zone.cascade && n === 2)) return undefined;
+    const c = zone.cards[n - 2];
+    return c && c.up !== false && !isHidden(c.id) ? c : undefined;
+  });
 
   /**
    * A whole hand face up (bridge's dummy) keeps the width its thirteen cards took: as it's played
@@ -95,7 +102,13 @@
       {#if zone.cascade && zone.cards.length > 1}
         <!-- a cascade: the bottom card peeks out above the top one (where the whole pile can go) -->
         <div class="bottom"><Card id={zone.cards[0].id} /></div>
-      {:else if zone.cards.length > 1}<div class="under"><Card id="?u" /></div>{/if}
+      {/if}
+      {#if zone.cards.length > 1}
+        <!-- the card under the top: as it was, when it's face up, so it stays in sight while a new
+             card flies in to cover it (a corner pile in Kings Corners mustn't flash its bottom card) -->
+        <div class="under">
+          {#if under}<Card id={under.id} />{:else}<Card id="?u" />{/if}
+        </div>{/if}
       {#if zone.cards.length > 8}<div class="under two"><Card id="?u2" /></div>{/if}
       {#each below as c, i (c.id)}
         <!-- the cards just under the top, fanned out to the left -->

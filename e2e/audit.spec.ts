@@ -117,6 +117,8 @@ async function check(page: Page): Promise<string[]> {
       .forEach((el) => {
         if (!shown(el) || !(el.textContent ?? '').trim()) return;
         if (el.closest('.seats') && !el.closest('.seat-slot')) return;
+        // (a line that glides along its box to show the rest: see src/ui/marquee.ts)
+        if (el.closest('.moving')) return;
         const st = getComputedStyle(el);
         const clips = (o: string) => o === 'hidden' || o === 'clip';
         const wide = el.scrollWidth > el.clientWidth + 1 && (clips(st.overflowX) || st.textOverflow === 'ellipsis');

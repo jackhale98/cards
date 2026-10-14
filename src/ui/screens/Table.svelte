@@ -122,7 +122,9 @@
     // room left over once everything fits (a small middle, a short hand): most of it to your hand,
     // up to a ceiling (some margin kept: the middle's height is an estimate)
     let hand = wantHand * k;
-    if (k >= 1 && wantHand && !handMode) {
+    // (not when the piles are one row as wide as fits, Kings Corners on a phone: they can't use the
+    // height, and the hand needn't be bigger than the piles it's played onto)
+    if (k >= 1 && wantHand && !handMode && rowFit === Infinity) {
       const spare = room - need(1);
       if (spare > 0) hand = Math.min(Math.max(hand, Math.min(160, vh * 0.3, vw * 0.15)), hand + (0.8 * spare) / 1.45);
     }
