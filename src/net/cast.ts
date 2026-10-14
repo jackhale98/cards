@@ -51,7 +51,8 @@ export const CAST_ERRORS: Record<string, string> = {
   extension_missing: 'Casting needs Chrome',
   api_not_initialized: 'Casting isn’t ready yet — try again in a second',
   load_media_failed: 'The TV couldn’t open Lamplight',
-  invalid_parameter: 'Your phone is still connecting to the TV — try again in a moment',
+  // (a request that never finishes stays stuck until the page reloads; a host's table comes back with it)
+  invalid_parameter: 'Your phone is still connecting to the TV — try again in a moment, or reload the page if it keeps saying this',
 };
 
 export class CastError extends Error {
