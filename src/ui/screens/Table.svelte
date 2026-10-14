@@ -20,6 +20,8 @@
   import { flight, haptic, play, snapshot } from '../motion';
   import { play as playSound, setSound, soundOn, type Sound } from '../sound';
   import { fourColourOn, setFourColour } from '../suits';
+  import { fade, fly } from 'svelte/transition';
+  import { cubicOut } from 'svelte/easing';
   import { isHidden } from '../../engine/redact';
   import { SCREEN_SOUND } from '../../net/host';
   import { seatColor } from '../seatColors';
@@ -437,6 +439,8 @@
    */
   const playFrom = $derived(display || you < 0 ? null : (centerZones.find((z) => z.faceUpHand && z.cards.some((c) => selectable?.has(c.id))) ?? null));
   const fanCards = $derived(playFrom ? playFrom.cards : myHand);
+  /** How long the two hands take to trade places (none, for reduced motion). */
+  const swapMs = matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 260;
   /**
    * The buttons sit beside the middle, so your hand has the whole width; when there are more of
    * them than fit there (poker's fold, call, raise, all in on a phone) they run down beside your
@@ -495,6 +499,17 @@
     return { left: keep(50 + Math.cos(a) * 40, slotW[seat]), top: keep(50 + Math.sin(a) * 39, slotH[seat]) };
   }
   const handCw = $derived(Math.round(Math.max(handMode && !stripZones.length ? 56 : pileOnly ? 36 : 44, cardSizes.hand)));
+  /**
+   * Everyone's melds on the table (rummy games): the middle runs to the right-hand edge and the
+   * buttons sit beside your hand, when they fit there (compact: about 38px each) without making
+   * that row taller than the hand. Decided once a part of the game, so it doesn't jump turn to turn.
+   */
+  let wideOff = $state('');
+  const wideFits = $derived(view.actions.filter((a) => !a.menu).length * 44 <= handCw * 1.4 + 30);
+  $effect(() => {
+    if (stripZones.length && !wideFits && wideOff !== tallKey) wideOff = tallKey;
+  });
+  const wideMiddle = $derived(!display && !handMode && !replay && stripZones.length > 0 && wideFits && wideOff !== tallKey);
 
   // ---- chrome -----------------------------------------------------------------------------
   let sheet = $state<'menu' | 'scores' | 'tv' | 'look' | 'save' | null>(null);
@@ -678,7 +693,14 @@
   {/if}
 {/snippet}
 
-<div class="table" class:display class:handmode={handMode} class:tall-actions={!!replay || actionsBesideHand} bind:this={tableEl}>
+<div
+  class="table"
+  class:display
+  class:handmode={handMode}
+  class:tall-actions={!!replay || actionsBesideHand}
+  class:wide-middle={wideMiddle}
+  bind:this={tableEl}
+>
   <!-- top: menu + opponents + scores -->
   <header bind:clientHeight={headerH}>
     <button class="icon" onclick={() => (sheet = 'menu')} aria-label="Menu">
@@ -730,7 +752,12 @@
     {#if !side}{@render tableStatus()}{/if}
     <div class="zones" class:has-strip={stripZones.length > 0} class:cross class:row-fit={rowFit < Infinity} use:fitHeight>
       {#each shownCenter as z (z.id)}
-        <div class="zone-slot" style:grid-row={cross ? z.grid![0] + 1 : undefined} style:grid-column={cross ? z.grid![1] + 1 : undefined}>
+        <div
+          class="zone-slot"
+          in:fade={{ duration: z.faceUpHand || z.id === `hand:${you}` ? swapMs : 0 }}
+          style:grid-row={cross ? z.grid![0] + 1 : undefined}
+          style:grid-column={cross ? z.grid![1] + 1 : undefined}
+        >
           <Zone
             zone={playFrom?.id === z.id ? { ...z, id: `hand:${you}`, label: 'Your hand', cards: myHand } : z}
             cw={Math.max(
@@ -857,8 +884,14 @@
             fast={!!zoneAction(myHandZone.id)?.react}
           />
         {:else}
-          {#if playFrom?.label}<div class="fan-label eyebrow">{playFrom.label}</div>{/if}
-          <Hand cards={fanCards} cw={handCw} {selected} {selectable} fresh={playFrom ? [] : freshIds} ontap={tap} onswipe={swipe} />
+          <!-- (your hand and the dummy trade places as two whole hands, each sliding in: not
+               twenty-six cards flying past each other) -->
+          {#key playFrom?.id ?? 'own'}
+            <div class="fan" in:fly={{ y: 36, duration: swapMs, easing: cubicOut }}>
+              {#if playFrom?.label}<div class="fan-label eyebrow">{playFrom.label}</div>{/if}
+              <Hand cards={fanCards} cw={handCw} {selected} {selectable} fresh={playFrom ? [] : freshIds} ontap={tap} onswipe={swipe} />
+            </div>
+          {/key}
         {/if}
       </div>
     </footer>
@@ -1080,6 +1113,22 @@
       'me center actions'
       'hand hand actions';
   }
+  /* everyone's melds on the table (rummy games): they're what you play onto, so the middle runs
+     to the right-hand edge and the buttons sit in line with your hand */
+  .table.wide-middle {
+    grid-template-areas:
+      'top top top'
+      'me center center'
+      'hand hand actions';
+  }
+  .table.wide-middle aside :global(.bar) {
+    gap: 0.35rem;
+    justify-content: flex-end;
+  }
+  .table.wide-middle aside :global(.bar .btn) {
+    min-height: 38px;
+    padding-block: 0.25em;
+  }
   .table.handmode {
     grid-template-rows: auto auto 1fr;
   }
@@ -1091,9 +1140,6 @@
   }
   .table.handmode .me {
     font-size: 0.9rem;
-  }
-  .table.handmode .hint {
-    font-size: 0.85rem;
   }
   /* ---- table screen: an oval table filling the screen, players around it ---- */
   .table.display {
@@ -1627,9 +1673,15 @@
     color: var(--gold);
     font-weight: 600;
   }
+  /* (a hint, "Melded 0 · holding 57": small, under your score) */
   .hint {
-    margin-top: 0.2rem;
-    font-size: 0.75rem;
+    margin-top: 0.15rem;
+    font-size: 0.7rem;
+    font-weight: 500;
+    opacity: 0.9;
+  }
+  .fan {
+    position: relative;
   }
   .hand-wrap {
     position: relative;

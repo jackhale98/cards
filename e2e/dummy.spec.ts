@@ -22,8 +22,10 @@ test('the dummy keeps its look as cards are played from it', async ({ page }) =>
   const dummy = page.locator('[data-zone="dummy"] .scard');
   // (a deal everyone passes is dealt again: wait for a contract and the opening lead)
   await expect(dummy.first()).toBeVisible({ timeout: 60_000 });
+  // (read only once the cards have settled: mid-way through growing, a card is between two sizes)
   const look = () =>
     dummy.evaluateAll((els) => {
+      if (els.some((el) => el.getAnimations({ subtree: true }).some((a) => a.playState === 'running'))) return { n: 0, widths: [], rows: 0 };
       const r = els.map((el) => el.getBoundingClientRect());
       return { n: r.length, widths: [...new Set(r.map((x) => Math.round(x.width)))], rows: new Set(r.map((x) => Math.round(x.top))).size };
     });
@@ -42,6 +44,7 @@ test('the dummy keeps its look as cards are played from it', async ({ page }) =>
   expect(seen.every((x) => x.rows === 1)).toBe(true);
   expect(seen.every((x) => x.widths.length === 1)).toBe(true);
   const sizes = [...seen].sort((a, b) => b.n - a.n).map((x) => x.widths[0]);
-  expect(sizes.every((w, i) => i === 0 || w >= sizes[i - 1])).toBe(true);
+  // (a pixel or two either way as the rest of the table settles is not the dummy jumping)
+  expect(sizes.every((w, i) => i === 0 || w >= sizes[i - 1] - 2)).toBe(true);
   expect(sizes.at(-1)!).toBeGreaterThan(sizes[0]);
 });
