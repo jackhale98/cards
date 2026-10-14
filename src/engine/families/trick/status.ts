@@ -51,7 +51,6 @@ export function trickStatus(g: TrickGame, s: S, viewer: number): GameStatus {
     else if (s.turn === viewer) headline = leading ? (d.trickNo === 0 && R.lead === 'twoOfClubs' ? 'Lead the 2♣' : 'Your lead') : 'Your turn';
     else if (ctl != null && ctl !== s.turn) headline = `${name(s, ctl)} to play from dummy`;
     else if (s.turn != null) headline = `${name(s, s.turn)} to play`;
-    if (d.bridge && d.maker != null) headline = [headline, `${bridgeLabel(d.bridge, true)} by ${name(s, d.maker)}`].filter(Boolean).join(' · ');
   } else if (s.phase === 'blind') {
     headline = s.turn === viewer ? 'Bid blind nil before looking at your cards, or look?' : `${name(s, s.turn!)} is deciding on blind nil`;
   } else if (s.phase === 'blindPass' || s.phase === 'blindReturn') {
@@ -66,7 +65,7 @@ export function trickStatus(g: TrickGame, s: S, viewer: number): GameStatus {
     headline = s.turn === viewer ? `You shot the moon! Take ${totalPoints} off, or give everyone ${totalPoints}?` : `🌙 ${name(s, s.turn!)} shot the moon`;
   } else if (s.phase === 'roundOver') headline = 'Hand complete';
   else if (s.phase === 'gameOver') headline = 'Game over';
-  // (a bridge contract already names its trump suit)
+  // (a bridge contract names its trump suit, and the declarer's badge shows it)
   if (d.trump && s.phase !== 'gameOver' && !d.bridge) headline += ` · trumps ${SUIT_SYMBOL[d.trump]}`;
   // five-handed 500: the called card (its holder only once it's played, or to themselves)
   if (d.called && (s.phase === 'play' || s.phase === 'trickEnd'))

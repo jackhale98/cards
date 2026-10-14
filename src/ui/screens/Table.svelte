@@ -64,6 +64,8 @@
    */
   const side = $derived(!display && !handMode && vh <= 500);
   let headH = $state(0);
+  /** How wide a face-up hand in the middle (the dummy) may grow before the middle runs out of height. */
+  let growTo = $state(Infinity);
   /**
    * The table's height shared out between the cards in the middle and your hand, from what's left
    * once the seats, the score track and the headline have theirs. On a short screen (a phone with
@@ -242,6 +244,12 @@
       // (too tall, or too wide: a showdown's two seven-card hands side by side on a phone)
       const k = Math.min(1, room / Math.max(1, h), main.clientWidth / Math.max(1, w, el.offsetWidth));
       const want = Math.max(0.6, Math.min(1, k));
+      // the dummy's cards grow as it empties: only into the height that's spare, not past it
+      const card = el.querySelector<HTMLElement>('.handdown .scard');
+      if (card?.offsetHeight) {
+        const max = Math.floor((card.offsetWidth * (card.offsetHeight + room - h)) / card.offsetHeight);
+        if (Math.abs(max - growTo) >= 1) growTo = max;
+      }
       // (back to full size at once; smaller only once it's lasted a moment, so the brief overflow
       // as a meld lands, before the sizes catch up, doesn't make the middle twitch)
       clearTimeout(settle);
@@ -810,6 +818,7 @@
             onzone={zoneAction(z.id) ? () => run(zoneAction(z.id)!) : undefined}
             fast={!!zoneAction(z.id)?.react}
             {roomy}
+            {growTo}
           />
         </div>
       {/each}
@@ -1600,7 +1609,10 @@
     justify-content: space-between;
     gap: 6px;
     min-height: 0;
-    max-width: clamp(130px, 24vw, 210px);
+    /* a set width, not the width of the words in it: a one-line tip that grew and shrank with
+       each move would push the middle (and every card in it) about */
+    width: clamp(130px, 24vw, 210px);
+    max-width: none;
   }
   /* (a short column: the last move gives way first, so nothing runs into your name below) */
   .side-status {

@@ -151,7 +151,7 @@ describe('bridge', () => {
 });
 
 describe('bridge headline', () => {
-  it('names the contract cleanly when a trick has just been won (no stray "·" in front)', () => {
+  it("leaves the contract to the declarer's badge, not the tip", () => {
     for (let seed = 1; seed < 20; seed++) {
       let s = g.setup(bots, seed, {});
       for (let i = 0; i < 400 && s.phase !== 'trickEnd' && s.phase !== 'gameOver'; i++) {
@@ -166,10 +166,10 @@ describe('bridge headline', () => {
         s = next;
       }
       if (s.phase !== 'trickEnd' || s.turn != null) continue;
-      const h = g.status(s, 0).headline!;
-      expect(h).toMatch(/^\S/);
-      expect(h.startsWith('·')).toBe(false);
-      expect(h).toMatch(/ by P\d$/);
+      const st = g.status(s, 0);
+      const contract = st.seats[s.data.maker as number].badge!.match(/^Declarer (\S+)/)![1];
+      expect(st.headline ?? '').not.toContain(contract);
+      expect(st.headline ?? '').not.toContain(' by ');
       return;
     }
     throw new Error('no deal reached the end of a trick');
