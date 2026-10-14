@@ -9,7 +9,7 @@ the middle of the table. It needs no accounts or app store, and there's no serve
   cheat, go fish, slap, spit, spoons, free table):
   - _Poker:_ Texas Hold'em, Omaha, Five Card Draw (jacks-or-better option), Seven Card Stud (bring-in, up cards on the table).
   - _Casino:_ Blackjack (double, split, insurance, surrender option), Baccarat (Punto Banco).
-  - _Trick-taking:_ Contract Bridge (full auction, dummy, duplicate scoring with Chicago vulnerability), Euchre (bowers,
+  - _Trick-taking:_ Contract Bridge (full auction, dummy; Chicago or rubber scoring), Euchre (bowers,
     going alone), 500 (Avondale bids, misère and open misère, kitty, joker), Hearts (moon shooter's choice), Oh Hell,
     Pinochle (auction, passing, meld), Spades (nil, blind nil, bags), Whist (honours option).
   - _Rummy:_ Canasta (may I go out?, play after the stock), Gin Rummy, Hand and Foot, Rummy 500 (jokers, Rummy! calls).

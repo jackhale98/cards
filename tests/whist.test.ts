@@ -62,7 +62,10 @@ describe('whist (pagat)', () => {
       const s = g.setup(bots(4), seed, { honours: true });
       const h = s.data.honours;
       if (!h) continue;
+      // nobody is told who holds honours until the hand is scored
+      for (let v = 0; v < 4; v++) expect(g.redactData!(s, v).honours).toBeNull();
       playOut(s);
+      expect(g.redactData!(s, 0).honours).toEqual(h);
       const won = [0, 1].map((t) => s.data.tricks[t] + s.data.tricks[t + 2]);
       const best = won[0] > won[1] ? 0 : 1;
       const tricks = [0, 1].map((t) => (t === best ? won[t] - 6 : 0));

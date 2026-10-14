@@ -52,6 +52,10 @@ export interface TrickData {
   dummy?: number | null;
   dummyUp?: boolean;
   vul?: boolean[];
+  /** Bridge: each side's part score toward the next game (below the line); rubber: games won, and whether the rubber is over. */
+  below?: number[];
+  games?: number[];
+  rubberWon?: boolean;
   /** Hearts: the moon shooter's choice — add 26 to everyone else or take 26 off their own score. */
   moon?: 'add' | 'sub' | null;
   /** Euchre: a defender playing alone (their partner sits out too). */
@@ -65,8 +69,9 @@ export interface TrickData {
   ledSuits?: string[];
   /** Whist: the dealer's turned-up last card (showing until they play to the first trick). */
   trumpCard?: string | null;
-  /** Whist honours: the side dealt three or four of A K Q J of trumps, and how many. */
-  honours?: { team: number; count: number } | null;
+  /** Honours: whist, the side dealt three or four of A K Q J of trumps; rubber bridge, the player holding
+   *  four or five of A K Q J 10 of trumps (or all four aces in no trumps), and what they're worth. */
+  honours?: { team: number; count: number; seat?: number; pts?: number } | null;
   /** Spades: blind nil bidders this hand, and who still has to decide (before looking). */
   blind?: boolean[];
   blindToAsk?: number[];
@@ -125,6 +130,8 @@ export function trickGame(config: GameConfig): TrickGame {
 }
 
 /** Points to play to (the `target` option, else the game's own). */
+/** Bridge scored as a rubber (the `style` option) rather than Chicago. */
+export const rubberBridge = (s: S) => Number(s.options.style ?? 0) === 1;
 export const target = (g: TrickGame, s: S) => Number(s.options.target ?? g.R.end.target ?? 100);
 
 /** "ladder": from the most cards (as many as the deck allows, up to `maxHand`) down to one and back up. */

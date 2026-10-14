@@ -1,7 +1,7 @@
 import { name } from '../../state';
-import { bridgeLabel, bridgeScore, contractLabel } from './contracts';
+import { bridgeLabel, bridgeParts, contractLabel } from './contracts';
 import { teamName, teamOf, teamsFor } from './sides';
-import { target, totalRounds, type S, type TrickGame } from './types';
+import { rubberBridge, target, totalRounds, type S, type TrickGame } from './types';
 
 /** Scoring a hand, and whether the game is over. */
 
@@ -59,14 +59,50 @@ export function roundScores(g: TrickGame, s: S): { deltas: number[]; lines: stri
   } else if (sc.type === 'bridge') {
     const c = d.bridge!;
     const side = teamOf(g, s, d.maker!);
+    const vul = !!d.vul?.[side];
     const won = teams[side].reduce((n, i) => n + d.tricks[i], 0);
-    const pts = bridgeScore(c, !!d.vul?.[side], won);
-    if (pts >= 0) deltas[side] = pts;
-    else deltas[1 - side] = -pts;
     const diff = won - c.level - 6;
     lines.push(
-      `${name(s, d.maker!)} ${diff >= 0 ? `made ${bridgeLabel(c)}${diff ? ` +${diff}` : ''}` : `went down ${-diff} in ${bridgeLabel(c)}`}${d.vul?.[side] ? ' (vulnerable)' : ''}`,
+      `${name(s, d.maker!)} ${diff >= 0 ? `made ${bridgeLabel(c)}${diff ? ` +${diff}` : ''}` : `went down ${-diff} in ${bridgeLabel(c)}`}${vul ? ' (vulnerable)' : ''}`,
     );
+    // Chicago and rubber alike: the tricks bid go below the line, and 100 there is a game
+    const rubber = rubberBridge(s);
+    const { below, above } = bridgeParts(c, vul, won);
+    const part = (d.below ??= teams.map(() => 0));
+    let game = false;
+    if (!below) deltas[1 - side] = -above;
+    else {
+      deltas[side] = below + above;
+      part[side] += below;
+      if (part[side] >= 100) {
+        game = true;
+        // a game wipes out both sides' part scores
+        d.below = part.map(() => 0);
+        if (rubber) {
+          d.games![side]++;
+          lines.push(`${teamName(g, s, side)} win a game`);
+        } else {
+          deltas[side] += vul ? 500 : 300;
+          lines.push(`Game: +${vul ? 500 : 300}`);
+        }
+      } else if (!rubber && d.round % 4 === 3) {
+        deltas[side] += 100;
+        lines.push('A part score on the fourth deal: +100');
+      }
+    }
+    // Chicago: part scores last only through each set of four deals
+    if (!rubber && d.round % 4 === 3) d.below = part.map(() => 0);
+    const h = d.honours;
+    if (rubber && h?.pts) {
+      deltas[h.team] += h.pts;
+      lines.push(`${name(s, h.seat!)} held ${d.bridge!.strain === 'NT' ? 'all four aces' : `${h.count} trump honours`}: +${h.pts}`);
+    }
+    if (rubber && game && d.games![side] === 2) {
+      const bonus = d.games![1 - side] ? 500 : 700;
+      deltas[side] += bonus;
+      d.rubberWon = true;
+      lines.push(`${teamName(g, s, side)} win the rubber: +${bonus}`);
+    }
   } else if (sc.type === 'auction') {
     const c = d.contract!;
     const makers = teamOf(g, s, d.maker!);
@@ -170,7 +206,9 @@ export function endRound(g: TrickGame, s: S) {
   if (g.auction) return endAuctionRound(g, s, deltas, lines);
   const best = lowWins ? Math.min(...d.scores) : Math.max(...d.scores);
   const reached = R.end.deals
-    ? d.round + 1 >= Number(s.options.deals ?? R.end.deals)
+    ? g.bridgeBids && rubberBridge(s)
+      ? !!d.rubberWon
+      : d.round + 1 >= Number(s.options.deals ?? R.end.deals)
     : R.end.rounds
       ? d.round + 1 >= totalRounds(g, s)
       : lowWins

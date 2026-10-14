@@ -4,7 +4,7 @@ import { assertRule, type Action } from '../../types';
 import { NAMEABLE, SAME_COLOUR } from './contracts';
 import { openerOf, suitOf } from './play';
 import { active, nextActive, partnersOf, teamOf, teamsFor } from './sides';
-import { sequence, type S, type TrickGame } from './types';
+import { rubberBridge, sequence, type S, type TrickGame } from './types';
 
 /** A hand from the deal to the first lead: dealing, turning up trumps, and who bids and leads. */
 
@@ -53,10 +53,15 @@ export function startRound(g: TrickGame, s: S) {
     d.bridge = null;
     d.dummy = null;
     d.dummyUp = false;
-    // Chicago as pagat plays it now: nobody, then the side not dealing on deals 2 and 3 (as on
-    // duplicate boards 2 and 3), then everybody. The original game had the dealer's side instead.
+    d.below ??= teamsFor(g, n).map(() => 0);
+    d.games ??= teamsFor(g, n).map(() => 0);
     const k = d.round % 4;
-    d.vul = teamsFor(g, n).map((t) => k === 3 || ((k === 1 || k === 2) && !t.includes(s.dealer)));
+    d.vul = rubberBridge(s)
+      ? // rubber: a side that has won a game is vulnerable
+        d.games.map((x) => x > 0)
+      : // Chicago as pagat plays it now: nobody, then the side not dealing on deals 2 and 3 (as on
+        // duplicate boards 2 and 3), then everybody. The original game had the dealer's side instead.
+        teamsFor(g, n).map((t) => k === 3 || ((k === 1 || k === 2) && !t.includes(s.dealer)));
   }
   if (g.euchreBids && zone(s, 'deck').cards.length) {
     moveTop(s, 'deck', 'upcard', 1, { up: true });

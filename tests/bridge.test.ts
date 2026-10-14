@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { bridgeScore, type TrickData } from '../src/engine/families/trick';
+import { endRound } from '../src/engine/families/trick/scoring';
+import { trickGame } from '../src/engine/families/trick/types';
 import type { GameModule, GameState } from '../src/engine/types';
 import { GAMES } from './games';
 
@@ -173,5 +175,101 @@ describe('bridge headline', () => {
       return;
     }
     throw new Error('no deal reached the end of a trick');
+  });
+});
+
+describe('bridge: Chicago and rubber scoring (pagat)', () => {
+  const tg = trickGame(g.config);
+  const people = Array.from({ length: 4 }, (_, i) => ({ name: `P${i}` }));
+  /** Score a deal: seat `maker` (team maker % 2) declared `level` `strain` and their side took `won` tricks. */
+  function deal(s: GameState<TrickData>, maker: number, level: number, strain: 'C' | 'D' | 'H' | 'S' | 'NT', won: number, dbl: 0 | 1 | 2 = 0) {
+    const d = s.data;
+    d.bridge = { level, strain, dbl };
+    d.maker = maker;
+    d.tricks = [0, 1, 2, 3].map((i) => (i === maker ? won : i === (maker + 1) % 4 ? 13 - won : 0));
+    const before = [...d.scores];
+    endRound(tg, s);
+    const gained = d.scores.map((x, ti) => x - before[ti]);
+    if (s.phase === 'roundOver') {
+      d.round++;
+      d.honours = null;
+    }
+    return gained;
+  }
+
+  it('Chicago: part scores carry until a game, which wipes both out', () => {
+    const s = g.setup(people, 1, {});
+    expect(deal(s, 0, 2, 'H', 8)).toEqual([60, 0]); // no bonus for a part score before deal 4
+    expect(s.data.below).toEqual([60, 0]);
+    expect(deal(s, 1, 1, 'C', 7)).toEqual([0, 20]);
+    expect(s.data.below).toEqual([60, 20]);
+    // 2♠ makes 60 more: game, worth 300 (500 vulnerable)
+    const vul = s.data.vul![0];
+    expect(deal(s, 0, 2, 'S', 8)).toEqual([60 + (vul ? 500 : 300), 0]);
+    expect(s.data.below).toEqual([0, 0]);
+  });
+
+  it('Chicago: a part score on the fourth deal adds 100, and part scores clear after four deals', () => {
+    const s = g.setup(people, 1, { deals: 8 });
+    s.data.round = 3;
+    expect(deal(s, 0, 1, 'NT', 7)).toEqual([140, 0]);
+    expect(s.data.below).toEqual([0, 0]);
+  });
+
+  it('rubber: a game makes your side vulnerable, and two games win the rubber', () => {
+    const s = g.setup(people, 1, { style: 1 });
+    expect(s.data.vul).toEqual([false, false]);
+    expect(deal(s, 0, 4, 'S', 10)).toEqual([120, 0]); // no bonus for a game until the rubber
+    expect(s.data.games).toEqual([1, 0]);
+    expect(s.phase).toBe('roundOver');
+    g.apply(s, 0, { type: 'next' });
+    expect(s.data.vul).toEqual([true, false]);
+    // vulnerable and down 1: 100 to the other side
+    expect(deal(s, 0, 4, 'H', 9)).toEqual([0, 100]);
+    g.apply(s, 0, { type: 'next' });
+    // 3NT makes the second game: 100 + 700 for the rubber, 2–0
+    expect(deal(s, 2, 3, 'NT', 9)).toEqual([800, 0]);
+    expect(s.phase).toBe('gameOver');
+    expect(s.winner!.sort()).toEqual([0, 2]);
+  });
+
+  it('rubber: bots play one to the end', () => {
+    const s = g.setup(bots, 7, { style: 1 });
+    for (let i = 0; i < 40000 && s.phase !== 'gameOver'; i++) {
+      const sys = g.system?.(s);
+      if (sys) sys.run(s);
+      else if (s.phase === 'roundOver') g.apply(s, 0, { type: 'next' });
+      else {
+        const seat = s.players.findIndex((p) => g.bot!(s, p.seat));
+        g.apply(s, seat, g.bot!(s, seat)!);
+      }
+    }
+    expect(s.phase).toBe('gameOver');
+    expect(Math.max(...s.data.games!)).toBe(2);
+    expect(g.status(s, 0).scoreboard!.columns).toEqual(['Part score', 'Games', 'Total']);
+  });
+
+  it('rubber: 2–1 is worth 500', () => {
+    const s = g.setup(people, 1, { style: 1 });
+    s.data.games = [1, 1];
+    expect(deal(s, 1, 5, 'D', 11)).toEqual([0, 100 + 500]);
+    expect(s.phase).toBe('gameOver');
+  });
+
+  it('rubber: honours held by one player score, and only show when the hand is scored', () => {
+    for (let seed = 1; seed < 400; seed++) {
+      const s = g.setup(people, seed, { style: 1 });
+      // find a dealt hand with four aces, then have that side's player declare no trumps
+      const holder = [0, 1, 2, 3].find((i) => ids(s, `hand:${i}`).filter((c) => c[0] === 'A').length === 4);
+      if (holder == null) continue;
+      while (s.turn !== holder) g.apply(s, s.turn!, { type: 'decline' });
+      g.apply(s, holder, { type: 'call', amount: bid(1, 'NT') });
+      for (let k = 0; k < 3; k++) g.apply(s, s.turn!, { type: 'decline' });
+      expect(s.data.honours).toMatchObject({ seat: holder, pts: 150 });
+      expect(g.redactData!(s, holder).honours).toBeNull();
+      expect(deal(s, holder, 1, 'NT', 7)[holder % 2]).toBe(40 + 150);
+      return;
+    }
+    throw new Error('no hand with four aces');
   });
 });

@@ -59,22 +59,31 @@ export const bridgeLabel = (c: BridgeContract, short = false) =>
  * defenders score.
  */
 export function bridgeScore(c: BridgeContract, vul: boolean, won: number): number {
+  const { below, above } = bridgeParts(c, vul, won);
+  return below ? below + above + (below >= 100 ? (vul ? 500 : 300) : 50) : above;
+}
+
+/**
+ * A bridge result in its parts, before any game or part-score bonus: the points for the tricks bid
+ * (below the line: they count toward game), and above the line overtricks, the bonus for making a
+ * doubled contract and slams. Going down, `below` is 0 and `above` the (negative) undertricks.
+ */
+export function bridgeParts(c: BridgeContract, vul: boolean, won: number): { below: number; above: number } {
   const need = c.level + 6;
   if (won < need) {
     const down = need - won;
-    if (!c.dbl) return -down * (vul ? 100 : 50);
+    if (!c.dbl) return { below: 0, above: -down * (vul ? 100 : 50) };
     let pts = 0;
     for (let i = 1; i <= down; i++) pts += vul ? (i === 1 ? 200 : 300) : i === 1 ? 100 : i <= 3 ? 200 : 300;
-    return -pts * c.dbl;
+    return { below: 0, above: -pts * c.dbl };
   }
   const per = c.strain === 'C' || c.strain === 'D' ? 20 : 30;
   const mult = [1, 2, 4][c.dbl];
-  const trickPts = (c.level * per + (c.strain === 'NT' ? 10 : 0)) * mult;
-  let score = trickPts + (trickPts >= 100 ? (vul ? 500 : 300) : 50);
-  if (c.level === 6) score += vul ? 750 : 500;
-  if (c.level === 7) score += vul ? 1500 : 1000;
-  score += 50 * c.dbl;
+  const below = (c.level * per + (c.strain === 'NT' ? 10 : 0)) * mult;
+  let above = 50 * c.dbl;
+  if (c.level === 6) above += vul ? 750 : 500;
+  if (c.level === 7) above += vul ? 1500 : 1000;
   const over = won - need;
-  score += c.dbl ? over * (vul ? 200 : 100) * c.dbl : over * per;
-  return score;
+  above += c.dbl ? over * (vul ? 200 : 100) * c.dbl : over * per;
+  return { below, above };
 }

@@ -24,15 +24,20 @@
     "scoring": { "type": "bridge" },
     "end": { "deals": 4 }
   },
-  "options": [{ "id": "deals", "label": "Deals", "type": "number", "default": 4, "min": 4, "max": 16, "step": 4 }],
+  "options": [
+    { "id": "style", "label": "Scoring", "type": "number", "default": 0, "min": 0, "max": 1, "step": 1, "choices": ["Chicago", "Rubber"] },
+    { "id": "deals", "label": "Deals (Chicago)", "type": "number", "default": 4, "min": 4, "max": 16, "step": 4 }
+  ],
   "rulesSummary": [
     "Partners sit across, 13 cards each. Bid a contract with your partner, then make it, or stop the other side making theirs.",
     "The dealer calls first. A bid is tricks over six (1–7) in a suit or no trumps. It must beat the last bid: a higher number, or the same number in a higher suit (♣ < ♦ < ♥ < ♠ < NT).",
     "You may also pass, double an opponent's bid, or redouble when your side's bid is doubled. Three passes after a bid end the auction; four passes to start mean a new deal.",
     "Declarer is whoever on the winning side first named the final suit. The player on their left leads; then declarer's partner lays down their hand as dummy, and declarer plays both.",
     "Follow suit if you can. The highest trump wins, or else the highest card of the suit led.",
-    "Each deal scores on its own. Tricks bid count 20 (♣ ♦), 30 (♥ ♠), or 40 for the first and 30 after (NT); extra tricks count too. 100 or more for tricks bid (doubling counts) earns a game bonus, less than that 50; bidding 6 or 7 earns a slam bonus.",
+    "Tricks bid score 20 each in ♣ ♦, 30 in ♥ ♠, and 40 for the first then 30 in NT (×2 doubled, ×4 redoubled). They build toward game: 100 is a game. A part score carries on until someone makes a game, which wipes out both sides' part scores.",
+    "Extra tricks, slams (6 bid: 500, 7 bid: 1000; 750 and 1500 vulnerable) and making a doubled contract (+50) score on top, but don't count toward game.",
     "Going down gives the other side 50 a trick, or 100 if you're vulnerable (more if doubled).",
-    "Vulnerable: nobody on deal 1, the side not dealing on deals 2 and 3, everyone on deal 4, then it repeats. Highest total after the last deal wins."
+    "Chicago: deals in sets of four. A game scores 300, or 500 vulnerable, and a part score made on the fourth deal 100. Vulnerable: nobody on deal 1, the side not dealing on deals 2 and 3, everyone on deal 4. Most points wins.",
+    "Rubber (a lobby option): play until a side wins two games; winning one makes you vulnerable. The rubber is worth 700 (2–0) or 500 (2–1). Honours in one hand score too: four of A K Q J 10 of trumps 100, all five or four aces at NT 150. Most points wins."
   ]
 }

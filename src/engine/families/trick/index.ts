@@ -160,6 +160,8 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
         // the called card's holder stays secret until it's played (they know, of course)
         partner: d.partnerShown || viewer === d.partner ? d.partner : null,
         received: ownOnly(d.received, viewer),
+        // who holds honours is told when the hand is scored, not before
+        honours: s.phase === 'roundOver' || s.phase === 'gameOver' ? d.honours : null,
       };
     },
 

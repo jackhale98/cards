@@ -6,7 +6,7 @@ import { auctionState, callLabel } from './bidding';
 import { bidOf, bridgeLabel, contractLabel } from './contracts';
 import { openerOf, suitless } from './play';
 import { active, controller, partnersOf, teamName, teamOf, teamsFor } from './sides';
-import type { S, TrickGame } from './types';
+import { rubberBridge, type S, type TrickGame } from './types';
 
 /** What each player sees of the game: the headline, seat badges, scoreboard and banner. */
 export function trickStatus(g: TrickGame, s: S, viewer: number): GameStatus {
@@ -129,21 +129,31 @@ export function trickStatus(g: TrickGame, s: S, viewer: number): GameStatus {
     headline,
     actor: s.phase === 'play' ? controller(s) : undefined,
     seats: s.players.map((_, i) => ({ badge: seatBadge(i), tag: i === s.dealer ? 'D' : undefined })),
-    scoreboard: {
-      columns: [bidding ? 'Won / bid' : R.scoring.type === 'penalty' ? 'This hand' : 'Tricks', 'Total'],
-      rows: teams.map((t, ti) => ({
-        name: teamName(g, s, ti),
-        values: [
-          bidding
-            ? t.map((i) => `${d.tricks[i]}/${d.bids[i] ?? '–'}`).join(' ')
-            : R.scoring.type === 'penalty'
-              ? t.reduce((n, i) => n + d.points[i], 0)
-              : t.reduce((n, i) => n + d.tricks[i], 0),
-          d.scores[ti],
-        ],
-        highlight: !!s.winner && t.some((i) => s.winner!.includes(i)),
-      })),
-    },
+    scoreboard: g.bridgeBids
+      ? {
+          // bridge: the part score toward the next game, and in a rubber the games won
+          columns: ['Part score', ...(rubberBridge(s) ? ['Games'] : []), 'Total'],
+          rows: teams.map((t, ti) => ({
+            name: teamName(g, s, ti),
+            values: [d.below?.[ti] ?? 0, ...(rubberBridge(s) ? [d.games?.[ti] ?? 0] : []), d.scores[ti]],
+            highlight: !!s.winner && t.some((i) => s.winner!.includes(i)),
+          })),
+        }
+      : {
+          columns: [bidding ? 'Won / bid' : R.scoring.type === 'penalty' ? 'This hand' : 'Tricks', 'Total'],
+          rows: teams.map((t, ti) => ({
+            name: teamName(g, s, ti),
+            values: [
+              bidding
+                ? t.map((i) => `${d.tricks[i]}/${d.bids[i] ?? '–'}`).join(' ')
+                : R.scoring.type === 'penalty'
+                  ? t.reduce((n, i) => n + d.points[i], 0)
+                  : t.reduce((n, i) => n + d.tricks[i], 0),
+              d.scores[ti],
+            ],
+            highlight: !!s.winner && t.some((i) => s.winner!.includes(i)),
+          })),
+        },
     banner:
       s.phase === 'gameOver'
         ? {

@@ -4,7 +4,7 @@ import { assertRule, type Action } from '../../types';
 import { ALL_BIDS, bidLabel, bidOf, bridgeLabel, contractLabel, MISERE, NAMEABLE, OPEN_MISERE, type Call } from './contracts';
 import { beforePlay, redeal, startPlay, startRound } from './deal';
 import { partnersOf, teamOf } from './sides';
-import type { S, TrickGame } from './types';
+import { rubberBridge, type S, type TrickData, type TrickGame } from './types';
 
 /**
  * The bidding styles: tricks (spades, Oh Hell), euchre's order up / name trumps, 500's auction and
@@ -168,10 +168,22 @@ function afterCall(g: TrickGame, s: S, seat: number) {
     d.maker = declarer;
     d.dummy = (declarer + 2) % s.players.length;
     d.trump = strain === 'NT' ? null : strain;
+    if (rubberBridge(s)) d.honours = honoursHeld(g, s);
     log(s, `${name(s, declarer)} declares ${bridgeLabel(d.bridge)}`, declarer, bridgeLabel(d.bridge, true));
     return startPlay(g, s);
   }
   s.turn = nextSeat(s, seat);
+}
+
+/** Rubber bridge honours: four or five of A K Q J 10 of trumps in one hand (100, 150), or all four aces at no trumps (150). */
+function honoursHeld(g: TrickGame, s: S): TrickData['honours'] {
+  const d = s.data;
+  for (const p of s.players) {
+    const cards = ids(hand(s, p.seat)).map(parseCard);
+    const count = d.trump ? cards.filter((c) => c.suit === d.trump && c.rank >= 10).length : cards.filter((c) => c.rank === 14).length;
+    if (count >= 4 && (d.trump || count === 4)) return { team: teamOf(g, s, p.seat), seat: p.seat, count, pts: count === 5 || !d.trump ? 150 : 100 };
+  }
+  return null;
 }
 
 /** A bridge bid (0 = 1♣ … 34 = 7NT). */
