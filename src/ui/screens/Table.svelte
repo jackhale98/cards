@@ -21,7 +21,7 @@
   import { play as playSound, setSound, soundOn, type Sound } from '../sound';
   import { fourColourOn, setFourColour } from '../suits';
   import { fade, fly } from 'svelte/transition';
-  import { cubicOut } from 'svelte/easing';
+  import { cubicIn, cubicOut } from 'svelte/easing';
   import { isHidden } from '../../engine/redact';
   import { SCREEN_SOUND } from '../../net/host';
   import { seatColor } from '../seatColors';
@@ -440,7 +440,7 @@
   const playFrom = $derived(display || you < 0 ? null : (centerZones.find((z) => z.faceUpHand && z.cards.some((c) => selectable?.has(c.id))) ?? null));
   const fanCards = $derived(playFrom ? playFrom.cards : myHand);
   /** How long the two hands take to trade places (none, for reduced motion). */
-  const swapMs = matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 260;
+  const swapMs = matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 320;
   /**
    * The buttons sit beside the middle, so your hand has the whole width; when there are more of
    * them than fit there (poker's fold, call, raise, all in on a phone) they run down beside your
@@ -592,6 +592,7 @@
 
   // Before the DOM updates, note where the acting player sits so cards fly to/from them.
   let tableEl: HTMLElement;
+  let shownPlayFrom: string | null = null;
   $effect.pre(() => {
     const entry = s.log.at(-1);
     if (!tableEl) return;
@@ -614,6 +615,10 @@
     };
     flight.fromZone = pile(entry?.fromZone);
     flight.toZone = pile(entry?.toZone);
+    // (the dummy and your hand about to trade places: the hands move as wholes, see the fan)
+    const swapping = (playFrom?.id ?? null) !== shownPlayFrom;
+    flight.quiet = swapping;
+    shownPlayFrom = playFrom?.id ?? null;
     snapshot(tableEl);
   });
   // …and after it, slide whatever merely shifted into its new place. This waits for the next
@@ -748,10 +753,10 @@
       </div>{/if}
     {#if !side}{@render tableStatus()}{/if}
     <div class="zones" class:has-strip={stripZones.length > 0} class:cross class:row-fit={rowFit < Infinity} use:fitHeight>
-      {#each shownCenter as z (z.id)}
+      {#each shownCenter as z (playFrom?.id === z.id ? `mine:${z.id}` : z.id)}
         <div
           class="zone-slot"
-          in:fade={{ duration: z.faceUpHand || z.id === `hand:${you}` ? swapMs : 0 }}
+          in:fade={{ duration: z.faceUpHand || z.id === `hand:${you}` ? swapMs : 0, delay: z.faceUpHand || z.id === `hand:${you}` ? swapMs * 0.6 : 0 }}
           style:grid-row={cross ? z.grid![0] + 1 : undefined}
           style:grid-column={cross ? z.grid![1] + 1 : undefined}
         >
@@ -884,7 +889,11 @@
           <!-- (your hand and the dummy trade places as two whole hands, each sliding in: not
                twenty-six cards flying past each other) -->
           {#key playFrom?.id ?? 'own'}
-            <div class="fan" in:fly={{ y: 36, duration: swapMs, easing: cubicOut }}>
+            <div
+              class="fan"
+              in:fly={{ y: 48, duration: swapMs, delay: swapMs * 0.6, easing: cubicOut }}
+              out:fly={{ y: 48, duration: swapMs * 0.75, easing: cubicIn }}
+            >
               {#if playFrom?.label}<div class="fan-label eyebrow">{playFrom.label}</div>{/if}
               <Hand cards={fanCards} cw={handCw} {selected} {selectable} fresh={playFrom ? [] : freshIds} ontap={tap} onswipe={swipe} />
             </div>
@@ -1685,10 +1694,13 @@
     font-weight: 500;
     opacity: 0.9;
   }
+  /* (the old hand leaving and the new one coming in share one spot while they cross) */
   .fan {
     position: relative;
+    grid-area: 1 / 1;
   }
   .hand-wrap {
+    display: grid;
     position: relative;
     flex: 1;
     min-width: 0;

@@ -20,7 +20,10 @@ export const flight: {
   to: DOMRect | null;
   fromZone: DOMRect | null;
   toZone: DOMRect | null;
-} = { actor: null, to: null, fromZone: null, toZone: null };
+  /** This update moves whole hands about (bridge's dummy and yours trading places): no card flies
+   * on its own and nothing slides; the hands' own transitions do it, as one calm move. */
+  quiet: boolean;
+} = { actor: null, to: null, fromZone: null, toZone: null, quiet: false };
 
 const EASE = cubicOut;
 const CSS_EASE = 'cubic-bezier(0.2, 0.8, 0.2, 1)';
@@ -152,6 +155,12 @@ function pair(intro: boolean) {
     else pin(node);
     // decided once both sides of the move have registered
     return () => {
+      if (flight.quiet) {
+        mine.delete(params.key);
+        theirs.delete(params.key);
+        if (!intro) node.style.visibility = 'hidden';
+        return { duration: 0 };
+      }
       const other = theirs.get(params.key);
       if (other) {
         theirs.delete(params.key);
@@ -182,7 +191,7 @@ export function snapshot(root: Element) {
 
 /** After the update, slide every element that moved back from where it was. */
 export function play(root: Element) {
-  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches || flight.quiet) return;
   root.querySelectorAll<HTMLElement>('[data-flip]').forEach((el) => {
     const a = lastRects.get(el);
     if (!a) return; // new element: its own transition handles it
