@@ -30,6 +30,8 @@
   const STEP = 0.38;
   /** …and a new suit this much more. */
   const SUIT_GAP = 0.32;
+  /** How far (px) the room beside a dummy may dip before it shrinks to suit. */
+  const HOLD = 8;
   let {
     zone,
     cw,
@@ -68,12 +70,28 @@
    * height (`growTo`: past it, the whole middle would shrink to fit, a moment late, and the dummy
    * would swell and settle back with every card played).
    */
-  const handCw = $derived.by(() => {
+  const fitCw = $derived.by(() => {
     if (!zone.faceUpHand) return cw;
     const n = Math.max(1, zone.cards.length);
     const groups = zone.cards.filter((c, i) => i > 0 && c.group != null && c.group !== zone.cards[i - 1].group).length;
     const full = 1 + 12 * STEP + 3 * SUIT_GAP;
     return Math.round(Math.min(cw * 1.45, Math.max(cw, growTo), (cw * full) / (1 + (n - 1) * STEP + groups * SUIT_GAP)));
+  });
+  /**
+   * Through a hand the dummy only grows: the room beside the trick wobbles by a few pixels as cards
+   * land and the tip changes, and the dummy shouldn't wobble with it. It keeps the size it has
+   * reached while it has the same cards or fewer, unless the room really goes (a smaller window:
+   * then it follows, rather than overflow the middle).
+   */
+  let kept = $state({ n: 0, cw: 0, size: 0 });
+  const handCw = $derived(
+    zone.faceUpHand && kept.cw === cw && zone.cards.length <= kept.n && fitCw < kept.size && fitCw >= kept.size - HOLD ? kept.size : fitCw,
+  );
+  $effect(() => {
+    const n = zone.cards.length;
+    // (a new deal, or a different card size for the table: start again)
+    if (n > kept.n || kept.cw !== cw || handCw !== kept.size) kept = { n, cw, size: handCw };
+    else if (n !== kept.n) kept.n = n;
   });
 </script>
 

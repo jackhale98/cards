@@ -30,8 +30,14 @@ test('the dummy keeps its look as cards are played from it', async ({ page }) =>
       const read = () => {
         if (els.some((el) => !el.isConnected || el.getAnimations({ subtree: true }).some((a) => a.playState === 'running'))) return null;
         // (a card on its way out of the dummy can be caught with no size: it isn't part of the dummy's look)
-        const r = els.map((el) => el.getBoundingClientRect()).filter((x) => x.width > 0 && x.height > 0);
-        return { n: r.length, widths: [...new Set(r.map((x) => Math.round(x.width)))], rows: new Set(r.map((x) => Math.round(x.top))).size };
+        const cards = (els as HTMLElement[]).filter((el) => el.offsetWidth > 0 && el.offsetHeight > 0);
+        // the dummy's own card size (offsetWidth): the whole middle may be scaled down a moment to fit
+        // the room (when the tip wraps onto a second line, say), which shrinks every pile alike
+        return {
+          n: cards.length,
+          widths: [...new Set(cards.map((el) => el.offsetWidth))],
+          rows: new Set(cards.map((el) => Math.round(el.getBoundingClientRect().top))).size,
+        };
       };
       const first = read();
       await new Promise((done) => setTimeout(done, 200));
