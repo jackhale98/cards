@@ -1583,6 +1583,10 @@
   }
   footer {
     grid-area: hand;
+    /* (its cards stack among themselves, on a layer of their own: over the middle's piles and
+       labels as you drag one up to play it, but a card late in a long hand, or one just picked up
+       and lit, never comes up over the end-of-hand panel) */
+    z-index: 2;
     display: flex;
     align-items: flex-end;
     gap: 8px;
