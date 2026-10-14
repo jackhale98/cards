@@ -76,12 +76,14 @@ export async function castTable(table: string, opts: { tries?: number; every?: n
   // use that session)
   if (!ctx.getCurrentSession() && ctx.getSessionState?.() === 'SESSION_STARTING') await settled(ctx, opts.settle ?? 3000);
   if (!ctx.getCurrentSession()) {
-    let err = await request(ctx);
+    let err = await request(ctx, opts.settle ?? 3000);
+    // (our own earlier request, still going: only a reload clears it)
+    if (err === 'stuck') throw new CastError('invalid_parameter');
     // "invalid_parameter": another request for a session is still going (that rejoin, Android's
     // own cast menu): once it's done, the session it started, or one more try
     if (err === 'invalid_parameter') {
       await settled(ctx, opts.settle ?? 3000);
-      if (!ctx.getCurrentSession()) err = await request(ctx);
+      if (!ctx.getCurrentSession()) err = await request(ctx, opts.settle ?? 3000);
     }
     if (err && !ctx.getCurrentSession()) throw new CastError(err);
   }
@@ -112,16 +114,30 @@ export async function castTable(table: string, opts: { tries?: number; every?: n
   });
 }
 
-/** Ask Chrome for a session (its picker): Chrome's error code, or nothing once there's a session. */
-async function request(ctx: any): Promise<string | undefined> {
+/**
+ * The request for a session Chrome is still answering, if any: one at a time for the page. (A
+ * picker closed without a word, as some Chrome versions do, leaves one going for good: choosing a
+ * TV has no time limit.)
+ */
+let asking: Promise<string | undefined> | null = null;
+
+/**
+ * Ask Chrome for a session (its picker): Chrome's error code, or nothing once there's a session.
+ * While an earlier request is still going (Cast tapped again, the sheet closed and reopened), Chrome
+ * would refuse another: wait `ms` for that one instead (`stuck` if it's still going).
+ */
+async function request(ctx: any, ms: number): Promise<string | undefined> {
+  if (asking) return Promise.race([asking, new Promise<string>((r) => setTimeout(() => r('stuck'), ms))]);
   // (rejects with Chrome's error code; some versions resolve with it instead)
-  const err = await ctx.requestSession().then(
-    (e: unknown) => e,
-    (e: unknown) => e ?? 'cancel',
+  const mine = ctx.requestSession().then(
+    (e: unknown) => (e ? code(e) : undefined),
+    (e: unknown) => code(e ?? 'cancel'),
   );
-  if (!err) return undefined;
-  return typeof err === 'string' ? err : String((err as { code?: string }).code ?? err);
+  asking = mine;
+  void mine.finally(() => asking === mine && (asking = null));
+  return mine;
 }
+const code = (e: unknown) => (typeof e === 'string' ? e : String((e as { code?: string }).code ?? e));
 
 /** Until a session being started (or rejoined) has started or failed, or `ms` has passed. */
 function settled(ctx: any, ms: number): Promise<void> {

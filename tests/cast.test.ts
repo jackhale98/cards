@@ -131,6 +131,35 @@ describe('casting the table to a TV', () => {
     await check;
   });
 
+  it('tapped again while the first request is still going, waits for that one instead of asking Chrome twice', async () => {
+    const tv = fakeCast({});
+    let answer: (v: undefined) => void = () => {};
+    // (the first request: Chrome's picker, answered a moment later)
+    tv.ctx.requestSession.mockImplementationOnce(() => new Promise((r) => (answer = r)).then(() => void (tv.ctx.getCurrentSession = () => tv.session)));
+    const { castTable } = await import('../src/net/cast');
+    const first = castTable('BZMSP', { every: 1000 });
+    await vi.advanceTimersByTimeAsync(500);
+    const second = castTable('BZMSP', { every: 1000 });
+    await vi.advanceTimersByTimeAsync(500);
+    answer(undefined);
+    await vi.advanceTimersByTimeAsync(1000);
+    await Promise.all([first, second]);
+    expect(tv.ctx.requestSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('…and when the first never finishes (a picker closed without a word), says to reload', async () => {
+    const tv = fakeCast({});
+    tv.ctx.requestSession.mockImplementationOnce(() => new Promise(() => {}));
+    const { castTable } = await import('../src/net/cast');
+    void castTable('BZMSP', { settle: 500 });
+    await vi.advanceTimersByTimeAsync(100);
+    const again = castTable('BZMSP', { settle: 500 });
+    const check = expect(again).rejects.toThrow(/reload the page/);
+    await vi.advanceTimersByTimeAsync(600);
+    await check;
+    expect(tv.ctx.requestSession).toHaveBeenCalledTimes(1);
+  });
+
   it('says why when Chrome can’t start it, and stays quiet when the picker is closed', async () => {
     fakeCast({ requestError: 'receiver_unavailable' });
     const cast = await import('../src/net/cast');
