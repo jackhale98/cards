@@ -106,6 +106,8 @@
     app.split(going, newHost);
     splitting = false;
   }
+  /** Games played turn by turn can have take-backs (not real-time ones, nor the free table, which has its own undo). */
+  const takeBackable = $derived(!game.realtime && !game.config.undo);
   /** How many options differ from the game's defaults. */
   const changed = $derived((game.config.options ?? []).filter((o) => lobby.options[o.id] !== undefined && lobby.options[o.id] !== o.default).length);
 </script>
@@ -125,7 +127,7 @@
 
 {#snippet optionList()}
   <div class="options">
-    {#each game.config.options as o (o.id)}
+    {#each game.config.options ?? [] as o (o.id)}
       <label class="opt">
         <span>{o.label}</span>
         {#if o.choices}
@@ -145,13 +147,20 @@
         {/if}
       </label>
     {/each}
+    {#if takeBackable}
+      <!-- (the table's own setting, for any turn-by-turn game) -->
+      <label class="opt">
+        <span>Take-backs <small>(undo your move until someone else moves)</small></span>
+        <input type="checkbox" disabled={!ctl} checked={!!lobby.takeBacks} onchange={(e) => ctl?.setTakeBacks(e.currentTarget.checked)} />
+      </label>
+    {/if}
   </div>
 {/snippet}
 
 {#if settings}
   <Sheet title={game.config.name} onclose={() => (settings = false)}>
     <p class="small">{game.config.tagline}</p>
-    {#if game.config.options?.length}{@render optionList()}{/if}
+    {#if game.config.options?.length || takeBackable}{@render optionList()}{/if}
     {#if !ctl}<p class="small">{captain ? `${captain.name} chooses` : 'The host chooses'} the settings.</p>{/if}
   </Sheet>
 {/if}
@@ -401,7 +410,7 @@
           >{/if}
       {/key}
     </div>
-    {#if game.config.options?.length}
+    {#if game.config.options?.length || takeBackable}
       <button class="btn" onclick={() => (settings = true)} aria-label="Settings">⚙ <span class="long">Settings</span></button>
     {/if}
     {#if ctl}

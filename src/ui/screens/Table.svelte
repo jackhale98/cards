@@ -4,7 +4,8 @@
   import { app, inviteUrl } from '../../app.svelte';
   import type { ActionSpec, ZoneState } from '../../engine/types';
   import { getGame, howToPlay } from '../../games';
-  import type { Frame, View } from '../../net/protocol';
+  import { REACTIONS, type Frame, type View } from '../../net/protocol';
+  import { untrack } from 'svelte';
   import ReplayBar from '../components/ReplayBar.svelte';
   import ActionBar from '../components/ActionBar.svelte';
   import Hand from '../components/Hand.svelte';
@@ -20,6 +21,7 @@
   import { flight, haptic, play, snapshot } from '../motion';
   import { play as playSound, setSound, soundOn, type Sound } from '../sound';
   import { fourColourOn, setFourColour } from '../suits';
+  import { arrangeHand, HAND_SORT_LABEL, HAND_SORTS, handSortOn, setHandSort, type HandSort } from '../handOrder';
   import { marquee } from '../marquee';
   import { fade, fly } from 'svelte/transition';
   import { cubicIn, cubicOut } from 'svelte/easing';
@@ -28,6 +30,7 @@
   import { SCREEN_SOUND, STAND_IN } from '../../net/host';
   import { seatColor } from '../seatColors';
   import { keepAwake } from '../wakeLock';
+  import { canNotify, clearTurn, raiseTurn, setTurnAlerts, turnAlertsOn } from '../turnAlert';
   import { EXPORT_ABOUT, EXPORT_FILE, EXPORT_LABEL, recordFormats } from '../../net/exports/formats';
   import TvSheet from '../components/TvSheet.svelte';
 
@@ -333,7 +336,13 @@
   });
 
   const myHandZone = $derived(you >= 0 ? s.zones[`hand:${you}`] : undefined);
-  const myHand = $derived(you >= 0 ? (s.zones[`hand:${you}`]?.cards ?? []) : []);
+  const dealtHand = $derived(you >= 0 ? (s.zones[`hand:${you}`]?.cards ?? []) : []);
+  /** How this device sorts your hand, and where you've dragged cards to (by id; see arrangeHand). */
+  let handSort = $state<HandSort>(handSortOn());
+  /** A notification when it's your turn and you're elsewhere (see turnAlert.ts). */
+  let turnAlerts = $state(turnAlertsOn());
+  let handOrder = $state<string[]>([]);
+  const myHand = $derived(arrangeHand(dealtHand, handSort, handOrder));
   /**
    * Hands turned over at a showdown (poker), laid out in the middle beside the board, labelled with
    * who and what they hold: the cards move there from the seat (which shows none meanwhile).
@@ -383,7 +392,8 @@
     if (actor === you && (lastActor !== you || s.turn !== lastTurn) && you >= 0 && !replay) {
       haptic(18);
       sound('turn');
-    }
+      raiseTurn(game.config.name);
+    } else if (actor !== you) clearTurn();
     lastTurn = s.turn ?? -1;
     lastActor = actor ?? -1;
   });
@@ -716,6 +726,8 @@
 
   // keep the screen awake while at the table
   $effect(() => keepAwake());
+  // (leaving the table: no "your turn" left behind in the title)
+  $effect(() => () => clearTurn());
 
   // ---- what just happened ------------------------------------------------------------------
   const lastEntry = $derived(s.log.at(-1));
@@ -759,7 +771,24 @@
     if (s.phase === 'gameOver' && lastPhase != null && lastPhase !== 'gameOver') sound(display || s.winner?.includes(you) ? 'win' : 'end');
     lastPhase = s.phase;
   });
-  const saidBy = (seat: number) => (lastEntry?.seat === seat && lastEntry.short ? { text: lastEntry.short, key: lastEntry.t } : null);
+  /** Reactions showing on seats just now, by game seat (see REACTIONS). */
+  let reacts = $state<Record<number, { text: string; key: number }>>({});
+  $effect(() => {
+    const r = app.reaction;
+    if (!r || replay) return;
+    const seat = (view.lobby.playing ?? []).indexOf(r.id);
+    if (seat < 0) return;
+    untrack(() => (reacts = { ...reacts, [seat]: { text: REACTIONS[r.e], key: r.at } }));
+    setTimeout(() => {
+      if (reacts[seat]?.key !== r.at) return;
+      const rest = { ...reacts };
+      delete rest[seat];
+      reacts = rest;
+    }, 3600);
+  });
+  let reacting = $state(false);
+  const REACTION_NAMES = ['Thumbs up', 'Applause', 'Laughing', 'Wow', 'Yikes', 'On fire'];
+  const saidBy = (seat: number) => reacts[seat] ?? (lastEntry?.seat === seat && lastEntry.short ? { text: lastEntry.short, key: lastEntry.t } : null);
 
   // Before the DOM updates, note where the acting player sits so cards fly to/from them.
   let tableEl: HTMLElement;
@@ -915,6 +944,31 @@
         </div>
       {/each}
     </div>
+    {#if !display && !replay && view.lobby.seats.some((x) => x.id === app.cid)}
+      <button class="icon" onclick={() => (reacting = !reacting)} aria-label="React" aria-expanded={reacting}>
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+          ><circle cx="12" cy="12" r="8.5" /><path d="M8.5 14.2a4.2 4.2 0 0 0 7 0" /><circle cx="9.2" cy="10" r=".6" fill="currentColor" /><circle
+            cx="14.8"
+            cy="10"
+            r=".6"
+            fill="currentColor"
+          /></svg
+        >
+      </button>
+      {#if reacting}
+        <div class="reactbar panel" role="group" aria-label="Reactions">
+          {#each REACTIONS as e, i (e)}
+            <button
+              onclick={() => {
+                app.react(i);
+                reacting = false;
+              }}
+              aria-label={REACTION_NAMES[i]}>{e}</button
+            >
+          {/each}
+        </div>
+      {/if}
+    {/if}
     <button class="icon" onclick={() => (sheet = 'scores')} aria-label="Scores and log">
       <svg viewBox="0 0 24 24" width="20" height="20"
         ><path
@@ -1052,6 +1106,7 @@
       <div class="me-own" bind:clientHeight={meOwnH}>
         {#if me}
           <div class="me-name">
+            {#if reacts[you]}{#key reacts[you].key}<span class="my-react" aria-hidden="true">{reacts[you].text}</span>{/key}{/if}
             <AvatarBadge avatar={lobbySeat(you)?.avatar} name={me.name} seat={you} size={24} /><span class="mn">{me.name}</span>
             {#if myInfo?.tag}<span class="mytag">{myInfo.tag}</span>{/if}
           </div>
@@ -1097,7 +1152,16 @@
               out:fly={{ y: 48, duration: swapMs * 0.75, easing: cubicIn }}
             >
               {#if playFrom?.label}<div class="fan-label eyebrow">{playFrom.label}</div>{/if}
-              <Hand cards={fanCards} cw={handCw} {selected} {selectable} fresh={playFrom ? [] : freshIds} ontap={tap} onswipe={swipe} />
+              <Hand
+                cards={fanCards}
+                cw={handCw}
+                {selected}
+                {selectable}
+                fresh={playFrom ? [] : freshIds}
+                ontap={tap}
+                onswipe={swipe}
+                onreorder={playFrom ? undefined : (ids) => (handOrder = ids)}
+              />
             </div>
           {/key}
         {/if}
@@ -1166,7 +1230,9 @@
     </div>
     <!-- (your hand and your moves, so you can meld and lay off from here) -->
     <div class="spread-dock">
-      <div class="spread-hand"><Hand cards={myHand} cw={spreadHandCw} {selected} {selectable} ontap={tap} onswipe={swipe} /></div>
+      <div class="spread-hand">
+        <Hand cards={myHand} cw={spreadHandCw} {selected} {selectable} ontap={tap} onswipe={swipe} onreorder={(ids) => (handOrder = ids)} />
+      </div>
       <div class="spread-acts">
         <ActionBar
           actions={view.actions}
@@ -1205,6 +1271,19 @@
             fourColour = !fourColour;
             setFourColour(fourColour);
           }}>{fourColour ? 'Four-colour suits: on' : 'Four-colour suits: off'}</button
+        >
+        {#if canNotify()}
+          <button class="btn" onclick={async () => (turnAlerts = await setTurnAlerts(!turnAlerts))}
+            >{turnAlerts ? 'Turn notifications: on' : 'Turn notifications: off'}</button
+          >
+        {/if}
+        <button
+          class="btn"
+          onclick={() => {
+            handSort = HAND_SORTS[(HAND_SORTS.indexOf(handSort) + 1) % HAND_SORTS.length];
+            setHandSort(handSort);
+            handOrder = [];
+          }}>Hand: {HAND_SORT_LABEL[handSort]}</button
         >
       {/if}
       {#if view.lobby.displays && !display}
@@ -1535,6 +1614,67 @@
     gap: 6px;
     min-height: 0;
     min-width: 0;
+  }
+  .reactbar {
+    position: absolute;
+    z-index: 30;
+    top: calc(100% + 4px);
+    right: 0;
+    display: flex;
+    gap: 2px;
+    padding: 4px;
+    border-radius: 999px;
+  }
+  .reactbar button {
+    font-size: 1.35rem;
+    line-height: 1;
+    width: 2.4rem;
+    height: 2.4rem;
+    border-radius: 50%;
+    background: none;
+    border: 0;
+    cursor: pointer;
+  }
+  .reactbar button:hover,
+  .reactbar button:focus-visible {
+    background: rgba(255, 255, 255, 0.12);
+  }
+  .my-react {
+    position: absolute;
+    left: 0;
+    bottom: 100%;
+    font-size: 1.5rem;
+    pointer-events: none;
+    animation: my-react 3.6s var(--ease-out) forwards;
+  }
+  @keyframes my-react {
+    0% {
+      opacity: 0;
+      transform: translateY(6px) scale(0.6);
+    }
+    10%,
+    75% {
+      opacity: 1;
+      transform: none;
+    }
+    100% {
+      opacity: 0;
+      transform: translateY(-8px);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .my-react {
+      animation-name: my-react-still;
+    }
+    @keyframes my-react-still {
+      0%,
+      80% {
+        opacity: 1;
+      }
+      100% {
+        opacity: 0;
+      }
+    }
   }
   /* (over the top of the middle: it's what the table is waiting on) */
   .dropped {
@@ -2095,6 +2235,7 @@
     color: var(--gold);
   }
   .me-name {
+    position: relative;
     font-weight: 700;
     display: flex;
     align-items: center;

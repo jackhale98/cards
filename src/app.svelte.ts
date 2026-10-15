@@ -33,6 +33,7 @@ export interface TableControls {
   start(): void;
   endGame(): void;
   setLook(look: { back: string; cloth: string }): void;
+  setTakeBacks(on: boolean): void;
 }
 
 const store = {
@@ -233,6 +234,8 @@ class App {
   toast = $state<{ text: string; id: number } | null>(null);
   /** Host → player round-trip times by seat (ms; host 0, bots/unknown null). */
   pings = $state.raw<(number | null)[]>([]);
+  /** The latest reaction at the table: who (lobby seat id), which (REACTIONS index), and when. */
+  reaction = $state.raw<{ id: string; e: number; at: number } | null>(null);
   /** Relay networks in use and how many of their relays are reachable. */
   netStatus = $state.raw<NetworkStatus | null>(null);
   /** With a table screen connected, show just your hand and private info on this phone. */
@@ -486,6 +489,7 @@ class App {
       game: split?.game,
     });
     host.onPings = (p) => (this.pings = p);
+    host.onReact = (id, e) => (this.reaction = { id, e, at: Date.now() });
     host.onLocalError = (m) => this.say(m);
     // clone so the UI gets fresh objects, exactly like a remote client would
     host.onLocalView = (v) => (this.view = structuredClone(v));
@@ -536,6 +540,7 @@ class App {
     client.onView = (v) => (this.view = v);
     client.onError = (m) => this.say(m);
     client.onPings = (p) => (this.pings = p);
+    client.onReact = (id, e) => (this.reaction = { id, e, at: Date.now() });
     // (an answer that comes after the replay was closed is ignored)
     client.onFrame = (f) => {
       if (this.replay !== null || this.replayAsked) this.replay = f;
@@ -731,6 +736,7 @@ class App {
         start: () => host.start(),
         endGame: () => host.endGame(),
         setLook: (look) => this.setLook(look),
+        setTakeBacks: (on) => host.setTakeBacks(on),
       };
     const client = this.client;
     if (!client || !this.view || this.view.lobby.captain !== this.cid) return null;
@@ -744,7 +750,14 @@ class App {
       start: () => client.lobbyOp({ op: 'deal' }),
       endGame: () => client.lobbyOp({ op: 'end' }),
       setLook: (look) => client.lobbyOp({ op: 'look', ...look }),
+      setTakeBacks: (on) => client.lobbyOp({ op: 'takeBacks', on }),
     };
+  }
+
+  /** React at the table (see REACTIONS): it shows on your seat for everyone. */
+  react(e: number) {
+    if (this.host) this.host.react(this.cid, e);
+    else this.client?.react(e);
   }
 
   act(a: Action) {

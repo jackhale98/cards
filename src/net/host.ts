@@ -1,4 +1,4 @@
-import { redact, redactActions, resolveAction } from '../engine/redact';
+import { isHidden, redact, redactActions, resolveAction } from '../engine/redact';
 import { randomSeed } from '../engine/rng';
 import { nightPoints, standingsOf } from '../engine/state';
 import { RuleError, type Action, type GameModule, type GameState } from '../engine/types';
@@ -22,6 +22,7 @@ import {
   type NightFinal,
   type NightGame,
   type View,
+  REACTIONS,
 } from './protocol';
 import { seal } from './backup';
 import { GameRecord, toCsv } from './gameRecord';
@@ -37,6 +38,8 @@ export const HEARTBEAT_MS = 3000;
 /** A peer silent for this long is treated as gone (it keeps its seat and can come back). */
 export const DEAD_AFTER_MS = 12000;
 const UNDO = '__undo';
+/** With take-backs on, bots and automatic steps wait this much longer after a person's move (time to take it back). */
+export const TAKE_BACK_MS = 1500;
 /** Anyone at the table can mute (amount 0) or unmute the table screens: a Chromecast has no menu of its own. */
 export const SCREEN_SOUND = '__screenSound';
 /** Anyone at the table can let a bot play for a player who has dropped (`seat`: their game seat) until they're back. */
@@ -219,6 +222,7 @@ export class Host {
       return this.paced(peer, msg);
     }
     if (msg.t === 'replay') return this.sendFrame(peer, msg.hand, msg.step);
+    if (msg.t === 'react') return void this.react(this.peers.get(peer) ?? '', msg.e);
     if (msg.t === 'export') return this.sendExport(peer, msg.format);
     if (msg.t === 'lobby') return this.lobbyOp(this.peers.get(peer), msg.op);
     if (msg.t === 'act') {
@@ -429,6 +433,7 @@ export class Host {
   private applyAs(seat: number, a: Action): string | null {
     const module = this.module!;
     if (a.type === UNDO) {
+      if (!module.config.undo) return this.undoTakeBack(seat);
       const prev = this.history.pop();
       if (!prev) return 'Nothing to undo';
       this.state = prev;
@@ -453,6 +458,7 @@ export class Host {
       this.history.push(this.state!);
       if (this.history.length > 30) this.history.shift();
     }
+    this.takeBack = this.mayTakeBack(seat, this.state!, next) ? { seat, before: this.state!, after: next } : null;
     this.state = next;
     this.move = { seat, action };
     this.commit();
@@ -491,6 +497,43 @@ export class Host {
     next.players[seat].bot = bot;
     this.state = next;
     this.commit();
+  }
+
+  /** The latest move, while its player may still take it back (see Lobby.takeBacks). */
+  private takeBack: { seat: number; before: GameState; after: GameState } | null = null;
+
+  /** The move just made can be taken back: take-backs are on, a person made it, and it showed them no new card (a draw can't be undone). */
+  private mayTakeBack(seat: number, before: GameState, after: GameState): boolean {
+    const m = this.module!;
+    if (!this.lobby.takeBacks || m.realtime || m.config.undo || before.players[seat]?.bot) return false;
+    const seen = (st: GameState) => {
+      const ids = new Set<string>();
+      for (const z of Object.values(redact(m, st, seat).zones)) for (const c of z.cards) if (!isHidden(c.id)) ids.add(c.id);
+      return ids;
+    };
+    const had = seen(before);
+    return [...seen(after)].every((id) => had.has(id));
+  }
+
+  /** The take-back on offer to `seat` right now, if any (only until anyone, or anything, moves next). */
+  private takeBackFor(seat: number) {
+    const t = this.takeBack;
+    return t && t.seat === seat && t.after === this.state ? t : null;
+  }
+
+  private undoTakeBack(seat: number): string | null {
+    const t = this.takeBackFor(seat);
+    if (!t) return 'Too late to take that back';
+    this.takeBack = null;
+    this.state = t.before;
+    this.commit();
+    return null;
+  }
+
+  /** The host turns take-backs on or off (any time). */
+  setTakeBacks(on: boolean) {
+    this.lobby.takeBacks = on || undefined;
+    this.broadcast();
   }
 
   /** Bump version, persist, send views, then schedule any automatic steps. */
@@ -623,6 +666,20 @@ export class Host {
     });
   }
 
+  /** A reaction from someone at the table, passed on to everyone (one a second each, at most). */
+  react(cid: string, e: unknown): boolean {
+    const now = Date.now();
+    if (typeof e !== 'number' || !Number.isInteger(e) || e < 0 || e >= REACTIONS.length) return false;
+    if (!this.lobby.seats.some((s) => s.id === cid && !s.bot) || now - (this.reacted.get(cid) ?? 0) < 1000) return false;
+    this.reacted.set(cid, now);
+    this.onReact(cid, e);
+    this.transport?.send({ t: 'react', id: cid, e });
+    return true;
+  }
+  private reacted = new Map<string, number>();
+  /** Reactions, for this device's own screen. */
+  onReact: (id: string, e: number) => void = () => {};
+
   /** Clear tonight's tally (host only). */
   newNight() {
     this.lobby.night = { games: [] };
@@ -638,8 +695,10 @@ export class Host {
     if (!s || !module) return;
     if (module.realtime) return this.pumpRealtime(s, module);
     const sys = module.system?.(s);
+    // (a move that can still be taken back: give its player a moment before the table moves on)
+    const grace = this.takeBack?.after === s ? TAKE_BACK_MS : 0;
     if (sys) {
-      this.timer = setTimeout(() => this.runSystem(sys, module), sys.delay);
+      this.timer = setTimeout(() => this.runSystem(sys, module), sys.delay + grace);
       return;
     }
     if (!module.bot) return;
@@ -648,7 +707,7 @@ export class Host {
     // bots think (in the background, in the app), then move after a natural pause
     const turn = ++this.thinking;
     const asked = Date.now();
-    const pause = 650 + Math.random() * 600;
+    const pause = 650 + Math.random() * 600 + grace;
     const then = (pick: Thought) => {
       if (this.closed || turn !== this.thinking || this.state !== s || !pick) return; // (the table moved on)
       const wait = Math.max(0, pause - (Date.now() - asked));
@@ -969,6 +1028,9 @@ export class Host {
       case 'deal':
         if (!this.lobby.started) this.start();
         return;
+      case 'takeBacks':
+        if (typeof o.on === 'boolean') this.setTakeBacks(o.on);
+        return;
       case 'end':
         if (this.lobby.started) this.endGame();
         return;
@@ -1107,6 +1169,7 @@ export class Host {
     this.lobby.playing = players.map((s) => s.id);
     this.lobby.started = true;
     this.history = [];
+    this.takeBack = null;
     this.hands = [];
     this.recording = null;
     this.gameRecord = new GameRecord(standardFormats(this.module.config));
@@ -1174,6 +1237,7 @@ export class Host {
       ...(s && this.hands.at(-1)?.at(-1) === s ? { handDone: true as const } : {}),
     };
     if (s && m?.config.undo && this.history.length && seat >= 0) view.actions.push({ type: UNDO, label: 'Undo', menu: true });
+    else if (s && seat >= 0 && this.takeBackFor(seat)) view.actions.push({ type: UNDO, label: 'Take back', style: 'quiet' });
     return view;
   }
 

@@ -20,6 +20,8 @@ export class Client {
   onFrame: (f: Frame | null) => void = () => {};
   /** The game as a file, asked for with `exportGame` (null: nothing to save). */
   onExport: (text: string | null) => void = () => {};
+  /** Someone at the table reacted (see REACTIONS). */
+  onReact: (id: string, e: number) => void = () => {};
   /** When we last heard anything from the host. */
   lastHeard = 0;
   /** The host's latest sealed backup of the game (only the relay can unlock it; see backup.ts). */
@@ -119,6 +121,8 @@ export class Client {
         this.onView(msg.view);
         // a host we've only just found: show it our key, so it gives us our seat
         if (fresh) this.hello(from);
+      } else if (msg.t === 'react') {
+        if (from === this.hostPeer && typeof msg.id === 'string' && typeof msg.e === 'number') this.onReact(msg.id, msg.e);
       } else if (msg.t === 'err') {
         if (from === this.hostPeer) this.onError(String(msg.msg));
       }
@@ -185,6 +189,10 @@ export class Client {
   lobbyOp(op: LobbyOp) {
     if (!this.hostPeer) return this.onError('Not connected to the host yet');
     this.transport.send({ t: 'lobby', op }, this.hostPeer);
+  }
+
+  react(e: number) {
+    if (this.hostPeer) this.transport.send({ t: 'react', e }, this.hostPeer);
   }
 
   act(a: Action) {

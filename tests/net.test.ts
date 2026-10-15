@@ -149,6 +149,64 @@ describe('host ↔ clients', () => {
     expect(host.act('h', { type: STAND_IN, seat: 1 })).toBe('Ann is back');
   });
 
+  it('take-backs: a player may undo their move until anyone else moves, but never a move that showed them a card', () => {
+    const { host, hostView } = setup();
+    host.setGame('hearts');
+    for (let i = 0; i < 3; i++) host.addBot();
+    host.setTakeBacks(true);
+    host.start();
+    const hand = () => host.state!.zones['hand:0'].cards.map((c) => c.id);
+    const before = hand();
+    expect(host.act('h', { type: 'pass', cards: before.slice(0, 3) })).toBeNull();
+    expect(hostView().actions.some((a) => a.label === 'Take back')).toBe(true);
+    expect(host.act('h', { type: '__undo' })).toBeNull();
+    expect(hand()).toEqual(before);
+    // once the table moves on, it's too late
+    expect(host.act('h', { type: 'pass', cards: before.slice(3, 6) })).toBeNull();
+    vi.advanceTimersByTime(8000);
+    expect(host.state!.phase).toBe('play');
+    expect(hostView().actions.some((a) => a.label === 'Take back')).toBe(false);
+    expect(host.act('h', { type: '__undo' })).toBe('Too late to take that back');
+  });
+
+  it('take-backs never undo a draw (it showed you a card)', () => {
+    const { host, hostView } = setup();
+    host.setGame('gin-rummy');
+    host.addBot();
+    host.setTakeBacks(true);
+    host.start();
+    for (let i = 0; i < 40 && !hostView().actions.some((a) => a.zone === 'deck'); i++) {
+      // (the bot moves first, or the upcard is offered: decline it until the stock is ours to draw)
+      const pass = hostView().actions.find((a) => a.type === 'pass');
+      if (pass) host.act('h', { type: 'pass' });
+      vi.advanceTimersByTime(3000);
+    }
+    const draw = hostView().actions.find((a) => a.zone === 'deck')!;
+    expect(draw).toBeTruthy();
+    expect(host.act('h', { type: draw.type })).toBeNull();
+    expect(hostView().actions.some((a) => a.label === 'Take back')).toBe(false);
+  });
+
+  it('passes a reaction from someone at the table to everyone, a second apart at most', () => {
+    const { host, mk } = setup();
+    const a = mk('a', 'Ann');
+    const b = mk('b', 'Ben');
+    const seen: [string, number][] = [];
+    b.c.onReact = (id, e) => seen.push([id, e]);
+    a.c.react(2);
+    a.c.react(3);
+    // (only the fixed few, from people at the table)
+    a.c.react(99);
+    expect(host.react('stranger', 0)).toBe(false);
+    expect(seen).toEqual([['a', 2]]);
+    vi.advanceTimersByTime(1100);
+    a.c.react(3);
+    expect(seen).toEqual([
+      ['a', 2],
+      ['a', 3],
+    ]);
+  });
+
   it('a host resuming in a new browser session (a new client id) keeps its seat in the game', () => {
     const { host } = setup();
     host.setGame('hearts');

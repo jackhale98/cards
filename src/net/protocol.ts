@@ -120,6 +120,8 @@ export interface Lobby {
    * that can't vouch for the host, a player shows their seat's key only to a host of this table.
    */
   tid?: string;
+  /** Take-backs (the host's choice): a player may undo their last move until anyone else moves. */
+  takeBacks?: boolean;
 }
 
 /** Everything a device needs to render: personalised and redacted by the host. */
@@ -174,6 +176,8 @@ export type ClientMsg =
       merge?: NightGame[];
     }
   | { t: 'act'; a: Action; seq: number }
+  /** A reaction (an index into REACTIONS), shown on the sender's seat for everyone. */
+  | { t: 'react'; e: number }
   /** Replay: the host answers with that moment of that hand (see Frame). */
   | { t: 'replay'; hand: number; step: number }
   /** The game so far as a file (a spreadsheet, or its game's standard record), as this player saw it. */
@@ -183,6 +187,9 @@ export type ClientMsg =
   | { t: 'lobby'; op: LobbyOp };
 
 /** What the player holding the controls may do: the host's lobby buttons, and back to the lobby. */
+/** The reactions anyone at the table can send (a fixed few: no free text to keep an eye on). */
+export const REACTIONS = ['👍', '👏', '😂', '😮', '😬', '🔥'];
+
 export type LobbyOp =
   | { op: 'game'; id: string }
   | { op: 'option'; id: string; value: number | boolean }
@@ -191,11 +198,14 @@ export type LobbyOp =
   | { op: 'move'; id: string; dir: -1 | 1 }
   | { op: 'remove'; id: string }
   | { op: 'deal' }
+  | { op: 'takeBacks'; on: boolean }
   | { op: 'end' }
   | { op: 'look'; back: string; cloth: string };
 
 export type HostMsg =
   | { t: 'view'; view: View }
+  /** Someone at the table reacted (`id`: their lobby seat; `e`: an index into REACTIONS). */
+  | { t: 'react'; id: string; e: number }
   | { t: 'frame'; frame: Frame | null }
   | { t: 'export'; format: 'csv' | 'pbn' | 'ohh'; text: string | null }
   | { t: 'err'; msg: string; seq?: number }
