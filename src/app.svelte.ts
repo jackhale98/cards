@@ -11,6 +11,8 @@ import type { RelayTransport } from './net/relayTransport';
 import { noteGames } from './ui/record';
 import { createTransport, FALLBACK_AFTER_MS, RELAY_GRACE_MS, type TransportKind } from './net/transport';
 
+/** The host's table is saved this long after a change (and at once when the page is hidden). */
+const SAVE_AFTER_MS = 800;
 /** A guest that has lost the host for this long rebuilds its connection from scratch. */
 const REJOIN_AFTER_MS = 8000;
 /** A host gone this long can be taken over by a player (the relay itself waits 20s). */
@@ -266,6 +268,9 @@ class App {
       void this.sync();
     });
     holdIdentity(this.cid);
+    // (a page going away writes the table first: see saveSoon)
+    addEventListener('pagehide', () => this.saveNow());
+    document.addEventListener('visibilitychange', () => document.visibilityState === 'hidden' && this.saveNow());
     // a phone waking up says hello straight away instead of waiting for the next retry
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') this.client?.nudge();
@@ -360,7 +365,7 @@ class App {
     if (!from || m.code === from) return;
     if (m.back && m.night) this.returning = { to: m.code, from, night: m.night };
     if (m.host) {
-      store.set('cards.host', null);
+      this.forgetSaved();
       this.pendingHostCode = m.code;
       this.pendingSplit = { code: m.code, night: m.night, parent: m.parent, game: m.game };
       this.say(`You're hosting a new table, ${m.code} — your group is on its way`);
@@ -375,7 +380,7 @@ class App {
     if (!this.host || !parent || !from) return;
     this.host.goBack();
     this.returning = { to: parent, from, night: this.view?.lobby.night ?? { games: [] } };
-    store.set('cards.host', null);
+    this.forgetSaved();
     // (a moment for the message to reach everyone before this table closes)
     setTimeout(() => this.go(`/room/${parent}`), 400);
   }
@@ -411,7 +416,7 @@ class App {
   }
 
   createRoom() {
-    store.set('cards.host', null);
+    this.forgetSaved();
     const code = makeRoomCode();
     this.pendingHostCode = code;
     this.go(`/room/${code}`);
@@ -423,10 +428,12 @@ class App {
    */
   private codeTaken(code: string) {
     if (this.currentCode !== code || !this.isHost) return;
+    // (the table as it stands now, written at once: it moves to the new code)
+    this.saveNow();
     const saved = this.savedHost;
     const next = makeRoomCode();
     if (saved?.code === code) store.set('cards.host', JSON.stringify({ ...saved, code: next, at: Date.now() } satisfies SavedHost));
-    else store.set('cards.host', null);
+    else this.forgetSaved();
     this.say('That table code was already in use — here’s a new one');
     this.pendingHostCode = next;
     this.go(`/room/${next}`);
@@ -497,8 +504,12 @@ class App {
       this.view = structuredClone(v);
       this.noteRecord(v);
     };
+    // (saved a moment after each change, not on every one: the whole game is a lot to write; and at
+    // once when the page is hidden or closed)
     host.onPersist = (snap) =>
-      store.set('cards.host', JSON.stringify({ code, cid: this.cid, key: seatKey(), hostKey: hostKey(), snap, at: Date.now() } satisfies SavedHost));
+      this.saveSoon(host, () =>
+        store.set('cards.host', JSON.stringify({ code, cid: this.cid, key: seatKey(), hostKey: hostKey(), snap, at: Date.now() } satisfies SavedHost)),
+      );
     this.host = host;
     // (development builds: browser tests drive this seat with a bot's moves)
     if (import.meta.env.DEV)
@@ -661,7 +672,7 @@ class App {
     if (this.currentCode !== code || !this.isHost) return;
     // our seat is under the id (and key) we hosted with (this may be a new tab, with new ones)
     if (seatId && seatId !== this.cid) this.becomeId(seatId, key);
-    store.set('cards.host', null);
+    this.forgetSaved();
     this.host?.close();
     this.host = null;
     this.transport = null;
@@ -678,6 +689,26 @@ class App {
     noteGames(v.lobby.night, this.cid);
   }
   private recordSeen = '';
+
+  private saveTimer: ReturnType<typeof setTimeout> | null = null;
+  private pendingSave: { host: Host; write: () => void } | null = null;
+  private saveSoon(host: Host, write: () => void) {
+    this.pendingSave = { host, write };
+    this.saveTimer ??= setTimeout(() => this.saveNow(), SAVE_AFTER_MS);
+  }
+  /** Forget the table this device was hosting (and any save of it still to come). */
+  private forgetSaved() {
+    this.pendingSave = null;
+    store.set('cards.host', null);
+  }
+  /** Write the table now (if it's still this device's table: leaving or handing it on drops the save). */
+  saveNow() {
+    if (this.saveTimer) clearTimeout(this.saveTimer);
+    this.saveTimer = null;
+    const p = this.pendingSave;
+    this.pendingSave = null;
+    if (p && p.host === this.host) p.write();
+  }
 
   /** This tab takes on another client id (and seat key): an earlier tab's, at a table it sat at. */
   private becomeId(cid: string, key?: string, host?: string) {
@@ -798,7 +829,8 @@ class App {
     this.addAll = null;
     this.netStatus = null;
     this.pings = [];
-    if (clearSaved && this.host) store.set('cards.host', null);
+    if (clearSaved && this.host) this.forgetSaved();
+    else this.saveNow();
     this.host = null;
     this.client = null;
     this.view = null;

@@ -1,5 +1,6 @@
 import { rulesFor } from '../games';
-import type { Action, GameState } from '../engine/types';
+import type { Action, GameConfig, GameState } from '../engine/types';
+import { pickWith } from './pick';
 
 /** A bot's move: which bot, and what it does. */
 export interface Pick {
@@ -26,12 +27,7 @@ export interface Brain {
 /** First bot in `seats` with a move, worked out here and now. */
 export function pickNow(game: string, s: GameState, seats: number[]): Pick | null {
   const m = rulesFor(game);
-  if (!m?.bot) return null;
-  for (const seat of seats) {
-    const action = m.bot(s, seat);
-    if (action) return { seat, action };
-  }
-  return null;
+  return m ? pickWith(m, s, seats) : null;
 }
 
 /** Bots think on the host's own thread (tests, and browsers without workers). */
@@ -51,8 +47,11 @@ export function inlineBrain(): Brain {
   return brain;
 }
 
-/** Messages to and from the bot worker (botWorker.ts). */
-export type BrainRequest = { id: number; game: string; state: GameState; seats: number[] };
+/**
+ * Messages to and from the bot worker (botWorker.ts). The game's own settings come along (the
+ * worker builds its rules from them), so the worker needn't download every game's file.
+ */
+export type BrainRequest = { id: number; game: string; config: GameConfig; state: GameState; seats: number[] };
 export type BrainReply = { id: number; pick: Pick | null } | { id: number; error: string };
 
 /**
@@ -69,18 +68,42 @@ export function workerBrain(): Brain {
   }
   let next = 0;
   const waiting = new Map<number, { resolve: (p: Thought) => void; req: BrainRequest }>();
+  /**
+   * One question at a time: a newer one waits for the worker to finish the one it's on, and
+   * replaces any other waiting (the table has moved on: the host would ignore that answer anyway).
+   */
+  let busy = false;
+  let queued: { resolve: (p: Thought) => void; req: BrainRequest } | null = null;
+  const post = (w: { resolve: (p: Thought) => void; req: BrainRequest }) => {
+    busy = true;
+    waiting.set(w.req.id, w);
+    try {
+      worker!.postMessage(w.req);
+    } catch {
+      giveUp();
+    }
+  };
+  const done = () => {
+    busy = false;
+    const q = queued;
+    queued = null;
+    if (q && worker) post(q);
+  };
   const giveUp = () => {
     worker?.terminate();
     worker = null;
+    busy = false;
     // whatever was asked meanwhile gets answered here instead
-    for (const { resolve, req } of waiting.values()) resolve(fallback.think(req.game, req.state, req.seats) as Thought);
+    for (const { resolve, req } of [...waiting.values(), ...(queued ? [queued] : [])]) resolve(fallback.think(req.game, req.state, req.seats) as Thought);
     waiting.clear();
+    queued = null;
   };
   if (worker) {
     worker.onmessage = (e: MessageEvent<BrainReply>) => {
       const w = waiting.get(e.data.id);
       if (!w) return;
       waiting.delete(e.data.id);
+      done();
       if ('error' in e.data) {
         brain.onError(new Error(e.data.error), w.req.game, w.req.state.phase);
         // (once more here: the worker may have failed to load the rules, which this thread has)
@@ -94,21 +117,21 @@ export function workerBrain(): Brain {
   }
   const brain: Brain = {
     think(game, state, seats) {
-      if (!worker) return fallback.think(game, state, seats);
-      const req: BrainRequest = { id: ++next, game, state, seats };
+      const m = rulesFor(game);
+      if (!worker || !m) return fallback.think(game, state, seats);
+      const req: BrainRequest = { id: ++next, game, config: m.config, state, seats };
       return new Promise((resolve) => {
-        waiting.set(req.id, { resolve, req });
-        try {
-          worker!.postMessage(req);
-        } catch {
-          giveUp();
-        }
+        if (!busy) return post({ resolve, req });
+        // (the one this replaces is answered "nothing": it's out of date)
+        queued?.resolve(null);
+        queued = { resolve, req };
       });
     },
     close() {
       worker?.terminate();
       worker = null;
       waiting.clear();
+      queued = null;
     },
     onError: () => {},
   };

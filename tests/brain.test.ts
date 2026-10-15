@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { pickNow, type Brain, type Pick } from '../src/net/brain';
+import { pickNow, workerBrain, type Brain, type BrainRequest, type Pick } from '../src/net/brain';
 import { Host } from '../src/net/host';
 import type { GameState } from '../src/engine/types';
 
@@ -90,5 +90,42 @@ describe('bots thinking in the background', () => {
     await vi.advanceTimersByTimeAsync(6000);
     expect(host.state!.phase).toBe('play');
     host.close();
+  });
+
+  it('the worker is asked one thing at a time: a newer question replaces one still waiting', async () => {
+    const posted: BrainRequest[] = [];
+    let onmessage: (e: { data: unknown }) => void = () => {};
+    class FakeWorker {
+      set onmessage(f: (e: { data: unknown }) => void) {
+        onmessage = f;
+      }
+      onerror = null;
+      postMessage(req: BrainRequest) {
+        posted.push(req);
+      }
+      terminate() {}
+    }
+    vi.stubGlobal('Worker', FakeWorker);
+    const host = new Host(null, 'BRAIN', { cid: 'h', name: 'Hana' });
+    host.setGame('hearts');
+    for (let i = 0; i < 3; i++) host.addBot();
+    host.start();
+    const s = host.state!;
+    const brain = workerBrain();
+    const first = brain.think('hearts', s, [1]);
+    const second = brain.think('hearts', s, [2]);
+    const third = brain.think('hearts', s, [3]);
+    // only the first went to the worker; the second was overtaken by the third
+    expect(posted.map((r) => r.seats)).toEqual([[1]]);
+    expect(posted[0].config.id).toBe('hearts');
+    expect(await second).toBeNull();
+    onmessage({ data: { id: posted[0].id, pick: null } });
+    expect(await first).toBeNull();
+    expect(posted.map((r) => r.seats)).toEqual([[1], [3]]);
+    onmessage({ data: { id: posted[1].id, pick: { seat: 3, action: { type: 'pass' } } } });
+    expect(await third).toEqual({ seat: 3, action: { type: 'pass' } });
+    brain.close();
+    host.close();
+    vi.unstubAllGlobals();
   });
 });

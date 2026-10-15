@@ -57,6 +57,8 @@ export const REPLAY_HANDS = 5;
 /** The phases a hand ends in, across the families. */
 const END_PHASES = new Set(['handOver', 'roundOver', 'gameOver']);
 export const REPLAY_STEPS = 600;
+/** Most moments kept across all the replay hands (each is a whole game state: memory adds up). */
+export const REPLAY_TOTAL = 1200;
 /** Replay frames one connection may ask for a second (stepping, or playing a hand back). */
 const FRAMES_PER_SECOND = 20;
 /** Most people at one table (more than any game seats: the rest sit out and rotate in). */
@@ -356,6 +358,16 @@ export class Host {
         this.peerLeft(peer);
         continue;
       }
+      // mid-game, views go out and moves come in all the time: they show both ends are there, so
+      // a ping would only wake the radio (and the relay) for nothing. Every third beat pings anyway,
+      // to keep the round-trip times fresh.
+      const busy = h.rtt != null && now - h.seen < HEARTBEAT_MS && now - (this.sentAt.get(peer) ?? 0) < HEARTBEAT_MS;
+      const skipped = this.pingSkips.get(peer) ?? 0;
+      if (busy && skipped < 2) {
+        this.pingSkips.set(peer, skipped + 1);
+        continue;
+      }
+      this.pingSkips.set(peer, 0);
       this.transport?.send({ t: 'ping', ts: performance.now() }, peer);
     }
     // (everyone's phone hears about connections when they change, or every so often: not every beat)
@@ -370,6 +382,9 @@ export class Host {
     this.transport?.send({ t: 'pings', pings });
   }
   private sentPings: (number | null)[] = [];
+  /** When each connection was last sent a view, and how many pings in a row it has gone without. */
+  private sentAt = new Map<string, number>();
+  private pingSkips = new Map<string, number>();
   private quietBeats = 0;
   private lastBeat = Date.now();
 
@@ -392,6 +407,8 @@ export class Host {
     this.peers.delete(peer);
     this.health.delete(peer);
     this.displays.delete(peer);
+    this.sentAt.delete(peer);
+    this.pingSkips.delete(peer);
     const seat = this.lobby.seats.find((s) => s.id === cid);
     if (seat && ![...this.peers.values()].includes(seat.id)) {
       seat.connected = false;
@@ -605,6 +622,7 @@ export class Host {
     this.recording.push(s);
     this.hands.push(this.recording);
     if (this.hands.length > REPLAY_HANDS) this.hands.shift();
+    while (this.hands.length > 1 && this.hands.reduce((n, h) => n + h.length, 0) > REPLAY_TOTAL) this.hands.shift();
     this.recording = null;
   }
 
@@ -717,7 +735,8 @@ export class Host {
       return;
     }
     if (!module.bot) return;
-    const seats = s.players.filter((p) => p.bot).map((p) => p.seat);
+    // (only bots with a move on offer: no sending the whole game off to think on a person's turn)
+    const seats = s.players.filter((p) => p.bot && module.actions(s, p.seat).some((a) => !a.menu)).map((p) => p.seat);
     if (!seats.length) return;
     // bots think (in the background, in the app), then move after a natural pause
     const turn = ++this.thinking;
@@ -1275,8 +1294,15 @@ export class Host {
     if (this.state) this.state.v = this.v;
     this.onLocalView(this.viewFor(this.hostCid));
     if (this.transport) {
+      // one view per person (or table screen), however many networks reach them
+      const views = new Map<string | null, View>();
+      const now = Date.now();
       for (const [peer, cid] of this.peers) {
-        this.transport.send({ t: 'view', view: this.viewFor(this.displays.has(peer) ? null : cid) }, peer);
+        const who = this.displays.has(peer) ? null : cid;
+        let view = views.get(who);
+        if (!view) views.set(who, (view = this.viewFor(who)));
+        this.transport.send({ t: 'view', view }, peer);
+        this.sentAt.set(peer, now);
       }
     }
     this.onPersist({ lobby: this.lobby, state: this.state, keys: this.keys });

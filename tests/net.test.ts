@@ -335,6 +335,45 @@ describe('connection health', () => {
     expect(host.lobby.seats.map((s) => s.id)).toEqual(['h', 'g']);
   });
 
+  it('skips pings while the table is busy (views out, moves in), but pings every third beat even so', () => {
+    const bus = new Bus();
+    const ht = new MemTransport(bus, 'host');
+    const host = new Host(ht, 'ABCD', { cid: 'h', name: 'H' });
+    bus.join(ht);
+    const gt = new MemTransport(bus, 'guest');
+    new Client(gt, 'g', 'G', undefined);
+    bus.join(gt);
+    vi.advanceTimersByTime(3100); // (the first ping: the round trip is known)
+    const pings = () => ht.sent.filter((m) => m.t === 'ping').length;
+    const before = pings();
+    // a busy game: the host sends a view and hears from the guest every half second
+    for (let i = 0; i < 36; i++) {
+      host.broadcast();
+      gt.send({ t: 'replay', hand: 0, step: 0 }, 'host');
+      vi.advanceTimersByTime(500);
+    }
+    // 18 seconds is six beats: two pings, not six
+    expect(pings() - before).toBe(2);
+    host.close();
+  });
+
+  it('works out each person’s view once, however many networks reach them', () => {
+    const bus = new Bus();
+    const ht = new MemTransport(bus, 'host');
+    const host = new Host(ht, 'ABCD', { cid: 'h', name: 'H' });
+    bus.join(ht);
+    for (const peer of ['g-relay', 'g-p2p']) {
+      const t = new MemTransport(bus, peer);
+      new Client(t, 'g', 'G', undefined, false, 'k');
+      bus.join(t);
+    }
+    const spy = vi.spyOn(host, 'viewFor');
+    host.broadcast();
+    // the host's own, and the guest's (once, for two connections)
+    expect(spy.mock.calls.map((c) => c[0])).toEqual(['h', 'g']);
+    host.close();
+  });
+
   it('a host waking from sleep doesn’t drop everyone it couldn’t hear while it slept', () => {
     const bus = new Bus();
     const ht = new MemTransport(bus, 'host');
