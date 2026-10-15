@@ -147,6 +147,12 @@ a.btn {
   border-color: rgba(231, 111, 81, 0.45);
   color: #ffd5c8;
 }
+/* the way back somewhere safe (Back to lobby): green, beside danger's red */
+.btn.good {
+  background: rgba(123, 211, 137, 0.16);
+  border-color: rgba(123, 211, 137, 0.5);
+  color: #d4f5da;
+}
 .btn.quiet {
   background: transparent;
 }

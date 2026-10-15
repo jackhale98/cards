@@ -1392,7 +1392,7 @@
       >
       {#if app.controls}
         <button
-          class="btn"
+          class="btn good"
           onclick={() => {
             app.controls?.endGame();
             sheet = null;
