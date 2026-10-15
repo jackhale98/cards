@@ -1,4 +1,4 @@
-import { dummyPoints, lengthPoints, stopped, SUIT_NAME, SYMBOL, type Ctx, type HandInfo } from './auction';
+import { dummyPoints, lengthPoints, levelOf, stopped, SUIT_AT, SUIT_NAME, SYMBOL, type Ctx, type HandInfo } from './auction';
 import { r, type Rule } from './rules';
 
 /**
@@ -16,6 +16,13 @@ const sym = (x: string) => SYMBOL[x];
 /** Opening points: 12+, or 10–11 with the two longest suits making twenty (the Rule of 20). */
 const opens = (h: HandInfo) => h.hcp >= 12 || (h.hcp >= 10 && h.hcp + h.len.slice().sort((a, b) => b - a)[0] + h.len.slice().sort((a, b) => b - a)[1] >= 20);
 const fourMajor = (h: HandInfo) => h.L.S === 4 || h.L.H === 4;
+/** The side suit (not trumps) a game try asks for help in: three cards or more, two losers or more (the most; lower suits first). */
+function helpWanted(h: HandInfo, trump: string): string | null {
+  const losers = (x: string) => Math.min(3, h.L[x]) - h.hand[SUIT_AT[x]].slice(0, 3).filter((v) => v >= 12).length;
+  return ['C', 'D', 'H', 'S'].filter((x) => x !== trump && h.L[x] >= 3 && losers(x) >= 2).sort((a, b) => losers(b) - losers(a))[0] ?? null;
+}
+/** Two of the top three honours. */
+const goodSuit = (h: HandInfo, x: string) => h.hand[SUIT_AT[x]].filter((v) => v >= 12).length >= 2;
 
 // ---- openings ---------------------------------------------------------------------------
 
@@ -146,7 +153,17 @@ function notrump(o: '1N' | '2N'): Rule[] {
           r(o, '4N', { hcp: [16, 17], S: [0, 3], H: [0, 3] }, '16–17 points: slam if you have the top of your range'),
         ]
       : []),
+    ...(two
+      ? []
+      : [
+          r(o, '6N', { hcp: [13, 15], S: [0, 3], H: [0, 3] }, '13–15 points: slam'),
+          r(o, '4N', { hcp: [11, 12], S: [0, 3], H: [0, 3] }, '11–12 points: slam if you have the top of your range'),
+        ]),
     r(o, '3N', { hcp: game, S: [0, 4], H: [0, 4] }, 'to play'),
+    // (answering 4NT: slam at the top of the range, or with a five-card suit to make up a point)
+    r(T('4N'), '6N', { hcp: two ? [17, 17] : [21, 21] }, 'the top of the range: slam'),
+    r(T('4N'), '6N', { hcp: two ? [16, 16] : [20, 20] }, 'a five-card suit: slam', { also: (h) => h.len.some((n) => n >= 5) }),
+    r(T('4N'), 'P', {}, 'the bottom of the range'),
     ...(two ? [r(o, '2N', { hcp: inv, S: [0, 3], H: [0, 3] }, 'invites 3NT')] : []),
     r(o, 'P', { hcp: weak }, ''),
     // answering Stayman
@@ -314,6 +331,25 @@ function afterRaise(x: 'H' | 'S'): Rule[] {
   const lp = (h: HandInfo) => lengthPoints(h);
   return [
     r(`1${x} 2${x}`, `4${x}`, { hcp: [16, 21] }, `enough for game`, { also: (h) => lp(h) >= 19 }),
+    // a help-suit game try: 16–18 and a side suit with two losers or more; partner bids game with
+    // help there (a top honour, or two cards or fewer) or the top of the raise
+    ...(['S', 'H', 'D', 'C'] as const)
+      .filter((y) => y !== x)
+      .flatMap((y) => {
+        const at = `1${x} 2${x}`;
+        const call = `${'CDHS'.indexOf(y) > 'CDHS'.indexOf(x) ? 2 : 3}${y}`;
+        return [
+          r(at, call, { hcp: [14, 18], [y]: [3, 13] }, `a game try: help wanted in ${word(y)} (16–18 points)`, {
+            forcing: 'round',
+            also: (h) => lp(h) >= 16 && lp(h) <= 18 && helpWanted(h, x) === y,
+          }),
+          r(`${at} ${call}`, `4${x}`, {}, `accepts: help in ${word(y)}, or the top of the raise`, {
+            also: (h) => dummyPoints(h, x) >= 9 || (dummyPoints(h, x) >= 7 && (h.L[y] <= 2 || h.hand[SUIT_AT[y]][0] >= 13)),
+          }),
+          r(`${at} ${call}`, `3${x}`, {}, 'declines the game try'),
+          r(`${at} ${call} 3${x}`, 'P', {}, ''),
+        ];
+      }),
     r(`1${x} 2${x}`, `3${x}`, { hcp: [14, 18] }, `16–18 points: game if you're at the top of your raise`, { also: (h) => lp(h) >= 16 }),
     r(`1${x} 2${x}`, 'P', {}, ''),
     r(`1${x} 2${x} 3${x}`, `4${x}`, { hcp: [8, 10] }, 'top of the raise'),
@@ -321,9 +357,21 @@ function afterRaise(x: 'H' | 'S'): Rule[] {
     r(`1${x} 3${x}`, `4${x}`, { hcp: [13, 21] }, 'accepts the invitation', { also: (h) => lp(h) >= 14 }),
     r(`1${x} 3${x}`, 'P', {}, ''),
     r(`1${x} 4${x}`, 'P', {}, ''),
-    // Jacoby 2NT: a minimum goes straight to game; more shows slam interest
+    // Jacoby 2NT: a minimum goes straight to game; with more, opener shows a short suit first,
+    // then a good second suit, then strength
     r(`1${x} 2N`, `4${x}`, { hcp: [10, 14] }, 'a minimum: no interest in slam'),
-    r(`1${x} 2N`, `3${x}`, { hcp: [15, 21] }, '15+ points: interest in slam', { forcing: 'game' }),
+    ...(['S', 'H', 'D', 'C'] as const)
+      .filter((y) => y !== x)
+      .map((y) => r(`1${x} 2N`, `3${y}`, { hcp: [15, 21], [y]: [0, 1] }, `a singleton or void in ${word(y)}, 15+ points`, { forcing: 'game' })),
+    ...(['S', 'H', 'D', 'C'] as const)
+      .filter((y) => y !== x)
+      .map((y) =>
+        r(`1${x} 2N`, `4${y}`, { hcp: [15, 21], [y]: [5, 13] }, `a second suit: five or more good ${word(y)}, 15+ points`, {
+          also: (h) => goodSuit(h, y),
+        }),
+      ),
+    r(`1${x} 2N`, `3${x}`, { hcp: [18, 21] }, '18+ points, no short suit: interest in slam', { forcing: 'game' }),
+    r(`1${x} 2N`, '3N', { hcp: [15, 17] }, '15–17 points, no short suit', { forcing: 'game' }),
   ];
 }
 
@@ -356,6 +404,27 @@ function afterRebidNT(): Rule[] {
     ['H', 'S'],
   ]) {
     const at = `1${o} 1${s} 1N`;
+    // new minor forcing: with five of the major and 11+, ask whether opener has three of it (or,
+    // after spades, four hearts)
+    if (s === 'H' || s === 'S') {
+      const nm = o === 'C' ? 'D' : 'C';
+      const ask = `${at} 2${nm}`;
+      out.push(
+        r(at, `2${nm}`, { hcp: [11, 18], [s]: [5, 13] }, `new minor forcing: five ${word(s)}, 11+ points, asks for three`, { forcing: 'round' }),
+        r(ask, `2${s}`, { [s]: [3, 3] }, `three ${word(s)}`),
+        ...(s === 'S' ? [r(ask, '2H', { H: [4, 4] }, 'four hearts, not three spades')] : []),
+        r(ask, '2N', {}, `not three ${word(s)}`),
+        // (then responder places it: game, or an invitation opener takes with 14)
+        r(`${ask} 2${s}`, `4${s}`, { hcp: [13, 18] }, 'game in the fit'),
+        r(`${ask} 2${s}`, `3${s}`, { hcp: [11, 12] }, 'invites game in the fit'),
+        r(`${ask} 2${s} 3${s}`, `4${s}`, { hcp: [14, 14] }, 'the top of the range'),
+        r(`${ask} 2${s} 3${s}`, 'P', {}, ''),
+        r(`${ask} 2N`, '3N', { hcp: [13, 18] }, 'to play'),
+        r(`${ask} 2N`, `3${s}`, { hcp: [11, 18], [s]: [6, 13] }, `six ${word(s)}, invites game`),
+        r(`${ask} 2N`, 'P', { hcp: [11, 12] }, ''),
+        ...(s === 'S' ? [r(`${ask} 2H`, '3N', { hcp: [13, 18] }, 'to play'), r(`${ask} 2H`, '2N', { hcp: [11, 12] }, 'invites 3NT')] : []),
+      );
+    }
     out.push(
       r(at, '3N', { hcp: [13, 18] }, 'to play'),
       r(at, '2N', { hcp: [11, 12] }, 'invites 3NT'),
@@ -383,6 +452,23 @@ function rebidOverTwo(open: string, resp: string): Rule[] {
       .map((x) => r(at, `${'CDHS'.indexOf(x) > 'CDHS'.indexOf(resp) ? 2 : 3}${x}`, { hcp: [10, 21], [x]: [4, 13] }, `four or more ${word(x)}`)),
     r(at, `2${open}`, { hcp: [10, 21] }, `${major ? 'five' : 'four'} or more ${word(open)}, nothing else to show`),
   ];
+}
+
+/**
+ * Two over one, responder's second call when opener rebids the major (forced to game already):
+ * with a fit, game at once says there's nothing more (fast arrival); three of the major, below
+ * game, says there may be a slam.
+ */
+function fastArrival(x: 'H' | 'S'): Rule[] {
+  return ['S', 'H', 'D', 'C']
+    .filter((y) => y !== x && 'CDHS'.indexOf(y) < 'CDHS'.indexOf(x))
+    .flatMap((y) => {
+      const at = `1${x} 2${y} 2${x}`;
+      return [
+        r(at, `3${x}`, { hcp: [16, 37], [x]: [3, 13] }, `a fit, 16+ points: interest in slam`, { only: 'twoOverOne', forcing: 'game' }),
+        r(at, `4${x}`, { hcp: [13, 15], [x]: [3, 13] }, `a fit, 13–15 points: no interest in slam`, { only: 'twoOverOne' }),
+      ];
+    });
 }
 
 /** Responder's second call, after opener's rebid in a one-level auction. */
@@ -419,12 +505,28 @@ function responderRebid(open: string, resp: string): Rule[] {
     const at = `1${open} 1${resp} ${zLevel}${z}`;
     const zMajor = z === 'H' || z === 'S';
     const pref = rank.indexOf(open) > rank.indexOf(z) || zLevel === 1 ? 2 : 3;
+    // the fourth suit: bid without a stopper in it, it asks opener for one (and forces to game)
+    const fourth = [...rank].find((x) => x !== open && x !== resp && x !== z)!;
+    const fsf = `${rank.indexOf(fourth) > rank.indexOf(z) ? zLevel : zLevel + 1}${fourth}`;
+    const held = (h: HandInfo) => stopped(h, fourth);
     out.push(
       ...(zMajor ? [r(at, `4${z}`, { hcp: [11, 37], [z]: [4, 13] }, `four or more ${word(z)}: game`, { also: (h) => dp(z)(h) >= 13 })] : []),
       ...(respMajor ? [r(at, `4${resp}`, { hcp: [13, 37], [resp]: [6, 13] }, `six or more ${word(resp)}: game`)] : []),
-      r(at, '3N', { hcp: [13, 18] }, 'to play'),
+      r(at, '3N', { hcp: [13, 18] }, `to play: a stopper in ${word(fourth)}`, { also: held }),
+      ...(levelOf(fsf) >= 2 && levelOf(fsf) <= 3
+        ? [
+            r(at, fsf, { hcp: [12, 37] }, `fourth suit forcing: asks for a stopper in ${word(fourth)} (game forcing)`, { forcing: 'game' }),
+            r(`${at} ${fsf}`, `${levelOf(fsf) === 2 ? 2 : 3}N`, {}, `a stopper in ${word(fourth)}`, { also: held }),
+            r(
+              `${at} ${fsf}`,
+              `${rank.indexOf(resp) > rank.indexOf(fourth) ? levelOf(fsf) : levelOf(fsf) + 1}${resp}`,
+              { [resp]: [3, 3] },
+              `three ${word(resp)}`,
+            ),
+          ]
+        : []),
       ...(zMajor ? [r(at, `3${z}`, { hcp: [10, 12], [z]: [4, 13] }, `four or more ${word(z)}, invites game`)] : []),
-      r(at, '2N', { hcp: [11, 12] }, 'invites 3NT'),
+      r(at, '2N', { hcp: [11, 12] }, `invites 3NT: a stopper in ${word(fourth)}`, { also: held }),
       r(at, `3${open}`, { hcp: [10, 12], [open]: [4, 13] }, `support for ${word(open)}, invites game`),
       ...(zLevel === 1 || zMajor ? [r(at, `${zLevel + 1}${z}`, { hcp: [6, 10], [z]: [4, 13] }, `four or more ${word(z)}, 6–10 points`)] : []),
       r(at, `${rank.indexOf(resp) > rank.indexOf(z) ? zLevel : zLevel + 1}${resp}`, { hcp: [6, 10], [resp]: [6, 13] }, `six or more ${word(resp)}, to play`),
@@ -555,6 +657,8 @@ export const RULES: Rule[] = [
   ...rebidOverNT('S'),
   ...afterRaise('H'),
   ...afterRaise('S'),
+  ...fastArrival('H'),
+  ...fastArrival('S'),
   ...afterMinor('C'),
   ...afterMinor('D'),
   ...afterRebidNT(),

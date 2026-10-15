@@ -170,6 +170,8 @@ def check_bidding(path: str) -> dict:
     seat = {"N": Player.north, "E": Player.east, "S": Player.south, "W": Player.west}
     gaps: list[int] = []
     tally = defaultdict(int)
+    # where the IMPs went: each deal's distance from par, put down to one cause
+    lost = defaultdict(int)
     with open(path) as f:
         rows = [json.loads(line) for line in f if line.strip()]
     for k, r in enumerate(rows, 1):
@@ -198,6 +200,7 @@ def check_bidding(path: str) -> dict:
         gaps.append(imps(ns - par.score))
         if abs(gaps[-1]) >= 10:
             tally["big_misses"] += 1
+        lost[cause(r, table, par.score, c)] += abs(gaps[-1])
     n = max(1, len(gaps))
     return {
         "deals": len(gaps),
@@ -207,7 +210,34 @@ def check_bidding(path: str) -> dict:
         "ns_imps_per_deal_against_par": round(sum(gaps) / n, 2),
         "deals_within_2_imps_of_par": round(sum(1 for g in gaps if abs(g) <= 2) / n, 3),
         "contracts": {key: tally[key] for key in sorted(tally)},
+        "imps_lost_per_deal_by_cause": {key: round(lost[key] / n, 2) for key in sorted(lost)},
     }
+
+
+def cause(r: dict, table, par: int, c: dict | None) -> str:
+    """Why a contract isn't par: it went down; or the side that owns the deal stopped short of a
+    slam (or a game) that double dummy makes; or anything else (the strain, a part-score fight,
+    a sacrifice, a penalty)."""
+    from endplay.types import Denom, Player
+
+    if c is not None:
+        denom = {"C": Denom.clubs, "D": Denom.diamonds, "H": Denom.hearts, "S": Denom.spades, "NT": Denom.nt}
+        decl = {"N": Player.north, "E": Player.east, "S": Player.south, "W": Player.west}[c["declarer"]]
+        if table[denom[c["strain"]], decl] < c["level"] + 6:
+            game = c["level"] >= 5 or (c["level"] >= 4 and c["strain"] in ("H", "S")) or (c["level"] >= 3 and c["strain"] == "NT")
+            return "slam_went_down" if c["level"] >= 6 else "game_went_down" if game else "part_went_down"
+    owners = (Player.north, Player.south) if par >= 0 else (Player.east, Player.west)
+    ours = c is not None and c["declarer"] in ("NS" if par >= 0 else "EW")
+    level = c["level"] if ours else 0
+    strain = c["strain"] if ours else ""
+    best = lambda d: max(table[d, p] for p in owners)
+    games = {Denom.clubs: 11, Denom.diamonds: 11, Denom.hearts: 10, Denom.spades: 10, Denom.nt: 9}
+    if any(best(d) >= 12 for d in games) and level < 6:
+        return "slam_missed"
+    game_bid = level >= 5 or (level >= 4 and strain in ("H", "S")) or (level >= 3 and strain == "NT")
+    if any(best(d) >= t for d, t in games.items()) and not game_bid:
+        return "game_missed"
+    return "other"
 
 
 # ---- poker ------------------------------------------------------------------------------

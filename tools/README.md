@@ -62,17 +62,31 @@ python tools/check_records.py records          # bridge_bidding in the report
 - `deals_within_2_imps_of_par`: the share of deals that end at (or very near) par.
 - `contracts`: part scores, games and slams bid and how many make at double dummy; `big_misses` are
   deals 10 or more IMPs from par.
+- `imps_lost_per_deal_by_cause`: where the IMPs from par went, each deal put down to one cause: the
+  contract went down (a part score, game or slam), the side that owns the deal stopped short of a
+  slam or game that double dummy makes, or anything else (the strain, a part-score fight, a
+  sacrifice).
 
 The same thousand deals (seeds 1–1000):
 
 | Bots bid     | IMPs from par a deal | Within 2 IMPs | Slams bid (made) | Grand slams bid |
 | ------------ | -------------------- | ------------- | ---------------- | --------------- |
 | Natural      | 5.59                 | 38%           | 12 (12)          | 0               |
-| SAYC         | 5.08                 | 42%           | 35 (28)          | 0               |
-| Two over one | 5.11                 | 42%           | 36 (27)          | 0               |
+| SAYC         | 5.10                 | 42%           | 32 (26)          | 0               |
+| Two over one | 5.12                 | 42%           | 31 (24)          | 0               |
 
-The systems lose most where double dummy finds a slam that bidding rarely could (about one IMP a
-deal), then in missed games and competitive auctions.
+The systems lose most where double dummy finds a slam that bidding rarely could (about 1.2 IMPs a
+deal), then in games that go down (1.2), games missed (1.0) and part scores that go down (0.9).
+
+Adding the standard follow-ups (Jacoby 2NT's answers, quantitative 4NT, key-card Blackwood and the
+queen ask in two over one, help-suit game tries, new minor forcing, fourth suit forcing, fast
+arrival, Michaels, the unusual 2NT and balancing) left these numbers where they were (5.08 and 5.11
+before): where the rules run out, the bots already place the contract from what partner has shown,
+so the conventions mostly reach the same contracts by the book. They matter for a person
+partnering a bot, who can read its calls. Measuring against par also counts a good obstruction (a
+Michaels bid that keeps the other side out of their slam) as a miss for both sides: with only
+North-South bidding Michaels, the unusual 2NT and balancing, North-South came out level (0.27 IMPs
+a deal against par, from 0.26).
 
 ### The trick estimator
 

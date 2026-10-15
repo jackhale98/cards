@@ -1,5 +1,5 @@
 import { bidOf, type Call } from '../contracts';
-import { bidNo, callName, callOf, contextFor, handInfo, levelOf, stopped, strainOf, SUIT_NAME, type Ctx, type HandInfo } from './auction';
+import { bidNo, callName, callOf, contextFor, handInfo, levelOf, stopped, strainOf, SUIT_AT, SUIT_NAME, type Ctx, type HandInfo } from './auction';
 import { anyHand, mulberry, samplePartner, type Hand, type Picture } from './hands';
 import { bestContract, evContested, evDeclare, evDefend, impsAgainst, isGame, oddsFor, type Odds } from './place';
 import { appliesAt, callFor, fits, narrow, r, saysFor, type Rule, type System } from './rules';
@@ -38,7 +38,57 @@ const theirSuit = (c: Ctx) => {
 };
 const firstAction = (c: Ctx) => c.opened === 'them' && c.seq === '' && !!lastTheirs(c);
 
+/** Their one-level opening is about to be passed out: we're in the balancing seat. */
+const balancing = (c: Ctx) =>
+  firstAction(c) && !!theirSuit(c) && levelOf(lastTheirs(c)!) === 1 && c.calls.length >= 3 && c.calls.at(-1)!.call === 'P' && c.calls.at(-2)!.call === 'P';
+/** The suits a two-suited jump to 2NT shows over their opening: the two cheapest they haven't bid. */
+const unusual = (t: string) => ['C', 'D', 'H'].filter((x) => x !== t).slice(0, 2);
+/** The suits a cue bid of their suit (Michaels) shows: both majors over a minor, else the other major and a minor. */
+const michaels = (t: string) => (t === 'C' || t === 'D' ? ['S', 'H'] : [t === 'S' ? 'H' : 'S']);
+const minor5 = (h: HandInfo) => h.L.C >= 5 || h.L.D >= 5;
+
 const competitive: Rule[] = [
+  // in the balancing seat, a little lighter: partner is marked with some values
+  r(balancing, '1N', { hcp: [11, 14], balanced: true }, 'balancing: 11–14 points, balanced, a stopper in their suit', {
+    also: (h, c) => stopped(h, theirSuit(c)!),
+  }),
+  r(balancing, 'X', { hcp: [8, 37] }, 'balancing takeout: short in their suit (or 15+)', {
+    also: (h, c) => {
+      const t = theirSuit(c)!;
+      return h.hcp >= 15 || (h.L[t] <= 2 && SUITS.every((y) => y === t || h.L[y] >= 3));
+    },
+  }),
+  ...SUITS.map((x) =>
+    r(
+      (c) => balancing(c) && theirSuit(c) !== x && !!cheapest(c, x) && levelOf(cheapest(c, x)!) <= 2,
+      (c) => cheapest(c, x),
+      { hcp: [6, 14], [x]: [5, 13] },
+      (c) => `balancing: five or more ${word(x)}, ${levelOf(cheapest(c, x)!) === 1 ? '6–14' : '9–14'} points`,
+      {
+        also: (h, c) =>
+          (levelOf(cheapest(c, x)!) === 1 || h.hcp >= 9) &&
+          SUITS.every((y) => y === x || y === theirSuit(c) || h.L[y] < h.L[x] || (h.L[y] === h.L[x] && SUITS.indexOf(y) > SUITS.indexOf(x))),
+      },
+    ),
+  ),
+  // two-suiters: the unusual 2NT and Michaels, five-five (strong hands start with a double or an overcall)
+  r(
+    (c) => firstAction(c) && !!theirSuit(c) && levelOf(lastTheirs(c)!) === 1,
+    '2N',
+    { hcp: [7, 12] },
+    (c) => `unusual 2NT: five or more ${word(unusual(theirSuit(c)!)[0])} and ${word(unusual(theirSuit(c)!)[1])}`,
+    { also: (h, c) => unusual(theirSuit(c)!).every((x) => h.L[x] >= 5) },
+  ),
+  r(
+    (c) => firstAction(c) && !!theirSuit(c) && levelOf(lastTheirs(c)!) === 1,
+    (c) => `2${theirSuit(c)}`,
+    { hcp: [7, 12] },
+    (c) => {
+      const t = theirSuit(c)!;
+      return t === 'C' || t === 'D' ? 'Michaels: five or more of both majors' : `Michaels: five or more ${word(michaels(t)[0])} and a five-card minor`;
+    },
+    { also: (h, c) => michaels(theirSuit(c)!).every((x) => h.L[x] >= 5) && (michaels(theirSuit(c)!).length === 2 || minor5(h)) },
+  ),
   r(
     (c) => firstAction(c) && !!theirSuit(c) && levelOf(lastTheirs(c)!) === 1,
     '1N',
@@ -112,12 +162,71 @@ function blackwoodAsked(c: Ctx): boolean {
 }
 /** 4NT after these calls of ours asks for aces; straight after a no-trump bid it's a raise, asking for the top of the range. */
 const isBlackwood = (before: string[]) => !!before.length && strainOf(before.at(-1)!) !== 'N';
-const ACES = ['0 or 4', '1', '2', '3'];
-const blackwood: Rule[] = ['5C', '5D', '5H', '5S'].map((call, n) =>
-  r(blackwoodAsked, call, {}, `${ACES[n]} ace${n === 1 ? '' : 's'}`, { also: (h) => h.aces % 4 === n }),
-);
+/**
+ * The suit our side has agreed (the last one both partners have bid), else the last suit bid: the
+ * trumps Roman Key Card Blackwood counts the king and queen of.
+ */
+export function agreedSuit(ours: string[], both = false): string | null {
+  const suits = ours.map((b) => (b.length === 2 && b[1] !== 'N' ? b[1] : null));
+  for (let i = suits.length - 1; i >= 0; i--) if (suits[i] && suits.some((x, j) => x === suits[i] && j % 2 !== i % 2)) return suits[i];
+  return both ? null : (suits.filter(Boolean).at(-1) ?? null);
+}
+/** Key cards: the four aces and the king of trumps. */
+const keyCards = (h: HandInfo, trump: string | null) => h.aces + (trump && h.hand[SUIT_AT[trump]].includes(13) ? 1 : 0);
+const trumpQueen = (h: HandInfo, trump: string | null) => !!trump && h.hand[SUIT_AT[trump]].includes(12);
+const trumpOf = (c: Ctx) => agreedSuit(c.seq.split(' ').slice(0, -1));
 
-const ALL: Rule[] = [...RULES, ...competitive, ...blackwood];
+/** The answers, and what each says: how many aces (SAYC), or key cards and the queen of trumps (two over one, 1430). */
+const ANSWERS: Record<System, { counts: number[]; queen?: boolean }[]> = {
+  sayc: [{ counts: [0, 4] }, { counts: [1] }, { counts: [2] }, { counts: [3] }],
+  twoOverOne: [{ counts: [1, 4] }, { counts: [0, 3] }, { counts: [2], queen: false }, { counts: [2], queen: true }],
+};
+const ACES = ['0 or 4', '1', '2', '3'];
+const blackwood: Rule[] = [
+  ...['5C', '5D', '5H', '5S'].map((call, n) =>
+    r(blackwoodAsked, call, {}, `${ACES[n]} ace${n === 1 ? '' : 's'}`, { only: 'sayc', also: (h) => h.aces % 4 === n }),
+  ),
+  ...['5C', '5D', '5H', '5S'].map((call, n) => {
+    const a = ANSWERS.twoOverOne[n];
+    return r(
+      blackwoodAsked,
+      call,
+      {},
+      (c) =>
+        `${a.counts.join(' or ')} key cards${a.queen == null ? '' : a.queen ? ', with' : ', without'}${a.queen == null ? '' : ` the queen of ${word(trumpOf(c) ?? 'S')}`}`,
+      { only: 'twoOverOne', also: (h, c) => a.counts.includes(keyCards(h, trumpOf(c))) && (a.queen == null || a.queen === trumpQueen(h, trumpOf(c))) },
+    );
+  }),
+];
+
+/** Partner asked for the queen of trumps (the next step after our 5♣ or 5♦ answer): the trumps, or null. */
+function queenAsked(c: Ctx): string | null {
+  const ours = c.seq.split(' ');
+  if (ours.at(-3) !== '4N' || !['5C', '5D'].includes(ours.at(-2)!) || !c.lastByUs || c.lastBid !== bidNo(ours.at(-1)!)) return null;
+  const trump = agreedSuit(ours.slice(0, -3));
+  if (!trump) return null;
+  let ask = bidNo(ours.at(-2)!) + 1;
+  while (ask % 5 === 'CDHSN'.indexOf(trump)) ask++;
+  return callName(ask) === ours.at(-1) ? trump : null;
+}
+const queenAnswers: Rule[] = [
+  r(
+    (c) => !!queenAsked(c),
+    (c) => `6${queenAsked(c)}`,
+    {},
+    (c) => `the queen of ${word(queenAsked(c)!)}`,
+    { only: 'twoOverOne', also: (h, c) => trumpQueen(h, queenAsked(c)) },
+  ),
+  r(
+    (c) => !!queenAsked(c),
+    (c) => `5${queenAsked(c)}`,
+    {},
+    (c) => `not the queen of ${word(queenAsked(c)!)}`,
+    { only: 'twoOverOne' },
+  ),
+];
+
+const ALL: Rule[] = [...RULES, ...competitive, ...blackwood, ...queenAnswers];
 
 // ---- reading partner ---------------------------------------------------------------------------
 
@@ -130,8 +239,8 @@ export interface Reading {
   gameForced: boolean;
   /** Partner's last call simply said where to play (no rule): leave it unless clearly wrong. */
   placed: boolean;
-  /** The aces partner showed in answer to Blackwood. */
-  aces: number | null;
+  /** Partner's answer to Blackwood: the aces (or key cards) it may show, and the queen of trumps if it says. */
+  aces: { counts: number[]; queen?: boolean } | null;
   /** Each call's meaning by the system ('' for the other side's and plain passes). */
   notes: string[];
   /** The fewest high-card points the other side's calls have promised between them, and cards in each suit. */
@@ -166,7 +275,7 @@ export function readAuction(system: System, calls: { seat: number; call: Call }[
   let forced = false;
   let gameForced = false;
   let placed = false;
-  let aces: number | null = null;
+  let aces: Reading['aces'] = null;
   const notes: string[] = [];
   const theirMin: Record<number, number> = {};
   const theirLen: Record<number, number[]> = {};
@@ -194,7 +303,8 @@ export function readAuction(system: System, calls: { seat: number; call: Call }[
     const { rules: matching, before } = ahead(system, c, name);
     const rule = matching[0];
     if (rule) notes.push(saysFor(rule, c));
-    else if (typeof x.call === 'number' && name === '4N') notes.push('Blackwood: asks for aces');
+    else if (typeof x.call === 'number' && name === '4N')
+      notes.push(system === 'twoOverOne' ? 'Roman Key Card Blackwood: asks for key cards (the aces and the king of trumps)' : 'Blackwood: asks for aces');
     else notes.push(typeof x.call === 'number' ? 'to play' : x.call === 'X' ? 'for penalties' : '');
     if (x.seat === partner) {
       if (matching.length) pic = narrow(pic, matching, c, before);
@@ -202,7 +312,7 @@ export function readAuction(system: System, calls: { seat: number; call: Call }[
       if (rule?.forcing === 'game') gameForced = true;
       // (no rule: it says where to play; nor does a game bid that forces nothing)
       placed = typeof x.call === 'number' && name !== '4N' && (!rule || (!rule.forcing && isGame(x.call)));
-      if (rule && blackwood.includes(rule)) aces = blackwood.indexOf(rule);
+      if (rule && blackwood.includes(rule)) aces = ANSWERS[system][blackwood.indexOf(rule) % 4];
     } else {
       if (rule?.forcing === 'game') gameForced = true;
       forced = false;
@@ -241,24 +351,67 @@ export function systemCall(system: System, calls: { seat: number; call: Call }[]
   read.pic = { ...read.pic, maxLen };
   const rand = mulberry(hand.flat().reduce((n, v, i) => (n * 31 + v * (i + 1)) | 0, calls.length + 11));
   let cached: Odds | null = null;
-  const odds = (pic = read.pic) => (pic === read.pic && cached ? cached : (cached = oddsFor(hand, samplePartner(hand, pic, SAMPLES, rand))));
+  // (only partner's picture as read is kept: a narrowed one is worked out each time)
+  const odds = (pic = read.pic) =>
+    pic !== read.pic ? oddsFor(hand, samplePartner(hand, pic, SAMPLES, rand)) : (cached ??= oddsFor(hand, samplePartner(hand, pic, SAMPLES, rand)));
   const ours = c.lastByUs ? c.lastBid : null;
   const [vulUs] = vul;
 
-  // after partner's answer to our Blackwood: missing two aces, stop at five; one, bid six; none, look at seven
-  if (read.aces != null && c.seq.split(' ').at(-2) === '4N') {
-    const theirs = read.aces === 0 && read.pic.hcp[0] >= 13 ? 4 : read.aces;
-    const missing = 4 - h.aces - theirs;
-    const pic: Picture = { ...read.pic, test: (x) => (read.pic.test?.(x) ?? true) && x.filter((s) => s[0] === 14).length === theirs };
-    const strain = bestStrain(odds(pic), vulUs);
+  // after partner's answer to our Blackwood: missing two aces (key cards), stop at five; one, bid
+  // six (unless the queen of trumps is missing too); none, look at seven
+  const seq = c.seq.split(' ');
+  // (2: partner just answered; 4: partner answered, we asked for the queen, and partner said)
+  const queenAsk = system === 'twoOverOne' && seq.at(-4) === '4N' && ['5C', '5D'].includes(seq.at(-3)!);
+  const asked = read.aces != null ? (seq.at(-2) === '4N' ? 2 : queenAsk ? 4 : 0) : 0;
+  if (asked) {
+    const rkc = system === 'twoOverOne';
+    const before = seq.slice(0, -asked);
+    // (the suit partner counted the king and queen of)
+    const trump = rkc ? agreedSuit(before) : null;
+    const answer = read.aces!;
+    const reply = asked === 4 ? levelOf(seq.at(-1)!) === 6 : null;
+    const queenOf = (x: Hand, suit: string | null) => !!suit && x[SUIT_AT[suit]].includes(12);
+    // the hands partner can hold, given the answer (and what they said about the queen)
+    const pic: Picture = {
+      ...read.pic,
+      test: (x) =>
+        (read.pic.test?.(x) ?? true) &&
+        answer.counts.includes(keyCards(handInfo(x), trump)) &&
+        (answer.queen == null || queenOf(x, trump) === answer.queen) &&
+        (reply == null || queenOf(x, trump) === reply),
+    };
+    const hands = samplePartner(hand, pic, 24, rand);
+    // (the suit both have bid, or where the side plays best)
+    const strain = agreedSuit(before, true) ?? bestStrain(odds(pic), vulUs);
+    const suit = strain === 'N' ? null : strain;
     const at = (level: number) => (level - 1) * 5 + 'CDHSN'.indexOf(strain);
-    if (missing >= 2) return at(5) > c.lastBid ? at(5) : 'P';
-    if (missing === 1) return at(6);
-    // a grand only when all thirteen tricks look likely (a near thing is a big loss when it fails)
+    const stay = (b: number): Call => (b > c.lastBid ? b : 'P');
+    // on each, the key cards missing in the strain we'd play (aces, at no trumps or in SAYC),
+    // and whether the queen of trumps is missing too
+    const kc = (x: HandInfo) => (rkc ? keyCards(x, suit) : x.aces);
+    const tally = hands.map((x) => {
+      const missing = (rkc && suit ? 5 : 4) - kc(h) - kc(handInfo(x));
+      const queen = !rkc || !suit || trumpQueen(h, suit) || queenOf(x, suit);
+      return { missing, queen };
+    });
+    const share = (f: (t: { missing: number; queen: boolean }) => boolean) => (tally.length ? tally.filter(f).length / tally.length : 0);
+    const unsafe = share((t) => t.missing >= 2 || (t.missing === 1 && !t.queen));
+    const queenUnknown = suit === trump && reply == null && answer.queen == null && !trumpQueen(h, suit);
+    // the queen of trumps could go either way: ask for her, with the next step that isn't trumps
+    // (while five of trumps is still there to stop in)
+    if (rkc && asked === 2 && queenUnknown && share((t) => t.missing <= 1) > 0.5 && unsafe > 0.2 && unsafe < 0.8) {
+      let ask = c.lastBid + 1;
+      while (ask % 5 === 'CDHSN'.indexOf(trump!)) ask++;
+      if (ask < at(5)) return ask;
+    }
+    // too much missing: stop at five (in no trumps when five of the suit is already past)
+    if (!tally.length || unsafe > 0.5) return at(5) >= c.lastBid ? stay(at(5)) : stay(bidNo('5N'));
+    // a grand only when nothing is missing and all thirteen tricks look likely (a near thing is a big loss when it fails)
     const o = odds(pic);
     const k = 'SHDCN'.indexOf(strain);
     const thirteen = o.reduce((n, x) => n + x[k][13], 0) / Math.max(1, o.length);
-    return thirteen >= 0.7 ? at(7) : at(6);
+    const grand = share((t) => t.missing === 0 && t.queen) > 0.9 && thirteen >= 0.7;
+    return stay(at(grand ? 7 : 6));
   }
 
   if (c.contested) return compete(odds(), c, ours, vulUs, vul[1]);

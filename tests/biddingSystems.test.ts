@@ -60,6 +60,66 @@ describe('bidding systems: SAYC and two over one', () => {
     expect(bidFor('twoOverOne', '32.KQ3.A632.AJ32', ['1S', 'P'])).toBe('2C');
   });
 
+  it('answers Jacoby 2NT: a short suit first, then 15–17 with 3NT, a minimum with game', () => {
+    const jacoby = ['1S', 'P', '2N', 'P'];
+    expect(bidFor('sayc', 'AKJ32.4.KQ32.Q32', jacoby)).toBe('3H');
+    expect(bidFor('sayc', 'AQ432.KQ2.Q32.K2', jacoby)).toBe('3N');
+    expect(bidFor('sayc', 'AQ432.K32.Q32.K2', jacoby)).toBe('4S');
+  });
+
+  it('4NT straight after no trumps asks for the top of the range; 21 accepts over 2NT', () => {
+    expect(bidFor('sayc', 'K32.Q32.KJ32.Q32', ['2N', 'P'])).toBe('4N');
+    expect(bidFor('sayc', 'AK2.AQ2.KQ32.QJ2', ['2N', 'P', '4N', 'P'])).toBe('6N');
+    expect(bidFor('sayc', 'AK2.AQ2.KQ32.J32', ['2N', 'P', '4N', 'P'])).toBe('P');
+  });
+
+  it('answers Blackwood with aces in SAYC, and key cards and the queen of trumps in two over one', () => {
+    // one ace, and the king of the agreed spades: two key cards, without the queen
+    const auction = ['1S', 'P', '2N', 'P', '3S', 'P', '4N', 'P'];
+    expect(bidFor('sayc', 'AKJ32.K4.KQ3.Q32', auction)).toBe('5D');
+    expect(bidFor('twoOverOne', 'AKJ32.K4.KQ3.Q32', auction)).toBe('5H');
+    expect(bidFor('twoOverOne', 'AKQ32.K4.KJ3.Q32', auction)).toBe('5S');
+  });
+
+  it('two over one: one key card missing and the queen unknown, asks for her, and bids the slam when partner has her', () => {
+    // hearts agreed; partner shows one key card (5♣), so one is missing
+    const auction = ['1H', 'P', '2C', 'P', '3H', 'P', '4N', 'P', '5C', 'P'];
+    const asker = '7.K874.A32.AKQJ2';
+    expect(bidFor('twoOverOne', asker, auction)).toBe('5D');
+    // the opener answers: with the queen, six; without, five
+    expect(bidFor('twoOverOne', 'K2.AQ953.K64.954', [...auction, '5D', 'P'])).toBe('6H');
+    expect(bidFor('twoOverOne', 'K2.AJ953.KQ4.954', [...auction, '5D', 'P'])).toBe('5H');
+    expect(bidFor('twoOverOne', asker, [...auction, '5D', 'P', '6H', 'P'])).toBe('P');
+    expect(bidFor('twoOverOne', asker, [...auction, '5D', 'P', '5H', 'P'])).toBe('P');
+  });
+
+  it('makes a help-suit game try, and partner accepts with help there', () => {
+    expect(bidFor('sayc', 'AKJ32.K4.Q32.A32', ['1S', 'P', '2S', 'P'])).toBe('3C');
+    expect(bidFor('sayc', 'Q654.J32.32.K654', ['1S', 'P', '2S', 'P', '3C', 'P'])).toBe('4S');
+    expect(bidFor('sayc', 'Q654.K32.54.J432', ['1S', 'P', '2S', 'P', '3C', 'P'])).toBe('3S');
+  });
+
+  it('checks back for a fit with new minor forcing, and asks for a stopper with the fourth suit', () => {
+    expect(bidFor('sayc', 'K2.AQ932.Q32.432', ['1D', 'P', '1H', 'P', '1N', 'P'])).toBe('2C');
+    expect(bidFor('sayc', 'A32.K32.KQ32.Q32', ['1D', 'P', '1H', 'P', '1N', 'P', '2C', 'P'])).toBe('2H');
+    // game values and no heart stopper: 2♥ asks for one rather than guess 3NT
+    expect(bidFor('sayc', 'AQ32.432.KQ2.K32', ['1D', 'P', '1S', 'P', '2C', 'P'])).toBe('2H');
+  });
+
+  it('shows two-suiters over their opening (Michaels, the unusual 2NT), and balances lighter', () => {
+    expect(bidFor('sayc', 'KQ932.2.32.AJ932', ['1H'])).toBe('2H');
+    expect(bidFor('sayc', '2.32.KQ932.AJ932', ['1S'])).toBe('2N');
+    // nine points, short in hearts: a pass in the direct seat, a double when it would be passed out
+    expect(bidFor('sayc', 'K32.32.KJ32.Q432', ['1H'])).toBe('P');
+    expect(bidFor('sayc', 'K32.32.KJ32.Q432', ['1H', 'P', 'P'])).toBe('X');
+  });
+
+  it('two over one: with a fit, game at once is a minimum (fast arrival), three of the major a slam try', () => {
+    const auction = ['1S', 'P', '2C', 'P', '2S', 'P'];
+    expect(bidFor('twoOverOne', 'Q32.K2.A32.KQ432', auction)).toBe('4S');
+    expect(bidFor('twoOverOne', 'Q32.K2.AK2.KQ432', auction)).toBe('3S');
+  });
+
   it('reads partner: after 1NT, the hands it imagines are balanced with 15–17', () => {
     const read = readAuction(
       'sayc',
