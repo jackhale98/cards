@@ -248,8 +248,10 @@ Easy should be the quick rule-of-thumb bot. What Normal and Hard do is up to the
 - **Odds**: poker deals out the unseen cards to estimate how often a hand wins.
 - **Memory / lookahead**: Go Fish (who asked for what), Cheat (claims in the pile), Gin (one draw ahead).
 
-`tests/search.bench.test.ts` measures one level against another (see the comment at its top) —
-check a new level really is stronger before shipping it.
+`tests/levels.bench.test.ts` measures one level against another in every game, each bot seeing
+only its own seat as at a real table (see the comment at its top; `tests/search.bench.test.ts` is
+the older, quicker one for the search games) — check a new level really is stronger before
+shipping it.
 
 ## Real-time games
 
