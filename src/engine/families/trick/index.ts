@@ -5,7 +5,7 @@ import { loadDds } from '../../bots/dds';
 import { assertRule, type GameConfig, type GameModule } from '../../types';
 import { trickActions } from './actions';
 import { applyBid, applyBid500, applyBury, applyCall, applyDecline, applyDouble, applyName, applyOrder } from './bidding';
-import { quickBot, trickSearch } from './bots';
+import { hardQuick, quickBot, quickTricks, trickSearch } from './bots';
 import { applyCallPartner, applyDefend, applyNominate, callable, startRound } from './deal';
 import { applyBlind, applyBlindGive, applyPass } from './exchange';
 import { collectTrick, leadJoker, playCard } from './play';
@@ -14,7 +14,7 @@ import { controller, teamOf, teamsFor } from './sides';
 import { trickStatus } from './status';
 import { applyPitchBid } from './pitch';
 import { trickGame, type TrickData } from './types';
-import { ddCard, ddBudget } from './ddPlay';
+import { dd500Bid, ddBid, ddBudget, ddCard, ddEuchreCall, ddGame } from './ddPlay';
 
 /**
  * The trick-taking family (Hearts, Spades, Oh Hell, Euchre, 500, Bridge, Whist…), split by stage:
@@ -143,28 +143,49 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
     },
 
     bot(s, seat) {
-      // Hard bridge bots: the solver is fetched the first time one is asked anything (in the
-      // auction, so it's there by the first card; until then, cards are searched as at Normal).
-      // Only where bots think, then: never for Easy or Normal, nor a table with no bots.
-      if (g.bridgeBids && botLevel(s.options) === 2) void loadDds();
+      // Hard bots in the partnership games: the solver is fetched the first time one is asked
+      // anything (in the bidding, so it's there by the first card; until then, cards are searched
+      // as at Normal). Only where bots think, then: never for Easy or Normal, nor a table with no bots.
+      if (botLevel(s.options) === 2 && ddGame(g, s.players.length)) void loadDds();
       // five-handed 500: call the best card not held (the top trump, or an ace in no trumps)
       if (s.phase === 'callPartner' && s.turn === seat) {
         const best = callable(g, s)[0];
         return best ? { type: 'callCard', amount: g.deckCards.indexOf(best) } : { type: 'callAlone' };
+      }
+      // Hard, bidding for tricks (Spades): the side's tricks, from deals solved double dummy
+      if (s.phase === 'bid' && s.turn === seat && botLevel(s.options) === 2) {
+        const bid = ddBid(g, s, seat, (cards) => quickTricks(cards, s.data.trump));
+        if (bid != null) {
+          // (the dealer's hook: the bids may not add up to the tricks there are)
+          const others = s.data.bids.reduce<number>((n, b) => n + (b ?? 0), 0);
+          const hooked = g.trickBids?.hook && seat === s.dealer && others + bid === s.data.handSize;
+          return { type: 'bid', amount: hooked ? (bid > 0 ? bid - 1 : bid + 1) : bid };
+        }
+      }
+      // Hard Euchre: ordering up and naming trumps from deals solved double dummy
+      if ((s.phase === 'order' || s.phase === 'name') && s.turn === seat && botLevel(s.options) === 2) {
+        const call = ddEuchreCall(g, s, seat, quickBot(g, s, seat));
+        if (call) return call;
+      }
+      // Hard 500: the auction, from deals solved double dummy
+      if (s.phase === 'auction' && s.turn === seat && botLevel(s.options) === 2) {
+        const bid = dd500Bid(g, s, seat, quickBot(g, s, seat));
+        if (bid) return bid;
       }
       // card play is searched unless the bots are set to Easy; the other decisions use the quick rules
       const budget = botBudget(s.options);
       // (Pitch: the first lead names trumps, a choice of its own: the quick rules make it)
       const pitching = g.R.trump === 'pitched' && !s.data.trump;
       if (s.phase === 'play' && controller(s) === seat && !pitching) {
-        // Hard bridge: deals of the unseen cards, each solved double dummy (see ddPlay.ts)
-        const dd = botLevel(s.options) === 2 && g.bridgeBids ? ddCard(g, s, seat, ddBudget()) : null;
+        // Hard, in the partnership games: deals of the unseen cards, each solved double dummy (see ddPlay.ts)
+        const dd = botLevel(s.options) === 2 ? ddCard(g, s, seat, ddBudget()) : null;
         if (dd) return { type: 'play', cards: [dd] };
+        if (botLevel(s.options) === 2) return searchMove(hardSearch, s, seat, budget!, hardQuick(g, s, seat)) ?? hardQuick(g, s, seat);
         return budget
           ? (searchMove(search, s, seat, budget, quickBot(g, s, seat)) ?? quickBot(g, s, seat))
           : easyMove(s.options, search.candidates(s, seat), quickBot(g, s, seat));
       }
-      return quickBot(g, s, seat);
+      return botLevel(s.options) === 2 ? hardQuick(g, s, seat) : quickBot(g, s, seat);
     },
 
     redactData(s, viewer) {
@@ -194,5 +215,7 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
   };
   // (the search bot plays imagined deals out with this module's own rules)
   const search = trickSearch(g, module);
+  // (Hard: its own rules of thumb, for its moves and everyone's in its imagined playouts)
+  const hardSearch = trickSearch(g, module, (x, seat) => hardQuick(g, x, seat));
   return module;
 }

@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { TrickData } from '../src/engine/families/trick';
 import { ddTable, loadDds, solveCards } from '../src/engine/bots/dds';
-import { ddCard } from '../src/engine/families/trick/ddPlay';
+import { ddBid, ddCard } from '../src/engine/families/trick/ddPlay';
+import { quickTricks } from '../src/engine/families/trick/bots';
 import { trickGame } from '../src/engine/families/trick/types';
 import type { GameModule, GameState } from '../src/engine/types';
 import { GAMES } from './games';
@@ -80,7 +81,7 @@ describe('Hard bridge bots play by deals of the unseen cards, each solved double
     expect(ddCard(tg, s, 0, { samples: 6, ms: Infinity, least: 6 })).toBe('2S');
   });
 
-  it('pass on to the usual search when the table isn’t bridge', () => {
+  it('pass on to the usual search at Hearts (points, not tricks)', () => {
     const hearts = GAMES['hearts'] as GameModule<TrickData>;
     const s = hearts.setup(
       ['A', 'B', 'C', 'D'].map((name) => ({ name, bot: true })),
@@ -88,5 +89,46 @@ describe('Hard bridge bots play by deals of the unseen cards, each solved double
       { botLevel: 2 },
     ) as GameState<TrickData>;
     expect(ddCard(trickGame(hearts.config), s, 0)).toBeNull();
+  });
+});
+
+describe('Hard Spades bots bid from deals solved double dummy', () => {
+  const spades = GAMES['spades'] as GameModule<TrickData>;
+  const tg = trickGame(spades.config);
+  const table = () => {
+    const s = spades.setup(
+      ['A', 'B', 'C', 'D'].map((name) => ({ name, bot: true })),
+      1,
+      { botLevel: 2 },
+    ) as GameState<TrickData>;
+    expect(s.phase).toBe('bid');
+    return s;
+  };
+  const give = (s: GameState<TrickData>, seat: number, cards: string) => {
+    // (the other hands keep whatever's left: the bid deals them afresh anyway)
+    const mine = cards.split(' ');
+    const rest = tg.deckCards.filter((c) => !mine.includes(c));
+    for (let i = 0, k = 0; i < 4; i++) s.zones[`hand:${i}`].cards = (i === seat ? mine : rest.slice(k, (k += 13))).map((id) => ({ id }));
+  };
+  const bid = (s: GameState<TrickData>, seat: number) => ddBid(tg, s, seat, (c) => quickTricks(c, 'S'), Math.random)!;
+
+  it('bids a strong hand high and a weak one low (never nil by mistake)', () => {
+    const s = table();
+    const seat = s.turn!;
+    give(s, seat, 'AS KS QS JS TS 9S AH KH AD KD AC 2C 3C');
+    expect(bid(s, seat)).toBeGreaterThanOrEqual(8);
+    give(s, seat, '2S 3H 4H 5H 2D 3D 4D 5D 2C 3C 4C 5C 6C');
+    expect(bid(s, seat)).toBe(1);
+  });
+
+  it('with partner in, bids the rest of what the side should take', () => {
+    const s = table();
+    const seat = s.turn!;
+    give(s, seat, 'AS KS 4S AH KH 5H 2D 3D 4D 2C 3C 4C 5C');
+    const alone = bid(s, seat);
+    s.data.bids[(seat + 2) % 4] = 6;
+    expect(bid(s, seat)).toBeLessThan(alone + 1);
+    s.data.bids[(seat + 2) % 4] = 1;
+    expect(bid(s, seat)).toBeGreaterThanOrEqual(alone);
   });
 });

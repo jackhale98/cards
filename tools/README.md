@@ -102,12 +102,17 @@ The weights go in `src/engine/families/trick/systems/tricks.ts`. On deals it was
 the estimate is within about a trick (an eight-card fit or better: typical error 1.07 tricks; no
 trumps with 20+ points: 1.23).
 
-## DDS for the Hard bridge bots
+## DDS for the Hard bots in the partnership trick games
 
 The Hard bots play bridge's cards the way the strong bridge programs do: they deal the cards they
 can't see many times over (each deal fitting what's public: the cards played, who has shown out,
 and in SAYC or two over one what the bids promised), solve each deal double dummy with DDS, and
-play the card that does best across them (`src/engine/families/trick/ddPlay.ts`).
+play the card that does best across them (`src/engine/families/trick/ddPlay.ts`). Spades, Whist,
+Euchre and 500 play the same way: DDS plays by bridge's rules, and their cards fit once renamed
+(Euchre's bowers and 500's joker become the top trumps). In those games Hard also bids from solved
+deals: Spades bids what the side makes on all but the worst deal in seven, Euchre orders up or
+names trumps by what each choice scores, and 500 bids the cheapest contract it makes seven deals in
+ten.
 
 DDS is Bo Haglund and Soren Hein's solver (Apache License 2.0), the one endplay uses. It's built to
 WebAssembly, single-threaded, from a pinned release:
@@ -128,3 +133,34 @@ Measured on 160 deals (`PAIRS=1-2,2-1,1-1,2-2 DD_SAMPLES=24`), Hard against Norm
 | Hard (24 deals solved a card)              | 0.36                          | 0.74      |
 
 On the same cards both ways round, Hard beat Normal by about 4 IMPs a deal.
+
+## Bot levels, one against another
+
+`tests/levels.bench.test.ts` plays each game's levels against each other: each deal twice with the
+sides swapped, every bot seeing only its own seat. `--mode bench` gives the bots the app's time
+limits (under the test runner they'd think without a clock); `HANDS` plays sessions, so poker
+players' habits build up as at a real table.
+
+```bash
+LEVELS=1 PAIRS=2-1 DEALS=150 GAMES=hearts,spades npx vitest run tests/levels.bench.test.ts --mode bench
+LEVELS=1 PAIRS=2-1 DEALS=60 HANDS=20 GAMES=holdem npx vitest run tests/levels.bench.test.ts --mode bench
+```
+
+Hard against Normal, before and after the Hard bots were rebuilt (± one standard error; for poker,
+before is chips a single hand, after chips a 20-hand session):
+
+| Game            | Measure                    | Before          | After        |
+| --------------- | -------------------------- | --------------- | ------------ |
+| Hold'em         | chips a session (20 hands) | +4 ± 8 a hand   | +177 ± 75    |
+| Omaha           | chips a session (20 hands) | −15 ± 9 a hand  | +501 ± 82    |
+| Five Card Draw  | chips a session (20 hands) | +26 ± 15 a hand | +261 ± 101   |
+| Seven Card Stud | chips a deal               | −3 ± 10         | +14 ± 6      |
+| Spades          | points a deal              | +2.1 ± 1.7      | +8.5 ± 2.1   |
+| Hearts          | points a deal (fewer)      | +0.7 ± 0.6      | +2.8 ± 0.5   |
+| Euchre          | points a deal              | +0.08 ± 0.05    | +0.34 ± 0.05 |
+| Whist           | points a deal              | +0.37 ± 0.11    | +0.48 ± 0.09 |
+| 500             | points a deal              | +5 ± 4          | +7 ± 4       |
+
+Tried and left out: weighing each imagined deal by how well it explains the others' plays (as the
+Skat program Kermit does, with a model of play learned from human games). With the quick bot as the
+model of how people play it didn't help (Hearts +2.2, Spades +6.4 with it).

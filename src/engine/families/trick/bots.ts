@@ -9,6 +9,7 @@ import { currentWinner, isMisere, jokerLeadSuits, legalCards, rankFor, rankOf, s
 import { controller, teamOf, teamsFor } from './sides';
 import { pointsOf, target, type S, type TrickData, type TrickGame } from './types';
 import { botPitchBid, botPitchLead } from './pitch';
+import { heartsCard, heartsPass } from './heartsHard';
 import { handOf } from './systems/hands';
 import { systemCall } from './systems/bidder';
 import { biddingSystem } from './systems/choice';
@@ -22,21 +23,25 @@ import { biddingSystem } from './systems/choice';
 
 export function botBid(g: TrickGame, s: S, seat: number): number {
   const d = s.data;
-  let est = 0;
-  const cards = ids(hand(s, seat)).map(parseCard);
-  for (const c of cards) {
-    const trump = c.suit === d.trump;
-    if (c.rank === 14) est += 0.9;
-    else if (c.rank === 13) est += 0.6;
-    else if (c.rank === 12) est += trump ? 0.5 : 0.2;
-    else if (trump && c.rank >= 9) est += 0.4;
-  }
-  let bid = Math.max(g.nilAllowed ? 1 : 0, Math.round(est));
+  let bid = Math.max(g.nilAllowed ? 1 : 0, Math.round(quickTricks(ids(hand(s, seat)), d.trump)));
   if (g.trickBids?.hook && seat === s.dealer) {
     const others = d.bids.reduce<number>((n, b) => n + (b ?? 0), 0);
     if (others + bid === d.handSize) bid = bid > 0 ? bid - 1 : bid + 1;
   }
   return Math.min(bid, d.handSize);
+}
+
+/** Tricks a hand looks good for, by its aces, kings and trumps (the quick bot's count). */
+export function quickTricks(held: string[], trumpSuit: Suit | null): number {
+  let est = 0;
+  for (const c of held.map(parseCard)) {
+    const trump = c.suit === trumpSuit;
+    if (c.rank === 14) est += 0.9;
+    else if (c.rank === 13) est += 0.6;
+    else if (c.rank === 12) est += trump ? 0.5 : 0.2;
+    else if (trump && c.rank >= 9) est += 0.4;
+  }
+  return est;
 }
 
 /** Does this seat's side still want to win tricks? */
@@ -349,7 +354,12 @@ export function quickBot(g: TrickGame, s: S, seat: number): Action | null {
 
 // ---- the search bot's view of a hand ---------------------------------------------------
 
-export function trickSearch(g: TrickGame, module: GameModule<TrickData>): SearchGame<TrickData> {
+/** The trick games' search; `quick` plays everyone's cards in the imagined playouts (Hard Hearts: its own strategy). */
+export function trickSearch(
+  g: TrickGame,
+  module: GameModule<TrickData>,
+  quick: (s: S, seat: number) => Action | null = (x, seat) => quickBot(g, x, seat),
+): SearchGame<TrickData> {
   return {
     // deal the cards `viewer` can't see afresh, keeping each player's count and known voids
     determinize(s, viewer) {
@@ -383,14 +393,21 @@ export function trickSearch(g: TrickGame, module: GameModule<TrickData>): Search
     },
 
     apply: (s, seat, a) => module.apply(s, seat, a),
-    rollout: (s) =>
-      playOut(
-        module,
-        (x, seat) => quickBot(g, x, seat),
-        s,
-        (x) => x.phase === 'roundOver' || x.phase === 'gameOver',
-      ),
+    rollout: (s) => playOut(module, quick, s, (x) => x.phase === 'roundOver' || x.phase === 'gameOver'),
     // the hand's points for our side against the others' (Hearts: fewer is better)
     score: (before, after, seat) => edge(before.data.scores, after.data.scores, teamOf(g, before, seat), g.lowWins),
   };
+}
+
+/** Hard's own rules of thumb where it has them (Hearts), else the quick bot's. */
+export function hardQuick(g: TrickGame, s: S, seat: number): Action | null {
+  if (s.phase === 'pass' && !s.data.passes[seat]) {
+    const cards = heartsPass(g, s, seat);
+    if (cards) return { type: 'pass', cards };
+  }
+  if (s.phase === 'play' && controller(s) === seat && s.turn === seat) {
+    const card = heartsCard(g, s, seat);
+    if (card) return { type: 'play', cards: [card] };
+  }
+  return quickBot(g, s, seat);
 }

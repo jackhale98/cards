@@ -10,7 +10,7 @@ const { GAMES } = await import('./games');
 // (counted now: each test starts with the count cleared)
 const atLoad = loadDds.mock.calls.length;
 
-describe('the Hard bridge bots’ solver is fetched only when a Hard bot plays bridge', () => {
+describe('the Hard bots’ solver is fetched only when a Hard bot plays a partnership trick game', () => {
   const g = GAMES.bridge;
   const table = (botLevel: number) =>
     g.setup(
@@ -28,14 +28,24 @@ describe('the Hard bridge bots’ solver is fetched only when a Hard bot plays b
     expect(loadDds).not.toHaveBeenCalled();
   });
 
-  it('nor for Hard bots at other trick games', () => {
+  it('nor for Hard bots at games it can’t solve (Hearts: points, not tricks)', () => {
+    const s = GAMES.hearts.setup(
+      ['A', 'B', 'C', 'D'].map((name) => ({ name, bot: true })),
+      1,
+      { botLevel: 2 },
+    );
+    GAMES.hearts.bot!(s, s.turn ?? 0);
+    expect(loadDds).not.toHaveBeenCalled();
+  });
+
+  it('but for Hard bots at Spades, which plays like bridge', () => {
     const s = GAMES.spades.setup(
       ['A', 'B', 'C', 'D'].map((name) => ({ name, bot: true })),
       1,
       { botLevel: 2 },
     );
     GAMES.spades.bot!(s, s.turn!);
-    expect(loadDds).not.toHaveBeenCalled();
+    expect(loadDds).toHaveBeenCalled();
   });
 
   it('as soon as a Hard bot is asked to bid', () => {
