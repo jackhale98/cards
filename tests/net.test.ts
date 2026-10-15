@@ -233,17 +233,25 @@ describe('host ↔ clients', () => {
     expect(saved).toBe(0);
   });
 
-  it('lets bots finish a hold’em hand', () => {
+  it('lets bots finish a hold’em hand, and keeps the chips hand by hand for the score chart', () => {
     const { host, hostView } = setup();
     host.addBot();
     host.addBot();
     host.start();
+    expect(host.lobby.scores).toEqual({ names: ['Hana', 'Ada', 'Bix'], totals: [[1000, 1000, 1000]] });
     for (let i = 0; i < 200 && host.state!.phase !== 'handOver'; i++) {
       const v = hostView();
       if (v.state!.turn === 0) host.act('h', { type: v.actions.some((a) => a.type === 'check') ? 'check' : 'fold' });
       vi.advanceTimersByTime(1500);
     }
     expect(host.state!.phase).toBe('handOver');
+    const { totals } = hostView().lobby.scores!;
+    expect(totals).toHaveLength(2);
+    expect(totals[1]).toEqual(host.state!.players.map((p) => p.chips));
+    expect(totals[1].reduce((a, b) => a + b)).toBe(3000);
+    // a new game starts a new history
+    host.endGame();
+    expect(host.lobby.scores).toBeUndefined();
   });
 });
 

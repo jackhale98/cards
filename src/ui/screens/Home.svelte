@@ -8,6 +8,8 @@
   import Card from '../components/Card.svelte';
   import Sheet from '../components/Sheet.svelte';
   import { takeHomeScreenTip } from '../homeScreen';
+  import RecordSheet from '../components/RecordSheet.svelte';
+  import { loadRecord } from '../record';
 
   let { code: initialCode = '' }: { code?: string } = $props();
   let code = $state(normaliseCode(untrack(() => initialCode)));
@@ -27,6 +29,9 @@
   }
   let picking = $state(false);
   let about = $state(false);
+  /** Your record across game nights (shown once there's a game in it). */
+  let record = $state(false);
+  const hasRecord = loadRecord().length > 0;
   // (once, on an iPhone in Safari; not when an invite brought them, to join is what they came for)
   let homeTip = $state(!invited && takeHomeScreenTip());
 
@@ -134,7 +139,24 @@
   </Sheet>
 {/if}
 
+{#if record}<RecordSheet onclose={() => (record = false)} />{/if}
+
 <main class="home">
+  {#if hasRecord}
+    <button class="info record" onclick={() => (record = true)} aria-label="Your record">
+      <svg
+        viewBox="0 0 24 24"
+        width="20"
+        height="20"
+        aria-hidden="true"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.8"
+        stroke-linecap="round"
+        stroke-linejoin="round"><path d="M7 4h10v3a5 5 0 0 1-10 0V4Zm5 8v4m-4 4h8m-4-4v4M7 6H4v1a3 3 0 0 0 3 3m10-4h3v1a3 3 0 0 1-3 3" /></svg
+      >
+    </button>
+  {/if}
   <button class="info" onclick={() => (about = true)} aria-label="How Lamplight works">
     <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
       <circle cx="12" cy="12" r="9.2" fill="none" stroke="currentColor" stroke-width="1.6" />
@@ -243,6 +265,9 @@
     background: var(--glass);
     border: 1px solid var(--line);
     color: var(--ink-dim);
+  }
+  .info.record {
+    right: calc(60px + var(--safe-r));
   }
   .about h4 {
     margin: 1rem 0 0.35rem;

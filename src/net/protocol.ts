@@ -122,6 +122,17 @@ export interface Lobby {
   tid?: string;
   /** Take-backs (the host's choice): a player may undo their last move until anyone else moves. */
   takeBacks?: boolean;
+  /**
+   * The game being played, hand by hand: each player's (or team's) total as it was dealt, then
+   * after each hand (chips, in chip games). For the score chart and the end-of-hand recap.
+   */
+  scores?: ScoreHistory;
+}
+
+export interface ScoreHistory {
+  names: string[];
+  /** totals[0]: at the deal; then one row per finished hand (the latest few hundred). */
+  totals: number[][];
 }
 
 /** Everything a device needs to render: personalised and redacted by the host. */

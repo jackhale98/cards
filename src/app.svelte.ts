@@ -8,6 +8,7 @@ import type { Host, HostSnapshot } from './net/host';
 import { AVATAR_COLORS, AVATAR_EMOJI, cleanAvatar, makeRoomCode, type Avatar, type Frame, type Night, type View } from './net/protocol';
 import type { MultiTransport, NetworkStatus } from './net/multiTransport';
 import type { RelayTransport } from './net/relayTransport';
+import { noteGames } from './ui/record';
 import { createTransport, FALLBACK_AFTER_MS, RELAY_GRACE_MS, type TransportKind } from './net/transport';
 
 /** A guest that has lost the host for this long rebuilds its connection from scratch. */
@@ -492,7 +493,10 @@ class App {
     host.onReact = (id, e) => (this.reaction = { id, e, at: Date.now() });
     host.onLocalError = (m) => this.say(m);
     // clone so the UI gets fresh objects, exactly like a remote client would
-    host.onLocalView = (v) => (this.view = structuredClone(v));
+    host.onLocalView = (v) => {
+      this.view = structuredClone(v);
+      this.noteRecord(v);
+    };
     host.onPersist = (snap) =>
       store.set('cards.host', JSON.stringify({ code, cid: this.cid, key: seatKey(), hostKey: hostKey(), snap, at: Date.now() } satisfies SavedHost));
     this.host = host;
@@ -537,7 +541,10 @@ class App {
     this.transport = joined.transport;
     this.addNext = joined.addNext;
     const client = new Client(joined.transport, this.cid, this.name || 'Player', this.avatar, display, seatKey());
-    client.onView = (v) => (this.view = v);
+    client.onView = (v) => {
+      this.view = v;
+      this.noteRecord(v);
+    };
     client.onError = (m) => this.say(m);
     client.onPings = (p) => (this.pings = p);
     client.onReact = (id, e) => (this.reaction = { id, e, at: Date.now() });
@@ -661,6 +668,16 @@ class App {
     this.say('Someone took over hosting while you were away — you’re back in your seat');
     void this.startClient(code, false);
   }
+
+  /** Finished games go into this device's own record (see ui/record.ts), each once. */
+  private noteRecord(v: View) {
+    const last = v.lobby.night?.games.at(-1);
+    const seen = last ? `${v.lobby.night!.games.length}:${last.at}` : '';
+    if (seen === this.recordSeen) return;
+    this.recordSeen = seen;
+    noteGames(v.lobby.night, this.cid);
+  }
+  private recordSeen = '';
 
   /** This tab takes on another client id (and seat key): an earlier tab's, at a table it sat at. */
   private becomeId(cid: string, key?: string, host?: string) {

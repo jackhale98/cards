@@ -16,6 +16,7 @@
   import AvatarBadge from '../components/AvatarBadge.svelte';
   import Track from '../components/Track.svelte';
   import NightBoard from '../components/NightBoard.svelte';
+  import ScoreChart from '../components/ScoreChart.svelte';
   import { nightTotals } from '../../net/night';
   import { seatRelation } from '../../engine/state';
   import { flight, haptic, play, snapshot } from '../motion';
@@ -895,6 +896,22 @@
         })
       : [],
   );
+  /** The game hand by hand (see Lobby.scores): worth a chart once a hand or two is in. */
+  const history = $derived(view.lobby.scores && view.lobby.scores.totals.length >= 2 ? view.lobby.scores : null);
+  /**
+   * What each player (or team) made or lost in the hand just finished, from the score history:
+   * shown when the game's own result doesn't already say (poker's chips, mostly).
+   */
+  const recap = $derived.by(() => {
+    if (!history || !view.handDone || replay) return null;
+    if (status.banner?.lines.some((l) => l.includes('→'))) return null;
+    const [prev, now] = history.totals.slice(-2);
+    const parts = history.names.flatMap((name, j) => {
+      const d = now[j] - prev[j];
+      return d ? [`${name} ${d > 0 ? '+' : '−'}${Math.abs(d).toLocaleString()}`] : [];
+    });
+    return parts.length ? parts.join(' · ') : null;
+  });
   /** Game night standings, shown when a game ends. */
   const tonight = $derived(nightTotals(view.lobby.night));
   const myInfo = $derived(you >= 0 ? status.seats[you] : undefined);
@@ -1088,6 +1105,9 @@
       {/if}
     </div>
 
+    {#if recap && !(showBanner && status.banner)}
+      <p class="recap" aria-label="This hand: {recap}">This hand: {recap}</p>
+    {/if}
     {#if showBanner && status.banner}
       <div class="banner panel">
         <button class="close" onclick={() => (bannerHidden = s.v)} aria-label="Hide">×</button>
@@ -1095,8 +1115,12 @@
         <div class="lines" class:cols={status.banner.lines.length > 5}>
           {#each status.banner.lines as line, k (k)}<p><SuitText text={line} /></p>{/each}
         </div>
-        {#if view.handDone && !display && !replay}
-          <button class="btn small-btn replay-btn" onclick={() => app.showReplay(0, 0)}>Replay this hand</button>
+        {#if recap}<p class="recap-line">This hand: {recap}</p>{/if}
+        {#if (view.handDone || (s.phase === 'gameOver' && history)) && !display && !replay}
+          <div class="banner-btns">
+            {#if view.handDone}<button class="btn small-btn" onclick={() => app.showReplay(0, 0)}>Replay this hand</button>{/if}
+            {#if s.phase === 'gameOver' && history}<button class="btn small-btn" onclick={() => (sheet = 'scores')}>How it went</button>{/if}
+          </div>
         {/if}
         {#if s.phase === 'gameOver' && tonight.length}
           <!-- top four, so a nine-player night still fits -->
@@ -1411,6 +1435,10 @@
           {/each}
         </tbody>
       </table>
+    {/if}
+    {#if history}
+      <div class="eyebrow">Hand by hand</div>
+      <ScoreChart {history} />
     {/if}
     {#if view.lobby.night?.games.length}
       <div class="eyebrow">Game night</div>
@@ -2063,8 +2091,31 @@
     margin-bottom: 0.4rem;
     width: 100%;
   }
-  .replay-btn {
+  .banner-btns {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.4rem;
     margin-top: 0.5rem;
+  }
+  .recap {
+    position: relative;
+    z-index: 3;
+    margin: 0;
+    max-width: calc(100% - 16px);
+    padding: 0.3rem 0.9rem;
+    border-radius: 16px;
+    background: rgba(0, 0, 0, 0.28);
+    color: var(--ink);
+    font-size: 0.82rem;
+    font-weight: 600;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+  .banner .recap-line {
+    color: var(--ink);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
   }
   .banner p {
     margin: 0.15rem 0;

@@ -23,6 +23,7 @@ import {
   type NightGame,
   type View,
   REACTIONS,
+  type ScoreHistory,
 } from './protocol';
 import { seal } from './backup';
 import { GameRecord, toCsv } from './gameRecord';
@@ -600,10 +601,24 @@ export class Host {
       return;
     }
     if (!this.recording) return;
+    this.noteScores();
     this.recording.push(s);
     this.hands.push(this.recording);
     if (this.hands.length > REPLAY_HANDS) this.hands.shift();
     this.recording = null;
+  }
+
+  /** Add everyone's total now to the game's score history (at the deal, and as each hand ends). */
+  private noteScores(atDeal = false) {
+    const t = this.module && this.state ? totalsOf(this.module, this.state, atDeal) : null;
+    if (!t) return;
+    const h = this.lobby.scores;
+    if (!h || h.names.join('|') !== t.names.join('|')) this.lobby.scores = { names: t.names, totals: [t.totals] };
+    else {
+      h.totals.push(t.totals);
+      // (the deal and the latest hands: a long poker night stays small)
+      if (h.totals.length > SCORE_HANDS + 1) h.totals.splice(1, 1);
+    }
   }
 
   /**
@@ -1178,6 +1193,8 @@ export class Host {
       randomSeed(),
       { ...this.lobby.options },
     );
+    delete this.lobby.scores;
+    if (!this.module.realtime) this.noteScores(true);
     this.commit();
   }
 
@@ -1199,6 +1216,7 @@ export class Host {
       s.out = !!s.screen;
     }
     this.lobby.playing = undefined;
+    delete this.lobby.scores;
     this.fit();
     this.broadcast();
   }
@@ -1287,6 +1305,41 @@ export class Host {
       if (players.has(cid) && !this.displays.has(peer)) this.transport?.send({ t: 'backup', blob, v, token: this.takeoverToken }, peer);
   }
 }
+
+/** Hands kept in the score history (after the deal). */
+export const SCORE_HANDS = 300;
+
+/**
+ * Everyone's running total, as the scoreboard shows it to someone watching (its last column), or
+ * their chips in a chip game. Null when there's no number to follow (a game with no running score).
+ */
+export function totalsOf(m: GameModule, s: GameState, atDeal = false): (Omit<ScoreHistory, 'totals'> & { totals: number[] }) | null {
+  try {
+    // (at the deal, before the blinds and antes went in: everyone's starting chips)
+    if (atDeal && m.config.chips) return { names: s.players.map((p) => p.name), totals: s.players.map(() => m.config.chips!.start) };
+    const board = m.status(s, -1).scoreboard;
+    if (board?.rows.length) {
+      const totals = board.rows.map((r) => toNumber(r.values.at(-1)));
+      if (totals.every((x) => x !== null)) return { names: board.rows.map((r) => r.name), totals: totals as number[] };
+    }
+    if (m.config.chips) return { names: s.players.map((p) => p.name), totals: s.players.map((p) => p.chips) };
+  } catch {
+    /* (a status that fails is reported elsewhere) */
+  }
+  return null;
+}
+
+const toNumber = (v: unknown): number | null => {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+  const m =
+    typeof v === 'string'
+      ? v
+          .replace(/[,\s]/g, '')
+          .replace('−', '-')
+          .match(/^-?\d+(\.\d+)?$/)
+      : null;
+  return m ? Number(m[0]) : null;
+};
 
 /** A finished game's own scores, as someone watching sees them (nothing private: it's over). */
 function finalScores(m: GameModule, s: GameState): NightFinal | undefined {
