@@ -13,3 +13,6 @@ playwright-report
 .claude/worktrees/
 records/
 __pycache__/
+
+# the screen audit's screenshots and findings (pnpm audit:screens)
+audit/

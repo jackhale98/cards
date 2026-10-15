@@ -31,8 +31,12 @@
   }
   /** A face-up hand's overlap: each card shows this much of the one under it (in card widths)… */
   const STEP = 0.38;
-  /** …and a new suit this much more. */
+  /** …and a new suit this much more… */
   const SUIT_GAP = 0.32;
+  /** …with the row's gap between every two (`.spread`'s gap). */
+  const GAP = 0.1;
+  /** A whole face-up hand of thirteen, four suits, in card widths. */
+  const FULL_HAND = 1 + 12 * (STEP + GAP) + 3 * SUIT_GAP;
   /** How far (px) the room beside a dummy may dip before it shrinks to suit. */
   const HOLD = 8;
   let {
@@ -105,7 +109,9 @@
   });
 
   /**
-   * A whole hand face up (bridge's dummy) keeps the width its thirteen cards took: as it's played
+   * A whole hand face up (bridge's dummy) keeps the width its thirteen cards took (held with a
+   * min-width, so it never moves up beside the trick as it empties: the height it frees there would
+   * let its cards grow, push it back onto its own row, and shrink them again): as it's played
    * from, the cards left grow into it, the same overlap and the same room between suits, up to a
    * size that still fits the middle beside the trick (`cw` is a thirteen-card dummy's size) and its
    * height (`growTo`: past it, the whole middle would shrink to fit, a moment late, and the dummy
@@ -115,8 +121,7 @@
     if (!zone.faceUpHand) return cw;
     const n = Math.max(1, zone.cards.length);
     const groups = zone.cards.filter((c, i) => i > 0 && c.group != null && c.group !== zone.cards[i - 1].group).length;
-    const full = 1 + 12 * STEP + 3 * SUIT_GAP;
-    return Math.round(Math.min(cw * 1.45, Math.max(cw, growTo), (cw * full) / (1 + (n - 1) * STEP + groups * SUIT_GAP)));
+    return Math.round(Math.min(cw * 1.45, Math.max(cw, growTo), (cw * FULL_HAND) / (1 + (n - 1) * (STEP + GAP) + groups * SUIT_GAP)));
   });
   /**
    * Through a hand the dummy only grows: the room beside the trick wobbles by a few pixels as cards
@@ -237,6 +242,7 @@
       class:reserve={!!zone.reserve}
       class:roomy={roomy && !zone.faceUpHand}
       style:--cw={zone.faceUpHand ? `${handCw}px` : undefined}
+      style:min-width={zone.faceUpHand ? `${Math.round(cw * FULL_HAND)}px` : undefined}
       style:--reserve={zone.reserve}
     >
       {#each zone.cards as c, i (c.id)}

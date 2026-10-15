@@ -63,3 +63,56 @@ test('the dummy keeps its look as cards are played from it', async ({ page }) =>
   expect(sizes.every((w, i) => i === 0 || w >= sizes[i - 1] - 2)).toBe(true);
   expect(sizes.at(-1)!).toBeGreaterThan(sizes[0]);
 });
+
+/**
+ * On a table screen there's no room to spare in the middle, so the dummy holds one size and one
+ * place all hand. (Once it was narrow enough to move up beside the trick, the height that freed let
+ * its cards grow, which pushed it back onto its own row, and they shrank again: with every card of
+ * the last few tricks.)
+ */
+test('on a table screen the dummy holds its size and place through every trick', async ({ context }) => {
+  const host = await context.newPage();
+  await host.setViewportSize({ width: 852, height: 393 });
+  await host.goto('/?net=local');
+  await host.fill('input[aria-label="Your name"]', 'Hana');
+  await host.click('text=Start a table');
+  await host.waitForURL(/#\/room\//);
+  const code = host.url().split('/').pop()!;
+  const tv = await context.newPage();
+  await tv.setViewportSize({ width: 1920, height: 1080 });
+  await tv.goto(`/?net=local#/display/${code}`);
+  await host.locator('[data-game="bridge"]').first().click();
+  for (let i = 0; i < 3; i++) await host.click('text=+ Add bot');
+  // Hana watches: four bots play
+  await host.click('button[aria-label="Sit Hana out"]');
+  await host.click('text=+ Add bot');
+  await host.click('button:has-text("Deal Contract Bridge")');
+  const dummy = tv.locator('[data-zone="dummy"]');
+  await expect(dummy.locator('.scard').first()).toBeVisible({ timeout: 60_000 });
+  const seen: { widths: number[]; left: number; width: number }[] = [];
+  let fewest = 13;
+  // (sampled often, through the end of each trick, down to the last two cards)
+  await expect
+    .poll(
+      async () => {
+        const at = await dummy.evaluate((el) => {
+          const cards = [...el.querySelectorAll<HTMLElement>('.scard')].filter((c) => c.offsetWidth > 0);
+          const box = el.getBoundingClientRect();
+          return { n: cards.length, widths: [...new Set(cards.map((c) => c.offsetWidth))], left: box.left, width: box.width };
+        });
+        if (at.n) {
+          fewest = Math.min(fewest, at.n);
+          seen.push(at);
+        }
+        return fewest;
+      },
+      { timeout: 120_000, intervals: [50] },
+    )
+    .toBeLessThanOrEqual(2);
+  // one card size, one width and one place throughout (a pixel or two of rounding aside)
+  const spread = (xs: number[]) => Math.max(...xs) - Math.min(...xs);
+  expect(seen.every((x) => x.widths.length === 1)).toBe(true);
+  expect(spread(seen.map((x) => x.widths[0]))).toBeLessThanOrEqual(2);
+  expect(spread(seen.map((x) => x.width))).toBeLessThanOrEqual(2);
+  expect(spread(seen.map((x) => x.left))).toBeLessThanOrEqual(2);
+});
