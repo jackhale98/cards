@@ -46,6 +46,8 @@ interface Env {
   ALLOWED_ORIGINS?: string;
   /** Secret: opens the error summary at /reports?key=… (unset: the page is off). */
   REPORTS_KEY?: string;
+  /** New connections per address (see wrangler.jsonc): slows anyone trying codes to find live tables. */
+  CONNECTS?: RateLimit;
 }
 
 const MAX_PEERS = 24;
@@ -68,6 +70,11 @@ const FORGET_MS = 24 * 3600_000;
 const RATE = 120;
 /** Bytes a device may send per second before extras are dropped (a few full views of a big game). */
 const BYTE_RATE = 1024 * 1024;
+/** Bytes a whole table may send per second (a host sending everyone views is well under this). */
+const ROOM_BYTE_RATE = 4 * 1024 * 1024;
+
+/** A host socket that hasn't sent its heartbeat for a while: a phone asleep, its table up for takeover. */
+const silent = (a: Attachment) => a.alive != null && Date.now() - a.alive >= HOST_SILENT_MS;
 
 const sha256 = async (text: string) =>
   [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)))].map((b) => b.toString(16).padStart(2, '0')).join('');
@@ -107,6 +114,9 @@ export default {
     if (secret !== null && !SECRET.test(secret)) return new Response('Bad secret', { status: 400 });
     const host = url.searchParams.get('host');
     if (host !== null && !HOST_KEY.test(host)) return new Response('Bad host key', { status: 400 });
+    // (a game night's phones share one address, and reconnect now and then: the limit is generous)
+    if (env.CONNECTS && !(await env.CONNECTS.limit({ key: req.headers.get('CF-Connecting-IP') ?? 'unknown' })).success)
+      return new Response('Too many connections — try again in a minute', { status: 429 });
     return env.ROOMS.get(env.ROOMS.idFromName(m[1])).fetch(req);
   },
 } satisfies ExportedHandler<Env>;
@@ -127,6 +137,9 @@ interface Attachment {
 }
 
 export class Room extends DurableObject<Env> {
+  /** The table's traffic this second (in memory: it starts again when the room wakes). */
+  private window = 0;
+  private bytes = 0;
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
     // keep-alives are answered by Cloudflare without waking the room
@@ -164,13 +177,16 @@ export class Room extends DurableObject<Env> {
     // a peer id is taken: only the device that holds it (its secret) may reconnect under it
     const old = this.ctx.getWebSockets(peer);
     if (old.some((ws) => (ws.deserializeAttachment() as Attachment).secret !== secret)) return new Response('Peer id in use', { status: 409 });
+    // a device reconnecting (same peer id and secret) replaces its old socket
+    if (!old.length && this.peers().length >= MAX_PEERS) return new Response('Table is full', { status: 503 });
     const [client, server] = Object.values(new WebSocketPair());
     if (host) {
-      // one host per code: a different host is told the code is taken
+      // one host per code: a different host is told the code is taken (a host socket gone silent,
+      // a phone asleep, doesn't count: its table can be taken over)
       const claim = await this.ctx.storage.get<{ key: string; seen: number }>('host');
       const otherHost = this.open().some((ws) => {
         const a = ws.deserializeAttachment() as Attachment;
-        return a.host && a.host !== host;
+        return a.host && a.host !== host && !silent(a);
       });
       if (otherHost || (claim && claim.key !== host && Date.now() - claim.seen < HOST_GRACE_MS)) {
         server.accept();
@@ -180,8 +196,6 @@ export class Room extends DurableObject<Env> {
       }
       await this.ctx.storage.put('host', { key: host, seen: Date.now() });
     }
-    // a device reconnecting (same peer id and secret) replaces its old socket
-    if (!old.length && this.peers().length >= MAX_PEERS) return new Response('Table is full', { status: 503 });
     this.ctx.acceptWebSocket(server, [peer]);
     server.serializeAttachment({ peer, secret, host, window: 0, count: 0 } satisfies Attachment);
     await this.ctx.storage.setAlarm(Date.now() + FORGET_MS);
@@ -212,6 +226,12 @@ export class Room extends DurableObject<Env> {
     att.bytes = (att.bytes ?? 0) + data.length;
     if (++att.count > RATE || att.bytes > BYTE_RATE) return ws.serializeAttachment(att);
     ws.serializeAttachment(att);
+    // the whole table's traffic too: 24 devices each at their own limit would be a lot to pass on
+    if (this.window !== now) {
+      this.window = now;
+      this.bytes = 0;
+    }
+    if ((this.bytes += data.length) > ROOM_BYTE_RATE) return;
     let env: { to?: unknown; d?: unknown; s?: unknown; k?: unknown; key?: unknown; host?: unknown; gate?: unknown; token?: unknown };
     try {
       env = JSON.parse(data);
@@ -252,31 +272,41 @@ export class Room extends DurableObject<Env> {
   private async takeover(ws: WebSocket, host: unknown, token: unknown) {
     const reply = (m: { key?: string; error?: string }) => ws.send(JSON.stringify({ t: 'takeover', ...m }));
     if (typeof host !== 'string' || !HOST_KEY.test(host)) return reply({ error: 'bad-request' });
-    const hostHere = this.open().some((s) => {
-      const a = s.deserializeAttachment() as Attachment;
-      return a.host && (a.alive == null || Date.now() - a.alive < HOST_SILENT_MS);
-    });
+    const hosts = () => this.open().filter((s) => (s.deserializeAttachment() as Attachment).host);
+    if (hosts().some((s) => !silent(s.deserializeAttachment() as Attachment))) return reply({ error: 'host-here' });
+    // (the token's hash first: from here to handing over the key there are only storage calls, which
+    // nothing else can run between, so two players asking at once can't both get the key)
+    const hashed = typeof token === 'string' && token.length <= 128 ? await sha256(token) : null;
     const claim = await this.ctx.storage.get<{ key: string; seen: number }>('host');
     const key = await this.ctx.storage.get<string>('escrow');
-    if (hostHere) return reply({ error: 'host-here' });
     if (!key) return reply({ error: 'no-backup' });
     if (claim && Date.now() - claim.seen < TAKEOVER_AFTER_MS) return reply({ error: 'too-soon' });
     // only a player at the table (who was given the token with their backups) may take over
     const gate = await this.ctx.storage.get<string>('gate');
-    if (gate && (typeof token !== 'string' || token.length > 128 || (await sha256(token)) !== gate)) return reply({ error: 'not-a-player' });
+    if (gate && hashed !== gate) return reply({ error: 'not-a-player' });
     // one takeover per backup key: whoever asks second is told someone beat them to it
     await this.ctx.storage.delete('escrow');
     await this.ctx.storage.delete('gate');
     await this.ctx.storage.put('host', { key: host, seen: Date.now() });
     reply({ key });
+    // the old host, asleep, still has a socket open: tell it the table has moved on (if it wakes it
+    // rejoins as a player), so there are never two hosts sending views
+    for (const s of hosts()) {
+      try {
+        s.send(JSON.stringify({ t: 'taken' }));
+        s.close(4009, 'Taken over');
+      } catch {
+        /* already gone */
+      }
+    }
   }
 
   async webSocketClose(ws: WebSocket, code: number) {
-    this.gone(ws, code);
+    await this.gone(ws, code);
   }
 
   async webSocketError(ws: WebSocket) {
-    this.gone(ws, 1011);
+    await this.gone(ws, 1011);
   }
 
   /** Nobody has connected for a day: forget the host's claim. */
@@ -285,11 +315,11 @@ export class Room extends DurableObject<Env> {
     else await this.ctx.storage.deleteAll();
   }
 
-  private gone(ws: WebSocket, code: number) {
+  private async gone(ws: WebSocket, code: number) {
     const peer = this.peerOf(ws);
-    // the host's claim runs from when it was last connected
+    // the host's claim runs from when it was last connected (unless its table was taken over meanwhile)
     const host = (ws.deserializeAttachment() as Attachment).host;
-    if (host) void this.ctx.storage.put('host', { key: host, seen: Date.now() });
+    if (host && (await this.ctx.storage.get<{ key: string }>('host'))?.key === host) await this.ctx.storage.put('host', { key: host, seen: Date.now() });
     try {
       ws.close(code === 1000 || (code >= 3000 && code < 5000) ? code : 1000, 'Bye');
     } catch {

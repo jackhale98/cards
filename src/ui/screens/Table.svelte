@@ -25,7 +25,7 @@
   import { cubicIn, cubicOut } from 'svelte/easing';
   import { isHidden } from '../../engine/redact';
   import { parseCard } from '../../engine/cards';
-  import { SCREEN_SOUND } from '../../net/host';
+  import { SCREEN_SOUND, STAND_IN } from '../../net/host';
   import { seatColor } from '../seatColors';
   import { keepAwake } from '../wakeLock';
   import { EXPORT_ABOUT, EXPORT_FILE, EXPORT_LABEL, recordFormats } from '../../net/exports/formats';
@@ -843,6 +843,15 @@
     return at >= 0 ? app.pings[at] : null;
   };
   const me = $derived(you >= 0 ? s.players[you] : null);
+  /** Players who have dropped out mid-game with nobody playing for them: a bot can, until they're back. */
+  const dropped = $derived(
+    game.bot && !display && !replay
+      ? s.players.flatMap((p, seat) => {
+          const ls = lobbySeat(seat);
+          return ls && !ls.bot && !ls.connected && !ls.standIn ? [{ seat, name: p.name }] : [];
+        })
+      : [],
+  );
   /** Game night standings, shown when a game ends. */
   const tonight = $derived(nightTotals(view.lobby.night));
   const myInfo = $derived(you >= 0 ? status.seats[you] : undefined);
@@ -928,6 +937,14 @@
         <Track track={status.track} avatars={s.players.map((_, i) => lobbySeat(i)?.avatar)} />
       </div>{/if}
     {#if !side}{@render tableStatus()}{/if}
+    {#if dropped.length}
+      <div class="dropped" role="status">
+        <span>{dropped.map((d) => d.name).join(' and ')} {dropped.length > 1 ? 'have' : 'has'} dropped out.</span>
+        <button class="btn" onclick={() => dropped.forEach((d) => app.act({ type: STAND_IN, seat: d.seat }))}>
+          {dropped.length > 1 ? 'Let bots play' : 'Let a bot play'}
+        </button>
+      </div>
+    {/if}
     <div class="zones" class:has-strip={stripZones.length > 0 || stripRoom} class:cross class:row-fit={rowFit < Infinity} use:fitHeight>
       {#each shownCenter as z (playFrom?.id === z.id ? `mine:${z.id}` : z.id)}
         <div
@@ -1518,6 +1535,34 @@
     gap: 6px;
     min-height: 0;
     min-width: 0;
+  }
+  /* (over the top of the middle: it's what the table is waiting on) */
+  .dropped {
+    position: absolute;
+    z-index: 6;
+    top: 4px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    max-width: calc(100% - 16px);
+    padding: 0.3rem 0.35rem 0.3rem 0.9rem;
+    border-radius: 999px;
+    background: rgba(201, 154, 46, 0.95);
+    color: #2a1d05;
+    font-weight: 600;
+    font-size: 0.82rem;
+  }
+  .dropped span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .dropped .btn {
+    padding: 0.3rem 0.8rem;
+    font-size: 0.8rem;
+    white-space: nowrap;
   }
   .headline {
     font-size: 0.82rem;

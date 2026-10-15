@@ -85,6 +85,72 @@ function seatKey(): string {
 }
 const fallbackKey = newBackupKey();
 
+/** Take on a client id and seat key for this tab (one an earlier tab or session held). */
+function useIdentity(cid: string, key?: string, host?: string) {
+  try {
+    sessionStorage.setItem('cards.cid', cid);
+    if (key) sessionStorage.setItem('cards.seatKey', key);
+    if (host) sessionStorage.setItem('cards.hostKey', host);
+  } catch {
+    /* private mode */
+  }
+}
+
+/**
+ * While a tab uses a client id it holds a lock named after it, so another tab can tell the id is
+ * taken (see inUse). Browsers without Web Locks skip this.
+ */
+let tabLock = 0;
+let releaseTab: (() => void) | null = null;
+function holdIdentity(cid: string) {
+  const mine = ++tabLock;
+  releaseTab?.();
+  releaseTab = null;
+  try {
+    // (a request that's granted after we've moved on to another id lets go at once)
+    void navigator.locks?.request(`cards.tab.${cid}`, () => (tabLock === mine ? new Promise<void>((r) => (releaseTab = r)) : undefined));
+  } catch {
+    /* no Web Locks */
+  }
+}
+async function inUse(cid: string): Promise<boolean> {
+  try {
+    return !!(await navigator.locks?.query())?.held?.some((l) => l.name === `cards.tab.${cid}`);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The seat this device last held at each table (code → client id and seat key), so closing the tab
+ * (or the whole browser) doesn't cost you your seat: open the table again and you sit back down.
+ */
+interface HeldSeat {
+  cid: string;
+  key: string;
+  at: number;
+}
+const HELD_FOR_MS = 12 * 3600_000;
+function heldSeats(): Record<string, HeldSeat> {
+  try {
+    const all = JSON.parse(store.get('cards.seats') ?? '{}') as Record<string, HeldSeat>;
+    return Object.fromEntries(
+      Object.entries(all).filter(([, s]) => s && typeof s.cid === 'string' && typeof s.key === 'string' && Date.now() - s.at < HELD_FOR_MS),
+    );
+  } catch {
+    return {};
+  }
+}
+function rememberSeat(code: string, cid: string, key: string) {
+  const all = heldSeats();
+  all[code] = { cid, key, at: Date.now() };
+  // (the latest few tables are plenty)
+  const keep = Object.entries(all)
+    .sort((a, b) => b[1].at - a[1].at)
+    .slice(0, 8);
+  store.set('cards.seats', JSON.stringify(Object.fromEntries(keep)));
+}
+
 /** Per-tab client id: survives a reload (so you keep your seat) but differs between tabs. */
 function clientId(): string {
   try {
@@ -146,6 +212,8 @@ interface SavedHost {
   cid: string;
   /** That tab's seat key (to sit back down as a player if someone took over meanwhile). */
   key?: string;
+  /** Its claim on the code at the relay: a new tab resuming the table brings the same claim. */
+  hostKey?: string;
   snap: HostSnapshot;
   at: number;
 }
@@ -193,6 +261,7 @@ class App {
       this.route = parseHash();
       void this.sync();
     });
+    holdIdentity(this.cid);
     // a phone waking up says hello straight away instead of waiting for the next retry
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') this.client?.nudge();
@@ -366,11 +435,19 @@ class App {
   }
 
   private async startHost(code: string, restore?: HostSnapshot, how: { resuming?: boolean; takeover?: boolean } = {}) {
-    // a table we were hosting that someone else now hosts (they took over while we were gone): join it
-    // (the seat we hosted from: resuming in a new tab re-saves the table under this tab's id)
-    const seatId = this.savedHost?.cid;
-    const seatKeyThen = this.savedHost?.key;
-    const onTaken = () => (how.resuming ? this.tableMoved(code, seatId, seatKeyThen) : this.codeTaken(code));
+    const saved = this.savedHost;
+    // resuming in a new tab (the browser was closed): host as the tab that saved the table did, with
+    // its seat and its claim on the code (a new claim would be told the code is taken)
+    if (how.resuming && saved?.code === code && saved.cid !== this.cid && !(await inUse(saved.cid))) this.becomeId(saved.cid, saved.key, saved.hostKey);
+    if (this.currentCode !== code) return;
+    // a table we were hosting that someone else now hosts (they took over while we were gone): join
+    // it. (A brand-new table whose code turns out to be in use moves to a new code instead.)
+    const seatId = saved?.cid;
+    const seatKeyThen = saved?.key;
+    const onTaken = () =>
+      how.resuming || how.takeover || this.host?.state || (this.host?.lobby.seats.length ?? 1) > 1
+        ? this.tableMoved(code, seatId ?? this.cid, seatKeyThen ?? seatKey())
+        : this.codeTaken(code);
     const joined = await createTransport(this.net, code, 'host', { key: hostKey(), onTaken }).catch((e) => {
       console.warn('Network unavailable, hosting offline', e);
       return null;
@@ -412,7 +489,8 @@ class App {
     host.onLocalError = (m) => this.say(m);
     // clone so the UI gets fresh objects, exactly like a remote client would
     host.onLocalView = (v) => (this.view = structuredClone(v));
-    host.onPersist = (snap) => store.set('cards.host', JSON.stringify({ code, cid: this.cid, key: seatKey(), snap, at: Date.now() } satisfies SavedHost));
+    host.onPersist = (snap) =>
+      store.set('cards.host', JSON.stringify({ code, cid: this.cid, key: seatKey(), hostKey: hostKey(), snap, at: Date.now() } satisfies SavedHost));
     this.host = host;
     // (development builds: browser tests drive this seat with a bot's moves)
     if (import.meta.env.DEV)
@@ -442,6 +520,13 @@ class App {
     this.connected = false;
     this.joinStarted = Date.now();
     this.lostSince = 0;
+    if (!display) {
+      // back at a table after closing the tab: sit down in the seat this device held there
+      const held = heldSeats()[code];
+      if (held && held.cid !== this.cid && !(await inUse(held.cid))) this.becomeId(held.cid, held.key);
+      if (this.currentCode !== code) return;
+      rememberSeat(code, this.cid, seatKey());
+    }
     const joined = await createTransport(this.net, code, 'guest');
     // the route may have changed while we were connecting
     if (this.currentCode !== code) return joined.transport.leave();
@@ -563,21 +648,20 @@ class App {
   private tableMoved(code: string, seatId?: string, key?: string) {
     if (this.currentCode !== code || !this.isHost) return;
     // our seat is under the id (and key) we hosted with (this may be a new tab, with new ones)
-    if (seatId && seatId !== this.cid) {
-      this.cid = seatId;
-      try {
-        sessionStorage.setItem('cards.cid', seatId);
-        if (key) sessionStorage.setItem('cards.seatKey', key);
-      } catch {
-        /* private mode */
-      }
-    }
+    if (seatId && seatId !== this.cid) this.becomeId(seatId, key);
     store.set('cards.host', null);
     this.host?.close();
     this.host = null;
     this.transport = null;
     this.say('Someone took over hosting while you were away — you’re back in your seat');
     void this.startClient(code, false);
+  }
+
+  /** This tab takes on another client id (and seat key): an earlier tab's, at a table it sat at. */
+  private becomeId(cid: string, key?: string, host?: string) {
+    this.cid = cid;
+    useIdentity(cid, key, host);
+    holdIdentity(cid);
   }
 
   /** Tear down and rebuild the connection to the current table, keeping what's on screen. */

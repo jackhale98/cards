@@ -20,6 +20,9 @@
     { "tag": "v1", "new_sqlite_classes": ["Room"] },
     { "tag": "v2", "new_sqlite_classes": ["Reports"] },
   ],
+  // new connections per address a minute: slows anyone trying table codes to find live tables
+  // (Workers rate limiting; the namespace id is any number unique to this account)
+  "ratelimits": [{ "name": "CONNECTS", "namespace_id": "1001", "simple": { "limit": 120, "period": 60 } }],
   "vars": {
     // sites allowed to connect (besides localhost); "*." allows any subdomain, e.g. Pages previews
     "ALLOWED_ORIGINS": "https://lamplight.cards,https://*.lamplight.cards,https://*.pages.dev",

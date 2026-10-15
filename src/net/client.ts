@@ -37,6 +37,8 @@ export class Client {
   /** Back from a table that split off: its code and finished games, sent with each hello. */
   returning: { from: string; night: Night } | null = null;
   private seq = 0;
+  /** The table's id (Lobby.tid), from the first host that answered. */
+  private tid: string | undefined;
   private helloTimer: ReturnType<typeof setInterval>;
 
   constructor(
@@ -91,6 +93,12 @@ export class Client {
       }
       if (msg.t === 'view') {
         if (!msg.view || typeof msg.view !== 'object') return;
+        // on networks that can't vouch for the host, keep to hosts of the table we joined (its id
+        // survives the host reloading or a player taking over): a stranger who knows the code can't
+        // pose as the host while we're reconnecting and collect our seat's key
+        const tid = msg.view.lobby?.tid;
+        if (this.tid && tid !== this.tid && this.transport.vouch?.(from) !== true) return;
+        this.tid ??= typeof tid === 'string' ? tid : undefined;
         const fresh = from !== this.hostPeer;
         // the host asks who we are (we came in without showing our seat's key): tell it
         if (msg.view.who) {

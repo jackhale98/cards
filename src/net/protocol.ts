@@ -61,6 +61,8 @@ export interface LobbySeat {
   screen?: boolean;
   /** Games this person has sat out tonight: whoever has sat out most plays next. */
   sat?: number;
+  /** They dropped mid-game and a bot is playing their seat until they're back. */
+  standIn?: boolean;
 }
 
 /** Another table that split off from this one tonight. */
@@ -113,6 +115,11 @@ export interface Lobby {
   captain?: string;
   /** The table's card back and cloth, chosen by the host (ids from ui/looks.ts). */
   look?: { back: string; cloth: string };
+  /**
+   * The table's own id: kept through a host's reloads and takeovers (unlike View.hid). On networks
+   * that can't vouch for the host, a player shows their seat's key only to a host of this table.
+   */
+  tid?: string;
 }
 
 /** Everything a device needs to render: personalised and redacted by the host. */

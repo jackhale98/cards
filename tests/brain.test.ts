@@ -77,4 +77,18 @@ describe('bots thinking in the background', () => {
     expect(host.act('h', { type: 'pass', cards: mine })).toBeNull();
     host.close();
   });
+
+  it('a bot that keeps failing still moves: something plain and legal, so the table never waits on it', async () => {
+    const errors: unknown[] = [];
+    const brain: Brain = { think: () => Promise.resolve('failed'), close() {}, onError: (e) => errors.push(e) };
+    const host = new Host(null, 'BRAIN', { cid: 'h', name: 'Hana' }, undefined, { brain });
+    host.setGame('hearts');
+    for (let i = 0; i < 3; i++) host.addBot();
+    host.start();
+    const mine = host.state!.zones['hand:0'].cards.slice(0, 3).map((c) => c.id);
+    expect(host.act('h', { type: 'pass', cards: mine })).toBeNull();
+    await vi.advanceTimersByTimeAsync(6000);
+    expect(host.state!.phase).toBe('play');
+    host.close();
+  });
 });

@@ -111,6 +111,14 @@ await wait(250);
 check(!!(await take(h3, (m) => m.t === 'taken')), 'a recently gone host keeps its code for a while');
 g.ws.close();
 
+// a host whose phone is asleep: its socket still looks open, but its heartbeat (the deposit) stops
+const sleepy = `${room}-asleep`;
+const sh = await connect('shost1', undefined, 'sleepy-host-key', sleepy);
+sh.ws.send(JSON.stringify({ k: 'deposit', key: 'c'.repeat(43), gate: createHash('sha256').update('sleepy-token').digest('hex') }));
+const q1 = await connect('qplay1', undefined, undefined, sleepy);
+const q2 = await connect('qplay2', undefined, undefined, sleepy);
+const sleptAt = Date.now();
+
 // host handoff: the key to the players' backups is released once the host has gone
 const hand = `${room}-handoff`;
 const backupKey = 'b'.repeat(43);
@@ -141,6 +149,27 @@ const nh = await connect('nhost1', undefined, 'taker-key-0001', hand);
 await wait(250);
 check(!!(await take(nh, (m) => m.t === 'welcome')), 'the player who took over hosts the code');
 for (const x of [p1, p2, nh]) x.ws.close();
+
+console.log('  (waiting for the sleeping host to go quiet…)');
+await wait(Math.max(0, 41_000 - (Date.now() - sleptAt)));
+// two players ask at the same moment: one gets the key, the other is told someone beat them to it
+for (const [box, key] of [
+  [q1, 'sleepy-taker-01'],
+  [q2, 'sleepy-taker-02'],
+])
+  box.ws.send(JSON.stringify({ k: 'takeover', host: key, token: 'sleepy-token' }));
+await wait(400);
+const answers = [await take(q1, (m) => m.t === 'takeover'), await take(q2, (m) => m.t === 'takeover')];
+check(
+  answers.filter((a) => a?.key).length === 1 && answers.some((a) => a?.error === 'no-backup'),
+  'a sleeping host’s table can be taken over, by one player only',
+);
+check(!!(await take(sh, (m) => m.t === 'taken')), '…and the sleeping host is told its table has moved on');
+const winner = answers[0]?.key ? 'sleepy-taker-01' : 'sleepy-taker-02';
+const sh2 = await connect('shost2', undefined, winner, sleepy);
+await wait(250);
+check(!!(await take(sh2, (m) => m.t === 'welcome')), '…so the player who took over can host it');
+for (const x of [q1, q2, sh2]) x.ws.close();
 
 // who's who: peer ids belong to their secret, and the host's messages are marked
 const who = `${room}-who`;

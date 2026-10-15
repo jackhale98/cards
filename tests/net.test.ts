@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Client } from '../src/net/client';
-import { Host } from '../src/net/host';
+import { Host, STAND_IN } from '../src/net/host';
 import type { View } from '../src/net/protocol';
 import { Bus, MemTransport } from './netHarness';
 
@@ -118,6 +118,63 @@ describe('host ↔ clients', () => {
     warn.mockRestore();
   });
 
+  it('lets a bot play for a player who drops out, and gives the seat back when they return', () => {
+    const { bus, host, mk } = setup();
+    const a = mk('a', 'Ann');
+    host.setGame('hearts');
+    host.addBot();
+    host.addBot();
+    host.start();
+    const three = (seat: number) => host.state!.zones[`hand:${seat}`].cards.slice(0, 3).map((c) => c.id);
+    expect(host.act('h', { type: 'pass', cards: three(0) })).toBeNull();
+    // Ann's phone dies before she passes: the table waits on her
+    a.t.leave();
+    vi.advanceTimersByTime(5000);
+    expect(host.state!.phase).toBe('pass');
+    // only for someone who has dropped out, and only by someone at the table
+    expect(host.act('stranger', { type: STAND_IN, seat: 1 })).toBe('You are not at the table');
+    expect(host.act('h', { type: STAND_IN, seat: 1 })).toBeNull();
+    expect(host.lobby.seats[1].standIn).toBe(true);
+    expect(host.state!.players[1].bot).toBe(true);
+    vi.advanceTimersByTime(3000);
+    expect(host.state!.phase).toBe('play');
+    // she's back: her seat (and her hand) are hers again
+    const again = new MemTransport(bus, 'a-peer-2');
+    const c2 = new Client(again, 'a', 'Ann', undefined);
+    bus.join(again);
+    expect(host.lobby.seats[1].standIn).toBeUndefined();
+    expect(host.state!.players[1].bot).toBeFalsy();
+    expect(c2.view!.you).toBe(1);
+    // and nobody can hand her seat to a bot while she's connected
+    expect(host.act('h', { type: STAND_IN, seat: 1 })).toBe('Ann is back');
+  });
+
+  it('a host resuming in a new browser session (a new client id) keeps its seat in the game', () => {
+    const { host } = setup();
+    host.setGame('hearts');
+    for (let i = 0; i < 3; i++) host.addBot();
+    host.start();
+    const snap = structuredClone({ lobby: host.lobby, state: host.state, keys: { h: 'old-key' } });
+    host.close();
+    const resumed = new Host(null, 'ABCD', { cid: 'h2', name: 'Hana', key: 'new-key' }, snap);
+    expect(resumed.viewFor('h2').you).toBe(0);
+    const mine = resumed.state!.zones['hand:0'].cards.slice(0, 3).map((c) => c.id);
+    expect(resumed.act('h2', { type: 'pass', cards: mine })).toBeNull();
+    resumed.close();
+  });
+
+  it('a host that has closed deals no game and saves nothing more', () => {
+    const { host } = setup();
+    host.addBot();
+    let saved = 0;
+    host.onPersist = () => saved++;
+    host.close();
+    host.start();
+    host.broadcast();
+    expect(host.state).toBeNull();
+    expect(saved).toBe(0);
+  });
+
   it('lets bots finish a hold’em hand', () => {
     const { host, hostView } = setup();
     host.addBot();
@@ -210,6 +267,43 @@ describe('connection health', () => {
     guest.nudge();
     expect(guest.connected).toBe(true);
     expect(host.lobby.seats.map((s) => s.id)).toEqual(['h', 'g']);
+  });
+
+  it('a host waking from sleep doesn’t drop everyone it couldn’t hear while it slept', () => {
+    const bus = new Bus();
+    const ht = new MemTransport(bus, 'host');
+    const host = new Host(ht, 'ABCD', { cid: 'h', name: 'H' });
+    bus.join(ht);
+    const gt = new MemTransport(bus, 'guest');
+    new Client(gt, 'g', 'G', undefined);
+    bus.join(gt);
+    vi.advanceTimersByTime(3100);
+    // the host's phone locks for a minute: its timers don't run, then it wakes
+    vi.setSystemTime(Date.now() + 60_000);
+    vi.advanceTimersByTime(3000);
+    expect(host.lobby.seats.map((s) => s.id)).toEqual(['h', 'g']);
+    host.close();
+  });
+
+  it('shows its seat’s key only to a host of the table it joined (networks that can’t vouch for the host)', () => {
+    const bus = new Bus();
+    const ht = new MemTransport(bus, 'host');
+    const host = new Host(ht, 'ABCD', { cid: 'h', name: 'H' });
+    bus.join(ht);
+    const gt = new MemTransport(bus, 'guest');
+    const guest = new Client(gt, 'g', 'G', undefined, false, 'seat-secret');
+    bus.join(gt);
+    expect(guest.view!.lobby.tid).toBe(host.lobby.tid);
+    // the host drops; someone who knows the code poses as the host and asks who we are
+    host.close();
+    const ft = new MemTransport(bus, 'faker');
+    const heard: unknown[] = [];
+    ft.onMessage = (m) => heard.push(m);
+    bus.join(ft);
+    heard.length = 0;
+    ft.send({ t: 'view', view: { ...guest.view!, lobby: { ...guest.view!.lobby, tid: 'not-this-table' }, who: true } }, 'guest');
+    vi.advanceTimersByTime(2500);
+    expect(JSON.stringify(heard)).not.toContain('seat-secret');
   });
 
   it('keeps a sleeping player’s seat during a game', () => {

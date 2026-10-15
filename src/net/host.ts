@@ -4,7 +4,8 @@ import { nightPoints, standingsOf } from '../engine/state';
 import { RuleError, type Action, type GameModule, type GameState } from '../engine/types';
 import { checkAction } from '../engine/validate';
 import { getGame, GAMES, loadRules, rulesFor, startProblem } from '../games';
-import { inlineBrain, type Brain, type Pick } from './brain';
+import { inlineBrain, type Brain, type Pick, type Thought } from './brain';
+import { fallbackMoves } from '../engine/fallback';
 import {
   AVATAR_COLORS,
   AVATAR_EMOJI,
@@ -38,6 +39,8 @@ export const DEAD_AFTER_MS = 12000;
 const UNDO = '__undo';
 /** Anyone at the table can mute (amount 0) or unmute the table screens: a Chromecast has no menu of its own. */
 export const SCREEN_SOUND = '__screenSound';
+/** Anyone at the table can let a bot play for a player who has dropped (`seat`: their game seat) until they're back. */
+export const STAND_IN = '__standIn';
 /** Host handoff: players get a fresh sealed backup at most this often. */
 export const BACKUP_EVERY_MS = 2000;
 const BOT_NAMES = ['Ada', 'Bix', 'Cleo', 'Dash', 'Echo', 'Fizz', 'Gus', 'Hux', 'Ivy'];
@@ -108,6 +111,7 @@ export class Host {
   private readonly takeoverToken?: string;
   private backupTimer: ReturnType<typeof setTimeout> | null = null;
   private backedUp = -1;
+  private closed = false;
 
   constructor(
     private transport: Transport | null,
@@ -150,9 +154,16 @@ export class Host {
         }
         mine.host = true;
       } else if (hostSeat) {
-        // the host may be resuming from a new browser session with a new client id
+        // the host may be resuming from a new browser session with a new client id: the seat (and
+        // its place in the game) moves to it
+        const old = hostSeat.id;
         hostSeat.id = host.cid;
         hostSeat.avatar = host.avatar ?? hostSeat.avatar;
+        if (old !== host.cid) {
+          if (this.lobby.playing) this.lobby.playing = this.lobby.playing.map((id) => (id === old ? host.cid : id));
+          delete this.keys[old];
+          if (host.key) this.keys[host.cid] = host.key;
+        }
       }
       this.lobby.seats.forEach((s) => (s.connected = !!s.bot || !!s.host));
       this.state = restore.state;
@@ -174,6 +185,7 @@ export class Host {
         ...(opts.parent ? { parent: opts.parent } : {}),
       };
     }
+    this.lobby.tid ??= Math.random().toString(36).slice(2, 12);
     if (transport) {
       transport.onMessage = (msg, from) => this.receive(from, msg);
       transport.onPeerLeave = (peer) => {
@@ -301,6 +313,8 @@ export class Host {
       seat.connected = true;
       seat.avatar = avatar ?? seat.avatar;
       if (!this.lobby.started) seat.name = name.slice(0, 20);
+      // back after a bot played for them: their seat is theirs again
+      if (seat.standIn) return this.handBack(seat);
     } else if (this.lobby.seats.length < TABLE_MAX || this.lobby.seats.some((s) => s.bot)) {
       if (this.lobby.seats.length >= TABLE_MAX) this.dropBot();
       if (key) this.keys[cid] = key;
@@ -327,6 +341,10 @@ export class Host {
   /** Ping everyone; drop peers we haven't heard from in a while (faster than WebRTC notices). */
   private beat() {
     const now = Date.now();
+    // our own page was asleep (a phone locked, a tab in the background): nobody could be heard
+    // meanwhile, so everyone gets a fresh chance to answer rather than all being dropped at once
+    if (now - this.lastBeat > HEARTBEAT_MS * 3) for (const h of this.health.values()) h.seen = Math.max(h.seen, now);
+    this.lastBeat = now;
     for (const [peer, h] of this.health) {
       if (now - h.seen > DEAD_AFTER_MS) {
         this.forget(peer);
@@ -348,6 +366,7 @@ export class Host {
   }
   private sentPings: (number | null)[] = [];
   private quietBeats = 0;
+  private lastBeat = Date.now();
 
   /** Best round-trip time for each seat over any of its connections (host itself = 0). */
   pings(): (number | null)[] {
@@ -388,6 +407,7 @@ export class Host {
     if (!a || typeof a !== 'object' || typeof a.type !== 'string') return 'That move isn’t available right now';
     if (a.cards !== undefined && (!Array.isArray(a.cards) || a.cards.length > 60 || !a.cards.every((c) => typeof c === 'string')))
       return 'That move isn’t available right now';
+    if (a.type === STAND_IN) return this.standIn(cid, a.seat);
     if (a.type === SCREEN_SOUND) {
       if (!this.lobby.seats.some((s) => s.id === cid)) return 'You are not at the table';
       this.lobby.screenSound = a.amount !== 0;
@@ -402,6 +422,7 @@ export class Host {
     // real-time games: when it arrived, and a believable reaction time (measured on the player's device)
     if (this.module.realtime)
       Object.assign(resolved, { at: Date.now(), rt: typeof a.rt === 'number' && isFinite(a.rt) ? Math.max(0, Math.min(10_000, a.rt)) : undefined });
+    this.rescued.clear();
     return this.applyAs(seat, resolved);
   }
 
@@ -437,6 +458,39 @@ export class Host {
     this.commit();
     this.move = undefined;
     return null;
+  }
+
+  /**
+   * Let a bot play for someone who has dropped out of the game (their phone died, they walked off
+   * with it): anyone at the table may ask, but only for a player who isn't connected. The bot
+   * plays their seat until they come back (see handBack).
+   */
+  private standIn(cid: string, seat: unknown): string | null {
+    const s = this.state;
+    if (!s || !this.module?.bot) return 'There’s no game for a bot to play';
+    if (!this.lobby.seats.some((x) => x.id === cid && !x.bot)) return 'You are not at the table';
+    const target = typeof seat === 'number' && Number.isInteger(seat) ? this.lobby.seats.find((x) => x.id === this.lobby.playing?.[seat]) : undefined;
+    if (!target || target.bot || target.standIn) return null;
+    if (target.connected) return `${target.name} is back`;
+    target.standIn = true;
+    this.setBot(seat as number, true);
+    return null;
+  }
+
+  /** A player a bot was playing for is back: the seat is theirs again. */
+  private handBack(seat: LobbySeat) {
+    delete seat.standIn;
+    const at = this.gameSeat(seat.id);
+    if (this.state && at >= 0 && this.state.players[at].bot) this.setBot(at, false);
+    else this.broadcast();
+  }
+
+  /** A seat's player becomes (or stops being) a bot, as a step of its own (it shows in the replay). */
+  private setBot(seat: number, bot: boolean) {
+    const next = structuredClone(this.state!);
+    next.players[seat].bot = bot;
+    this.state = next;
+    this.commit();
   }
 
   /** Bump version, persist, send views, then schedule any automatic steps. */
@@ -595,31 +649,56 @@ export class Host {
     const turn = ++this.thinking;
     const asked = Date.now();
     const pause = 650 + Math.random() * 600;
-    const then = (pick: Pick | null) => {
-      if (turn !== this.thinking || this.state !== s || !pick) return; // (the table moved on)
-      this.timer = setTimeout(() => this.botMove(module, pick), Math.max(0, pause - (Date.now() - asked)));
+    const then = (pick: Thought) => {
+      if (this.closed || turn !== this.thinking || this.state !== s || !pick) return; // (the table moved on)
+      const wait = Math.max(0, pause - (Date.now() - asked));
+      // a bot that failed still moves: something plain and legal (see rescue)
+      this.timer = setTimeout(() => (pick === 'failed' ? this.rescue(seats) : this.botMove(module, pick)), wait);
     };
     let pick: ReturnType<Brain['think']>;
     try {
       pick = this.brain.think(module.config.id, s, seats);
     } catch (e) {
-      return this.brain.onError(e, module.config.id, s.phase);
+      this.brain.onError(e, module.config.id, s.phase);
+      pick = 'failed';
     }
-    if (pick instanceof Promise) void pick.then(then, (e) => this.brain.onError(e, module.config.id, s.phase));
+    if (pick instanceof Promise)
+      void pick.then(then, (e) => {
+        this.brain.onError(e, module.config.id, s.phase);
+        then('failed');
+      });
     else then(pick);
   }
 
   private botMove(module: GameModule, { seat, action: a }: Pick) {
     const err = this.applyAs(seat, a);
-    if (!err) return;
+    if (!err) return this.rescued.clear();
     console.warn(`Bot ${seat}: ${err}`, a);
     // (a bot proposing a move the rules refuse is a bug in the bot)
     report('bot', new Error(err), { game: module.config.id, phase: this.state?.phase ?? '', action: a.type });
-    // never let a bot's mistake freeze the table: fall back to the most passive move on offer
-    const offered = module.actions(this.state!, seat);
-    const safe = ['check', 'call', 'pass', 'decline', 'go', 'fold'].map((t) => offered.find((o) => o.type === t)).find(Boolean);
-    if (safe && !safe.select && !safe.amount && !safe.choose) this.applyAs(seat, { type: safe.type });
+    this.rescue([seat]);
   }
+
+  /**
+   * Never let a bot's mistake freeze the table: the first of these bots with anything to do makes
+   * the plainest legal move on offer (see fallbackMoves), trying each until the rules accept one.
+   */
+  private rescue(seats: number[]) {
+    const m = this.module;
+    if (!m || !this.state) return;
+    // (bots it has already moved for go last: some moves stay on offer once made, like a pass
+    // that can be changed until everyone has passed, and each stuck bot needs its turn)
+    const order = [...seats.filter((x) => !this.rescued.has(x)), ...seats.filter((x) => this.rescued.has(x))];
+    for (const seat of order)
+      for (const a of fallbackMoves(m.actions(this.state, seat)))
+        if (!this.applyAs(seat, a)) {
+          if (this.rescued.size >= seats.length) this.rescued.clear();
+          this.rescued.add(seat);
+          return;
+        }
+  }
+  /** Bots `rescue` has moved for since anyone else moved. */
+  private rescued = new Set<number>();
 
   /** Real-time games: each bot's planned move, its key (to tell when the plan changes) and its timer. */
   private botPlans = new Map<number, { key: string; timer: ReturnType<typeof setTimeout> }>();
@@ -1013,12 +1092,12 @@ export class Host {
   }
 
   start() {
-    if (this.canStart()) return;
+    if (this.closed || this.canStart()) return;
     const module = rulesFor(this.lobby.gameId);
     if (!module) {
       // (rules still downloading: deal as soon as they're here)
       void loadRules(this.lobby.gameId).then(
-        () => !this.lobby.started && this.start(),
+        () => !this.closed && !this.lobby.started && this.start(),
         () => this.onLocalError('Couldn’t load the rules for this game — check your connection and try again'),
       );
       return;
@@ -1068,6 +1147,7 @@ export class Host {
   }
 
   close() {
+    this.closed = true;
     this.clearTimers();
     for (const peer of [...this.helloPace.keys()]) this.forget(peer);
     if (this.backupTimer) clearTimeout(this.backupTimer);
@@ -1098,6 +1178,8 @@ export class Host {
   }
 
   broadcast() {
+    // (a closed host has handed its table on, or left it: it saves and sends nothing more)
+    if (this.closed) return;
     this.v++;
     // while the host is the table screen someone holds the controls: the first person here, unless the host picks
     if (this.hostScreen && !this.captain) this.lobby.captain = this.lobby.seats.find((s) => !s.bot && !s.host && s.connected)?.id;

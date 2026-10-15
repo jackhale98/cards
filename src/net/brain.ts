@@ -7,14 +7,18 @@ export interface Pick {
   action: Action;
 }
 
+/** A bot's answer: its move, null (no bot has anything to do), or `'failed'` (a bot threw). */
+export type Thought = Pick | null | 'failed';
+
 /**
  * Where bots think. The host asks for the next move of the first of `seats` (bots, in seat order)
  * that has one. The answer can come back at once (`inlineBrain`, in tests and as a fallback) or
  * later (`workerBrain`: a background thread, so a bot thinking hard never makes the host's phone
- * stutter). A bot that fails is reported through `onError` and treated as having no move.
+ * stutter). A bot that fails is reported through `onError` and answers `'failed'`: the host then
+ * finds a plain legal move for it, so the table never waits on a broken bot.
  */
 export interface Brain {
-  think(game: string, s: GameState, seats: number[]): Pick | null | Promise<Pick | null>;
+  think(game: string, s: GameState, seats: number[]): Thought | Promise<Thought>;
   close(): void;
   onError: (e: unknown, game: string, phase: string) => void;
 }
@@ -38,7 +42,7 @@ export function inlineBrain(): Brain {
         return pickNow(game, s, seats);
       } catch (e) {
         brain.onError(e, game, s.phase);
-        return null;
+        return 'failed';
       }
     },
     close() {},
@@ -64,12 +68,12 @@ export function workerBrain(): Brain {
     worker = null;
   }
   let next = 0;
-  const waiting = new Map<number, { resolve: (p: Pick | null) => void; req: BrainRequest }>();
+  const waiting = new Map<number, { resolve: (p: Thought) => void; req: BrainRequest }>();
   const giveUp = () => {
     worker?.terminate();
     worker = null;
     // whatever was asked meanwhile gets answered here instead
-    for (const { resolve, req } of waiting.values()) resolve(fallback.think(req.game, req.state, req.seats) as Pick | null);
+    for (const { resolve, req } of waiting.values()) resolve(fallback.think(req.game, req.state, req.seats) as Thought);
     waiting.clear();
   };
   if (worker) {
@@ -79,7 +83,8 @@ export function workerBrain(): Brain {
       waiting.delete(e.data.id);
       if ('error' in e.data) {
         brain.onError(new Error(e.data.error), w.req.game, w.req.state.phase);
-        w.resolve(null);
+        // (once more here: the worker may have failed to load the rules, which this thread has)
+        w.resolve(fallback.think(w.req.game, w.req.state, w.req.seats) as Thought);
       } else w.resolve(e.data.pick);
     };
     worker.onerror = (e) => {
