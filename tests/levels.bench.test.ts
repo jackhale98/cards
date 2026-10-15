@@ -2,6 +2,7 @@ import { it } from 'vitest';
 import { GAME_LIST } from './games';
 import { botView } from '../src/engine/botView';
 import { resolveAction } from '../src/engine/redact';
+import { loadDds } from '../src/engine/bots/dds';
 import type { GameModule, GameState } from '../src/engine/types';
 
 /**
@@ -11,8 +12,11 @@ import type { GameModule, GameState } from '../src/engine/types';
  */
 it.skipIf(!process.env.LEVELS)(
   'level against level',
-  () => {
+  async () => {
+    // (the Hard trick bots' solver, ready before the first card, as at a table)
+    await loadDds();
     const deals = Number(process.env.DEALS ?? 40);
+    const hands = Number(process.env.HANDS ?? 1);
     const pairs = (process.env.PAIRS ?? '2-1,1-0').split(',').map((p) => p.split('-').map(Number));
     for (const id of (process.env.GAMES ?? '').split(',')) {
       const g = GAME_LIST.find((x) => x.config.id === id) as GameModule;
@@ -54,8 +58,16 @@ it.skipIf(!process.env.LEVELS)(
             const before = structuredClone(s);
             const startHand = (x: GameState) => JSON.stringify([(x.data as any).handNo, (x.data as any).round]);
             const hand0 = startHand(s);
-            for (let i = 0; i < 6000; i++) {
-              if (wholeGame ? s.phase === 'gameOver' : ['roundOver', 'handOver', 'gameOver'].includes(s.phase) || startHand(s) !== hand0) break;
+            // (HANDS: a session of that many hands, as a real table plays, so habits build up)
+            let ended = 0;
+            let last = hand0;
+            for (let i = 0; i < 6000 * hands; i++) {
+              if (startHand(s) !== last) {
+                ended++;
+                last = startHand(s);
+              }
+              const over = ['roundOver', 'handOver', 'gameOver'].includes(s.phase);
+              if (wholeGame ? s.phase === 'gameOver' : s.phase === 'gameOver' || ended >= hands || (over && ended + 1 >= hands)) break;
               const sys = g.system?.(s);
               if (sys) {
                 sys.run(s);
@@ -89,8 +101,9 @@ it.skipIf(!process.env.LEVELS)(
         }
         const mean = diffs.reduce((a, b) => a + b, 0) / diffs.length;
         const sd = Math.sqrt(diffs.reduce((a, b) => a + (b - mean) ** 2, 0) / Math.max(1, diffs.length - 1));
+        const per = hands > 1 ? `a session of ${hands} hands` : 'a deal';
         process.stderr.write(
-          `${id} ${level} v ${base}: ${mean.toFixed(2)} ± ${(sd / Math.sqrt(diffs.length)).toFixed(2)} a deal (${deals} deals, ${(ms / Math.max(1, moves)).toFixed(1)} ms a move)\n`,
+          `${id} ${level} v ${base}: ${mean.toFixed(2)} ± ${(sd / Math.sqrt(diffs.length)).toFixed(2)} ${per} (${deals} deals, ${(ms / Math.max(1, moves)).toFixed(1)} ms a move)\n`,
         );
       }
     }

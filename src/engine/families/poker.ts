@@ -5,6 +5,7 @@ import { bestHand, bestWithHole, eval5, type HandValue } from '../lib/pokerEval'
 import { shuffle } from '../rng';
 import { createState, hand, ids, log, moveCards, moveTop, name, nextSeat, placesFromScores, resetDeck, zone } from '../state';
 import { familyRules, assertRule, type Action, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
+import { hardPokerMove, type Habit, type HardGame, type Move } from './pokerHard';
 /** This family's settings in game.json (generated from the schema). */
 export type { PokerRules } from '../schema.gen';
 
@@ -30,6 +31,10 @@ export interface PokerData {
   drawn?: (number | null)[];
   /** Cards discarded in the draw (shuffled into a new stock if it runs short). */
   discards?: string[];
+  /** This hand's betting, move by move, as everyone saw it (the Hard bots read it). */
+  history?: Move[];
+  /** Each player's habits over the game so far, from the betting everyone saw. */
+  habits?: Habit[];
 }
 
 const SUIT_ORDER = 'CDHS'; // stud ties: clubs lowest, then diamonds, hearts, spades
@@ -82,6 +87,7 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
     const out = s.players.map((p) => p.chips === 0);
     const skip = (i: number) => out[i];
     d.handNo++;
+    d.history = [];
     d.button = d.handNo === 1 ? (out[d.button] ? nextSeat(s, d.button, skip) : d.button) : nextSeat(s, d.button, skip);
     s.dealer = d.button;
     d.result = null;
@@ -226,6 +232,18 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
   /** A seat's cards: its hand and (stud) its face-up row. */
   const cardsOf = (s: S, seat: number) => (stud ? [...ids(hand(s, seat)), ...ids(zone(s, `up:${seat}`))] : ids(hand(s, seat)));
 
+  /** What the Hard bots need to know of this game (see pokerHard.ts). */
+  const hard: HardGame = {
+    kind: stud ? 'stud' : draw ? 'draw' : R.holeCards === 2 ? 'holdem' : 'omaha',
+    holeCards: R.holeCards,
+    boardAt: R.board.reduce((at, n) => [...at, at.at(-1)! + n], [0]),
+    lastStreet,
+    evaluate,
+    best: (cards) => (cards.length === 5 ? eval5(cards) : bestHand(cards)),
+    deck: () => buildDeck(config.deck),
+    discards: (s, seat) => botDiscards(s, seat),
+  };
+
   function nextActor(s: S, from: number): number | null {
     const b = s.data.b;
     for (let i = 1; i <= s.players.length; i++) {
@@ -288,6 +306,7 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
     d.b.committed.fill(0);
     d.b.bets.fill(0);
     for (const seat of s.players.map((p) => p.seat)) moveCards(s, `hand:${seat}`, 'muck', ids(hand(s, seat)));
+    noteHabits(s);
     d.result = { lines: [`Nobody opened — the pot (${d.carry}) stays for the next deal`], winners: [] };
     log(s, d.result.lines[0]);
     s.turn = null;
@@ -357,8 +376,25 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
     endHand(s);
   }
 
+  /** The hand's betting goes into each player's habits (how many hands they play, how often they raise). */
+  function noteHabits(s: S) {
+    const d = s.data;
+    const moves = d.history ?? [];
+    d.habits ??= s.players.map(() => ({ hands: 0, played: 0, raises: 0, calls: 0 }));
+    s.players.forEach((_p, i) => {
+      if (d.b.out[i]) return;
+      const h = (d.habits![i] ??= { hands: 0, played: 0, raises: 0, calls: 0 });
+      const own = moves.filter((m) => m.seat === i);
+      h.hands++;
+      if (own.some((m) => m.street === 0 && (m.act === 'raise' || m.act === 'call'))) h.played++;
+      h.raises += own.filter((m) => m.act === 'raise').length;
+      h.calls += own.filter((m) => m.act === 'call').length;
+    });
+  }
+
   function endHand(s: S) {
     s.turn = null;
+    noteHabits(s);
     // note who was knocked out this hand: later knockouts finish higher on game night
     const d = s.data;
     d.bustedAt ??= s.players.map(() => null);
@@ -482,6 +518,7 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
       if (opening(s) && !mayOpen(s, seat)) assertRule(a.type !== 'raise' && a.type !== 'allin', 'You need jacks or better to open');
       const chips = chipsOf(s);
       const betBefore = d.b.currentBet;
+      const before = { toCall: bet.options(d.b, chips, seat).toCall, bet: betBefore, pot: bet.potTotal(d.b) };
       try {
         if (a.type === 'raise') bet.act(d.b, chips, seat, { type: 'raise', to: Math.floor(a.amount ?? 0) });
         else if (a.type === 'fold' || a.type === 'check' || a.type === 'call' || a.type === 'allin') bet.act(d.b, chips, seat, { type: a.type });
@@ -502,6 +539,8 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
         allin: raised ? [`goes all in for ${put}`, `All in ${put}`] : [`calls all in for ${put}`, `All in ${put}`],
       }[a.type as 'fold' | 'check' | 'call' | 'raise' | 'allin'];
       d.acted[seat] = short;
+      const act = a.type === 'allin' ? (raised ? 'raise' : 'call') : (a.type as Move['act']);
+      (d.history ??= []).push({ seat, street: d.street, act, ...before, to: put });
       if (draw && d.street === 0 && raised && d.opener == null) d.opener = seat;
       log(s, `${name(s, seat)} ${verb}`, seat, short);
       if (a.type === 'fold') {
@@ -545,6 +584,7 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
       // with too few chips for a full raise, the only way up is all in (as the action bar offers)
       const raise = (to: number): Action => (o.maxRaiseTo > o.minRaiseTo ? { type: 'raise', amount: to } : { type: 'allin' });
       const level = botLevel(s.options);
+      if (level === 2) return hardPokerMove(hard, s, seat, o, raise, botBudget(s.options)!);
       if (level > 0) return oddsBot(s, seat, o, level, raise);
       // Easy: a beginner who likes to see what happens. It calls a lot (any pair, most starting
       // hands, and a cheap look now and then with nothing), bets only a good hand and hardly ever
