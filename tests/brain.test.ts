@@ -5,9 +5,9 @@ import type { GameState } from '../src/engine/types';
 
 /** A brain that answers only when told to, like a worker thread thinking in the background. */
 function slowBrain() {
-  const asked: { s: GameState; seats: number[]; answer: (p: Pick | null) => void }[] = [];
+  const asked: { views: Record<number, GameState>; seats: number[]; answer: (p: Pick | null) => void }[] = [];
   const brain: Brain = {
-    think: (game, s, seats) => new Promise((answer) => asked.push({ s, seats, answer: (p) => answer(p ?? pickNow(game, s, seats)) })),
+    think: (game, views, seats) => new Promise((answer) => asked.push({ views, seats, answer: (p) => answer(p ?? pickNow(game, views, seats)) })),
     close() {},
     onError: () => {},
   };
@@ -48,7 +48,7 @@ describe('bots thinking in the background', () => {
     expect(asked).toHaveLength(2);
     const v = host.state!.v;
     // the stale answer (for the table before the pass) is dropped
-    asked[0].answer({ seat: 1, action: { type: 'pass', cards: asked[0].s.zones['hand:1'].cards.slice(0, 3).map((c) => c.id) } });
+    asked[0].answer({ seat: 1, action: { type: 'pass', cards: asked[0].views[1].zones['hand:1'].cards.slice(0, 3).map((c) => c.id) } });
     await vi.advanceTimersByTimeAsync(2000);
     expect(host.state!.v).toBe(v);
     asked[1].answer(null);
@@ -112,9 +112,9 @@ describe('bots thinking in the background', () => {
     host.start();
     const s = host.state!;
     const brain = workerBrain();
-    const first = brain.think('hearts', s, [1]);
-    const second = brain.think('hearts', s, [2]);
-    const third = brain.think('hearts', s, [3]);
+    const first = brain.think('hearts', { 1: s }, [1]);
+    const second = brain.think('hearts', { 2: s }, [2]);
+    const third = brain.think('hearts', { 3: s }, [3]);
     // only the first went to the worker; the second was overtaken by the third
     expect(posted.map((r) => r.seats)).toEqual([[1]]);
     expect(posted[0].config.id).toBe('hearts');

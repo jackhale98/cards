@@ -12,12 +12,12 @@ import { pickWith } from './pick';
 const modules = new Map<string, Promise<GameModule>>();
 
 self.onmessage = async (e: MessageEvent<BrainRequest>) => {
-  const { id, game, config, state, seats } = e.data;
+  const { id, game, config, views, seats } = e.data;
   let reply: BrainReply;
   try {
     let m = modules.get(game);
     if (!m) modules.set(game, (m = loadModule(config)));
-    reply = { id, pick: pickWith(await m, state, seats) };
+    reply = { id, pick: pickWith(await m, views, seats) };
   } catch (err) {
     modules.delete(game);
     reply = { id, error: err instanceof Error ? `${err.message}\n${err.stack ?? ''}` : String(err) };

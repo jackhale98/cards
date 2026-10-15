@@ -19,25 +19,26 @@ export type Thought = Pick | null | 'failed';
  * finds a plain legal move for it, so the table never waits on a broken bot.
  */
 export interface Brain {
-  think(game: string, s: GameState, seats: number[]): Thought | Promise<Thought>;
+  /** `views`: each seat's own view of the game (botView.ts), the only game a bot gets to see. */
+  think(game: string, views: Record<number, GameState>, seats: number[]): Thought | Promise<Thought>;
   close(): void;
   onError: (e: unknown, game: string, phase: string) => void;
 }
 
 /** First bot in `seats` with a move, worked out here and now. */
-export function pickNow(game: string, s: GameState, seats: number[]): Pick | null {
+export function pickNow(game: string, views: Record<number, GameState>, seats: number[]): Pick | null {
   const m = rulesFor(game);
-  return m ? pickWith(m, s, seats) : null;
+  return m ? pickWith(m, views, seats) : null;
 }
 
 /** Bots think on the host's own thread (tests, and browsers without workers). */
 export function inlineBrain(): Brain {
   const brain: Brain = {
-    think(game, s, seats) {
+    think(game, views, seats) {
       try {
-        return pickNow(game, s, seats);
+        return pickNow(game, views, seats);
       } catch (e) {
-        brain.onError(e, game, s.phase);
+        brain.onError(e, game, views[seats[0]]?.phase ?? '');
         return 'failed';
       }
     },
@@ -51,7 +52,7 @@ export function inlineBrain(): Brain {
  * Messages to and from the bot worker (botWorker.ts). The game's own settings come along (the
  * worker builds its rules from them), so the worker needn't download every game's file.
  */
-export type BrainRequest = { id: number; game: string; config: GameConfig; state: GameState; seats: number[] };
+export type BrainRequest = { id: number; game: string; config: GameConfig; views: Record<number, GameState>; seats: number[] };
 export type BrainReply = { id: number; pick: Pick | null } | { id: number; error: string };
 
 /**
@@ -94,7 +95,7 @@ export function workerBrain(): Brain {
     worker = null;
     busy = false;
     // whatever was asked meanwhile gets answered here instead
-    for (const { resolve, req } of [...waiting.values(), ...(queued ? [queued] : [])]) resolve(fallback.think(req.game, req.state, req.seats) as Thought);
+    for (const { resolve, req } of [...waiting.values(), ...(queued ? [queued] : [])]) resolve(fallback.think(req.game, req.views, req.seats) as Thought);
     waiting.clear();
     queued = null;
   };
@@ -105,9 +106,9 @@ export function workerBrain(): Brain {
       waiting.delete(e.data.id);
       done();
       if ('error' in e.data) {
-        brain.onError(new Error(e.data.error), w.req.game, w.req.state.phase);
+        brain.onError(new Error(e.data.error), w.req.game, w.req.views[w.req.seats[0]]?.phase ?? '');
         // (once more here: the worker may have failed to load the rules, which this thread has)
-        w.resolve(fallback.think(w.req.game, w.req.state, w.req.seats) as Thought);
+        w.resolve(fallback.think(w.req.game, w.req.views, w.req.seats) as Thought);
       } else w.resolve(e.data.pick);
     };
     worker.onerror = (e) => {
@@ -116,10 +117,10 @@ export function workerBrain(): Brain {
     };
   }
   const brain: Brain = {
-    think(game, state, seats) {
+    think(game, views, seats) {
       const m = rulesFor(game);
-      if (!worker || !m) return fallback.think(game, state, seats);
-      const req: BrainRequest = { id: ++next, game, config: m.config, state, seats };
+      if (!worker || !m) return fallback.think(game, views, seats);
+      const req: BrainRequest = { id: ++next, game, config: m.config, views, seats };
       return new Promise((resolve) => {
         if (!busy) return post({ resolve, req });
         // (the one this replaces is answered "nothing": it's out of date)

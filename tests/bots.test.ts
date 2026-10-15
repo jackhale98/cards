@@ -2,12 +2,20 @@ import { describe, expect, it } from 'vitest';
 import { GAME_LIST } from './games';
 import type { GameModule, GameState } from '../src/engine/types';
 import { checkAction } from '../src/engine/validate';
+import { botView } from '../src/engine/botView';
+import { resolveAction } from '../src/engine/redact';
 
 /**
  * A bot that proposes a move the rules don't offer would freeze a real table (the host can only
  * fall back to a passive move), so every bot move in every game must be one that's on offer and
- * that the rules accept. Bots use randomness, so play plenty of deals.
+ * that the rules accept. Bots use randomness, so play plenty of deals. Each bot thinks as at a
+ * real table: with its own seat's view (botView), its move brought back to the real deal.
  */
+function botMove(g: GameModule, s: GameState, seat: number) {
+  const v = botView(g, s, seat);
+  const a = g.bot!(v.view, seat);
+  return a ? resolveAction(s, seat, v.unfill(a)) : null;
+}
 function playDeal(g: GameModule, seed: number, n: number): string | null {
   const s: GameState = g.setup(
     Array.from({ length: n }, (_, i) => ({ name: `B${i}`, bot: true })),
@@ -22,9 +30,15 @@ function playDeal(g: GameModule, seed: number, n: number): string | null {
       sys.run(s);
       continue;
     }
-    const seat = s.players.findIndex((p) => g.bot!(s, p.seat));
-    if (seat < 0) return null; // the deal is over (or waits on a person)
-    const a = g.bot!(s, seat)!;
+    // (each bot asked once: its answer can change from one asking to the next)
+    let seat = -1;
+    let a: ReturnType<typeof botMove> = null;
+    for (const p of s.players)
+      if ((a = botMove(g, s, p.seat))) {
+        seat = p.seat;
+        break;
+      }
+    if (!a) return null; // the deal is over (or waits on a person)
     const offered = g.actions(s, seat);
     // (the host checks every move against what was offered, bots' too)
     const checked = checkAction(a, offered);
@@ -52,7 +66,7 @@ describe('bots only make moves the rules allow', () => {
         }
         expect(problems).toEqual([]);
       },
-      60000,
-    ); // (400 deals of the slower games take a few seconds)
+      120000,
+    ); // (400 deals of the slower games take a while: real-time ones make thousands of moves a deal)
   }
 });

@@ -11,8 +11,16 @@ test('after a hand, the scores show a chart and a hand-by-hand table, and chips 
   await page.click('button:has-text("Deal Texas Hold")');
   await page.locator('.table').waitFor();
   // play the hand out (this seat's moves as a bot would make them)
-  for (let i = 0; i < 400 && (await page.evaluate(() => (window as unknown as { __phase: () => string }).__phase())) !== 'handOver'; i++) {
-    await page.evaluate(() => (window as unknown as { __botMove: () => unknown }).__botMove());
+  // (the check and the move in one step: the hand can end between two, and then the move would deal the next)
+  type Hooks = { __phase: () => string; __botMove: () => unknown };
+  for (let i = 0; i < 400; i++) {
+    const over = await page.evaluate(() => {
+      const w = window as unknown as Hooks;
+      if (w.__phase() === 'handOver') return true;
+      w.__botMove();
+      return false;
+    });
+    if (over) break;
     await page.waitForTimeout(100);
   }
   await expect(page.locator('.recap')).toContainText('This hand:');

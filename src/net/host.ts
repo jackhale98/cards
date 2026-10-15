@@ -1,3 +1,4 @@
+import { botView } from '../engine/botView';
 import { isHidden, redact, redactActions, resolveAction } from '../engine/redact';
 import { randomSeed } from '../engine/rng';
 import { nightPoints, standingsOf } from '../engine/state';
@@ -748,19 +749,29 @@ export class Host {
       // a bot that failed still moves: something plain and legal (see rescue)
       this.timer = setTimeout(() => (pick === 'failed' ? this.rescue(seats) : this.botMove(module, pick)), wait);
     };
+    // each bot sees only its own seat's view (botView.ts); its answer comes back to the real deal
+    const views = new Map(seats.map((seat) => [seat, botView(module, s, seat)]));
+    const back = (pick: Thought): Thought => {
+      if (!pick || pick === 'failed') return pick;
+      const action = resolveAction(s, pick.seat, views.get(pick.seat)!.unfill(pick.action));
+      return action ? { seat: pick.seat, action } : 'failed';
+    };
     let pick: ReturnType<Brain['think']>;
     try {
-      pick = this.brain.think(module.config.id, s, seats);
+      pick = this.brain.think(module.config.id, Object.fromEntries([...views].map(([seat, v]) => [seat, v.view])), seats);
     } catch (e) {
       this.brain.onError(e, module.config.id, s.phase);
       pick = 'failed';
     }
     if (pick instanceof Promise)
-      void pick.then(then, (e) => {
-        this.brain.onError(e, module.config.id, s.phase);
-        then('failed');
-      });
-    else then(pick);
+      void pick.then(
+        (p) => then(back(p)),
+        (e) => {
+          this.brain.onError(e, module.config.id, s.phase);
+          then('failed');
+        },
+      );
+    else then(back(pick));
   }
 
   private botMove(module: GameModule, { seat, action: a }: Pick) {
@@ -841,7 +852,9 @@ export class Host {
   /** A bot's next move; a bot that throws is reported and sits this one out, not the whole table. */
   private think(module: GameModule, s: GameState, seat: number): Action | null {
     try {
-      return module.bot?.(s, seat) ?? null;
+      const v = botView(module, s, seat);
+      const a = module.bot?.(v.view, seat);
+      return a ? resolveAction(s, seat, v.unfill(a)) : null;
     } catch (e) {
       console.error(e);
       report('bot', e, { game: module.config.id, phase: s.phase, action: 'think' });
@@ -910,7 +923,10 @@ export class Host {
     const offered = m.actions(s, seat);
     // (between hands: deal the next one)
     if (offered.some((a) => a.type === 'next')) return { type: 'next' };
-    return m.bot?.(structuredClone(s), seat) ?? null;
+    // (the seat's own view, like any bot; placeholders come back for act() to resolve)
+    const v = botView(m, s, seat);
+    const a = m.bot?.(v.view, seat) ?? null;
+    return a ? v.unfill(a) : null;
   }
 
   /** A client's seat in the game (-1: not playing). */
