@@ -97,6 +97,43 @@ describe('whist (pagat)', () => {
     throw new Error('no deal where the other side held honours');
   });
 
+  it('must follow suit; with none of the suit led, any card, and the highest trump wins', () => {
+    const s = g.setup(people(4), 5, {});
+    const leader = s.turn!;
+    const lead = s.zones[`hand:${leader}`].cards.find((c) => !c.up)!.id;
+    g.apply(s, leader, { type: 'play', cards: [lead] });
+    const next = s.turn!;
+    const suit = parseCard(lead).suit;
+    const hand = s.zones[`hand:${next}`].cards.map((c) => c.id);
+    const offered = g.actions(s, next).find((a) => a.type === 'play')!.select!.cards;
+    if (hand.some((id) => parseCard(id).suit === suit)) expect(offered.every((id) => parseCard(id).suit === suit)).toBe(true);
+    else expect([...offered].sort()).toEqual([...hand].sort());
+    // play the trick out: a trump in it wins, or else the highest of the suit led
+    const plays = [{ seat: leader, card: parseCard(lead) }];
+    for (let i = 0; i < 3; i++) {
+      const seat = s.turn!;
+      const a = g.bot!(s, seat)!;
+      plays.push({ seat, card: parseCard(a.cards![0]) });
+      g.apply(s, seat, a);
+    }
+    const trumps = plays.filter((p) => p.card.suit === s.data.trump);
+    const best = (trumps.length ? trumps : plays.filter((p) => p.card.suit === suit)).reduce((a, b) => (b.card.rank > a.card.rank ? b : a));
+    for (let i = 0; i < 3 && g.system?.(s); i++) g.system!(s)!.run(s);
+    expect(s.data.tricks[best.seat]).toBe(1);
+    expect(s.turn).toBe(best.seat);
+  });
+
+  it('the target is a lobby option, and a game ends the moment a side reaches it', () => {
+    const s = g.setup(bots(4), 9, { target: 7 });
+    s.data.scores = [6, 0];
+    playOut(s);
+    const won = [0, 1].map((t) => s.data.tricks[t] + s.data.tricks[t + 2]);
+    if (won[0] > won[1]) {
+      expect(s.phase).toBe('gameOver');
+      expect(s.winner!.sort()).toEqual([0, 2]);
+    } else expect(s.phase).toBe(s.data.scores[1] >= 7 ? 'gameOver' : 'roundOver');
+  });
+
   it('bots play whole games to 5', () => {
     const s = g.setup(bots(4), 4, {});
     for (let i = 0; i < 5000 && s.phase !== 'gameOver'; i++) {

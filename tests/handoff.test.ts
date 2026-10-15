@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { newBackupKey, open, seal } from '../src/net/backup';
 import { Client } from '../src/net/client';
-import { Host } from '../src/net/host';
+import { Host, STAND_IN } from '../src/net/host';
 import type { Msg } from '../src/net/protocol';
 import type { Transport } from '../src/net/transport';
 
@@ -116,4 +116,59 @@ describe('host handoff', () => {
     ben.c.close();
     hana.c.close();
   }, 30_000);
+
+  it('a takeover in the middle of the bidding carries on, and a bot can bid for the host that dropped', () => {
+    vi.useFakeTimers();
+    const bus = new Bus();
+    const ht = new MemTransport(bus, 'host-peer');
+    const host = new Host(ht, 'BIDDS', { cid: 'h', name: 'Hana', avatar: look });
+    bus.join(ht);
+    const t = new MemTransport(bus, 'ann-peer');
+    const ann = new Client(t, 'a', 'Ann', look, false, 'ann-key');
+    bus.join(t);
+    host.setGame('spades');
+    host.addBot();
+    host.addBot();
+    host.start();
+    // the bots bid until it's one of the people's turn
+    vi.advanceTimersByTime(5000);
+    expect(host.state!.phase).toBe('bid');
+    const snap = structuredClone({ lobby: host.lobby, state: host.state, keys: { h: 'host-key', a: 'ann-key' } });
+    host.close();
+    ann.close();
+    // Ann's phone hosts from the backup
+    const at = new MemTransport(bus, 'ann-host-peer');
+    const next = new Host(at, 'BIDDS', { cid: 'a', name: 'Ann', avatar: look, key: 'ann-key' }, snap, { takeover: true });
+    bus.join(at);
+    next.resume();
+    expect(next.state!.phase).toBe('bid');
+    // Hana's seat waits for her, unless a bot plays it: bidding goes round to Ann
+    expect(next.act('a', { type: STAND_IN, seat: 0 })).toBeNull();
+    for (let i = 0; i < 20 && next.state!.turn !== 1 && next.state!.phase === 'bid'; i++) vi.advanceTimersByTime(2000);
+    expect(next.state!.players[0].bot).toBe(true);
+    // Hana's seat has bid (by the bot), and the table is waiting on Ann, or has moved on to play
+    expect((next.state!.data as { bids: (number | null)[] }).bids[0]).not.toBeNull();
+    expect(next.state!.phase === 'play' || next.state!.turn === 1).toBe(true);
+    next.close();
+    vi.useRealTimers();
+  });
+
+  it('a takeover of a real-time game keeps it going (the bots carry on at once)', () => {
+    vi.useFakeTimers();
+    const host = new Host(null, 'SLAPS', { cid: 'h', name: 'Hana', avatar: look });
+    host.setGame('slapjack');
+    host.addBot();
+    host.addBot();
+    host.start();
+    vi.advanceTimersByTime(3000);
+    const snap = structuredClone({ lobby: host.lobby, state: host.state, keys: {} });
+    host.close();
+    const next = new Host(null, 'SLAPS', { cid: 'h', name: 'Hana', avatar: look }, snap);
+    const v = next.state!.v;
+    next.resume();
+    vi.advanceTimersByTime(20_000);
+    expect(next.state!.v).toBeGreaterThan(v);
+    next.close();
+    vi.useRealTimers();
+  });
 });

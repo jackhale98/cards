@@ -17,7 +17,8 @@ pnpm test:quick          # unit tests without the slow bot suites (seconds): use
 pnpm test                # every unit test (a couple of minutes: bots play thousands of deals)
 pnpm exec vitest run tests/hearts.test.ts -t "moon"   # one file / one test
 pnpm test:e2e            # Playwright against a dev server on :4173 (PW_CHROMIUM=<path> to reuse a browser),
-                         # plus e2e/csp.spec.ts and e2e/offline.spec.ts on a production build with the real headers (:4174)
+                         # plus e2e/csp.spec.ts and e2e/offline.spec.ts on a production build with the real headers (:4174);
+                         # CI also runs the main flows in WebKit (Safari's engine): PW_WEBKIT=1 locally
 pnpm -C relay check      # the relay's type check
 pnpm records             # bots play bridge and Hold'em into records/; then python tools/check_records.py records
 pnpm verify              # check + lint + format:check + test + build + relay check: run before you commit

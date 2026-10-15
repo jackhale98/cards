@@ -288,6 +288,29 @@ describe('saving a game in its standard record', () => {
       host.close();
     });
 
+    it('Omaha is written the same way, as Omaha, with four hole cards of your own', () => {
+      const host = table('omaha', 3);
+      const played = play(host, 'omaha', 2);
+      expect(played).toBeGreaterThanOrEqual(1);
+      const hands = host
+        .exportFile('h', 'ohh')!
+        .split('\n\n')
+        .map((t) => JSON.parse(t).ohh);
+      expect(hands.length).toBe(played);
+      for (const h of hands) {
+        expect(h.game_type).toBe('Omaha');
+        const acts = h.rounds.flatMap((r: { actions: { action: string; player_id: number; cards?: string[]; amount: number }[] }) => r.actions);
+        const dealt = acts.filter((a: { action: string }) => a.action === 'Dealt Cards');
+        if (!h.players.some((p: { id: number }) => p.id === 0)) continue;
+        expect(dealt).toHaveLength(1);
+        expect(dealt[0].cards).toHaveLength(4);
+        // the chips add up: everything put in is the pot, and the pot is all won
+        const putIn = acts.reduce((n: number, a: { amount: number }) => n + a.amount, 0);
+        expect(putIn).toBe(h.pots.reduce((n: number, p: { amount: number }) => n + p.amount, 0));
+      }
+      host.close();
+    }, 30_000);
+
     it('as PHH (for checking with PokerKit), names positions and hides other hole cards from a player', () => {
       const g = GAMES.holdem;
       const s0 = g.setup(

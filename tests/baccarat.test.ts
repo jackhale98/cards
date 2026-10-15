@@ -79,6 +79,34 @@ describe('baccarat (pagat: punto banco)', () => {
     expect(s.phase).toBe('roundOver');
   });
 
+  it('bets are only in range, one kind per round, and nothing more once the cards are out', () => {
+    const s = g.setup(people(2), 4, {});
+    const bet = g.actions(s, 0).find((a) => a.type === 'betPlayer')!;
+    expect(bet.amount!.min).toBeGreaterThan(0);
+    expect(bet.amount!.max).toBeLessThanOrEqual(1000);
+    g.apply(s, 0, { type: 'betPlayer', amount: 100 });
+    // (bet on one side: no second bet this coup)
+    expect(g.actions(s, 0).some((a) => a.type.startsWith('bet'))).toBe(false);
+    g.apply(s, 1, { type: 'betBanker', amount: 100 });
+    deal(s);
+    expect(s.phase).toBe('roundOver');
+    expect(g.actions(s, 1).some((a) => a.type.startsWith('bet'))).toBe(false);
+  });
+
+  it('chips are kept: what the house pays out and takes in adds up, coup after coup', () => {
+    const s = g.setup(people(1), 6, {});
+    let chips = s.players[0].chips;
+    for (let coup = 0; coup < 8; coup++) {
+      if (s.phase !== 'bet') g.system!(s)?.run(s);
+      if (s.phase !== 'bet') break;
+      g.apply(s, 0, { type: 'betPlayer', amount: 10 });
+      deal(s);
+      const d = s.data.outcome === 'player' ? 10 : s.data.outcome === 'tie' ? 0 : -10;
+      chips += d;
+      expect(s.players[0].chips).toBe(chips);
+    }
+  });
+
   it('bots play the set number of rounds', () => {
     const s = g.setup([...people(1), { name: 'B', bot: true }, { name: 'C', bot: true }], 9, { rounds: 5 });
     for (let i = 0; i < 200 && s.phase !== 'gameOver'; i++) {

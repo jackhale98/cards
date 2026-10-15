@@ -25,6 +25,17 @@ export default defineConfig({
     { name: 'dev', testIgnore: /(csp|offline)\.spec/, use: { baseURL: `http://localhost:${PORT}` } },
     // the production build, served with the headers the real site sends (public/_headers)
     { name: 'production', testMatch: /(csp|offline)\.spec/, use: { baseURL: `http://localhost:${PORT + 1}` } },
+    // Safari's engine (most of the phones at the table are iPhones): the flows people go through,
+    // not every game at every size. In CI, or locally with PW_WEBKIT=1 (and WebKit installed).
+    ...(process.env.CI || process.env.PW_WEBKIT
+      ? [
+          {
+            name: 'webkit',
+            testMatch: /(lobby|table|rejoin|handOrder|a11y|scores|invite|homeTip|safearea|spreadMelds|dummy)\.spec/,
+            use: { browserName: 'webkit' as const, baseURL: `http://localhost:${PORT}`, launchOptions: {} },
+          },
+        ]
+      : []),
   ],
   webServer: [
     {

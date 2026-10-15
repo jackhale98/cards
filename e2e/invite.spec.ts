@@ -11,7 +11,9 @@ test('an invite link fills in the table code', async ({ page }) => {
   await expect(page.locator('input[aria-label="Table code"]')).toHaveValue('QWERT');
 });
 
-test('the host shares a link with the code in it', async ({ page, context }) => {
+test('the host shares a link with the code in it', async ({ page, context, browserName }) => {
+  // (Playwright can't grant WebKit clipboard access, so there's no reading the link back there)
+  test.skip(browserName === 'webkit', 'no clipboard permissions in WebKit under Playwright');
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
   await page.goto('/?net=local');
   await page.evaluate(() => Object.defineProperty(navigator, 'share', { value: undefined }));
