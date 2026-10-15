@@ -22,9 +22,9 @@ export default defineConfig({
     launchOptions: process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHROMIUM } : undefined,
   },
   projects: [
-    { name: 'dev', testIgnore: /csp\.spec/, use: { baseURL: `http://localhost:${PORT}` } },
+    { name: 'dev', testIgnore: /(csp|offline)\.spec/, use: { baseURL: `http://localhost:${PORT}` } },
     // the production build, served with the headers the real site sends (public/_headers)
-    { name: 'production', testMatch: /csp\.spec/, use: { baseURL: `http://localhost:${PORT + 1}` } },
+    { name: 'production', testMatch: /(csp|offline)\.spec/, use: { baseURL: `http://localhost:${PORT + 1}` } },
   ],
   webServer: [
     {

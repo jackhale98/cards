@@ -21,6 +21,11 @@ window.addEventListener('vite:preloadError', (e) => {
   location.reload();
 });
 
+// the app on the phone, for opening at once and without a connection (the real site only; not
+// on a Chromecast, which loads it fresh each time)
+if (import.meta.env.PROD && 'serviceWorker' in navigator && !new URLSearchParams(location.search).has('cast'))
+  addEventListener('load', () => void navigator.serviceWorker.register('./sw.js').catch(() => {}));
+
 // four-colour suits, if this device chose them
 applyFourColour();
 

@@ -742,6 +742,20 @@
       : null,
   );
 
+  /**
+   * What a screen reader hears as the game goes on: each move, and when it's your turn. One region
+   * that stays put (a region that's replaced each time is often not read at all).
+   */
+  const SUIT_WORDS: Record<string, string> = { '♠': ' spades', '♥': ' hearts', '♦': ' diamonds', '♣': ' clubs' };
+  const announce = $derived(
+    replay || display
+      ? ''
+      : [lastEntry?.text, you >= 0 && (actor === you || (actor == null && !game.realtime && view.actions.some((a) => !a.menu))) ? 'Your turn.' : '']
+          .filter(Boolean)
+          .join('. ')
+          .replace(/[♠♥♦♣]/g, (x) => SUIT_WORDS[x]),
+  );
+
   // ---- sounds: each new move on the table (on the big screen, when there is one), and the end
   let soundsOn = $state(soundOn());
   let fourColour = $state(fourColourOn());
@@ -895,7 +909,7 @@
     </div>{/if}
   {#if lastMove && cardSizes.lastFits}
     {#key lastMove.t}
-      <div class="last" aria-live="polite">
+      <div class="last">
         {#if lastMove.seat != null}
           <AvatarBadge avatar={lobbySeat(lastMove.seat)?.avatar} name={s.players[lastMove.seat]?.name ?? ''} seat={lastMove.seat} size={16} />
         {/if}
@@ -907,6 +921,8 @@
     <div class="last" aria-hidden="true" style:visibility="hidden">&nbsp;</div>
   {/if}
 {/snippet}
+
+<div class="sr-only" aria-live="polite" aria-atomic="true">{announce}</div>
 
 <div
   class="table"

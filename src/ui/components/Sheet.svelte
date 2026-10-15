@@ -1,23 +1,18 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
+  import { dialog } from '../dialog';
   /** `full`: nearly the whole screen, for something to browse (everyone's melds on a phone). */
   let { title, full = false, onclose, children }: { title: string; full?: boolean; onclose: () => void; children: Snippet } = $props();
-
-  // focus moves into the sheet, and back to whatever opened it on close
-  function focusIn(x: HTMLElement) {
-    const back = document.activeElement as HTMLElement | null;
-    x.focus({ preventScroll: true });
-    return { destroy: () => back?.isConnected && back.focus({ preventScroll: true }) };
-  }
 </script>
 
 <svelte:window onkeydown={(e) => e.key === 'Escape' && onclose()} />
 
 <button class="scrim" onclick={onclose} aria-label="Close" tabindex="-1"></button>
-<div class="sheet panel" class:full role="dialog" aria-modal="true" aria-label={title}>
+<!-- (focus moves in, to the close button, and stays inside until it closes: see dialog.ts) -->
+<div class="sheet panel" class:full role="dialog" aria-modal="true" aria-label={title} use:dialog={onclose}>
   <div class="head">
     <h3>{title}</h3>
-    <button class="x" onclick={onclose} aria-label="Close" use:focusIn>×</button>
+    <button class="x" onclick={onclose} aria-label="Close" data-autofocus>×</button>
   </div>
   <div class="body">{@render children()}</div>
 </div>

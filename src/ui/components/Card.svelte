@@ -19,20 +19,13 @@
   const sym = $derived(info ? SUIT_SYMBOL[info.suit] : '');
   const rank = $derived(info ? rankLabel(info.rank) : '');
   const court = $derived(info && info.rank >= 11 && info.rank <= 13);
+  /** What a screen reader says: "queen of hearts", "10 of spades", "joker". */
+  const NAMES: Record<string, string> = { J: 'jack', Q: 'queen', K: 'king', A: 'ace' };
+  const SUIT_NAMES: Record<string, string> = { S: 'spades', H: 'hearts', D: 'diamonds', C: 'clubs' };
+  const spoken = $derived(!info ? 'face-down card' : info.suit === 'X' ? 'joker' : `${NAMES[rank] ?? rank} of ${SUIT_NAMES[info.suit]}`);
 </script>
 
-<div
-  class="card"
-  data-suit={info?.suit}
-  class:back={hidden}
-  class:red
-  class:selected
-  class:playable
-  class:dim
-  class:fresh
-  role="img"
-  aria-label={info ? `${rank}${sym}` : 'card'}
->
+<div class="card" data-suit={info?.suit} class:back={hidden} class:red class:selected class:playable class:dim class:fresh role="img" aria-label={spoken}>
   {#if info && info.suit === 'X'}
     <div class="joker"><span>★</span><small>JOKER</small></div>
   {:else if info}

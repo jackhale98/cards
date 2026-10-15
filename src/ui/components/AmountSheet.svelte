@@ -1,6 +1,7 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import type { ActionSpec } from '../../engine/types';
+  import { dialog } from '../dialog';
   import { parseTyped, quickAdds, sliderToValue, snap, valueToSlider, SLIDER_STEPS } from '../amount';
 
   interface Props {
@@ -43,7 +44,7 @@
 </script>
 
 <button class="scrim" onclick={oncancel} aria-label="Cancel"></button>
-<div class="sheet panel" role="dialog" aria-label={spec.label}>
+<div class="sheet panel" role="dialog" aria-modal="true" aria-label={spec.label} use:dialog={oncancel}>
   <div class="head">
     <span class="eyebrow">{spec.label}{a.label ? ` · ${a.label}` : ''}</span>
     <button class="x" onclick={oncancel} aria-label="Cancel">×</button>

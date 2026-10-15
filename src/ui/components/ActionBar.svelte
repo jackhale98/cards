@@ -5,6 +5,7 @@
   import type { Avatar } from '../../net/protocol';
   import AmountSheet from './AmountSheet.svelte';
   import AvatarBadge from './AvatarBadge.svelte';
+  import { dialog } from '../dialog';
 
   interface Props {
     actions: ActionSpec[];
@@ -84,7 +85,7 @@
 
 {#if menuOpen}
   <button class="scrim" onclick={() => (menuOpen = false)} aria-label="Close menu"></button>
-  <div class="menu panel">
+  <div class="menu panel" role="dialog" aria-label="More actions" use:dialog={() => (menuOpen = false)}>
     {#each more as a (a.type)}
       <button class="item" class:danger={a.style === 'danger'} disabled={!ready(a)} onclick={() => press(a)}>
         <SuitText text={a.label} />
@@ -97,7 +98,7 @@
 {#if targetFor?.target && seatInfo}
   {@const spec = targetFor}
   <button class="scrim" onclick={() => (targetFor = null)} aria-label="Cancel"></button>
-  <div class="sheet panel">
+  <div class="sheet panel" role="dialog" aria-modal="true" aria-label={spec.target!.label ?? spec.label} use:dialog={() => (targetFor = null)}>
     <div class="eyebrow">{spec.target!.label ?? spec.label} · {selected.length} card{selected.length === 1 ? '' : 's'}</div>
     <div class="targets">
       {#each spec.target!.seats as seat (seat)}
@@ -122,7 +123,7 @@
 {#if chooseFor?.choose}
   {@const spec = chooseFor}
   <button class="scrim" onclick={() => (chooseFor = null)} aria-label="Cancel"></button>
-  <div class="sheet panel">
+  <div class="sheet panel" role="dialog" aria-modal="true" aria-label={spec.choose!.label ?? spec.label} use:dialog={() => (chooseFor = null)}>
     <div class="chead">
       <span class="eyebrow">{spec.choose!.label ?? spec.label}</span>
       <button class="x" onclick={() => (chooseFor = null)} aria-label="Cancel">×</button>
