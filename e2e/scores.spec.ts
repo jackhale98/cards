@@ -16,6 +16,20 @@ test('after a hand, the scores show a chart and a hand-by-hand table, and chips 
     await page.waitForTimeout(100);
   }
   await expect(page.locator('.recap')).toContainText('This hand:');
+  // on a phone held sideways it's in the column on the left, clear of the showdown's cards
+  // (under the middle it sat on the last hands of a big showdown)
+  await expect(page.locator('.side-status .recap')).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const a = document.querySelector('.recap')!.getBoundingClientRect();
+        return [...document.querySelectorAll('main .zones .card')].filter((c) => {
+          const b = c.getBoundingClientRect();
+          return a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+        }).length;
+      }),
+    )
+    .toBe(0);
   await page.click('button[aria-label="Scores and log"]');
   await expect(page.locator('.score-chart svg')).toBeVisible();
   await expect(page.locator('.score-chart table tbody tr')).toHaveCount(2);

@@ -176,8 +176,9 @@
         </div>
       {/each}
       {#if top && isHidden(top.id)}
-        <!-- a face-down top just sits there: cards drawn from it fly out on their own -->
-        <div class="top"><Card id={top.id} /></div>
+        <!-- a face-down top just sits there: cards drawn from it fly out on their own (it still shows
+             when it's picked, as a Free Table discard face down can be, to take it) -->
+        <div class="top"><Card id={top.id} selected={selected.includes(top.id)} /></div>
       {:else if top}
         {#key top.id}
           <div class="top" in:receive={{ key: top.id }} out:send={{ key: top.id }}>

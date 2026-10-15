@@ -51,6 +51,8 @@ the middle of the table. It needs no accounts or app store, and there's no serve
 - **Look back:** step through the last few hands as you saw them (replay), and save a whole game as a
   spreadsheet (CSV, only your own cards), or as a bridge PBN file or poker Open Hand History.
 - **Four-colour suits** (♣ green, ♦ blue) for anyone who wants them, from the table menu on each phone.
+- **Show playable cards** (on unless turned off): cards you can't use right now are shaded. Turn it off
+  in the table menu to find your own moves; a tap on a card you can't play says so.
 - **Resilient:** a refreshed phone keeps its seat, and a refreshed host resumes the game.
 
 ## Showing the table on a TV

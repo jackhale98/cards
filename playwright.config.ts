@@ -31,7 +31,7 @@ export default defineConfig({
       ? [
           {
             name: 'webkit',
-            testMatch: /(lobby|table|rejoin|handOrder|a11y|scores|invite|homeTip|safearea|spreadMelds|dummy)\.spec/,
+            testMatch: /(lobby|table|rejoin|handOrder|a11y|scores|invite|homeTip|safearea|spreadMelds|dummy|hints|freeTable)\.spec/,
             use: { browserName: 'webkit' as const, baseURL: `http://localhost:${PORT}`, launchOptions: {} },
           },
         ]

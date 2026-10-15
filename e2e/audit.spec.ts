@@ -150,6 +150,8 @@ async function check(page: Page): Promise<string[]> {
       // (your name and status: the column's own part, below whose turn it is when that's there too)
       const me = all('.table:not(.display) .me-own');
       const labels = all('.table:not(.display) main .zones .label');
+      // (the hand's summary, at the end of a hand: under the middle, or in the column on the left)
+      const recap = all('.table:not(.display) .recap');
       const banner = document.querySelector('.banner');
       const covered = (el: Element) => banner && shown(banner) && meets(rect(el), rect(banner), 0);
       const pairs: [string, Element[], Element[]][] = [
@@ -164,6 +166,8 @@ async function check(page: Page): Promise<string[]> {
         ['a button and your name', buttons, me],
         ['the headline and a seat', text, seats],
         ['a button and a seat', buttons, seats],
+        ["a card in the middle and the hand's summary", center, recap],
+        ["your hand and the hand's summary", hand, recap],
       ];
       for (const [what, as, bs] of pairs) {
         let n = 0;

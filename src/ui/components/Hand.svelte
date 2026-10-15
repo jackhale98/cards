@@ -10,12 +10,14 @@
     /** Cards that may be selected right now; null when no selection is in play. */
     selectable: Set<string> | null;
     fresh?: string[];
+    /** Shade the cards that can't be used now and edge the ones that can (a choice in the menu). */
+    hints?: boolean;
     ontap: (id: string) => void;
     onswipe: (id: string) => void;
     /** Drag a card sideways to move it within the hand: the hand's new order, by card id. */
     onreorder?: (ids: string[]) => void;
   }
-  let { cards, cw, selected, selectable, fresh = [], ontap, onswipe, onreorder }: Props = $props();
+  let { cards, cw, selected, selectable, fresh = [], hints = true, ontap, onswipe, onreorder }: Props = $props();
 
   let width = $state(0);
   /** A card being dragged: up (to play it) or, with `slide`, sideways (to move it in the hand). */
@@ -141,13 +143,13 @@
       role="button"
       tabindex="0"
       aria-pressed={selected.includes(c.id)}
-      aria-disabled={!can}
+      aria-disabled={hints && !can}
     >
       <Card
         id={c.id}
         selected={selected.includes(c.id)}
-        playable={!!selectable && can && selectable.size < cards.length}
-        dim={!!selectable && !can}
+        playable={hints && !!selectable && can && selectable.size < cards.length}
+        dim={hints && !!selectable && !can}
         fresh={fresh.includes(c.id)}
       />
     </div>

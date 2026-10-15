@@ -22,6 +22,7 @@
   import { flight, haptic, play, snapshot } from '../motion';
   import { play as playSound, setSound, soundOn, type Sound } from '../sound';
   import { fourColourOn, setFourColour } from '../suits';
+  import { hintsOn, setHints } from '../hints';
   import { arrangeHand, HAND_SORT_LABEL, HAND_SORTS, handSortOn, setHandSort, type HandSort } from '../handOrder';
   import { marquee } from '../marquee';
   import { fade, fly } from 'svelte/transition';
@@ -210,9 +211,11 @@
   function fitSide(el: HTMLElement) {
     let frame = 0;
     const fit = () => {
-      const last = el.querySelector<HTMLElement>('.last');
-      if (last) last.style.display = '';
-      if (last && el.scrollHeight > el.clientHeight + 1) last.style.display = 'none';
+      // (the last move goes first when the column can't hold everything, then the hand's summary,
+      // which the Scores sheet has too)
+      const parts = ['.last', '.recap'].map((q) => el.querySelector<HTMLElement>(q)).filter((x) => !!x);
+      for (const x of parts) x.style.display = '';
+      for (const x of parts) if (el.scrollHeight > el.clientHeight + 1) x.style.display = 'none';
     };
     const later = () => {
       cancelAnimationFrame(frame);
@@ -255,7 +258,11 @@
       return Number.isFinite(top) ? { h: bottom - Math.min(top, el.offsetTop), w: right - left } : { h: 0, w: 0 };
     };
     const fit = () => {
-      const room = main.clientHeight - el.offsetTop;
+      // (anything below the piles in the middle, the hand's summary say, keeps its room)
+      let below = 0;
+      for (let c = el.nextElementSibling as HTMLElement | null; c; c = c.nextElementSibling as HTMLElement | null)
+        if (c.offsetHeight && getComputedStyle(c).position !== 'absolute') below += c.offsetHeight + 6;
+      const room = main.clientHeight - el.offsetTop - below;
       const { h, w } = extent();
       // (too tall, or too wide: a showdown's two seven-card hands side by side on a phone)
       const k = Math.min(1, room / Math.max(1, h), main.clientWidth / Math.max(1, w, el.offsetWidth));
@@ -296,6 +303,8 @@
     // (a card or a longer label changes what's inside without changing the box)
     const mo = new MutationObserver(later);
     mo.observe(el, { childList: true, subtree: true, characterData: true });
+    // (and what comes and goes below it: the hand's summary)
+    mo.observe(main, { childList: true });
     return {
       destroy: () => {
         cancelAnimationFrame(frame);
@@ -400,7 +409,11 @@
   });
 
   function tap(id: string) {
-    if (!selectable?.has(id)) return;
+    if (!selectable?.has(id)) {
+      // (with the hints off nothing looks unplayable, so a tap on such a card says why nothing happens)
+      if (!hints && selectable && fanCards.some((c) => c.id === id)) app.say('That card can’t be played right now');
+      return;
+    }
     if (selected.includes(id)) {
       // tapping a lone selected card plays it, unless the action is swipe-only
       if (quick?.quick === true && selected.length === 1 && quick.select!.cards.includes(id)) return run(quick);
@@ -760,6 +773,7 @@
   // ---- sounds: each new move on the table (on the big screen, when there is one), and the end
   let soundsOn = $state(soundOn());
   let fourColour = $state(fourColourOn());
+  let hints = $state(hintsOn());
   // a table screen stays quiet when someone at the table has muted it (a Chromecast has no menu)
   const sound = (x: Sound) => (replay || (display && view.lobby.screenSound === false) ? undefined : playSound(x));
   const screenSoundOn = $derived(view.lobby.screenSound !== false);
@@ -1105,7 +1119,7 @@
       {/if}
     </div>
 
-    {#if recap && !(showBanner && status.banner)}
+    {#if recap && !side && !(showBanner && status.banner)}
       <p class="recap" aria-label="This hand: {recap}">This hand: {recap}</p>
     {/if}
     {#if showBanner && status.banner}
@@ -1142,7 +1156,14 @@
   <!-- you: a column of your own beside the middle, above your hand, so your hand has the whole width -->
   {#if !display}
     <section class="me" class:side aria-label="You">
-      {#if side}<div class="side-status" use:fitSide>{@render tableStatus()}</div>{/if}
+      {#if side}
+        <div class="side-status" use:fitSide>
+          {@render tableStatus()}
+          <!-- (the hand's summary: here on a phone held sideways, where the column is free once the hand
+               is over, rather than under the middle, where a big showdown needs every bit of the height) -->
+          {#if recap && !(showBanner && status.banner)}<p class="recap" aria-label="This hand: {recap}">This hand: {recap}</p>{/if}
+        </div>
+      {/if}
       <div class="me-own" bind:clientHeight={meOwnH}>
         {#if me}
           <div class="me-name">
@@ -1198,6 +1219,7 @@
                 {selected}
                 {selectable}
                 fresh={playFrom ? [] : freshIds}
+                {hints}
                 ontap={tap}
                 onswipe={swipe}
                 onreorder={playFrom ? undefined : (ids) => (handOrder = ids)}
@@ -1271,7 +1293,7 @@
     <!-- (your hand and your moves, so you can meld and lay off from here) -->
     <div class="spread-dock">
       <div class="spread-hand">
-        <Hand cards={myHand} cw={spreadHandCw} {selected} {selectable} ontap={tap} onswipe={swipe} onreorder={(ids) => (handOrder = ids)} />
+        <Hand cards={myHand} cw={spreadHandCw} {selected} {selectable} {hints} ontap={tap} onswipe={swipe} onreorder={(ids) => (handOrder = ids)} />
       </div>
       <div class="spread-acts">
         <ActionBar
@@ -1311,6 +1333,13 @@
             fourColour = !fourColour;
             setFourColour(fourColour);
           }}>{fourColour ? 'Four-colour suits: on' : 'Four-colour suits: off'}</button
+        >
+        <button
+          class="btn"
+          onclick={() => {
+            hints = !hints;
+            setHints(hints);
+          }}>{hints ? 'Show playable cards: on' : 'Show playable cards: off'}</button
         >
         {#if canNotify()}
           <button class="btn" onclick={async () => (turnAlerts = await setTurnAlerts(!turnAlerts))}
@@ -2201,8 +2230,16 @@
     min-height: 0;
     overflow: hidden;
   }
-  .side-status .last {
+  .side-status .last,
+  .side-status .recap {
     flex-shrink: 0;
+  }
+  .side-status .recap {
+    max-width: 100%;
+    font-size: 0.74rem;
+    text-align: left;
+    border-radius: 12px;
+    padding: 0.3rem 0.6rem;
   }
   .me.side > .me-own {
     flex: none;
