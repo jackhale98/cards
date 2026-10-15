@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { it } from 'vitest';
 import { familyRules, type Action, type GameModule, type GameState } from '../src/engine/types';
+import type { TrickData } from '../src/engine/families/trick';
 import { phh } from '../src/net/exports/phh';
 import { pbn } from '../src/net/exports/pbn';
 import { EVERYONE, type HandFormat } from '../src/net/exports/types';
@@ -126,6 +127,68 @@ it.skipIf(!process.env.SELFPLAY)(
         writeFileSync(`${OUT}/bridge-ns${ns}-ew${ew}.pbn`, body + '\r\n');
         process.stderr.write(`bridge NS ${ns} v EW ${ew}: ${deals} deals\n`);
       }
+    }
+
+    // bridge, bidding only (BIDDING=deals): every bot bids, nobody plays; each deal's hands and the
+    // contract reached go to bridge-bidding.jsonl, for the checks to score against double dummy
+    if (process.env.BIDDING) {
+      const g = GAMES.bridge;
+      const lines: string[] = [];
+      const seats = 'NESW';
+      for (let seed = 1 + Number(process.env.SEED0 ?? 0); seed <= Number(process.env.BIDDING) + Number(process.env.SEED0 ?? 0); seed++) {
+        const s = g.setup(
+          ['North', 'East', 'South', 'West'].map((name) => ({ name, bot: true })),
+          seed,
+          // (SYSTEM=0 natural, 1 SAYC, 2 two over one: the lobby's "Bots bid")
+          { botLevel: 1, system: Number(process.env.SYSTEM ?? 1) },
+        ) as GameState<TrickData>;
+        // (every dealer and every vulnerability in turn, as a long match would have them)
+        s.dealer = seed % 4;
+        s.turn = s.dealer;
+        s.data.vul = [
+          [false, false],
+          [true, false],
+          [false, true],
+          [true, true],
+        ][Math.floor(seed / 4) % 4];
+        const hands = s.players.map((p) => s.zones[`hand:${p.seat}`].cards.map((c) => c.id));
+        const pbnHand = (ids: string[]) =>
+          ['S', 'H', 'D', 'C']
+            .map((x) =>
+              ids
+                .filter((c) => c[1] === x)
+                .map((c) => c[0])
+                .sort((a, b) => 'AKQJT98765432'.indexOf(a) - 'AKQJT98765432'.indexOf(b))
+                .join(''),
+            )
+            .join('.');
+        const deal = `N:${hands.map(pbnHand).join(' ')}`;
+        const dealer = seats[s.dealer];
+        const vul = [...(s.data.vul ?? [false, false])];
+        let calls: (number | string)[] = [];
+        for (let i = 0; i < 400 && s.phase === 'call'; i++) {
+          calls = (s.data.calls ?? []).map((c) => c.call);
+          const seat = s.turn!;
+          g.apply(s, seat, g.bot!(s, seat)!);
+          // (passed out: the same deal isn't bid again, a new one is dealt)
+          if ((s.data.calls ?? []).length === 0) break;
+        }
+        const c = s.phase === 'play' ? s.data.bridge : null;
+        if (c) calls = (s.data.calls ?? []).map((x) => x.call);
+        else calls = [...calls, 'P'];
+        lines.push(
+          JSON.stringify({
+            seed,
+            deal,
+            dealer,
+            vul,
+            calls,
+            contract: c ? { level: c.level, strain: c.strain, dbl: c.dbl, declarer: seats[s.data.maker!] } : null,
+          }),
+        );
+      }
+      writeFileSync(`${OUT}/bridge-bidding.jsonl`, lines.join('\n') + '\n');
+      process.stderr.write(`bridge bidding: ${lines.length} deals\n`);
     }
 
     // Hold'em heads-up: one hand from each seed, then the same cards with the seats swapped

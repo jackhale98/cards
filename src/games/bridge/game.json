@@ -26,7 +26,8 @@
   },
   "options": [
     { "id": "style", "label": "Scoring", "type": "number", "default": 0, "min": 0, "max": 1, "step": 1, "choices": ["Chicago", "Rubber"] },
-    { "id": "deals", "label": "Deals (Chicago)", "type": "number", "default": 4, "min": 4, "max": 16, "step": 4 }
+    { "id": "deals", "label": "Deals (Chicago)", "type": "number", "default": 4, "min": 4, "max": 16, "step": 4 },
+    { "id": "system", "label": "Bots bid", "type": "number", "default": 1, "min": 0, "max": 2, "step": 1, "choices": ["Natural", "SAYC", "2/1"] }
   ],
   "rulesSummary": [
     "Partners sit across, 13 cards each. Bid a contract with your partner, then make it, or stop the other side making theirs.",
@@ -38,6 +39,7 @@
     "Extra tricks, slams (6 bid: 500, 7 bid: 1000; 750 and 1500 vulnerable) and making a doubled contract (+50) score on top, but don't count toward game.",
     "Going down gives the other side 50 a trick, or 100 if you're vulnerable (more if doubled).",
     "Chicago: deals in sets of four. A game scores 300, or 500 vulnerable, and a part score made on the fourth deal 100. Vulnerable: nobody on deal 1, the side not dealing on deals 2 and 3, everyone on deal 4. Most points wins.",
-    "Rubber (a lobby option): play until a side wins two games; winning one makes you vulnerable. The rubber is worth 700 (2–0) or 500 (2–1). Honours in one hand score too: four of A K Q J 10 of trumps 100, all five or four aces at NT 150. Most points wins."
+    "Rubber (a lobby option): play until a side wins two games; winning one makes you vulnerable. The rubber is worth 700 (2–0) or 500 (2–1). Honours in one hand score too: four of A K Q J 10 of trumps 100, all five or four aces at NT 150. Most points wins.",
+    "Bots bid SAYC (Standard American Yellow Card), or two over one or a plain natural style (a lobby option). The log says what each bot call means. A bot partnering you takes your calls in the same system."
   ]
 }

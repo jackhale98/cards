@@ -12,3 +12,4 @@ playwright-report
 # agent workspaces
 .claude/worktrees/
 records/
+__pycache__/

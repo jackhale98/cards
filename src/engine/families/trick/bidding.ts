@@ -4,6 +4,8 @@ import { assertRule, type Action } from '../../types';
 import { ALL_BIDS, bidLabel, bidOf, bridgeLabel, contractLabel, MISERE, NAMEABLE, OPEN_MISERE, type Call } from './contracts';
 import { beforePlay, redeal, startPlay, startRound } from './deal';
 import { partnersOf, teamOf } from './sides';
+import { explainLast } from './systems/bidder';
+import { biddingSystem } from './systems/choice';
 import { rubberBridge, type S, type TrickData, type TrickGame } from './types';
 
 /**
@@ -186,13 +188,27 @@ function honoursHeld(g: TrickGame, s: S): TrickData['honours'] {
   return null;
 }
 
+/**
+ * What a bot's call means in the table's bidding system, for the log ("1♣ (12–21 points, three or
+ * more clubs)"), worked out from the auction alone, so it tells nobody anything about the cards
+ * that the call itself doesn't. (A person's call isn't explained: they may have meant something else.)
+ */
+function meaning(g: TrickGame, s: S, seat: number) {
+  const system = biddingSystem(g, s);
+  if (!system || !s.players[seat]?.bot) return '';
+  const team = teamOf(g, s, seat);
+  const vul = s.data.vul ?? [false, false];
+  const note = explainLast(system, s.data.calls!, [!!vul[team], !!vul[1 - team]]);
+  return note ? ` (${note})` : '';
+}
+
 /** A bridge bid (0 = 1♣ … 34 = 7NT). */
 export function applyCall(g: TrickGame, s: S, seat: number, a: Action) {
   assertRule(s.phase === 'call' && s.turn === seat, 'Not your turn to bid');
   const bid = Math.floor(a.amount ?? -1);
   assertRule(bid >= 0 && bid < 35 && bid > auctionState(s).lastBid, 'Bid higher than the last bid');
   s.data.calls!.push({ seat, call: bid });
-  log(s, `${name(s, seat)} bids ${bidLabel(bid)}`, seat, bidLabel(bid));
+  log(s, `${name(s, seat)} bids ${bidLabel(bid)}${meaning(g, s, seat)}`, seat, bidLabel(bid));
   afterCall(g, s, seat);
 }
 
@@ -205,7 +221,7 @@ export function applyDouble(g: TrickGame, s: S, seat: number, a: Action) {
     x ? 'You can only double an opponent’s bid' : 'You can only redouble a double of your side’s bid',
   );
   s.data.calls!.push({ seat, call: x ? 'X' : 'XX' });
-  log(s, `${name(s, seat)} ${x ? 'doubles' : 'redoubles'}`, seat, x ? 'Double' : 'Redouble');
+  log(s, `${name(s, seat)} ${x ? 'doubles' : 'redoubles'}${meaning(g, s, seat)}`, seat, x ? 'Double' : 'Redouble');
   afterCall(g, s, seat);
 }
 
@@ -217,7 +233,7 @@ export function applyDecline(g: TrickGame, s: S, seat: number) {
   if (s.phase === 'call') {
     assertRule(s.turn === seat, 'Not your turn');
     d.calls!.push({ seat, call: 'P' });
-    log(s, `${who} passes`, seat, 'Pass');
+    log(s, `${who} passes${meaning(g, s, seat)}`, seat, 'Pass');
     return afterCall(g, s, seat);
   }
   assertRule(s.turn === seat && (s.phase === 'order' || s.phase === 'name' || s.phase === 'auction'), 'Not your turn');

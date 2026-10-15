@@ -154,6 +154,62 @@ def _start(board, contract):
     return d
 
 
+def check_bidding(path: str) -> dict:
+    """Bidding alone: each contract the bots reached, played perfectly (double dummy), against par.
+
+    The file is bridge-bidding.jsonl (BIDDING=n in the self-play): every deal's hands, dealer,
+    vulnerability, the auction and the contract (or none: passed out). Card play doesn't come
+    into it, so this measures the bidding: IMPs a deal against par (the score of the best contract
+    for both sides, each bidding and playing perfectly), and how often the bots bid the games and
+    slams that double dummy makes, or bid one that fails.
+    """
+    from endplay import dds
+    from endplay.types import Contract, Deal, Denom, Penalty, Player, Vul
+
+    denom = {"C": Denom.clubs, "D": Denom.diamonds, "H": Denom.hearts, "S": Denom.spades, "NT": Denom.nt}
+    seat = {"N": Player.north, "E": Player.east, "S": Player.south, "W": Player.west}
+    gaps: list[int] = []
+    tally = defaultdict(int)
+    with open(path) as f:
+        rows = [json.loads(line) for line in f if line.strip()]
+    for k, r in enumerate(rows, 1):
+        where = f"bidding deal {k}"
+        deal = Deal(r["deal"])
+        ns_vul, ew_vul = r["vul"]
+        vul = Vul.both if ns_vul and ew_vul else Vul.ns if ns_vul else Vul.ew if ew_vul else Vul.none
+        table = dds.calc_dd_table(deal)
+        par = dds.par(table, vul, seat[r["dealer"]])
+        c = r["contract"]
+        if c is None:
+            ns = 0
+            tally["passed_out"] += 1
+        else:
+            decl = seat[c["declarer"]]
+            tricks = table[denom[c["strain"]], decl]
+            pen = [Penalty.passed, Penalty.doubled, Penalty.redoubled][c["dbl"]]
+            contract = Contract(level=c["level"], denom=denom[c["strain"]], declarer=decl, penalty=pen, result=tricks - c["level"] - 6)
+            score = contract.score(vul)
+            ns = score if decl in (Player.north, Player.south) else -score
+            made = tricks >= c["level"] + 6
+            game = c["level"] >= 5 or (c["level"] >= 4 and c["strain"] in ("H", "S")) or (c["level"] >= 3 and c["strain"] == "NT")
+            kind = "grand" if c["level"] == 7 else "slam" if c["level"] == 6 else "game" if game else "part"
+            tally[f"{kind}_bid"] += 1
+            tally[f"{kind}_made"] += int(made)
+        gaps.append(imps(ns - par.score))
+        if abs(gaps[-1]) >= 10:
+            tally["big_misses"] += 1
+    n = max(1, len(gaps))
+    return {
+        "deals": len(gaps),
+        # (both sides bid the same way, so North-South's average against par comes out near zero:
+        # how far each deal ends from par, either way, is what says how well both bid)
+        "imps_from_par_per_deal": round(sum(abs(g) for g in gaps) / n, 2),
+        "ns_imps_per_deal_against_par": round(sum(gaps) / n, 2),
+        "deals_within_2_imps_of_par": round(sum(1 for g in gaps if abs(g) <= 2) / n, 3),
+        "contracts": {key: tally[key] for key in sorted(tally)},
+    }
+
+
 # ---- poker ------------------------------------------------------------------------------
 
 def alone(state) -> bool:
@@ -253,6 +309,8 @@ def main() -> int:
     report = {}
     if glob.glob(f"{folder}/*.pbn"):
         report["bridge"] = check_bridge(folder)
+    if os.path.exists(f"{folder}/bridge-bidding.jsonl"):
+        report["bridge_bidding"] = check_bidding(f"{folder}/bridge-bidding.jsonl")
     if glob.glob(f"{folder}/*.phh"):
         report["holdem"] = check_poker(folder)
     print(json.dumps(report, indent=2))

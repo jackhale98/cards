@@ -42,3 +42,48 @@ History, which poker tools read.
   and play by both sides would get).
 - `heads_up`: Hold'em, big blinds won per 100 hands by the first level against the second, with
   its standard error.
+
+## Bridge bidding against par
+
+The bots' bidding on its own: they bid a thousand deals (every dealer and vulnerability in turn),
+nobody plays, and endplay scores the contract each deal reached at double-dummy tricks against the
+par score (the best result for both sides bidding and playing perfectly).
+
+```bash
+SELFPLAY=1 GAMES=none BIDDING=1000 SYSTEM=1 OUT=records pnpm exec vitest run tests/selfplay.bench.test.ts
+python tools/check_records.py records          # bridge_bidding in the report
+```
+
+`SYSTEM` is the lobby's "Bots bid": 0 Natural (the plain bidder), 1 SAYC, 2 two over one.
+
+- `imps_from_par_per_deal`: how far, on average, the contract lands from par, either way, in IMPs.
+  Lower is better; 0 would be perfect, and double dummy sees every card, so no real bidding gets
+  there.
+- `deals_within_2_imps_of_par`: the share of deals that end at (or very near) par.
+- `contracts`: part scores, games and slams bid and how many make at double dummy; `big_misses` are
+  deals 10 or more IMPs from par.
+
+The same thousand deals (seeds 1–1000):
+
+| Bots bid     | IMPs from par a deal | Within 2 IMPs | Slams bid (made) | Grand slams bid |
+| ------------ | -------------------- | ------------- | ---------------- | --------------- |
+| Natural      | 5.59                 | 38%           | 12 (12)          | 0               |
+| SAYC         | 5.08                 | 42%           | 35 (28)          | 0               |
+| Two over one | 5.11                 | 42%           | 36 (27)          | 0               |
+
+The systems lose most where double dummy finds a slam that bidding rarely could (about one IMP a
+deal), then in missed games and competitive auctions.
+
+### The trick estimator
+
+Where the rules run out, the bots choose a contract by estimating, for hands partner could hold,
+how many tricks each strain would take. The estimate is fitted to double-dummy results:
+
+```bash
+python tools/dd_deals.py 12000 dd.jsonl                                  # about twenty minutes
+TRICKS_DD=dd.jsonl pnpm exec vitest run tests/tricks.bench.test.ts       # prints the weights, and how close they come
+```
+
+The weights go in `src/engine/families/trick/systems/tricks.ts`. On deals it wasn't fitted to,
+the estimate is within about a trick (an eight-card fit or better: typical error 1.07 tricks; no
+trumps with 20+ points: 1.23).

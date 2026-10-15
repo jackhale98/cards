@@ -3,12 +3,15 @@ import { passTarget } from '../../lib/passing';
 import { dealUnseen, edge, fork, playOut, type SearchGame } from '../../bots/search';
 import { hand, ids, zone } from '../../state';
 import type { Action, GameModule } from '../../types';
-import { auctionState, canDouble, higherBids } from './bidding';
+import { auctionState, canDouble, canRedouble, higherBids } from './bidding';
 import { ALL_BIDS, bidOf, MISERE, NAMEABLE, OPEN_MISERE, STRAINS } from './contracts';
 import { currentWinner, isMisere, jokerLeadSuits, legalCards, rankFor, rankOf, suitFor, suitOf } from './play';
 import { controller, teamOf, teamsFor } from './sides';
 import { pointsOf, target, type S, type TrickData, type TrickGame } from './types';
 import { botPitchBid, botPitchLead } from './pitch';
+import { handOf } from './systems/hands';
+import { systemCall } from './systems/bidder';
+import { biddingSystem } from './systems/choice';
 
 /**
  * The trick-taking bots: the quick rule-of-thumb bot (every decision, and the search's playouts)
@@ -215,6 +218,17 @@ function botCall(g: TrickGame, s: S, seat: number): Action {
   return pass;
 }
 
+/** A call in the table's bidding system (SAYC or two over one: the lobby's "Bots bid"). */
+function systemBid(g: TrickGame, s: S, seat: number): Action | null {
+  const team = teamOf(g, s, seat);
+  const vul = s.data.vul ?? [false, false];
+  const call = systemCall(biddingSystem(g, s)!, s.data.calls ?? [], seat, [!!vul[team], !!vul[1 - team]], handOf(ids(hand(s, seat))));
+  if (call === 'P') return { type: 'decline' };
+  if (call === 'X') return canDouble(g, s, seat) ? { type: 'double' } : null;
+  if (call === 'XX') return canRedouble(g, s, seat) ? { type: 'redouble' } : null;
+  return call > auctionState(s).lastBid && call < 35 ? { type: 'call', amount: call } : null;
+}
+
 /** Discard the weakest cards (never trumps if avoidable), keeping short suits short. */
 function botBury(g: TrickGame, s: S, seat: number): Action {
   const d = s.data;
@@ -298,7 +312,7 @@ export function quickBot(g: TrickGame, s: S, seat: number): Action | null {
   if ((s.phase === 'order' || s.phase === 'name') && s.turn === seat) return botMakeTrumps(g, s, seat);
   if (s.phase === 'auction' && s.turn === seat) return botAuction(g, s, seat);
   if (s.phase === 'discard' && s.turn === seat) return botBury(g, s, seat);
-  if (s.phase === 'call' && s.turn === seat) return botCall(g, s, seat);
+  if (s.phase === 'call' && s.turn === seat) return (biddingSystem(g, s) && systemBid(g, s, seat)) || botCall(g, s, seat);
   if (s.phase === 'pitch' && s.turn === seat) return botPitchBid(g, s, seat);
   // the pitcher's first lead names trumps: their best suit
   if (s.phase === 'play' && s.turn === seat && g.R.trump === 'pitched' && !d.trump) return { type: 'play', cards: [botPitchLead(s, seat)] };
