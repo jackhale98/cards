@@ -214,6 +214,8 @@
   }
   .tag {
     position: absolute;
+    /* above the turn ring, which is drawn after it */
+    z-index: 1;
     right: -6px;
     bottom: -4px;
     min-width: 18px;
