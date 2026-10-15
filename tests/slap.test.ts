@@ -106,6 +106,18 @@ describe('slapjack', () => {
     expect(count(s, 0)).toBe(3);
   });
 
+  it('turning your last card over a jack nobody slapped puts out the empty-handed, not you', () => {
+    // (it used to put everyone out, the turner too, and the game never ended)
+    const s = table(slapjack, [['2S', '9S'], ['JH']]);
+    flip(slapjack, s, 0); // 9
+    flip(slapjack, s, 1); // jack: P1 has no cards left, and nobody slaps
+    flip(slapjack, s, 0); // P0's last card covers it: P1 is out, and P0 holds everything
+    expect(s.data.out).toEqual([false, true]);
+    expect(s.phase).toBe('gameOver');
+    expect(s.winner).toEqual([0]);
+    expect(count(s, 0)).toBe(3);
+  });
+
   it('a time limit ends the game and the most cards wins', () => {
     const s = table(
       slapjack,

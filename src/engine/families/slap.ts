@@ -197,8 +197,13 @@ export function slapFamily(config: GameConfig): GameModule<SlapData> {
     const d = s.data;
     const opt = Number(s.options.timer ?? 0);
     if (opt && !d.endsAt && a.at) d.endsAt = a.at + (MINUTES[opt] ?? 0) * 60_000;
-    // a jack covered without a slap still counts as gone by
-    const wasJack = !ers && shown(s).at(-1) && rank(shown(s).at(-1)!) === 11;
+    // a jack covered without a slap still counts as gone by: settled before this card leaves the
+    // turner's hand (they held one while the jack was up, so they're not out; if everyone else
+    // is, they take what's left and the game is theirs)
+    if (!ers && shown(s).at(-1) && rank(shown(s).at(-1)!) === 11) {
+      jackGone(s, null);
+      if (s.phase !== 'play') return;
+    }
     const c = hand(s, seat).cards.pop()!;
     s.seq = (s.seq ?? 0) + 1;
     pile(s).cards.push({ id: c.id, up: true, by: seat, k: s.seq });
@@ -208,10 +213,6 @@ export function slapFamily(config: GameConfig): GameModule<SlapData> {
     d.flash = null;
     const r = parseCard(c.id).rank;
     log(s, `${name(s, seat)} turns up ${cardText(c.id)}`, seat, undefined, undefined, { from: `hand:${seat}`, to: 'pile' });
-    if (wasJack) {
-      jackGone(s, null);
-      if (s.phase !== 'play') return;
-    }
 
     if (ers && TRIES[r]) {
       d.challenge = { by: seat, left: TRIES[r] };
