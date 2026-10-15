@@ -7,6 +7,7 @@ import { botBid } from './bots';
 import { ALL_BIDS, bidLabel, contractLabel, MISERE, NAMEABLE, OPEN_MISERE, SUIT_BIDS } from './contracts';
 import { callable } from './deal';
 import { jokerLeadSuits, legalCards, suitless } from './play';
+import { botPitchBid, forcedDealer, pitchBids, pitchLabel } from './pitch';
 import { controller, partnersOf, sourceZone } from './sides';
 import type { S, TrickGame } from './types';
 
@@ -68,6 +69,21 @@ export function trickActions(g: TrickGame, s: S, seat: number): ActionSpec[] {
     if (open.includes(MISERE)) out.push({ type: 'misere', label: 'Misère · 250' });
     if (open.includes(OPEN_MISERE)) out.push({ type: 'openMisere', label: 'Open misère · 500' });
     out.push({ type: 'decline', label: 'Pass', style: 'quiet' });
+  } else if (s.phase === 'pitch' && s.turn === seat) {
+    const p = d.pitch!;
+    const options = [2, 3, 4, 5].map((b) => ({ value: b, label: pitchLabel(b), disabled: !pitchBids(s, seat).includes(b) }));
+    const suggest = botPitchBid(g, s, seat);
+    out.push({
+      type: 'pitchBid',
+      label: 'Bid',
+      style: suggest.type === 'pitchBid' || forcedDealer(s, seat) ? 'primary' : undefined,
+      choose: {
+        label:
+          p.by == null ? (forcedDealer(s, seat) ? 'Everyone passed: you must bid' : 'Your bid') : `Bid over ${pitchLabel(p.bid)} (dealer: match it to take it)`,
+        options,
+      },
+    });
+    if (!forcedDealer(s, seat)) out.push({ type: 'decline', label: 'Pass', style: suggest.type === 'decline' ? 'primary' : 'quiet' });
   } else if (s.phase === 'call' && s.turn === seat) {
     const a = auctionState(s);
     // whole levels, one per row (♣ ♦ ♥ ♠ NT), with bids already passed greyed out

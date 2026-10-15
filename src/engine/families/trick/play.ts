@@ -4,6 +4,7 @@ import { hand, ids, log, moveCards, name, sortHand, zone } from '../../state';
 import { assertRule, type Action } from '../../types';
 import { NAMEABLE, SAME_COLOUR } from './contracts';
 import { endRound } from './scoring';
+import { pitchTrick, pitchTrumps } from './pitch';
 import { controller, nextActive, playersThisHand, sourceZone } from './sides';
 import { pointsOf, type S, type TrickGame } from './types';
 
@@ -72,7 +73,10 @@ export function legalCards(g: TrickGame, s: S, seat: number): string[] {
     return cards;
   }
   const led = ledSuit(g, s)!;
-  const legal = followSuit(cards, led as Suit, (c) => suitOf(g, s, c) as Suit);
+  let legal = followSuit(cards, led as Suit, (c) => suitOf(g, s, c) as Suit);
+  // Pitch: follow suit or trump (a trump may always be played)
+  if (R.trumpAnytime && d.trump && led !== d.trump && legal.length < cards.length)
+    legal = cards.filter((c) => legal.includes(c) || suitOf(g, s, c) === d.trump);
   // misère: a player who can't follow suit must play a suitless joker
   const joker = cards.find((c) => suitless(g, s, c));
   if (isMisere(s) && joker && !cards.some((c) => suitOf(g, s, c) === led)) return [joker];
@@ -119,6 +123,8 @@ export function playCard(g: TrickGame, s: S, seat: number, a: Action) {
   }
   d.received[turn] = [];
   log(s, `${name(s, seat)} plays the ${cardName(card)}${turn !== seat ? ' from dummy' : ''}`, seat, cardLabel(card));
+  // Pitch: the first card led names trumps
+  if (R.trump === 'pitched' && !d.trump) pitchTrumps(s, card);
   // the called card shows who the contractor's partner is
   if (d.called && card === d.called) {
     d.partnerShown = true;
@@ -163,6 +169,7 @@ export function collectTrick(g: TrickGame, s: S) {
   const d = s.data;
   const trick = zone(s, 'trick');
   const winner = currentWinner(g, s)!.by!;
+  if (g.pitchBids) pitchTrick(s, winner);
   const cards = ids(trick);
   const pts = cards.reduce((n, c) => n + pointsOf(g.R, c), 0);
   d.points[winner] += pts;

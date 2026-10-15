@@ -8,7 +8,7 @@ describe('game picker', () => {
         .map((g) => g.config.id)
         .sort();
     expect(by('Poker')).toEqual(['five-card-draw', 'holdem', 'omaha', 'seven-card-stud']);
-    expect(by('Trick-taking')).toEqual(['bridge', 'euchre', 'five-hundred', 'hearts', 'oh-hell', 'pinochle', 'spades', 'whist']);
+    expect(by('Trick-taking')).toEqual(['bridge', 'euchre', 'five-hundred', 'hearts', 'oh-hell', 'pinochle', 'setback', 'spades', 'whist']);
     expect(by('Rummy')).toEqual(['canasta', 'gin-rummy', 'hand-and-foot', 'rummy-500']);
     expect(by('Shedding')).toEqual(['cheat', 'crazy-eights', 'palace', 'president']);
     expect(by('Casino')).toEqual(['baccarat', 'blackjack']);

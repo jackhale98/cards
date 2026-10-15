@@ -141,7 +141,11 @@
           },
           "grid": {
             "type": "array",
-            "items": { "type": "integer", "minimum": 0, "maximum": 5 },
+            "items": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 5
+            },
             "minItems": 2,
             "maxItems": 2,
             "description": "Where the pile sits on the table, [row, column]: with every middle pile placed, a big screen lays them out so (a cross for Kings Corners), and a phone puts them in one row in reading order."
@@ -411,8 +415,12 @@
           "enum": ["twoOfClubs", "leftOfDealer", "maker"]
         },
         "trump": {
-          "enum": ["none", "S", "H", "D", "C", "turnUp", "chosen", "lastCard"],
-          "description": "\"chosen\" = decided by the bidding (euchre, 500)."
+          "enum": ["none", "S", "H", "D", "C", "turnUp", "chosen", "lastCard", "pitched"],
+          "description": "\"chosen\" = decided by the bidding (euchre, 500); \"pitched\" = the suit of the first card the bid winner leads (Pitch / Setback)."
+        },
+        "trumpAnytime": {
+          "type": "boolean",
+          "description": "A player may trump even when able to follow suit (Pitch / Setback): follow suit or trump."
         },
         "breaks": {
           "enum": ["S", "H", "D", "C"],
@@ -492,6 +500,17 @@
                 }
               },
               "description": "Contract bridge auction: bids 1–7 in ♣ ♦ ♥ ♠ NT, pass, double, redouble. The declarer's partner is dummy."
+            },
+            {
+              "type": "object",
+              "required": ["type"],
+              "additionalProperties": false,
+              "properties": {
+                "type": {
+                  "const": "pitch"
+                }
+              },
+              "description": "Pitch / Setback: one round of bids of 2, 3, 4 or smudge (5); the dealer, bidding last, may take the bid by matching it, and must bid 2 if everyone passes. The winner pitches: their first lead names trumps."
             }
           ]
         },
@@ -627,6 +646,17 @@
                 }
               },
               "description": "Duplicate bridge scoring per deal, Chicago vulnerability."
+            },
+            {
+              "type": "object",
+              "required": ["type"],
+              "additionalProperties": false,
+              "description": "Pitch / Setback: a point each for High (the top trump in play), Low (the lowest, to whoever wins it), Jack (of trumps, to whoever wins it) and Game (most card points: A 4, K 3, Q 2, J 1, 10 10; none on a tie). The bidders score what they make if it reaches their bid, else lose the bid; smudge (all six tricks) is 5. Only bidders who make it reach the target and win.",
+              "properties": {
+                "type": {
+                  "const": "setback"
+                }
+              }
             }
           ]
         },

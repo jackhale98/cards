@@ -3,6 +3,7 @@ import { deal, hand, ids, log, moveTop, name, nextSeat, resetDeck, sortHand, zon
 import { assertRule, type Action } from '../../types';
 import { NAMEABLE, SAME_COLOUR } from './contracts';
 import { openerOf, suitOf } from './play';
+import { startPitch } from './pitch';
 import { active, nextActive, partnersOf, teamOf, teamsFor } from './sides';
 import { rubberBridge, sequence, type S, type TrickGame } from './types';
 
@@ -24,7 +25,8 @@ export function startRound(g: TrickGame, s: S) {
   resetDeck(s, g.config);
   d.handSize = sizeForRound(g, s, d.round);
   deal(s, [{ to: 'hand', count: d.handSize }]);
-  d.trump = R.trump && R.trump !== 'none' && R.trump !== 'turnUp' && R.trump !== 'chosen' && R.trump !== 'lastCard' ? R.trump : null;
+  d.trump = R.trump && R.trump !== 'none' && R.trump !== 'turnUp' && R.trump !== 'chosen' && R.trump !== 'lastCard' && R.trump !== 'pitched' ? R.trump : null;
+  if (g.pitchBids) startPitch(s);
   d.maker = null;
   d.sittingOut = null;
   d.outSeats = [];
@@ -120,7 +122,7 @@ export function startBidding(g: TrickGame, s: S) {
     s.turn = s.data.blindToAsk[0];
     return;
   }
-  s.phase = g.euchreBids ? 'order' : g.auction ? 'auction' : g.bridgeBids ? 'call' : 'bid';
+  s.phase = g.euchreBids ? 'order' : g.auction ? 'auction' : g.bridgeBids ? 'call' : g.pitchBids ? 'pitch' : 'bid';
   // in bridge the dealer calls first
   s.turn = g.bridgeBids ? s.dealer : nextSeat(s, s.dealer);
   // a blind nil bid is already in

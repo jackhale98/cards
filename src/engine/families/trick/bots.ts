@@ -8,6 +8,7 @@ import { ALL_BIDS, bidOf, MISERE, NAMEABLE, OPEN_MISERE, STRAINS } from './contr
 import { currentWinner, isMisere, jokerLeadSuits, legalCards, rankFor, rankOf, suitFor, suitOf } from './play';
 import { controller, teamOf, teamsFor } from './sides';
 import { pointsOf, target, type S, type TrickData, type TrickGame } from './types';
+import { botPitchBid, botPitchLead } from './pitch';
 
 /**
  * The trick-taking bots: the quick rule-of-thumb bot (every decision, and the search's playouts)
@@ -45,7 +46,8 @@ function wantsTricks(g: TrickGame, s: S, seat: number): boolean {
     g.R.scoring.type === 'whist' ||
     g.R.scoring.type === 'euchre' ||
     g.R.scoring.type === 'auction' ||
-    g.R.scoring.type === 'bridge'
+    g.R.scoring.type === 'bridge' ||
+    g.R.scoring.type === 'setback'
   )
     return true;
   if (d.bids[seat] === 0 && g.nilAllowed) return false;
@@ -297,6 +299,9 @@ export function quickBot(g: TrickGame, s: S, seat: number): Action | null {
   if (s.phase === 'auction' && s.turn === seat) return botAuction(g, s, seat);
   if (s.phase === 'discard' && s.turn === seat) return botBury(g, s, seat);
   if (s.phase === 'call' && s.turn === seat) return botCall(g, s, seat);
+  if (s.phase === 'pitch' && s.turn === seat) return botPitchBid(g, s, seat);
+  // the pitcher's first lead names trumps: their best suit
+  if (s.phase === 'play' && s.turn === seat && g.R.trump === 'pitched' && !d.trump) return { type: 'play', cards: [botPitchLead(s, seat)] };
   if (s.phase === 'play' && controller(s) === seat) {
     if (!legalCards(g, s, s.turn!).length) return { type: 'leadJoker', amount: NAMEABLE.indexOf(jokerLeadSuits(s)[0]) };
     return { type: 'play', cards: [botCard(g, s, s.turn!)] };

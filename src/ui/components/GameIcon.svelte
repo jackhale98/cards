@@ -38,6 +38,7 @@
     'baccarat',
     'pinochle',
     'whist',
+    'setback',
     'hand-and-foot',
     'kings-corners',
     'palace',
@@ -343,6 +344,11 @@
           <g transform="rotate({-Number(r)})">{@render suit(k as Suit, -5, -5, 10, fill as string)}</g>
         </g>
       {/each}
+    {:else if id === 'setback'}
+      <!-- high, low, jack: the ace, the two and the jack of trumps, fanned -->
+      <g transform="translate(20 33) rotate(-16)">{@render card()}{@render corner('A', 'D', RED)}{@render suit('D', -4, -2, 12, RED)}</g>
+      <g transform="translate(44 33) rotate(16)">{@render card()}{@render corner('2', 'D', RED)}{@render suit('D', -4, -2, 12, RED)}</g>
+      <g transform="translate(32 29)">{@render court('J', 'D', RED)}</g>
     {:else if id === 'hand-and-foot'}
       <!-- the hand in a fan, and the foot waiting in its pile -->
       {#each [3, 2, 1] as k (k)}<g transform="translate({44 + k * 0.8} {34 + k * 1.2})">{@render smallBack(20)}</g>{/each}

@@ -7,6 +7,7 @@ import { bidOf, bridgeLabel, contractLabel } from './contracts';
 import { openerOf, suitless } from './play';
 import { active, controller, partnersOf, teamName, teamOf, teamsFor } from './sides';
 import { rubberBridge, type S, type TrickGame } from './types';
+import { pitchLabel } from './pitch';
 
 /** What each player sees of the game: the headline, seat badges, scoreboard and banner. */
 export function trickStatus(g: TrickGame, s: S, viewer: number): GameStatus {
@@ -33,6 +34,10 @@ export function trickStatus(g: TrickGame, s: S, viewer: number): GameStatus {
   } else if (s.phase === 'auction') {
     const cur = d.contract ? `${contractLabel(d.contract)} (${d.contract.value}) by ${name(s, d.maker!)}` : 'no bids yet';
     headline = s.turn === viewer ? `Your bid · ${cur}` : `${name(s, s.turn!)} to bid · ${cur}`;
+  } else if (s.phase === 'pitch') {
+    const p = d.pitch!;
+    const cur = p.by == null ? 'no bids yet' : `${pitchLabel(p.bid)} by ${name(s, p.by)}`;
+    headline = s.turn === viewer ? `Your bid · ${cur}` : `${name(s, s.turn!)} to bid · ${cur}`;
   } else if (s.phase === 'call') {
     const a = auctionState(s);
     const cur = a.lastBid >= 0 ? `${bridgeLabel({ ...bidOf(a.lastBid), dbl: a.dbl }, true)} by ${name(s, a.bidder)}` : 'no bids yet';
@@ -49,7 +54,14 @@ export function trickStatus(g: TrickGame, s: S, viewer: number): GameStatus {
     const ctl = controller(s);
     if (ctl === viewer && s.turn !== viewer) headline = leading ? 'Lead from dummy' : 'Play from dummy';
     else if (s.turn === viewer)
-      headline = leading ? (d.trickNo === 0 && R.lead === 'twoOfClubs' ? `Lead the ${cardOrJokerLabel(openerOf(s))}` : 'Your lead') : 'Your turn';
+      headline = leading
+        ? d.trickNo === 0 && R.lead === 'twoOfClubs'
+          ? `Lead the ${cardOrJokerLabel(openerOf(s))}`
+          : R.trump === 'pitched' && !d.trump
+            ? 'Pitch: the suit you lead is trumps'
+            : 'Your lead'
+        : 'Your turn';
+    else if (R.trump === 'pitched' && !d.trump && s.turn != null) headline = `${name(s, s.turn)} to pitch`;
     else if (ctl != null && ctl !== s.turn) headline = `${name(s, ctl)} to play from dummy`;
     else if (s.turn != null) headline = `${name(s, s.turn)} to play`;
   } else if (s.phase === 'blind') {
@@ -118,9 +130,10 @@ export function trickStatus(g: TrickGame, s: S, viewer: number): GameStatus {
         .join(' · ');
     }
     const parts: string[] = [];
+    if (g.pitchBids && d.pitch?.by === i) parts.push(`Bid ${pitchLabel(d.pitch.bid)}`);
     if (bidding) parts.push(d.bids[i] == null ? '' : `${d.tricks[i]}/${d.bids[i] === 0 && g.nilAllowed ? 'nil' : d.bids[i]}`);
     else if (R.scoring.type === 'penalty') parts.push(d.points[i] ? `+${d.points[i]}` : '');
-    else parts.push(`${d.tricks[i]} tricks`);
+    else parts.push(`${d.tricks[i]} trick${d.tricks[i] === 1 ? '' : 's'}`);
     parts.push(`${d.scores[teamOf(g, s, i)]} pts`);
     return parts.filter(Boolean).join(' · ');
   };
@@ -140,13 +153,13 @@ export function trickStatus(g: TrickGame, s: S, viewer: number): GameStatus {
           })),
         }
       : {
-          columns: [bidding ? 'Won / bid' : R.scoring.type === 'penalty' ? 'This hand' : 'Tricks', 'Total'],
+          columns: [bidding ? 'Won / bid' : R.scoring.type === 'penalty' ? 'This hand' : g.pitchBids ? 'Game points' : 'Tricks', 'Total'],
           rows: teams.map((t, ti) => ({
             name: teamName(g, s, ti),
             values: [
               bidding
                 ? t.map((i) => `${d.tricks[i]}/${d.bids[i] ?? '–'}`).join(' ')
-                : R.scoring.type === 'penalty'
+                : R.scoring.type === 'penalty' || g.pitchBids
                   ? t.reduce((n, i) => n + d.points[i], 0)
                   : t.reduce((n, i) => n + d.tricks[i], 0),
               d.scores[ti],

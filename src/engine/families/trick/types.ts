@@ -78,6 +78,24 @@ export interface TrickData {
   defToAsk?: number[];
   /** Suits each player has shown out of this hand (public: the search bot deals around them). */
   voids?: string[][];
+  /** Pitch / Setback: this hand's bidding and its four points (see pitch.ts). */
+  pitch?: PitchHand;
+}
+
+/**
+ * Pitch: the bid to beat (2–4, 5 for smudge) and who holds it; once trumps are pitched, the cards
+ * that score High, Low and Jack (null: no jack dealt) and who played the top trump, who won the
+ * tricks with the low trump and the jack. Card points for Game build up in `points`.
+ */
+export interface PitchHand {
+  bid: number;
+  by: number | null;
+  high: string | null;
+  highBy: number | null;
+  low: string | null;
+  lowTo: number | null;
+  jack: string | null;
+  jackTo: number | null;
 }
 
 export type S = GameState<TrickData>;
@@ -100,6 +118,7 @@ export interface TrickGame {
   euchreBids: { type: 'euchre'; stickTheDealer?: boolean; alone?: boolean } | null;
   auction: { type: 'auction'; schedule: 'avondale'; misere?: boolean } | null;
   bridgeBids: boolean;
+  pitchBids: boolean;
   nilAllowed: boolean;
 }
 
@@ -125,6 +144,7 @@ export function trickGame(config: GameConfig): TrickGame {
     euchreBids: R.bidding?.type === 'euchre' ? R.bidding : null,
     auction: R.bidding?.type === 'auction' ? R.bidding : null,
     bridgeBids: R.bidding?.type === 'bridge',
+    pitchBids: R.bidding?.type === 'pitch',
     nilAllowed: !!trickBids?.nil,
   };
 }

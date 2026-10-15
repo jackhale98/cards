@@ -204,9 +204,13 @@ export interface TrickTakingRules {
   };
   lead?: 'twoOfClubs' | 'leftOfDealer' | 'maker';
   /**
-   * "chosen" = decided by the bidding (euchre, 500).
+   * "chosen" = decided by the bidding (euchre, 500); "pitched" = the suit of the first card the bid winner leads (Pitch / Setback).
    */
-  trump?: 'none' | 'S' | 'H' | 'D' | 'C' | 'turnUp' | 'chosen' | 'lastCard';
+  trump?: 'none' | 'S' | 'H' | 'D' | 'C' | 'turnUp' | 'chosen' | 'lastCard' | 'pitched';
+  /**
+   * A player may trump even when able to follow suit (Pitch / Setback): follow suit or trump.
+   */
+  trumpAnytime?: boolean;
   /**
    * Suit that can't be led until one has been played.
    */
@@ -237,6 +241,9 @@ export interface TrickTakingRules {
       }
     | {
         type: 'bridge';
+      }
+    | {
+        type: 'pitch';
       };
   scoring:
     | {
@@ -289,6 +296,9 @@ export interface TrickTakingRules {
       }
     | {
         type: 'bridge';
+      }
+    | {
+        type: 'setback';
       };
   end: {
     target?: number;

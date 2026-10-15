@@ -1,0 +1,100 @@
+{
+  "$schema": "../../../schemas/game.schema.json",
+  "id": "setback",
+  "name": "Setback",
+  "aliases": ["Pitch", "High-Low-Jack", "Auction Pitch"],
+  "tagline": "Bid for the pitch, name trumps with your lead, and play for High, Low, Jack and Game.",
+  "icon": "♦",
+  "players": {
+    "min": 2,
+    "max": 4,
+    "recommended": 4,
+    "counts": [2, 3, 4]
+  },
+  "bots": true,
+  "deck": {},
+  "zones": [
+    {
+      "id": "deck",
+      "visibility": "none",
+      "layout": "stack",
+      "area": "none"
+    },
+    {
+      "id": "hand",
+      "perPlayer": true,
+      "visibility": "owner",
+      "layout": "fan",
+      "area": "hand"
+    },
+    {
+      "id": "trick",
+      "label": "Trick",
+      "visibility": "all",
+      "layout": "trick",
+      "area": "center"
+    },
+    {
+      "id": "taken",
+      "perPlayer": true,
+      "visibility": "none",
+      "layout": "stack",
+      "area": "none"
+    }
+  ],
+  "rules": {
+    "family": "trick-taking",
+    "handSizes": [6],
+    "lead": "maker",
+    "trump": "pitched",
+    "trumpAnytime": true,
+    "teams": [
+      [0, 2],
+      [1, 3]
+    ],
+    "bidding": {
+      "type": "pitch"
+    },
+    "scoring": {
+      "type": "setback"
+    },
+    "end": {
+      "target": 21
+    }
+  },
+  "options": [
+    {
+      "id": "target",
+      "label": "Play to",
+      "type": "number",
+      "default": 21,
+      "min": 7,
+      "max": 21,
+      "step": 1
+    }
+  ],
+  "rulesSummary": [
+    "Four players, partners across. Six cards each.",
+    "One round of bidding, starting left of the dealer: pass, or bid 2, 3, 4 or smudge, each higher than the last. The dealer bids last and may take the bid by matching it; if everyone else passes, the dealer must bid at least 2.",
+    "The high bidder pitches: the card they lead to the first trick names trumps.",
+    "Follow suit if you can, or play a trump instead: you may trump at any time. With none of the suit led, play anything. The highest trump wins the trick, or else the highest card of the suit led.",
+    "Four points a hand. High: the top trump dealt, to whoever played it. Low: the lowest trump dealt, to whoever wins it in a trick. Jack: the jack of trumps, if dealt, to whoever wins it.",
+    "Game: the most card points in tricks won (tens 10, aces 4, kings 3, queens 2, jacks 1). Nobody scores it on a tie.",
+    "Make your bid and you score every point you took; fall short and you're set back by your bid. Smudge means taking all six tricks: it scores 5, or costs 5. The other side always scores the points they took.",
+    "First to 21 wins, but only at the end of a hand in which they made their bid: getting there any other way plays on."
+  ],
+  "byPlayers": {
+    "3": {
+      "rulesSummary": ["Three players: everyone for themselves (cutthroat)."],
+      "rules": {
+        "teams": [[0], [1], [2]]
+      }
+    },
+    "2": {
+      "rulesSummary": ["Two players: head to head."],
+      "rules": {
+        "teams": [[0], [1]]
+      }
+    }
+  }
+}

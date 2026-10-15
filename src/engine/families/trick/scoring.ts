@@ -2,6 +2,7 @@ import { name } from '../../state';
 import { bridgeLabel, bridgeParts, contractLabel } from './contracts';
 import { teamName, teamOf, teamsFor } from './sides';
 import { rubberBridge, target, totalRounds, type S, type TrickGame } from './types';
+import { pitchScores } from './pitch';
 
 /** Scoring a hand, and whether the game is over. */
 
@@ -103,6 +104,10 @@ export function roundScores(g: TrickGame, s: S): { deltas: number[]; lines: stri
       d.rubberWon = true;
       lines.push(`${teamName(g, s, side)} win the rubber: +${bonus}`);
     }
+  } else if (sc.type === 'setback') {
+    const r = pitchScores(g, s);
+    r.deltas.forEach((v, ti) => (deltas[ti] = v));
+    lines.push(...r.lines);
   } else if (sc.type === 'auction') {
     const c = d.contract!;
     const makers = teamOf(g, s, d.maker!);
@@ -204,6 +209,7 @@ export function endRound(g: TrickGame, s: S) {
   d.result = { lines };
   s.turn = null;
   if (g.auction) return endAuctionRound(g, s, deltas, lines);
+  if (g.pitchBids) return endPitchRound(g, s, deltas, lines);
   const best = lowWins ? Math.min(...d.scores) : Math.max(...d.scores);
   const reached = R.end.deals
     ? g.bridgeBids && rubberBridge(s)
@@ -233,6 +239,24 @@ export function endRound(g: TrickGame, s: S) {
     s.winner = teams.flatMap((t, ti) => (d.scores[ti] === best ? t : []));
     s.phase = 'gameOver';
   } else s.phase = 'roundOver';
+}
+
+/**
+ * Pitch: only the bidders can win, at the end of a hand in which they made their bid and reached
+ * the target (pagat); the others play on, however high they get.
+ */
+function endPitchRound(g: TrickGame, s: S, deltas: number[], lines: string[]) {
+  const d = s.data;
+  const teams = teamsFor(g, s.players.length);
+  const bidders = teamOf(g, s, d.pitch!.by!);
+  if (deltas[bidders] > 0 && d.scores[bidders] >= target(g, s)) {
+    s.winner = teams[bidders];
+    s.phase = 'gameOver';
+    return;
+  }
+  if (d.scores.some((x, ti) => x >= target(g, s) && ti !== bidders))
+    lines.push(`(Only the side that made the bid can win: reaching ${target(g, s)} otherwise plays on)`);
+  s.phase = 'roundOver';
 }
 
 /**

@@ -11,7 +11,7 @@ the middle of the table. It needs no accounts or app store, and there's no serve
   - _Casino:_ Blackjack (double, split, insurance, surrender option), Baccarat (Punto Banco).
   - _Trick-taking:_ Contract Bridge (full auction, dummy; Chicago or rubber scoring), Euchre (bowers,
     going alone), 500 (Avondale bids, misère and open misère, kitty, joker), Hearts (moon shooter's choice), Oh Hell,
-    Pinochle (auction, passing, meld), Spades (nil, blind nil, bags), Whist (honours option).
+    Pinochle (auction, passing, meld), Setback (Pitch: High, Low, Jack, Game; smudge), Spades (nil, blind nil, bags), Whist (honours option).
   - _Rummy:_ Canasta (may I go out?, play after the stock), Gin Rummy, Hand and Foot, Rummy 500 (jokers, Rummy! calls).
   - _Shedding:_ Cheat, Crazy Eights (eights call a suit, last card, Q/A/2 specials), Palace (Shithead), President.
   - _Family:_ Go Fish, Kings Corners. _Speed,_ played in real time: Egyptian Rat Screw, Slapjack, Spit, Spoons.

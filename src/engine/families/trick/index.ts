@@ -11,6 +11,7 @@ import { collectTrick, leadJoker, playCard } from './play';
 import { endRound } from './scoring';
 import { controller, teamOf, teamsFor } from './sides';
 import { trickStatus } from './status';
+import { applyPitchBid } from './pitch';
 import { trickGame, type TrickData } from './types';
 
 /**
@@ -88,8 +89,10 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
         case 'double':
         case 'redouble':
           return applyDouble(g, s, seat, a);
+        case 'pitchBid':
+          return applyPitchBid(g, s, seat, a);
         case 'decline':
-          return applyDecline(g, s, seat);
+          return s.phase === 'pitch' ? applyPitchBid(g, s, seat, a) : applyDecline(g, s, seat);
         case 'bury':
           return applyBury(g, s, seat, a);
         case 'play':
@@ -145,7 +148,9 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
       }
       // card play is searched unless the bots are set to Easy; the other decisions use the quick rules
       const budget = botBudget(s.options);
-      if (s.phase === 'play' && controller(s) === seat)
+      // (Pitch: the first lead names trumps, a choice of its own: the quick rules make it)
+      const pitching = g.R.trump === 'pitched' && !s.data.trump;
+      if (s.phase === 'play' && controller(s) === seat && !pitching)
         return budget
           ? (searchMove(search, s, seat, budget, quickBot(g, s, seat)) ?? quickBot(g, s, seat))
           : easyMove(s.options, search.candidates(s, seat), quickBot(g, s, seat));
@@ -162,6 +167,9 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
         received: ownOnly(d.received, viewer),
         // who holds honours is told when the hand is scored, not before
         honours: s.phase === 'roundOver' || s.phase === 'gameOver' ? d.honours : null,
+        // Pitch: which cards are High, Low and Jack would say who holds what (or that a card
+        // wasn't dealt): only once the hand is scored
+        ...(d.pitch && s.phase !== 'roundOver' && s.phase !== 'gameOver' ? { pitch: { ...d.pitch, high: null, low: null, jack: null } } : {}),
       };
     },
 

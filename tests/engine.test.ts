@@ -66,6 +66,7 @@ describe('registry', () => {
       'pinochle',
       'president',
       'rummy-500',
+      'setback',
       'seven-card-stud',
       'slapjack',
       'spades',
