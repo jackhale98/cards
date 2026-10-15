@@ -36,8 +36,6 @@ export * from './contracts';
 
 export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
   const g = trickGame(config);
-  // (the Hard bridge bots' solver: fetched in the background, used once it's there)
-  if (g.bridgeBids) void loadDds();
 
   const module: GameModule<TrickData> = {
     config,
@@ -145,6 +143,10 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
     },
 
     bot(s, seat) {
+      // Hard bridge bots: the solver is fetched the first time one is asked anything (in the
+      // auction, so it's there by the first card; until then, cards are searched as at Normal).
+      // Only where bots think, then: never for Easy or Normal, nor a table with no bots.
+      if (g.bridgeBids && botLevel(s.options) === 2) void loadDds();
       // five-handed 500: call the best card not held (the top trump, or an ace in no trumps)
       if (s.phase === 'callPartner' && s.turn === seat) {
         const best = callable(g, s)[0];
