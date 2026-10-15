@@ -78,6 +78,8 @@ export interface TrickData {
   defToAsk?: number[];
   /** Suits each player has shown out of this hand (public: the search bot deals around them). */
   voids?: string[][];
+  /** The cards each player has played this hand (public: everyone saw them played). */
+  played?: string[][];
   /** Pitch / Setback: this hand's bidding and its four points (see pitch.ts). */
   pitch?: PitchHand;
 }

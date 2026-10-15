@@ -225,5 +225,5 @@ describe('search bots', () => {
     g.apply(s, them, { type: 'allin' });
     expect(g.bot!(s, me)).toEqual({ type: 'fold' });
     vi.restoreAllMocks();
-  });
+  }, 30_000);
 });

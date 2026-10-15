@@ -99,7 +99,9 @@ docs/ADDING_A_GAME.md  how to add a game: read it before touching families or ga
 - **Scripts come only from this site** (and Google's Cast libraries, and the Web Analytics script
   Cloudflare Pages adds): `public/_headers` sets a
   Content-Security-Policy. Something new from another site (a script, a font, an image) needs
-  adding there, or the browser blocks it; e2e/csp.spec.ts catches it.
+  adding there, or the browser blocks it; e2e/csp.spec.ts catches it. WebAssembly is allowed
+  (`'wasm-unsafe-eval'`) for our own build of DDS, the bridge solver (`src/engine/bots/dds`,
+  rebuilt by `tools/dds/build.sh`; never edit the generated file).
 - **Rules follow pagat.com.** Variants become lobby options.
 
 ## Adding a game

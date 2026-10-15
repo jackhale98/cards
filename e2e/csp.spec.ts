@@ -64,6 +64,20 @@ test('the security policy lets a whole game through, and blocks injected scripts
   expect((await violations()).some((v) => v.startsWith('script-src'))).toBe(true);
 });
 
+test('a bridge table loads the bots’ double-dummy solver (WebAssembly) under the policy', async ({ page }) => {
+  const violations = await watchCsp(page);
+  await page.goto('/?net=local');
+  await page.fill('input[aria-label="Your name"]', 'Hana');
+  await page.click('text=Start a table');
+  await page.waitForURL(/#\/room\//);
+  await page.locator('[data-game="bridge"]').first().click();
+  for (let i = 0; i < 3; i++) await page.click('text=+ Add bot');
+  await page.click('button:has-text("Deal Contract Bridge")');
+  await page.locator('.table').waitFor();
+  await expect.poll(() => page.evaluate(() => (globalThis as { __ddsReady?: boolean }).__ddsReady ?? false), { timeout: 20_000 }).toBe(true);
+  expect(await violations()).toEqual([]);
+});
+
 test('robots.txt is a real robots file, not the app', async ({ request }) => {
   const res = await request.get('/robots.txt');
   expect(await res.text()).toMatch(/^User-agent: \*$/m);

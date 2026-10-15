@@ -9,6 +9,7 @@ import { GameRecord } from '../src/net/gameRecord';
 import { GAMES } from './games';
 import { buildDeck } from '../src/engine/cards';
 import { bestWithHole } from '../src/engine/lib/pokerEval';
+import { loadDds } from '../src/engine/bots/dds';
 
 /**
  * Bots playing each other at chosen levels, written out as PBN (bridge) and PHH (Hold'em) with
@@ -107,7 +108,9 @@ const pairs = LEVELS.flatMap((a) => LEVELS.map((b) => [a, b]));
 
 it.skipIf(!process.env.SELFPLAY)(
   'bots play each other, written out for checking',
-  () => {
+  async () => {
+    // (Hard bridge bots solve deals with DDS: wait for it, or they'd play the old way meanwhile)
+    await loadDds();
     mkdirSync(OUT, { recursive: true });
     const deals = Number(process.env.DEALS ?? 12);
     const hands = Number(process.env.HANDS ?? 200);
@@ -117,6 +120,7 @@ it.skipIf(!process.env.SELFPLAY)(
     if (games.includes('bridge')) {
       const g = GAMES.bridge;
       for (const [ns, ew] of pairs) {
+        if (process.env.PAIRS && !process.env.PAIRS.split(',').includes(`${ns}-${ew}`)) continue;
         const out: string[] = [];
         for (let seed = 1; seed <= deals; seed++) {
           const { record } = play(g, ['North', 'East', 'South', 'West'], seed, [ns, ew, ns, ew], 1, {}, { pbn: pbn as HandFormat<unknown> });

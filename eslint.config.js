@@ -8,7 +8,7 @@ import ts from 'typescript-eslint';
  * comparisons…). Formatting is Prettier's job (`pnpm format`), so no style rules here.
  */
 export default ts.config(
-  { ignores: ['dist', 'node_modules', 'relay', 'test-results', 'playwright-report', '.claude'] },
+  { ignores: ['dist', 'node_modules', 'relay', 'test-results', 'playwright-report', '.claude', 'src/engine/bots/dds/ddsWasm.js'] },
   js.configs.recommended,
   ...ts.configs.recommended,
   ...svelte.configs.recommended,

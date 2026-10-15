@@ -87,3 +87,30 @@ TRICKS_DD=dd.jsonl pnpm exec vitest run tests/tricks.bench.test.ts       # print
 The weights go in `src/engine/families/trick/systems/tricks.ts`. On deals it wasn't fitted to,
 the estimate is within about a trick (an eight-card fit or better: typical error 1.07 tricks; no
 trumps with 20+ points: 1.23).
+
+## DDS for the Hard bridge bots
+
+The Hard bots play bridge's cards the way the strong bridge programs do: they deal the cards they
+can't see many times over (each deal fitting what's public: the cards played, who has shown out,
+and in SAYC or two over one what the bids promised), solve each deal double dummy with DDS, and
+play the card that does best across them (`src/engine/families/trick/ddPlay.ts`).
+
+DDS is Bo Haglund and Soren Hein's solver (Apache License 2.0), the one endplay uses. It's built to
+WebAssembly, single-threaded, from a pinned release:
+
+```bash
+tools/dds/build.sh            # DDS v2.9.0 and Emscripten 3.1.61, into src/engine/bots/dds/ddsWasm.js
+```
+
+`tests/ddPlay.test.ts` checks it against endplay on every strain and declarer of a few deals
+(`tests/fixtures/dd-endplay.jsonl`). In the self-play bench `DD_SAMPLES` sets how many deals the
+Hard bots solve a card (the test runner uses a fixed few; the app, up to 40 within 1.2 seconds).
+
+Measured on 160 deals (`PAIRS=1-2,2-1,1-1,2-2 DD_SAMPLES=24`), Hard against Normal:
+
+|                                            | tricks lost a deal, declaring | defending |
+| ------------------------------------------ | ----------------------------- | --------- |
+| Normal (rules of thumb and a small search) | 1.60                          | 1.74      |
+| Hard (24 deals solved a card)              | 0.36                          | 0.74      |
+
+On the same cards both ways round, Hard beat Normal by about 4 IMPs a deal.

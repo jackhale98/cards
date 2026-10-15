@@ -115,6 +115,9 @@ export function playCard(g: TrickGame, s: S, seat: number, a: Action) {
     if (led && led !== 'X' && suitOf(g, s, card) !== led && !voids[turn].includes(led)) voids[turn] = [...voids[turn], led];
   }
   moveCards(s, sourceZone(s, turn), 'trick', [card], { by: turn, up: true });
+  // (who played what: public, everyone saw it; the Hard bridge bots fit the bidding to whole hands)
+  const played = (d.played ??= s.players.map(() => []));
+  played[turn] = [...played[turn], card];
   // Whist: the dealer takes the turned-up trump back into hand on playing to the first trick
   if (d.trumpCard && turn === s.dealer) {
     const shown = hand(s, s.dealer).cards.find((c) => c.id === d.trumpCard);

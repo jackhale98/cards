@@ -1,6 +1,7 @@
 import { createState, nextSeat, placesFromScores } from '../../state';
 import { ownOnly } from '../../redact';
-import { botBudget, easyMove, searchMove } from '../../bots/search';
+import { botBudget, botLevel, easyMove, searchMove } from '../../bots/search';
+import { loadDds } from '../../bots/dds';
 import { assertRule, type GameConfig, type GameModule } from '../../types';
 import { trickActions } from './actions';
 import { applyBid, applyBid500, applyBury, applyCall, applyDecline, applyDouble, applyName, applyOrder } from './bidding';
@@ -13,6 +14,7 @@ import { controller, teamOf, teamsFor } from './sides';
 import { trickStatus } from './status';
 import { applyPitchBid } from './pitch';
 import { trickGame, type TrickData } from './types';
+import { ddCard, ddBudget } from './ddPlay';
 
 /**
  * The trick-taking family (Hearts, Spades, Oh Hell, Euchre, 500, Bridge, Whist…), split by stage:
@@ -34,6 +36,8 @@ export * from './contracts';
 
 export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
   const g = trickGame(config);
+  // (the Hard bridge bots' solver: fetched in the background, used once it's there)
+  if (g.bridgeBids) void loadDds();
 
   const module: GameModule<TrickData> = {
     config,
@@ -150,10 +154,14 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
       const budget = botBudget(s.options);
       // (Pitch: the first lead names trumps, a choice of its own: the quick rules make it)
       const pitching = g.R.trump === 'pitched' && !s.data.trump;
-      if (s.phase === 'play' && controller(s) === seat && !pitching)
+      if (s.phase === 'play' && controller(s) === seat && !pitching) {
+        // Hard bridge: deals of the unseen cards, each solved double dummy (see ddPlay.ts)
+        const dd = botLevel(s.options) === 2 && g.bridgeBids ? ddCard(g, s, seat, ddBudget()) : null;
+        if (dd) return { type: 'play', cards: [dd] };
         return budget
           ? (searchMove(search, s, seat, budget, quickBot(g, s, seat)) ?? quickBot(g, s, seat))
           : easyMove(s.options, search.candidates(s, seat), quickBot(g, s, seat));
+      }
       return quickBot(g, s, seat);
     },
 

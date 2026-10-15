@@ -209,3 +209,8 @@ The name "Lamplight", its logo and icon, and lamplight.cards are trademarks and 
 license: forks need their own name and icon. See [TRADEMARKS.md](TRADEMARKS.md).
 
 (Versions published before this change were released under the MIT license.)
+
+The Hard bridge bots use DDS, Bo Haglund and Soren Hein's double-dummy solver
+([github.com/dds-bridge/dds](https://github.com/dds-bridge/dds)), built to WebAssembly
+(`src/engine/bots/dds/ddsWasm.js`, by `tools/dds/build.sh`) under the Apache License 2.0
+([tools/dds/LICENSE](tools/dds/LICENSE)).

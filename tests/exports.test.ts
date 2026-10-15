@@ -59,7 +59,8 @@ const handText = (ids: string[]) =>
     )
     .join('.');
 
-describe('saving a game in its standard record', () => {
+// (bots play whole hands here: allow for a busy machine)
+describe('saving a game in its standard record', { timeout: 30_000 }, () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 

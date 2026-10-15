@@ -48,6 +48,7 @@ export function startRound(g: TrickGame, s: S) {
   d.jokerLed = null;
   d.ledSuits = [];
   d.voids = s.players.map(() => []);
+  d.played = s.players.map(() => []);
   d.blind = s.players.map(() => false);
   d.blindToAsk = [];
   if (g.bridgeBids) {

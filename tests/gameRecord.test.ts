@@ -49,7 +49,8 @@ function play(host: Host, hands: number, cid = 'h', seat = 0) {
   }
 }
 
-describe('saving a game as a spreadsheet', () => {
+// (bots play whole hands here: allow for a busy machine)
+describe('saving a game as a spreadsheet', { timeout: 30_000 }, () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 

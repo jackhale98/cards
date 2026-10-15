@@ -38,7 +38,8 @@ export const BOT_LEVELS: (SearchBudget | null)[] = [null, { samples: 24, ms: 40 
 export const botLevel = (options: Record<string, number | boolean>) => Math.max(0, Math.min(2, Number(options.botLevel ?? 0) || 0));
 export const botBudget = (options: Record<string, number | boolean>) => BOT_LEVELS[botLevel(options)] ?? null;
 
-const TESTING = import.meta.env?.MODE === 'test';
+/** Under the test runner: fixed sample counts, no clock (a busy machine can't change an answer). */
+export const TESTING = import.meta.env?.MODE === 'test';
 
 /**
  * Easy bots play like beginners: their rules of thumb, with a slip now and then (a legal move
