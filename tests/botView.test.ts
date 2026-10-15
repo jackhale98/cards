@@ -50,6 +50,35 @@ describe('bots think only with what their seat can see', () => {
       }
     });
 
+  it('cards already played stay known: in a trick game, the tricks won are the real ones in a bot’s view', () => {
+    for (const id of ['bridge', 'hearts', 'spades', 'euchre', 'pinochle']) {
+      const g = GAME_LIST.find((x) => x.config.id === id)!;
+      const s = midGame(g, 4);
+      // play on until some tricks are won
+      for (let i = 0; i < 40; i++) {
+        const sys = g.system?.(s);
+        if (sys) {
+          sys.run(s);
+          continue;
+        }
+        const p = s.players.find((x) => g.bot!(s, x.seat));
+        if (!p) break;
+        g.apply(s, p.seat, g.bot!(s, p.seat)!);
+      }
+      const piles = Object.keys(s.zones).filter((z) => /^(taken|won):/.test(z));
+      expect(
+        piles.some((z) => s.zones[z].cards.length),
+        id,
+      ).toBe(true);
+      const { view } = botView(g, s, 1);
+      for (const z of piles)
+        expect(
+          view.zones[z].cards.map((c) => c.id),
+          `${id} ${z}`,
+        ).toEqual(s.zones[z].cards.map((c) => c.id));
+    }
+  });
+
   it('the cards a bot sees in place of hidden ones are real cards nobody else in the view holds', () => {
     const g = GAME_LIST.find((x) => x.config.id === 'bridge')!;
     const { view } = botView(g, midGame(g, 5), 1);

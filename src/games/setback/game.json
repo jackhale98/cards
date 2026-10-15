@@ -37,7 +37,7 @@
     {
       "id": "taken",
       "perPlayer": true,
-      "visibility": "none",
+      "visibility": "all",
       "layout": "stack",
       "area": "none"
     }

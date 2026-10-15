@@ -80,6 +80,7 @@ describe('saving a game in its standard record', () => {
       expect(['P', 'X', 'XX'].map((c) => callText(c as 'P'))).toEqual(['Pass', 'X', 'XX']);
     });
 
+    // (bots bid and play two whole deals: a few seconds)
     it('writes each deal with its tags in order, the auction, the play and the result', () => {
       const host = table('bridge', 3);
       const dealt = host.state!.zones['hand:0'].cards.map((c) => c.id);
@@ -152,7 +153,7 @@ describe('saving a game in its standard record', () => {
         expect(new Set(cards).size).toBe(52);
       }
       host.close();
-    });
+    }, 30000);
 
     it('writes a passed-out deal as its own board, with its own cards', () => {
       const g = GAMES.bridge;

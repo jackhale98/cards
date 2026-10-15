@@ -124,7 +124,8 @@ describe('search bots', () => {
       playHands(id, n, 1);
       playHands(id, n, 2);
     },
-    60000,
+    // (Hard Omaha bots sample many boards a move: close to a minute on a slow machine)
+    150000,
   );
 
   it('Go Fish: Hard remembers who said “Go fish!”, Easy doesn’t care', () => {

@@ -231,7 +231,8 @@ export function pinochleFamily(config: GameConfig): GameModule<PinochleData> {
     const side = teamOf(w.by);
     d.taken[side] += pts;
     if (pts) d.tookPoints[side] = true;
-    moveCards(s, 'trick', `won:${w.by}`, cards, { up: false });
+    // (face up: everyone saw them played, so everyone's view keeps them, the bots' included)
+    moveCards(s, 'trick', `won:${w.by}`, cards);
     d.trickNo++;
     log(s, `${name(s, w.by)} takes the trick${pts ? ` (${pts})` : ''}${d.trickNo === 12 ? ' — and the last trick' : ''}`, w.by);
     if (d.trickNo === 12) return endHand(s, 'played');

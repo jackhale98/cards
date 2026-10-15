@@ -13,7 +13,7 @@
     { "id": "kitty", "visibility": "none", "layout": "stack", "area": "none" },
     { "id": "hand", "perPlayer": true, "visibility": "owner", "layout": "fan", "area": "hand" },
     { "id": "trick", "label": "Trick", "visibility": "all", "layout": "trick", "area": "center" },
-    { "id": "taken", "perPlayer": true, "visibility": "none", "layout": "stack", "area": "none" }
+    { "id": "taken", "perPlayer": true, "visibility": "all", "layout": "stack", "area": "none" }
   ],
   "rules": {
     "family": "trick-taking",
