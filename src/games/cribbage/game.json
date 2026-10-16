@@ -9,9 +9,9 @@
   "deck": {},
   "zones": [
     { "id": "deck", "label": "Deck", "visibility": "none", "layout": "stack", "area": "center" },
-    { "id": "starter", "label": "Starter", "visibility": "all", "layout": "stack", "area": "center", "hideEmpty": true },
-    { "id": "crib", "label": "Crib", "visibility": "none", "layout": "stack", "area": "center", "hideEmpty": true },
-    { "id": "pegging", "label": "Count 0", "visibility": "all", "layout": "spread", "area": "center", "hideEmpty": true },
+    { "id": "starter", "label": "Starter", "visibility": "all", "layout": "stack", "area": "center" },
+    { "id": "crib", "label": "Crib", "visibility": "none", "layout": "stack", "area": "center" },
+    { "id": "pegging", "label": "Count 0", "visibility": "all", "layout": "spread", "area": "center", "reserve": 8 },
     { "id": "hand", "perPlayer": true, "visibility": "owner", "layout": "fan", "area": "hand" },
     { "id": "played", "perPlayer": true, "visibility": "all", "layout": "spread", "area": "none" },
     { "id": "show", "perPlayer": true, "visibility": "all", "layout": "spread", "area": "center", "hideEmpty": true },

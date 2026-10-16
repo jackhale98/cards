@@ -13,7 +13,17 @@
     { "id": "pile", "label": "Pile", "visibility": "all", "layout": "stack", "area": "center" },
     { "id": "burned", "visibility": "none", "layout": "stack", "area": "none" },
     { "id": "hand", "perPlayer": true, "visibility": "owner", "layout": "fan", "area": "hand" },
-    { "id": "up", "perPlayer": true, "label": "Face up", "visibility": "all", "layout": "spread", "area": "strip", "hideEmpty": true, "scale": 0.6 },
+    {
+      "id": "up",
+      "perPlayer": true,
+      "label": "Face up",
+      "visibility": "all",
+      "layout": "spread",
+      "area": "strip",
+      "hideEmpty": true,
+      "scale": 0.6,
+      "reserve": 3
+    },
     { "id": "down", "perPlayer": true, "label": "Face down", "visibility": "all", "layout": "spread", "area": "none", "hideEmpty": true, "scale": 0.6 }
   ],
   "rules": { "family": "palace" },

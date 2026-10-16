@@ -11,7 +11,17 @@
     { "id": "deck", "visibility": "none", "layout": "stack", "area": "none" },
     { "id": "muck", "visibility": "none", "layout": "stack", "area": "none" },
     { "id": "hand", "perPlayer": true, "visibility": "owner", "layout": "fan", "area": "hand" },
-    { "id": "up", "perPlayer": true, "label": "Showing", "visibility": "all", "layout": "spread", "area": "strip", "hideEmpty": true, "scale": 0.6 },
+    {
+      "id": "up",
+      "perPlayer": true,
+      "label": "Showing",
+      "visibility": "all",
+      "layout": "spread",
+      "area": "strip",
+      "hideEmpty": true,
+      "scale": 0.6,
+      "reserve": 4
+    },
     { "id": "board", "visibility": "all", "layout": "spread", "area": "center", "hideEmpty": true }
   ],
   "chips": { "start": 1000, "ante": 2, "bigBlind": 10 },

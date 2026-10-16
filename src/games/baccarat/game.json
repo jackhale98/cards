@@ -10,8 +10,8 @@
   "zones": [
     { "id": "deck", "label": "Shoe", "visibility": "none", "layout": "stack", "area": "none" },
     { "id": "discard", "visibility": "none", "layout": "stack", "area": "none" },
-    { "id": "player", "label": "Player", "visibility": "all", "layout": "spread", "area": "center" },
-    { "id": "banker", "label": "Banker", "visibility": "all", "layout": "spread", "area": "center" },
+    { "id": "player", "label": "Player", "visibility": "all", "layout": "spread", "area": "center", "reserve": 3 },
+    { "id": "banker", "label": "Banker", "visibility": "all", "layout": "spread", "area": "center", "reserve": 3 },
     { "id": "hand", "perPlayer": true, "visibility": "owner", "layout": "fan", "area": "none" }
   ],
   "chips": { "start": 1000 },

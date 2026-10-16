@@ -86,7 +86,10 @@
     // (a pile or two in the middle and nothing else there, as in Cheat, Spit or the slap games:
     // they're what everyone watches, so they get the room; so does everything laid down at a
     // hand's end, when your own hand is empty)
-    const big = pileOnly || handEmpty || (centerZones.length <= 2 && !stripZones.length && centerZones.every((z) => z.layout === 'stack'));
+    // (a game with a strip of melds counts it from the deal, before the first meld: the first book
+    // in Go Fish would otherwise shrink the pond for the rest of the game, all at once)
+    const strips = handMode ? stripZones.length > 0 : hasStrip;
+    const big = pileOnly || handEmpty || (centerZones.length <= 2 && !strips && centerZones.every((z) => z.layout === 'stack'));
     const wantCenter = Math.min(big ? 120 : 92, vh * (big ? 0.24 : 0.15), vw * (big ? 0.12 : 0.09));
     const wantHand = handEmpty
       ? 0
@@ -110,7 +113,7 @@
       const c = wantCenter * k;
       // (everyone's melds on a row of their own, their cards smaller, with a label: counted even
       // when there are no piles above it, as in hand mode with a TV showing them)
-      const strip = stripZones.length ? 1.4 * Math.max(MIN_CW, c * Math.max(...stripZones.map((z) => z.scale ?? 1))) + 30 : 0;
+      const strip = strips ? 1.4 * Math.max(MIN_CW, c * stripScale) + 30 : 0;
       if (!centerZones.length) return strip + 1.45 * wantHand * k;
       // (a pile's card as drawn: never under the smallest readable width)
       const zw = Math.max(MIN_CW, Math.min(rowFit, Math.max(34, c) * scale));
@@ -173,7 +176,8 @@
       const w = Math.max(MIN_CW, Math.max(34, cw) * (z.scale ?? 1));
       // (a whole hand face up, bridge's dummy, is measured as full all hand long: it keeps one size as
       // it's played from, rather than growing as it wraps onto fewer rows)
-      const n = z.faceUpHand ? Math.max(13, z.cards.length) : z.cards.length;
+      // (likewise a pile kept room for, as it grows card by card: its `reserve`)
+      const n = z.faceUpHand ? Math.max(13, z.cards.length) : Math.max(z.reserve ?? 0, z.cards.length);
       // (a row of cards: side by side up to four, overlapping from five; a trick: three cards wide)
       const cards = z.layout === 'spread' ? (n < 5 ? Math.max(1, n) * 1.1 * w : w + (n - 1) * 0.55 * w) : z.layout === 'trick' ? 3 * w : w;
       const label = Math.max(0, ...(z.label ?? '').split(z.base === 'showdown' ? ' · ' : '\u0000').map((l) => l.length));
@@ -224,7 +228,7 @@
     for (const z of centerZones) {
       const w = Math.max(MIN_CW, Math.max(34, cw) * (z.scale ?? 1));
       const card = z.faceUpHand ? Math.min(w, Math.floor((mainW - 16) / FULL_HAND)) : w;
-      const n = z.cards.length;
+      const n = Math.max(z.reserve ?? 0, z.cards.length);
       const cards =
         z.layout === 'trick'
           ? 3 * w
@@ -637,9 +641,9 @@
   /**
    * Your hand is empty at a hand's end (all laid down, say): the middle gets its room. (Only once
    * the hand is over: in a trick game your hand empties as you play your last card, and the last
-   * trick would grow for that one trick.)
+   * trick would grow for that one trick. Someone watching has no hand: the middle is theirs all along.)
    */
-  const handEmpty = $derived(!display && myHandZone?.layout !== 'stack' && !fanCards.length && !!view.handDone);
+  const handEmpty = $derived(!display && myHandZone?.layout !== 'stack' && !fanCards.length && (!myHandZone || !!view.handDone));
   const stripZones = $derived.by(() => {
     const list = handMode ? allStripZones.filter(usable) : allStripZones;
     const rank = (z: (typeof list)[number]) => (usable(z) ? -2 : z.owner === you && you >= 0 ? -1 : z.owner == null ? n : (z.owner - Math.max(0, you) + n) % n);
@@ -729,12 +733,17 @@
     else if (fit < stripKeep.cw) stripKeep = { cards, cw: fit };
     else if (cards !== stripKeep.cards) stripKeep.cards = cards;
   });
+  /** The strip's cards' size against the middle's (its zones', or before the first meld, the game's). */
+  const stripScale = $derived(
+    Math.max(...(stripZones.length ? stripZones : Object.values(s.zones).filter((z) => z.area === 'strip')).map((z) => z.scale ?? 1), 0),
+  );
   const stripCw = (z: { scale?: number }) => Math.max(MIN_CW, Math.min(Math.round(centerCw * (z.scale ?? 1)), display ? stripKeep.cw : Infinity));
   /**
-   * A table screen keeps a place for the strip from the deal: the middle then fills from the top,
-   * so the piles don't jump up when the first meld goes down (the strip grows downwards).
+   * A place kept for the strip from the deal: the piles don't jump when the first meld goes down.
+   * (A table screen's middle fills from the top and the strip grows downwards; a phone's strip is
+   * one row, kept at its height.)
    */
-  const stripRoom = $derived(display && !stripZones.length && hasStrip);
+  const stripRoom = $derived(!stripZones.length && hasStrip && (display || !handMode));
 
   // ---- table screen -----------------------------------------------------------------------
   /** On a table screen everything sized in rem grows with the screen (1rem = this many px). */
@@ -762,7 +771,8 @@
    * right-hand edge and the buttons sit beside your hand, two across when there are three or more,
    * so they're no taller than the hand.
    */
-  const wideMiddle = $derived(!display && !handMode && !replay && stripZones.length > 0);
+  // (from the deal, in a game with melds: the middle widening at the first meld would slide every pile across)
+  const wideMiddle = $derived(!display && !handMode && !replay && (stripZones.length > 0 || hasStrip));
   const manyButtons = $derived(view.actions.filter((a) => !a.menu).length > 2);
 
   // ---- chrome -----------------------------------------------------------------------------
@@ -1178,7 +1188,7 @@
       {/if}
       {#if stripRoom}
         <!-- (where everyone's melds will go, kept from the deal) -->
-        <div class="strip-room" aria-hidden="true"></div>
+        <div class="strip-room" aria-hidden="true" style:height={display ? undefined : `${Math.round(1.4 * stripCw({ scale: stripScale }) + 30)}px`}></div>
       {:else if stripZones.length}
         <div class="strip" data-wide={display || undefined} use:edgeFade>
           {#if !display && !replay}
@@ -1974,7 +1984,8 @@
   }
   .strip {
     flex: 1 0 100%;
-    justify-content: safe center;
+    /* (from the left, not centred: a new meld then moves only those after it, not every one down) */
+    justify-content: flex-start;
     min-width: 0;
     display: flex;
     align-items: flex-end;
@@ -2118,24 +2129,30 @@
     -webkit-mask-image: none;
     mask-image: none;
   }
-  /* …and a pile spread out card by card that keeps growing (a zone's `reserve`: rummy 500's
-     discard pile) keeps room for that many cards, overlapped the same way from the first, filling
-     from the left: it grows without the piles beside it sliding about */
-  .table.display .zones > .zone-slot :global(.spread.reserve) {
+  /* a pile spread out card by card that keeps growing or shrinking (a zone's `reserve`: rummy 500's
+     discard pile, cribbage's count, stud's cards showing) keeps room for that many cards, overlapped
+     the same way from the first, filling from the left: it changes without the piles beside it
+     sliding about */
+  .zones > .zone-slot :global(.spread.reserve),
+  .strip :global(.spread.reserve) {
     min-width: calc(var(--cw) * (1 + (var(--reserve) - 1) * 0.65));
     justify-content: flex-start;
   }
-  .table.display .zones > .zone-slot :global(.spread.reserve .scard + .scard) {
+  .zones > .zone-slot :global(.spread.reserve .scard + .scard),
+  .strip :global(.spread.reserve .scard + .scard) {
     margin-left: calc(var(--cw) * -0.45);
   }
   /* (past eight cards they overlap more, so the pile still fits its room up to about nineteen) */
-  .table.display .zones > .zone-slot :global(.spread.reserve:has(> :nth-child(9)) .scard + .scard) {
+  .zones > .zone-slot :global(.spread.reserve:has(> :nth-child(9)) .scard + .scard),
+  .strip :global(.spread.reserve:has(> :nth-child(9)) .scard + .scard) {
     margin-left: calc(var(--cw) * -0.65);
   }
-  .table.display .zones > .zone-slot :global(.spread.reserve:has(> :nth-child(12)) .scard + .scard) {
+  .zones > .zone-slot :global(.spread.reserve:has(> :nth-child(12)) .scard + .scard),
+  .strip :global(.spread.reserve:has(> :nth-child(12)) .scard + .scard) {
     margin-left: calc(var(--cw) * -0.8);
   }
-  .table.display .zones > .zone-slot :global(.spread.reserve:has(> :nth-child(17)) .scard + .scard) {
+  .zones > .zone-slot :global(.spread.reserve:has(> :nth-child(17)) .scard + .scard),
+  .strip :global(.spread.reserve:has(> :nth-child(17)) .scard + .scard) {
     margin-left: calc(var(--cw) * -0.85);
   }
   .pot {
