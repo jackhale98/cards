@@ -52,6 +52,16 @@ export async function screenProblems(page: Page): Promise<string[]> {
           bottom = Math.min(bottom, c.bottom);
         }
       }
+      // (a card on the layer in a row that scrolls is clipped to what shows of the row: its clip-path)
+      const lc = el.closest<HTMLElement>('.layer .layer-card');
+      const inset = lc && /inset\(([\d.]+)px ([\d.]+)px ([\d.]+)px ([\d.]+)px\)/.exec(lc.style.clipPath);
+      if (lc && inset) {
+        const b = lc.getBoundingClientRect();
+        top = Math.max(top, b.top + Number(inset[1]));
+        right = Math.min(right, b.right - Number(inset[2]));
+        bottom = Math.min(bottom, b.bottom - Number(inset[3]));
+        left = Math.max(left, b.left + Number(inset[4]));
+      }
       return new DOMRect(left, top, Math.max(0, right - left), Math.max(0, bottom - top));
     };
     const meets = (a: DOMRect, b: DOMRect, slack = 2) =>
