@@ -199,6 +199,8 @@ export function play(root: Element) {
   root.querySelectorAll<HTMLElement>('[data-flip]').forEach((el) => {
     const a = lastRects.get(el);
     if (!a || slid.has(el)) return; // new element: its own transition handles it
+    // (already gliding there on a transition of its own, as a card in your hand does)
+    if (el.getAnimations().some((x) => x instanceof CSSTransition && x.playState === 'running')) return;
     const b = el.getBoundingClientRect();
     const dx = a.left - b.left;
     const dy = a.top - b.top;

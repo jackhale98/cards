@@ -120,7 +120,7 @@
   class="hand"
   bind:clientWidth={width}
   style:--cw="{cw}px"
-  style:height="{cards.length ? cw * 1.4 + 26 : 0}px"
+  style:height={cards.length ? 'calc(var(--cw) * 1.4 + 26px)' : '0px'}
   onpointermove={move}
   onpointerup={up}
   onpointercancel={() => (drag = null)}
@@ -130,8 +130,11 @@
   {#each cards as c, i (c.id)}
     {@const p = layout[i] ?? { x: 0, rot: 0, y: 0 }}
     {@const can = !selectable || selectable.has(c.id)}
+    <!-- (data-flip: a card whose place in the hand changes, as when the hand is sorted afresh, is
+         moved in the page, which loses its transition: the table slides it there instead) -->
     <div
       class="slot"
+      data-flip
       class:dragging={drag?.id === c.id}
       style:left="{p.x + (drag?.id === c.id ? drag.dx : 0)}px"
       style:transform="translateY({p.y + (drag?.id === c.id ? drag.dy : 0)}px) rotate({p.rot}deg)"
@@ -161,6 +164,12 @@
     position: relative;
     width: 100%;
     touch-action: none;
+  }
+  /* (cards that change size, a hand grown long after picking up a pile, ease into it) */
+  @media (prefers-reduced-motion: no-preference) {
+    .hand {
+      transition: --cw 0.35s var(--ease-out);
+    }
   }
   .slot {
     position: absolute;
