@@ -195,7 +195,9 @@ describe('a showdown on the table', () => {
   });
 
   it('shows nothing when everyone else folded (no cards were turned over)', async () => {
-    for (let seed = 1; seed <= 60; seed++) {
+    // (the bots think with Math.random, so which hands end in folds varies: look far enough that
+    // one always turns up; it stops at the first)
+    for (let seed = 1; seed <= 300; seed++) {
       const { g, s } = await toHandOver('holdem', 3, seed);
       if (s.data.b.folded.filter(Boolean).length !== 2) continue;
       expect(g.status(s, -1).showdown).toBeUndefined();

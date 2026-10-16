@@ -74,9 +74,16 @@
 {:else if !view}
   <div class="connecting">
     <span class="load"><Loader size={48} /></span>
-    <p>Finding table <b>{route.code}</b>… <span class="secs">{waited}s</span></p>
-    {#if trying}<p class="small">Looking via {trying}{relaysUp ? '' : ' (connecting…)'}</p>{/if}
-    {#if waited < 12}
+    {#if app.starting}
+      <!-- (this device's own table, opening: no network to wait for, just its code loading) -->
+      <p>Starting your table <b>{route.code}</b>…</p>
+    {:else}
+      <p>Finding table <b>{route.code}</b>… <span class="secs">{waited}s</span></p>
+      {#if trying}<p class="small">Looking via {trying}{relaysUp ? '' : ' (connecting…)'}</p>{/if}
+    {/if}
+    {#if app.starting}
+      <!-- (nothing to suggest: it opens as soon as its code is here) -->
+    {:else if waited < 12}
       <p class="small">Joining usually takes a few seconds.</p>
     {:else}
       <ul class="tips">
@@ -88,7 +95,7 @@
       </ul>
     {/if}
     <div class="row">
-      {#if waited >= 12}<button class="btn" onclick={() => app.rejoin()}>Try again</button>{/if}
+      {#if waited >= 12 && !app.starting}<button class="btn" onclick={() => app.rejoin()}>Try again</button>{/if}
       <button class="btn quiet" onclick={() => app.go('/')}>Cancel</button>
     </div>
   </div>

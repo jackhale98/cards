@@ -113,9 +113,9 @@ export class Host {
   /** Called after every change with a serialisable snapshot (for resume-after-refresh). */
   onPersist: (snap: HostSnapshot) => void = () => {};
   /** Host handoff: the key players' backups are sealed with (held by the relay), if any. */
-  private readonly backupKey?: string;
+  private backupKey?: string;
   /** Given to players with their backups: the relay lets only someone holding it take over. */
-  private readonly takeoverToken?: string;
+  private takeoverToken?: string;
   private backupTimer: ReturnType<typeof setTimeout> | null = null;
   private backedUp = -1;
   private closed = false;
@@ -193,18 +193,32 @@ export class Host {
       };
     }
     this.lobby.tid ??= Math.random().toString(36).slice(2, 12);
-    if (transport) {
-      transport.onMessage = (msg, from) => this.receive(from, msg);
-      transport.onPeerLeave = (peer) => {
-        this.forget(peer);
-        this.peerLeft(peer);
-      };
-      transport.onPeerJoin = () => {};
-      this.heartbeat = setInterval(() => this.beat(), HEARTBEAT_MS);
-    }
+    if (transport) this.wire(transport);
     this.v = this.state?.v ?? 0;
     // the game picked in the lobby: fetch its rules now, so dealing is instant
     if (!this.state) void loadRules(this.lobby.gameId).catch(() => {});
+  }
+
+  /**
+   * The connection to everyone else, when it comes after the table opened (the host doesn't wait
+   * for it: the table is open at once, and others can join as soon as it's here).
+   */
+  attach(transport: Transport, backup: { backupKey?: string; takeoverToken?: string } = {}) {
+    if (this.closed || this.transport) return;
+    this.transport = transport;
+    this.backupKey = backup.backupKey;
+    this.takeoverToken = backup.takeoverToken;
+    this.wire(transport);
+  }
+
+  private wire(transport: Transport) {
+    transport.onMessage = (msg, from) => this.receive(from, msg);
+    transport.onPeerLeave = (peer) => {
+      this.forget(peer);
+      this.peerLeft(peer);
+    };
+    transport.onPeerJoin = () => {};
+    this.heartbeat = setInterval(() => this.beat(), HEARTBEAT_MS);
   }
 
   get hostCid() {

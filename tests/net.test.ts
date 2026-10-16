@@ -34,6 +34,25 @@ describe('host ↔ clients', () => {
     expect(host.lobby.seats[1].avatar).toEqual({ emoji: '🦊', color: '#e9c46a' });
   });
 
+  it('a host opens its table before its connection is ready, and seats players once it is', () => {
+    const bus = new Bus();
+    const host = new Host(null, 'ABCD', { cid: 'h', name: 'Hana' });
+    let hostView: View | null = null;
+    host.onLocalView = (v) => (hostView = v);
+    host.broadcast();
+    // the host's own screen: the lobby, at once
+    expect(hostView!.lobby.seats.map((s) => s.name)).toEqual(['Hana']);
+    // the connection arrives; a player joins over it
+    const ht = new MemTransport(bus, 'host-peer');
+    host.attach(ht);
+    bus.join(ht);
+    const t = new MemTransport(bus, 'a-peer');
+    const a = new Client(t, 'a', 'Ann', { emoji: '🦊', color: '#e9c46a' });
+    bus.join(t);
+    expect(host.lobby.seats.map((s) => s.name)).toEqual(['Hana', 'Ann']);
+    expect(a.view?.lobby.seats).toHaveLength(2);
+  });
+
   it('rejects unsafe avatars and lets players update theirs', () => {
     const { host, mk } = setup();
     const a = mk('a', 'Ann');

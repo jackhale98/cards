@@ -233,6 +233,8 @@ class App {
   avatar = $state.raw<Avatar>(loadAvatar());
   view = $state.raw<View | null>(null);
   isHost = $state(false);
+  /** This device is opening its own table (its screen says so, not "Finding table"). */
+  starting = $state(false);
   connected = $state(false);
   toast = $state<{ text: string; id: number } | null>(null);
   /** Host → player round-trip times by seat (ms; host 0, bots/unknown null). */
@@ -446,6 +448,15 @@ class App {
   }
 
   private async startHost(code: string, restore?: HostSnapshot, how: { resuming?: boolean; takeover?: boolean } = {}) {
+    this.starting = true;
+    try {
+      await this.openHost(code, restore, how);
+    } finally {
+      this.starting = false;
+    }
+  }
+
+  private async openHost(code: string, restore?: HostSnapshot, how: { resuming?: boolean; takeover?: boolean } = {}) {
     const saved = this.savedHost;
     // resuming in a new tab (the browser was closed): host as the tab that saved the table did, with
     // its seat and its claim on the code (a new claim would be told the code is taken)
@@ -459,37 +470,30 @@ class App {
       how.resuming || how.takeover || this.host?.state || (this.host?.lobby.seats.length ?? 1) > 1
         ? this.tableMoved(code, seatId ?? this.cid, seatKeyThen ?? seatKey())
         : this.codeTaken(code);
-    const joined = await createTransport(this.net, code, 'host', { key: hostKey(), onTaken }).catch((e) => {
+    // (the table opens without waiting for the connection to everyone else: it's attached below,
+    // when it's ready, so a slow network never holds up the host's own screen)
+    const joining = createTransport(this.net, code, 'host', { key: hostKey(), onTaken }).catch((e) => {
       console.warn('Network unavailable, hosting offline', e);
       return null;
     });
-    // the route may have changed while we were connecting (left straight away)
-    if (this.currentCode !== code) return joined?.transport.leave();
-    this.transport = joined?.transport ?? null;
-    this.addAll = joined?.addAll ?? null;
-    // host handoff: players get sealed backups; the relay keeps the key
-    const relay = this.transport?.network<RelayTransport>('relay');
-    const backupKey = relay ? newBackupKey() : undefined;
-    const takeoverToken = relay ? newBackupKey() : undefined;
-    if (relay && backupKey) void relay.deposit(backupKey, takeoverToken);
     // a game in progress needs its rules before the table can reopen
+    // (the route may change while we wait: leave the connection once it comes)
+    const gone = () => void joining.then((j) => j?.transport.leave());
     if (restore?.state) {
       try {
         await loadRules(restore.state.game);
       } catch {
         this.say('Couldn’t load the rules for this game — check your connection');
-        return;
+        return gone();
       }
-      if (this.currentCode !== code) return this.transport?.leave();
+      if (this.currentCode !== code) return gone();
     }
     // (the host's code loads when a table is first hosted: the home screen doesn't need it)
     const { Host } = await import('./net/host');
-    if (this.currentCode !== code) return this.transport?.leave();
+    if (this.currentCode !== code) return gone();
     const split = this.pendingSplit?.code === code ? this.pendingSplit : null;
     this.pendingSplit = null;
-    const host = new Host(this.transport, code, { cid: this.cid, name: this.name || 'Host', avatar: this.avatar, key: seatKey() }, restore, {
-      backupKey,
-      takeoverToken,
+    const host = new Host(null, code, { cid: this.cid, name: this.name || 'Host', avatar: this.avatar, key: seatKey() }, restore, {
       brain: this.brain,
       takeover: how.takeover,
       night: split?.night,
@@ -530,6 +534,20 @@ class App {
       // (a laptop that was the table screen last time is the table screen again)
       if (store.get('cards.hostScreen') && !split) host.setScreen(true);
       else host.broadcast();
+    }
+    // the connection to everyone else, whenever it's ready
+    const joined = await joining;
+    if (this.currentCode !== code || this.host !== host) return joined?.transport.leave();
+    this.transport = joined?.transport ?? null;
+    this.addAll = joined?.addAll ?? null;
+    if (this.transport) {
+      // host handoff: players get sealed backups; the relay keeps the key
+      const relay = this.transport.network<RelayTransport>('relay');
+      const backupKey = relay ? newBackupKey() : undefined;
+      const takeoverToken = relay ? newBackupKey() : undefined;
+      if (relay && backupKey) void relay.deposit(backupKey, takeoverToken);
+      host.attach(this.transport, { backupKey, takeoverToken });
+      host.broadcast();
     }
     this.startWatching();
   }
