@@ -171,10 +171,39 @@ four; its card play alone measured +0.53 ± 0.25. Cribbage's Normal is now an av
 down; its Easy is a beginner. Normal against Easy: Cribbage +0.97 ± 0.16 a hand.)
 
 Points a deal undersell a step in games that score a point or two a hand, so whole games
-(`WHOLE=1`, which counts wins) say more. Hard against Normal: Euchre 78%, Setback 66%, Gin 66%
-(before its later gains), Cribbage 62%, Whist 59%. Normal against Easy: Gin 68%, Cribbage 62%.
-Two thirds a step is the aim where the game's luck allows it: published work puts a strong
-player's edge over an average one near 55–60% in Cribbage and Whist, and lower in Crazy Eights.
+(`WHOLE=1`, which counts wins) say more. Two thirds a step is the aim where the game's luck allows
+it: published work puts a strong player's edge over an average one near 55–60% in Cribbage and
+Whist, and lower in Crazy Eights. The share of whole games the higher level won (two seats of each
+level, or one partnership of each; 20–60 games both ways round, so a few points either way):
+
+| Game         | Hard v Normal | Normal v Easy |
+| ------------ | ------------- | ------------- |
+| Bridge       | 75%           | 75%           |
+| Cheat        | 69–73%        | 66%           |
+| Cribbage     | 62%           | 62%           |
+| Crazy Eights | 61%           | 69%           |
+| Euchre       | 78%           | 62%           |
+| Gin          | 66%+          | 68%           |
+| Go Fish      | 66%           | 67%           |
+| Hearts       | 80%           | 67%           |
+| Oh Hell      | 84%           | 65%           |
+| President    | 84%           | 69%           |
+| Setback      | 66%           | 67%           |
+| Spades       | 57%           | 66%           |
+| Whist        | 59%           | 71%           |
+| 500          | 75%           | 69%           |
+
+Poker is counted in chips, over 20-hand sessions: Normal against Easy, Hold'em +510 ± 80, Omaha
++895 ± 100, Draw +369 ± 92, Stud +683 ± 67.
+
+What the levels are, where they differ by game: Easy plays rules of thumb with a slip now and then;
+in the games where every card counts toward the score (Hearts, Spades, Oh Hell, President) it also
+plays a few deals out first, as its rules alone lost nearly every game to Normal. Crazy Eights'
+Normal plays the rules of thumb too (its lookahead measured no better than Hard's). In Spades the
+bots count each overtrick (a bag) at what ten of them cost; until they did, Normal lost whole
+games to Easy, and then Hard to Normal. Cheat's Hard remembers what it put on the pile and where
+picked-up piles went, and always challenges someone's last cards (it costs nothing: if they told
+the truth they win either way). Go Fish's Hard weighs who most likely holds each rank.
 
 Gin's Hard follows the 2021 AAAI Gin Rummy contest's papers: Maravich, Neller & Neller's knocking
 rule, MARJJ's best-few-draws discard and its discard safety. Oh Hell's Hard bids by playing each bid
