@@ -2,6 +2,7 @@ import type { Action } from '../engine/types';
 import { isValidCode, type Avatar, type Frame, type HostMsg, type LobbyOp, type Night, type View } from './protocol';
 import type { ExportFormat } from './exports/formats';
 import type { Transport } from './transport';
+import { apply } from './patch';
 
 /** No word from the host (which pings every 3s) for this long means we've lost it. */
 export const SILENT_AFTER_MS = 9000;
@@ -121,6 +122,17 @@ export class Client {
         this.onView(msg.view);
         // a host we've only just found: show it our key, so it gives us our seat
         if (fresh) this.hello(from);
+      } else if (msg.t === 'patch') {
+        // what changed since the view we have: from the host we're with, on top of the version
+        // it was made from (a repeat over a second network is skipped; one that doesn't fit, as
+        // after a lost message, gets the whole view instead)
+        if (from !== this.hostPeer || !this.view || msg.hid !== this.view.hid || typeof msg.v !== 'number') return;
+        this.heard();
+        if (msg.v <= this.view.v) return;
+        const next = msg.base === this.view.v ? apply(this.view, msg.ops) : null;
+        if (!next || typeof next !== 'object' || next.v !== msg.v) return this.transport.send({ t: 'sync' }, from);
+        this.view = next;
+        this.onView(next);
       } else if (msg.t === 'react') {
         if (from === this.hostPeer && typeof msg.id === 'string' && typeof msg.e === 'number') this.onReact(msg.id, msg.e);
       } else if (msg.t === 'err') {

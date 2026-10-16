@@ -1,4 +1,5 @@
 import type { Action, ActionSpec, GameState, GameStatus } from '../engine/types';
+import type { Op } from './patch';
 
 /** A player's chosen look: an emoji on a coloured disc. */
 export interface Avatar {
@@ -186,6 +187,8 @@ export type ClientMsg =
       from?: string;
       merge?: NightGame[];
     }
+  /** A patch didn't fit the view this player has: send the whole view again. */
+  | { t: 'sync' }
   | { t: 'act'; a: Action; seq: number }
   /** A reaction (an index into REACTIONS), shown on the sender's seat for everyone. */
   | { t: 'react'; e: number }
@@ -215,6 +218,8 @@ export type LobbyOp =
 
 export type HostMsg =
   | { t: 'view'; view: View }
+  /** What changed since the view this player last had (`base`, from the host `hid`), when that's smaller than the whole view. */
+  | { t: 'patch'; hid?: string; base: number; v: number; ops: Op[] }
   /** Someone at the table reacted (`id`: their lobby seat; `e`: an index into REACTIONS). */
   | { t: 'react'; id: string; e: number }
   | { t: 'frame'; frame: Frame | null }

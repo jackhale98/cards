@@ -35,6 +35,7 @@ import type { HandFormat } from './exports/types';
 import { familyRules } from '../engine/types';
 import { report } from './reports';
 import type { Transport } from './transport';
+import { diff } from './patch';
 
 export const HEARTBEAT_MS = 3000;
 /** A peer silent for this long is treated as gone (it keeps its seat and can come back). */
@@ -47,7 +48,7 @@ export const SCREEN_SOUND = '__screenSound';
 /** Anyone at the table can let a bot play for a player who has dropped (`seat`: their game seat) until they're back. */
 export const STAND_IN = '__standIn';
 /** Host handoff: players get a fresh sealed backup at most this often. */
-export const BACKUP_EVERY_MS = 2000;
+export const BACKUP_EVERY_MS = 5000;
 const BOT_NAMES = ['Ada', 'Bix', 'Cleo', 'Dash', 'Echo', 'Fizz', 'Gus', 'Hux', 'Ivy'];
 /** A connection's hellos are handled at most this often; a burst is folded into its latest. */
 export const HELLO_GAP_MS = 400;
@@ -227,6 +228,10 @@ export class Host {
 
   // ---- incoming -------------------------------------------------------------------------
 
+  /** The last view each connection was sent, and when each last asked for a whole one. */
+  private sentViews = new Map<string, View>();
+  private syncedAt = new Map<string, number>();
+
   private receive(peer: string, raw: Msg) {
     const msg = raw as ClientMsg;
     const h = this.health.get(peer);
@@ -237,8 +242,11 @@ export class Host {
     }
     if (msg.t === 'hello') {
       if (typeof msg.cid !== 'string' || !msg.cid || msg.cid.length > 64) return;
+      // (a hello asks for the table afresh: the next view goes whole)
+      this.sentViews.delete(peer);
       return this.paced(peer, msg);
     }
+    if (msg.t === 'sync') return this.resync(peer);
     if (msg.t === 'replay') return this.sendFrame(peer, msg.hand, msg.step);
     if (msg.t === 'react') return void this.react(this.peers.get(peer) ?? '', msg.e);
     if (msg.t === 'export') return this.sendExport(peer, msg.format);
@@ -302,6 +310,8 @@ export class Host {
   /** A connection has gone for good: drop its pacing (and any hello still waiting). */
   private forget(peer: string) {
     this.framesAsked.delete(peer);
+    this.sentViews.delete(peer);
+    this.syncedAt.delete(peer);
     const p = this.helloPace.get(peer);
     if (p?.timer) clearTimeout(p.timer);
     this.helloPace.delete(peer);
@@ -1330,13 +1340,40 @@ export class Host {
       for (const [peer, cid] of this.peers) {
         const who = this.displays.has(peer) ? null : cid;
         let view = views.get(who);
-        if (!view) views.set(who, (view = this.viewFor(who)));
-        this.transport.send({ t: 'view', view }, peer);
+        if (!view) views.set(who, (view = wire(this.viewFor(who))));
+        this.sendView(peer, view);
         this.sentAt.set(peer, now);
       }
     }
     this.onPersist({ lobby: this.lobby, state: this.state, keys: this.keys });
     this.queueBackup();
+  }
+
+  /**
+   * A view to one connection: only what changed since the last one it had, when that's smaller (a
+   * move changes a few dozen bytes of a view of several kilobytes, which matters to players on a
+   * phone's data); otherwise the whole view.
+   */
+  /** (`view` is a copy, as sent: a view shares the lobby and game with the host, which change in place, and the next patch is worked out against it) */
+  private sendView(peer: string, view: View) {
+    const prev = this.sentViews.get(peer);
+    this.sentViews.set(peer, view);
+    if (prev && prev.hid === view.hid && view.v > prev.v) {
+      const ops = diff(prev, view);
+      if (JSON.stringify(ops).length < JSON.stringify(view).length * 0.6)
+        return this.transport?.send({ t: 'patch', hid: view.hid, base: prev.v, v: view.v, ops }, peer);
+    }
+    this.transport?.send({ t: 'view', view }, peer);
+  }
+
+  /** A player's patch didn't fit: the whole view again (once a second at most, per connection). */
+  private resync(peer: string) {
+    const cid = this.peers.get(peer);
+    const last = this.syncedAt.get(peer) ?? 0;
+    if (cid === undefined || Date.now() - last < 1000) return;
+    this.syncedAt.set(peer, Date.now());
+    this.sentViews.delete(peer);
+    this.sendView(peer, wire(this.viewFor(this.displays.has(peer) ? null : cid)));
   }
 
   // ---- host handoff -----------------------------------------------------------------------
@@ -1361,6 +1398,9 @@ export class Host {
       if (players.has(cid) && !this.displays.has(peer)) this.transport?.send({ t: 'backup', blob, v, token: this.takeoverToken }, peer);
   }
 }
+
+/** A copy of a view as it goes over the wire (JSON: what's undefined isn't there). */
+const wire = <T>(x: T): T => JSON.parse(JSON.stringify(x)) as T;
 
 /** Hands kept in the score history (after the deal). */
 export const SCORE_HANDS = 300;

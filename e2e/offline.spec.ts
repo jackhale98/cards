@@ -10,6 +10,15 @@ test('once visited, the app opens with no connection', async ({ page, context })
   // the service worker has taken charge of the page, and kept its files
   await page.evaluate(() => navigator.serviceWorker.ready);
   await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller), { timeout: 10_000 }).toBe(true);
+  // it keeps the app itself, but no game's rules or bots until that game is played (the bridge
+  // solver, the trick games' family), so a first visit costs little data
+  const kept = await page.evaluate(async () => {
+    const out: string[] = [];
+    for (const k of await caches.keys()) for (const r of await (await caches.open(k)).keys()) out.push(new URL(r.url).pathname);
+    return out;
+  });
+  expect(kept.some((p) => /\/assets\/Table-/.test(p))).toBe(true);
+  expect(kept.filter((p) => /\/assets\/(ddsWasm|trick|poker|cribbage)-/.test(p))).toEqual([]);
   await context.setOffline(true);
   await page.reload();
   await expect(page.getByText('Start a table')).toBeVisible();

@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import { newBackupKey, open, seal } from '../src/net/backup';
 import { Client } from '../src/net/client';
-import { Host, STAND_IN } from '../src/net/host';
+import { BACKUP_EVERY_MS, Host, STAND_IN } from '../src/net/host';
 import type { Msg } from '../src/net/protocol';
 import type { Transport } from '../src/net/transport';
+import { GAMES } from './games';
+import type { GameModule } from '../src/engine/types';
 
 /** In-memory room (as in net.test.ts): delivers messages between transports, JSON-cloned like the wire. */
 class Bus {
@@ -52,6 +54,21 @@ describe('backups', () => {
     expect(await open(blob, key)).toEqual(snap);
     await expect(open(blob, newBackupKey())).rejects.toThrow();
   });
+
+  it('backups are compressed: a fraction of the game, and open the same', async () => {
+    const key = newBackupKey();
+    const g = GAMES.hearts as GameModule;
+    const state = g.setup(
+      ['A', 'B', 'C', 'D'].map((name) => ({ name, bot: true })),
+      1,
+      {},
+    );
+    const snap = { lobby: { code: 'ABCDE', seats: [], gameId: 'hearts', options: {}, spectators: 0, started: true }, state };
+    const blob = await seal(snap as never, key);
+    // (under half, even as base64 text, which adds a third)
+    expect(blob.length).toBeLessThan(JSON.stringify(snap).length / 2);
+    expect(await open(blob, key)).toEqual(snap);
+  });
 });
 
 describe('host handoff', () => {
@@ -76,7 +93,7 @@ describe('host handoff', () => {
     const before = structuredClone(host.state!);
 
     // players are sent a sealed backup (not the table screen, not bots); it reveals nothing
-    await vi.waitFor(() => expect(ann.c.backup).not.toBeNull(), { timeout: 5000 });
+    await vi.waitFor(() => expect(ann.c.backup).not.toBeNull(), { timeout: BACKUP_EVERY_MS + 3000 });
     const blob = ann.c.backup!.blob;
     for (const z of Object.values(before.zones)) for (const c of z.cards) expect(blob).not.toContain(`"${c.id}"`);
 

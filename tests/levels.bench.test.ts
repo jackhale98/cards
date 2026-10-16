@@ -111,7 +111,9 @@ it.skipIf(!process.env.LEVELS)(
         const sd = Math.sqrt(diffs.reduce((a, b) => a + (b - mean) ** 2, 0) / Math.max(1, diffs.length - 1));
         const per = hands > 1 ? `a session of ${hands} hands` : 'a deal';
         process.stderr.write(
-          `${id} ${level} v ${base}: ${mean.toFixed(2)} ± ${(sd / Math.sqrt(diffs.length)).toFixed(2)} ${per} (${deals} deals, ${(ms / Math.max(1, moves)).toFixed(1)} ms a move)\n`,
+          // (thinking a deal: the smart side's seats, both ways round, so every seat once: with a
+          // level against itself, all the bots at a table of that level)
+          `${id} ${level} v ${base}: ${mean.toFixed(2)} ± ${(sd / Math.sqrt(diffs.length)).toFixed(2)} ${per} (${deals} deals, ${(ms / Math.max(1, moves)).toFixed(1)} ms a move, ${(ms / deals / 1000).toFixed(1)} s thinking a deal)\n`,
         );
       }
     }

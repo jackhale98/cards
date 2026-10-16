@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Client } from '../src/net/client';
 import { Host, STAND_IN } from '../src/net/host';
 import type { View } from '../src/net/protocol';
+import { loadRules } from '../src/games';
 import { Bus, MemTransport } from './netHarness';
 
 describe('host ↔ clients', () => {
@@ -51,6 +52,76 @@ describe('host ↔ clients', () => {
     bus.join(t);
     expect(host.lobby.seats.map((s) => s.name)).toEqual(['Hana', 'Ann']);
     expect(a.view?.lobby.seats).toHaveLength(2);
+  });
+
+  it('sends players only what changed, and they end with the same table as a whole view', async () => {
+    await loadRules('hearts');
+    const { host, mk, bus } = setup();
+    const a = mk('a', 'Ann');
+    host.setGame('hearts');
+    host.addBot();
+    host.addBot();
+    host.start();
+    const hostSent = (bus.members.get('host-peer') as MemTransport).sent;
+    hostSent.length = 0;
+    for (let i = 0; i < 30; i++) {
+      for (const [cid, c] of [
+        ['h', null],
+        ['a', a.c],
+      ] as const) {
+        const move = host.botMoveFor(cid);
+        if (move && c) c.act(move);
+        else if (move) host.act('h', move);
+      }
+      vi.advanceTimersByTime(1500);
+    }
+    // the player sees exactly what the host worked out for them, sent mostly as changes
+    expect(a.c.view).toEqual(JSON.parse(JSON.stringify((host as unknown as { viewFor(c: string): View }).viewFor('a'))));
+    const patches = hostSent.filter((m) => m.t === 'patch');
+    expect(patches.length).toBeGreaterThan(10);
+    expect(hostSent.filter((m) => m.t === 'view').length).toBeLessThan(patches.length / 5);
+  });
+
+  it('a lobby change the host makes in place reaches the player', () => {
+    const { host, mk, bus } = setup();
+    const a = mk('a', 'Ann');
+    host.setGame('gin-rummy');
+    expect(a.c.view?.lobby.gameId).toBe('gin-rummy');
+    // a small one, after: sent as a patch, against the lobby as it was last sent
+    const hostSent = (bus.members.get('host-peer') as MemTransport).sent;
+    hostSent.length = 0;
+    host.setGame('cribbage');
+    expect(a.c.view?.lobby.gameId).toBe('cribbage');
+  });
+
+  it('a patch that doesn\u2019t fit (a lost message) brings the whole view again', async () => {
+    await loadRules('hearts');
+    const { host, mk } = setup();
+    const a = mk('a', 'Ann');
+    host.setGame('hearts');
+    host.addBot();
+    host.addBot();
+    host.start();
+    // the player misses one change: the next patch is built on a view it never had
+    const deliver = a.t.onMessage;
+    let dropped = false;
+    a.t.onMessage = (msg, from) => {
+      if (!dropped && msg.t === 'patch') return void (dropped = true);
+      deliver(msg, from);
+    };
+    for (let i = 0; i < 12; i++) {
+      for (const [cid, c] of [
+        ['h', null],
+        ['a', a.c],
+      ] as const) {
+        const move = host.botMoveFor(cid);
+        if (move && c) c.act(move);
+        else if (move) host.act('h', move);
+      }
+      vi.advanceTimersByTime(1500);
+    }
+    expect(dropped).toBe(true);
+    expect(a.c.view).toEqual(JSON.parse(JSON.stringify((host as unknown as { viewFor(c: string): View }).viewFor('a'))));
   });
 
   it('rejects unsafe avatars and lets players update theirs', () => {

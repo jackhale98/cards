@@ -1,25 +1,33 @@
 /* Lamplight's service worker: the app opens at once, and without a connection, once it has been
    visited. Pages come from the network when there is one (so a new version shows straight away)
    and from the phone when there isn't; scripts and styles, whose names change with their content,
-   come from the phone first. Written into the build by vite.config.ts (serviceWorker), which fills
+   come from the phone first. Only the app itself is downloaded at install; each game's rules and
+   bots come when first played, and are kept. Written into the build by vite.config.ts (serviceWorker), which fills
    in the build id and the list of files to keep. Not used by the dev server. */
 const CACHE = 'lamplight-__BUILD__';
+/** The app itself: downloaded at install. */
 const SHELL = [/* __SHELL__ */];
+/** Every file of this build: kept from an earlier version if it has it (a game played before). */
+const KNOWN = [/* __KNOWN__ */];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(
     (async () => {
       const cache = await caches.open(CACHE);
+      const url = (path) => new URL(path, self.registration.scope).href;
       // (files an earlier version already has are copied over, not downloaded again)
-      await Promise.all(
-        SHELL.map(async (path) => {
-          const url = new URL(path, self.registration.scope).href;
-          const had = path.startsWith('./assets/') ? await caches.match(url) : undefined;
-          if (had) return cache.put(url, had);
-          const res = await fetch(url, { cache: 'no-cache' });
-          if (res.ok) await cache.put(url, res);
+      await Promise.all([
+        ...SHELL.map(async (path) => {
+          const had = path.startsWith('./assets/') ? await caches.match(url(path)) : undefined;
+          if (had) return cache.put(url(path), had);
+          const res = await fetch(url(path), { cache: 'no-cache' });
+          if (res.ok) await cache.put(url(path), res);
         }),
-      );
+        ...KNOWN.filter((path) => !SHELL.includes(path)).map(async (path) => {
+          const had = await caches.match(url(path));
+          if (had) await cache.put(url(path), had);
+        }),
+      ]);
       await self.skipWaiting();
     })(),
   );
