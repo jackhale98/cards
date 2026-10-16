@@ -18,7 +18,7 @@ import {
   sortHand,
   zone,
 } from '../state';
-import { botBudget, botLevel, dealUnseen, easyMove, edge, fork, now, playOut, type SearchGame, searchMove, shuffled, TESTING } from '../bots/search';
+import { botBudget, botLevel, dealUnseen, easyMove, edge, fork, deadline, now, playOut, type SearchGame, searchMove, shuffled, TESTING } from '../bots/search';
 import { familyRules, assertRule, type Action, type GameConfig, type GameModule, type GameState } from '../types';
 import { acrossTeams, sideName, soloTeams, teamIndex } from '../lib/teams';
 /** This family's settings in game.json (generated from the schema). */
@@ -348,7 +348,7 @@ export function cribbageFamily(config: GameConfig): GameModule<CribData> {
     const others = s.players.map((p) => p.seat).filter((x) => x !== seat);
     const crib = drops.map(() => 0);
     let cribs = 0;
-    const stop = now() + HARD_DISCARD_MS;
+    const stop = deadline(HARD_DISCARD_MS);
     const max = TESTING ? Math.min(samples, 12) : samples;
     for (let runs = 0; runs < max && (TESTING || runs === 0 || now() < stop); runs++) {
       const pool = shuffled([...unseen]);

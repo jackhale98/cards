@@ -1,5 +1,5 @@
 import { parseCard } from '../../cards';
-import { moreSamples, now, settled, TESTING, type SearchBudget } from '../../bots/search';
+import { moreSamples, deadline, settled, TESTING, type SearchBudget } from '../../bots/search';
 import { solveCards } from '../../bots/dds';
 import { ids, nextSeat, zone } from '../../state';
 import { isMisere, legalCards, rankFor, suitFor, suitless, suitOf } from './play';
@@ -130,7 +130,7 @@ export function ddCard(g: TrickGame, s: S, seat: number, budget = DD_BUDGET, ran
   const each = new Map<string, number[]>(legal.map((c) => [c, []]));
   let runs = 0;
   let strict = true;
-  const stop = now() + budget.ms;
+  const stop = deadline(budget.ms);
   for (
     let tries = 0;
     moreSamples(runs, budget.samples, budget.least, stop) && tries < budget.samples * 60 && !(runs % 4 === 0 && settled([...each.values()]));
@@ -225,7 +225,7 @@ export function ddBid(g: TrickGame, s: S, seat: number, quick: (cards: string[])
   const sideTricks: number[] = [];
   let partnerWorth = 0;
   let runs = 0;
-  const stop = now() + budget.ms;
+  const stop = deadline(budget.ms);
   while (moreSamples(runs, samples, Math.min(4, samples), stop)) {
     const cards = [...pool];
     for (let i = cards.length - 1; i > 0; i--) {

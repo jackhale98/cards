@@ -1,5 +1,5 @@
 import { parseCard } from '../cards';
-import { moreSamples, now, shuffled } from '../bots/search';
+import { moreSamples, deadline, shuffled } from '../bots/search';
 import * as bet from '../lib/betting';
 import type { HandValue } from '../lib/pokerEval';
 import type { Action, GameState } from '../types';
@@ -245,7 +245,7 @@ export function rangeEquity(g: HardGame, s: S, seat: number, budget: { samples: 
 
   const ws: number[] = [];
   const wins: number[] = [];
-  const stop = now() + budget.ms;
+  const stop = deadline(budget.ms);
   let runs = 0;
   while (moreSamples(runs, budget.samples * 8, 20, stop)) {
     const deck = shuffled([...unseen]);

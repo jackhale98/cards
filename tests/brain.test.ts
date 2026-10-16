@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { pickNow, workerBrain, type Brain, type BrainRequest, type Pick } from '../src/net/brain';
 import { Host } from '../src/net/host';
-import type { GameState } from '../src/engine/types';
+import type { GameModule, GameState } from '../src/engine/types';
+import { deadline, now } from '../src/engine/bots/search';
+import { pickWith, restThinking } from '../src/net/pick';
 
 /** A brain that answers only when told to, like a worker thread thinking in the background. */
 function slowBrain() {
@@ -127,5 +129,41 @@ describe('bots thinking in the background', () => {
     brain.close();
     host.close();
     vi.unstubAllGlobals();
+  });
+});
+
+describe('battery: the bots on a device think at most a fifth of the time', () => {
+  it('a bot that would think 1.2 s a move, every second, slows to about a quarter second; rested, it has its burst again', () => {
+    let clock = 0;
+    const spy = vi.spyOn(performance, 'now').mockImplementation(() => clock);
+    restThinking();
+    const allowed: number[] = [];
+    // a bot whose own budget is 1.2 s (Hard bridge play on a slow phone), thinking as long as it may
+    const m = {
+      bot: () => {
+        const may = deadline(1200) - now();
+        allowed.push(may);
+        clock += may;
+        return { type: 'play' };
+      },
+    } as unknown as GameModule;
+    const thinkFor = (moves: number, gap: number) => {
+      for (let i = 0; i < moves; i++) {
+        pickWith(m, { 0: {} as never }, [0]);
+        clock += gap;
+      }
+    };
+    thinkFor(4, 1000);
+    // a burst at first: its full budget
+    expect(allowed.slice(0, 4)).toEqual([1200, 1200, 1200, 1200]);
+    thinkFor(40, 1000);
+    // then a fifth of the time: t = (t + 1 s) / 5
+    expect(allowed.at(-1)).toBeGreaterThan(200);
+    expect(allowed.at(-1)).toBeLessThan(300);
+    // a quiet minute (people playing): the whole budget again
+    clock += 60_000;
+    thinkFor(1, 1000);
+    expect(allowed.at(-1)).toBe(1200);
+    spy.mockRestore();
   });
 });

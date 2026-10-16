@@ -1,4 +1,4 @@
-import { now, playOut, settled, TESTING, type SearchGame } from '../../bots/search';
+import { deadline, now, playOut, settled, TESTING, type SearchGame } from '../../bots/search';
 import { hand, ids, zone } from '../../state';
 import type { Action, GameModule } from '../../types';
 import { parseCard } from '../../cards';
@@ -102,7 +102,7 @@ export function setbackCard(
   const total = cards.map(() => 0);
   // each card's score on each deal, to tell when the answer is settled
   const scores: number[][] = cards.map(() => []);
-  const stop = now() + ms;
+  const stop = deadline(ms);
   // (in tests a set number of deals, so a busy machine can't change the answer)
   const max = TESTING ? Math.min(samples, 16) : samples;
   for (let runs = 0; runs < max && (TESTING || runs === 0 || now() < stop) && !(runs % 4 === 0 && settled(scores)); runs++) {
@@ -151,7 +151,7 @@ export function setbackBid(g: TrickGame, module: GameModule<TrickData>, search: 
   const count = (k: number, b: number, value: number) => {
     if (value > 0.5 - options[b]) made[k][b]++;
   };
-  const stop = now() + ms;
+  const stop = deadline(ms);
   const max = TESTING ? Math.min(samples, 8) : samples;
   let runs = 0;
   for (; runs < max && (TESTING || runs === 0 || now() < stop); runs++) {

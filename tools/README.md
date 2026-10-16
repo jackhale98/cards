@@ -185,3 +185,30 @@ the strongest Daihinmin programs use.
 Tried and left out: weighing each imagined deal by how well it explains the others' plays (as the
 Skat program Kermit does, with a model of play learned from human games). With the quick bot as the
 model of how people play it didn't help (Hearts +2.2, Spades +6.4 with it).
+
+## Thinking time (battery)
+
+The same bench prints how long the bots thought: `PAIRS=0-0,1-1,2-2` gives, for each level, all
+four seats' thinking over one deal (the app's time limits; this machine, four games at once).
+Seconds of thinking a deal at a table of four bots:
+
+| Game                                       | Easy | Normal | Hard  |
+| ------------------------------------------ | ---- | ------ | ----- |
+| Spades                                     | 0    | 1.0    | 7.5   |
+| Whist                                      | 0    | 1.0    | 5.8   |
+| Oh Hell                                    | 0    | 0.7    | 5.5   |
+| President                                  | 0    | 0.8    | 4.7   |
+| Setback                                    | 0    | 0.3    | 4.6   |
+| Bridge                                     | 0    | 1.0    | 4.1   |
+| Hearts                                     | 0    | 1.0    | 3.1   |
+| 500, Omaha                                 | 0    | ≤ 0.7  | 1.8   |
+| Seven Card Stud                            | 0    | 0.1    | 1.6   |
+| Cribbage, Crazy Eights                     | 0    | ≤ 0.4  | 0.9   |
+| Hold'em, Draw, Euchre, Gin, Cheat, Go Fish | 0    | ≤ 0.3  | ≤ 0.2 |
+
+With people at the table the bots are fewer and a deal takes minutes, so even Hard thinks a few
+percent of the time: next to the screen, which stays on all game, it's a small part of the battery.
+Each move has its own time limit, and `src/net/pick.ts` caps them all together: the bots on one
+device think at most a fifth of the time, in bursts of up to 6 seconds. That only bites where the
+limits add up on a slow phone (Hard bridge play, 1.2 s a card), so a fast table of bots there
+thinks less per card rather than running the phone flat out.

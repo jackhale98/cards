@@ -91,6 +91,14 @@ const SETTLED = 3;
 
 export const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
+/** Battery: how long a bot thinking now may take at most, whatever its own budget (set by pick.ts). */
+let allowance = Infinity;
+export function allowThinking(ms: number) {
+  allowance = ms;
+}
+/** When a bot that starts thinking now must stop: after `ms`, or sooner if the battery allowance is less. */
+export const deadline = (ms: number) => now() + Math.min(ms, allowance);
+
 /**
  * How sure the search must be before it overrides the quick bot's move: the better move's lead,
  * deal for deal, in standard errors. A few imagined deals are noisy, and the move that did best
@@ -114,7 +122,7 @@ export function searchMove<D>(game: SearchGame<D>, s: GameState<D>, seat: number
   // each move's score on each imagined deal (they all play the same deals, so they compare pair by pair)
   const scores: number[][] = moves.map(() => []);
   let runs = 0;
-  const stop = now() + budget.ms;
+  const stop = deadline(budget.ms);
   // (in tests, a set number of deals rather than a time limit, so a busy machine can't change the
   // answer: about what a phone manages in that time)
   const samples = TESTING ? Math.min(budget.samples, Math.ceil(budget.ms / 4)) : budget.samples;
