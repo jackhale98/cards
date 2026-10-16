@@ -161,6 +161,43 @@ describe('cheat (pagat)', () => {
     expect(s.winner).toEqual([p]);
   });
 
+  it('a Hard bot always challenges someone’s last cards (if they told the truth, they win either way)', () => {
+    for (let seed = 1; seed <= 20; seed++) {
+      const s = g.setup(bots(3), seed, { botLevel: 2 });
+      const p = s.turn!;
+      s.zones[`hand:${p}`].cards = [{ id: 'AS' }];
+      g.apply(s, p, { type: 'play', cards: ['AS'] });
+      expect(g.bot!(s, (p + 1) % 3)).toEqual({ type: 'cheat' });
+    }
+  });
+
+  it('a Hard bot remembers its own cards on the pile and where a picked-up pile went; each seat sees only its own memory', () => {
+    const s = g.setup(people(3), 4, { botLevel: 2 });
+    for (const z of Object.values(s.zones)) z.cards = [];
+    s.zones['hand:0'].cards = ['2S', '2H', '9C', '9D'].map((id) => ({ id }));
+    s.zones['hand:1'].cards = ['3C', 'KD', 'QD'].map((id) => ({ id }));
+    s.zones['hand:2'].cards = ['4H', '2C', 'JD', 'TD'].map((id) => ({ id }));
+    s.turn = 0;
+    s.data.rank = 2;
+    // seat 0 plays two true twos, seat 1 lies about threes and is caught: seat 1 takes the pile
+    g.apply(s, 0, { type: 'play', cards: ['2S', '2H'] });
+    g.apply(s, 1, { type: 'play', cards: ['KD'] });
+    g.apply(s, 2, { type: 'cheat' });
+    expect(s.data.memory![0][1]).toEqual(expect.arrayContaining(['2S', '2H', 'KD']));
+    // the others can't see what seat 0 remembers, or what it put down
+    const view = { ...s, data: g.redactData!(s, 2) };
+    expect(view.data.memory![0].flat()).toEqual([]);
+    expect(view.data.put![0]).toEqual([]);
+    // seat 1 now claims "two fours"... seat 0 holds no fours, but someone saying three twos would
+    // be impossible: seat 0 knows two twos are with seat 1 and holds none
+    s.data.rank = 2;
+    s.turn = 2;
+    g.apply(s, 2, { type: 'play', cards: ['2C', 'JD', 'TD'] });
+    expect(s.data.last).toMatchObject({ seat: 2, count: 3, rank: 2 });
+    // three twos besides the two seat 1 picked up (and seat 0 knows of) is five: a lie
+    expect(g.bot!(s, 0)).toEqual({ type: 'cheat' });
+  });
+
   it('bots play whole games with every card accounted for', () => {
     for (const n of [3, 6, 8]) {
       const s = g.setup(bots(n), n, {});
@@ -213,6 +250,22 @@ describe('go fish (pagat)', () => {
     // seat 0 has no cards left: the game is over
     expect(s.phase).toBe('gameOver');
     expect(s.winner).toEqual([0]);
+  });
+
+  it('Hard doesn’t ask someone who just said "Go fish!" to that rank, and asks whoever is known to hold one', () => {
+    const s = g.setup(people(3), 5, { botLevel: 2 });
+    for (const z of Object.values(s.zones)) z.cards = [];
+    s.zones['hand:0'].cards = ['7S', '7H', '9D'].map((id) => ({ id }));
+    s.zones['hand:1'].cards = ['2C', '3C', '4C', '5C', '6C'].map((id) => ({ id }));
+    s.zones['hand:2'].cards = ['9C', 'JD'].map((id) => ({ id }));
+    s.zones.deck.cards = ['QH', 'KH', 'AH'].map((id) => ({ id }));
+    s.turn = 0;
+    // seat 1, with the most cards, has said "Go fish!" to sevens
+    s.data.lacks = [[], [7], []];
+    expect(g.bot!(s, 0)).toMatchObject({ seat: 2 });
+    // seat 2 is known to hold nines (they asked for them): ask them for those
+    s.data.known = [[], [], [9]];
+    expect(g.bot!(s, 0)).toEqual({ type: 'ask', cards: ['9D'], seat: 2 });
   });
 
   it('bots play to the end, short game and every-book game', () => {

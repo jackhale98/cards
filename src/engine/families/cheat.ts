@@ -2,6 +2,7 @@ import { parseCard, RANK_WORDS, rankPlural } from '../cards';
 import { createState, deal, hand, ids, log, moveCards, name, nextSeat, placesFromScores, resetDeck, sortHand, zone } from '../state';
 import { botLevel } from '../bots/search';
 import { rngSalt } from '../rng';
+import { ownOnly } from '../redact';
 import { assertRule, type Action, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
 
 /**
@@ -28,6 +29,14 @@ export interface CheatData {
   claims: { seat: number; count: number; rank: number }[];
   /** Where the claims still in the pile start (everything before went to someone's hand). */
   pileFrom?: number;
+  /** What each seat has put on the pile since it was last picked up (each sees only its own). */
+  put?: string[][];
+  /**
+   * What each seat remembers of the others' hands (`memory[viewer][other]`; each sees only its own):
+   * its own cards, and the cards turned up, that went to whoever picked up a pile. A play of the
+   * rank they're known to hold is taken to use them.
+   */
+  memory?: string[][][];
   result: { lines: string[] } | null;
 }
 
@@ -55,6 +64,8 @@ export function cheatFamily(config: GameConfig): GameModule<CheatData> {
     d.reveal = null;
     d.claims = [];
     d.pileFrom = 0;
+    d.put = s.players.map(() => []);
+    d.memory = s.players.map(() => s.players.map(() => []));
     d.result = null;
     s.phase = 'play';
     s.turn = nextSeat(s, s.dealer);
@@ -92,6 +103,13 @@ export function cheatFamily(config: GameConfig): GameModule<CheatData> {
     moveCards(s, 'pile', 'shown', played, { up: true });
     const rest = ids(zone(s, 'pile'));
     moveCards(s, 'pile', `hand:${loser}`, rest);
+    // everyone remembers where their own cards went, and the ones turned up
+    if (d.put && d.memory) {
+      s.players.forEach((_, v) => {
+        if (v !== loser) d.memory![v][loser] = [...new Set([...d.memory![v][loser], ...d.put![v], ...played])];
+      });
+      d.put = s.players.map(() => []);
+    }
     d.reveal = { caller, player: last.seat, lied };
     d.pileFrom = d.claims.length;
     log(
@@ -136,16 +154,19 @@ export function cheatFamily(config: GameConfig): GameModule<CheatData> {
       const pad = Math.random() < [0.4, 0.25, 0.1][botLevel(s.options)] && extra.length && true_.length < maxPlay(s) ? [extra[0]] : [];
       return { type: 'play', cards: [...true_, ...pad] };
     }
-    // nothing of the rank: get rid of a card we won't need for a while
+    // nothing of the rank: get rid of a card we won't need for a while (Easy: any card)
+    if (botLevel(s.options) === 0) return { type: 'play', cards: [own[Math.floor(Math.random() * own.length)]] };
     const soon = (r: number) => (SEQ.indexOf(r) - SEQ.indexOf(d.rank) + 13) % 13;
     const pick = [...own].sort((a, b) => soon(parseCard(b).rank) - soon(parseCard(a).rank))[0];
     return { type: 'play', cards: [pick] };
   }
 
   /**
-   * Bot strength is card counting and patience. Easy doesn't count and calls on a whim. Normal
-   * counts its own cards. Hard also adds up every claim of that rank still in the pile, and
-   * otherwise rarely risks a call.
+   * Bot strength is card counting and patience. Easy doesn't count, seldom calls, and lies with
+   * any card. Normal counts its own cards. Hard also adds up every claim of that rank still in the
+   * pile, remembers what it put on the pile and where cards went when a pile was picked up, and
+   * otherwise rarely risks a call. Someone playing their last cards costs nothing to challenge (if
+   * they told the truth they win either way): Hard always does, Normal mostly.
    */
   function botCalls(s: S, seat: number): boolean {
     const d = s.data;
@@ -158,15 +179,25 @@ export function cheatFamily(config: GameConfig): GameModule<CheatData> {
     // one decision per bot per play (the host asks bots again and again: don't re-roll)
     const roll = (((d.claims.length * 7919 + seat * 104729 + rngSalt(s)) * 2654435761) >>> 0) / 2 ** 32;
     // their last cards: worth a look
-    if (!hand(s, last.seat).cards.length) return roll < 0.6;
+    if (!hand(s, last.seat).cards.length) return roll < [0.3, 0.85, 1][level];
     let odds = (last.count >= 3 ? 0.25 : last.count === 2 ? 0.08 : 0.03) + seen(s, seat, last.rank) * 0.1;
-    // a wrong call costs the whole pile: Easy calls on a whim, Hard saves its calls for when the counting says so
-    odds *= [1.5, 1, 0.5][level];
+    // a wrong call costs the whole pile: Easy seldom dares (it lets lies go), Hard saves its calls for when the counting says so
+    odds *= [0.6, 1, 0.5][level];
     if (level === 2) {
       // claims of this rank already in the pile, plus ours: if they add up past the deck, someone lied
       const earlier = d.claims.slice(d.pileFrom ?? 0, -1).filter((c) => c.rank === last.rank && c.seat !== seat);
       const claimed = earlier.reduce((n, c) => n + c.count, 0) + last.count + seen(s, seat, last.rank);
       if (claimed > total) odds = Math.max(odds, 0.75);
+      const isRank = (c: string) => parseCard(c).rank === last.rank;
+      // our own cards of the rank on the pile: they can't be in this play
+      const ours = (d.put?.[seat] ?? []).filter(isRank).length;
+      if (last.count + seen(s, seat, last.rank) + ours > total) return true;
+      // what we know the others hold of it (they may have played it since, so not certain)
+      const memory = d.memory?.[seat] ?? [];
+      const elsewhere = memory.reduce((n, cards, i) => (i === last.seat || i === seat ? n : n + cards.filter(isRank).length), 0);
+      if (last.count + seen(s, seat, last.rank) + ours + elsewhere > total) odds = Math.max(odds, 0.85);
+      // they picked up enough of it: probably true
+      if ((memory[last.seat] ?? []).filter(isRank).length >= last.count) odds *= 0.2;
     }
     return roll < odds;
   }
@@ -230,11 +261,27 @@ export function cheatFamily(config: GameConfig): GameModule<CheatData> {
       if (closeWindow(s)) return;
       collectShown(s);
       moveCards(s, `hand:${seat}`, 'pile', cards, { up: false, by: seat });
+      d.put?.[seat].push(...cards);
+      // the others take it they played what they were known to hold of that rank
+      d.memory?.forEach((rows, v) => {
+        if (v === seat) return;
+        let n = cards.length;
+        rows[seat] = rows[seat].filter((c) => !(parseCard(c).rank === d.rank && n-- > 0));
+      });
       d.last = { seat, count: cards.length, rank: d.rank };
       d.claims.push(d.last);
       log(s, `${name(s, seat)}: “${said(cards.length, d.rank)}”`, seat, said(cards.length, d.rank));
       d.rank = after(d.rank);
       s.turn = nextSeat(s, seat);
+    },
+
+    redactData(s, viewer) {
+      const d = s.data;
+      return {
+        ...d,
+        ...(d.put ? { put: ownOnly(d.put, viewer) } : {}),
+        ...(d.memory ? { memory: d.memory.map((rows, v) => (v === viewer ? rows : rows.map(() => []))) } : {}),
+      };
     },
 
     bot(s, seat) {

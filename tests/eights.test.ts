@@ -158,6 +158,22 @@ describe('crazy eights (pagat)', () => {
     throw new Error('no seed turned up an eight');
   });
 
+  it('Normal plays the rules of thumb: the costliest card that goes, an eight kept for when nothing else does', () => {
+    const s = rig(
+      [
+        ['9H', 'KH', '8S', '4D'],
+        ['2C', '3C'],
+        ['5S', '6S'],
+      ],
+      'TH',
+      undefined,
+      { botLevel: 1 },
+    );
+    expect(g.bot!(s, 0)).toEqual({ type: 'play', cards: ['KH'] });
+    s.zones['hand:0'].cards = ['8S', '4D'].map((id) => ({ id }));
+    expect(g.bot!(s, 0)).toMatchObject({ type: 'eight', cards: ['8S'] });
+  });
+
   it('bots play whole games to the target', () => {
     for (const n of [2, 4, 8]) {
       const s = g.setup(

@@ -30,6 +30,11 @@ export interface GoFishData {
 
 type S = GameState<GoFishData>;
 
+/** Easy forgets this often, and asks at random. */
+const EASY_FORGETS = 0.5;
+/** Hard: what a hit is worth, by how many of the rank we hold (three: it makes a book). */
+const HARD_WORTH = [0, 1, 1.5, 3];
+
 const rankOf = (id: string) => parseCard(id).rank;
 
 export function goFishFamily(config: GameConfig): GameModule<GoFishData> {
@@ -107,8 +112,9 @@ export function goFishFamily(config: GameConfig): GameModule<GoFishData> {
   // ---- bots ------------------------------------------------------------------------------
 
   /**
-   * Bot strength is memory. Easy remembers nothing: a random rank of its own from a random player.
-   * Normal remembers who has asked for what. Hard also remembers who said "Go fish!" to what.
+   * Bot strength is memory. Easy remembers now and then: half the time a random rank of its own
+   * from a random player, like someone new to the game. Normal remembers who has asked for what.
+   * Hard also remembers who said "Go fish!" to what, and weighs the odds (below).
    */
   function botAsk(s: S, seat: number): Action {
     const d = s.data;
@@ -117,20 +123,58 @@ export function goFishFamily(config: GameConfig): GameModule<GoFishData> {
     const others = s.players.map((p) => p.seat).filter((i) => i !== seat && hand(s, i).cards.length);
     const ask = (r: number, target: number): Action => ({ type: 'ask', cards: [holding(s, seat).find((c) => rankOf(c) === r)!], seat: target });
     const pick = <T>(xs: T[]) => xs[Math.floor(Math.random() * xs.length)];
-    if (level === 0) return ask(pick(mine), pick(others));
+    if (level === 0 && Math.random() < EASY_FORGETS) return ask(pick(mine), pick(others));
+    if (level === 2) return hardAsk(s, seat, mine, others, ask);
     // someone known to hold a rank we have
     for (const i of others) {
       const r = d.known[i].find((x) => mine.includes(x));
       if (r) return ask(r, i);
     }
-    // otherwise our biggest group, from whoever holds the most cards (Hard: and hasn't just denied it)
+    // otherwise our biggest group, from whoever holds the most cards
     const count = (r: number) => holding(s, seat).filter((c) => rankOf(c) === r).length;
     const bySize = (xs: number[]) => [...xs].sort((a, b) => hand(s, b).cards.length - hand(s, a).cards.length);
-    for (const r of [...mine].sort((a, b) => count(b) - count(a))) {
-      const target = bySize(others.filter((i) => level < 2 || !d.lacks?.[i]?.includes(r)))[0];
-      if (target != null) return ask(r, target);
+    return ask([...mine].sort((a, b) => count(b) - count(a))[0], bySize(others)[0]);
+  }
+
+  /**
+   * Hard: the chance each player holds each of our ranks, from what everyone has seen. The rest of
+   * a rank is somewhere among the cards nobody can see (the others' hands and the stock), except in
+   * the hands of anyone who said "Go fish!" to it since they last drew; someone who asked for it
+   * still has one. A hit is worth more the nearer it brings us to a book. (Favouring ranks we've
+   * already asked for, which gives nothing new away, measured no better.)
+   */
+  function hardAsk(s: S, seat: number, mine: number[], others: number[], ask: (r: number, target: number) => Action): Action {
+    const d = s.data;
+    const size = (i: number) => hand(s, i).cards.length;
+    const count = (r: number) => holding(s, seat).filter((c) => rankOf(c) === r).length;
+    const unseen = others.reduce((n, i) => n + size(i), 0) + zone(s, 'deck').cards.length;
+    let best: Action | null = null;
+    let bestScore = -1;
+    for (const r of mine) {
+      const holders = others.filter((i) => d.known[i].includes(r));
+      const lacking = others.filter((i) => d.lacks?.[i]?.includes(r) && !holders.includes(i));
+      // (the rest of the rank: all out, as a book is all four)
+      const free = Math.max(0, 4 - count(r) - holders.length);
+      const pool = unseen - lacking.reduce((n, i) => n + size(i), 0);
+      for (const i of others) {
+        let p: number;
+        if (holders.includes(i)) p = 1;
+        else if (lacking.includes(i) || pool <= 0) p = 0;
+        else {
+          // none of the `free` cards among their `size` cards: hypergeometric
+          let none = 1;
+          for (let k = 0; k < free; k++) none *= Math.max(0, pool - size(i) - k) / (pool - k);
+          p = 1 - none;
+        }
+        // (a sure hit first: it keeps the turn, so the other asks are still to come)
+        const score = p * HARD_WORTH[count(r)] + (p === 1 ? 10 : 0);
+        if (score > bestScore) {
+          bestScore = score;
+          best = ask(r, i);
+        }
+      }
     }
-    return ask(mine[0], bySize(others)[0]);
+    return best ?? ask(mine[0], others[0]);
   }
 
   return {
