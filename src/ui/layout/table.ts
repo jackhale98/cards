@@ -1,5 +1,7 @@
 import type { ZoneState } from '../../engine/types';
 import { parseCard } from '../../engine/cards';
+import { layoutZone, type Where } from './index';
+import { fanHeight } from './fan';
 import { FULL_HAND } from './spread';
 
 /**
@@ -14,19 +16,6 @@ export const MIN_CW = 30;
 /** The last move's line under the headline (px). */
 export const LAST_H = 26;
 
-/** The middle: its zones, and the room it has. */
-export interface Middle {
-  zones: ZoneState[];
-  /** The middle's width (measured: the screen less the columns beside it). */
-  mainW: number;
-  vw: number;
-  /** Piles with places on the table (Kings Corners), laid out as a cross (a big screen) or one row. */
-  gridded: boolean;
-  cross: boolean;
-  /** One row of placed piles on a phone: the widest card that lets them all fit across. */
-  rowFit: number;
-}
-
 /** Piles with places on the table (Kings Corners' cross). */
 export const isGridded = (zones: ZoneState[]) => zones.length > 1 && zones.every((z) => z.grid);
 
@@ -35,188 +24,26 @@ export function rowFit(zones: ZoneState[], mainW: number, side: boolean): number
   return isGridded(zones) && side && mainW ? Math.floor((mainW - (zones.length - 1) * 6 - 30) / zones.length / 1.12) : Infinity;
 }
 
-/** The gap between the middle's piles. */
-const pileGap = (vw: number) => Math.min(32, Math.max(10, vw * 0.03));
-/** A zone's longest label line, in characters. */
-const labelLength = (z: ZoneState) => Math.max(0, ...(z.label ?? '').split(z.base === 'showdown' ? ' · ' : '\u0000').map((l) => l.length));
-
-/**
- * How many rows the middle's zones take at card width `cw`: each as wide as its cards or its
- * label (0.7rem capitals), whichever is wider, with the gap between.
- */
-export function centerRows(m: Middle, cw: number): number {
-  if (m.gridded) return m.cross ? Math.max(...m.zones.map((z) => z.grid![0])) + 1 : 1;
-  if (!m.mainW) return 1;
-  const gap = pileGap(m.vw);
-  const widths = m.zones.map((z) => {
-    const w = Math.max(MIN_CW, Math.max(34, cw) * (z.scale ?? 1));
-    // (a whole hand face up, bridge's dummy, is measured as full all hand long: it keeps one size as
-    // it's played from, rather than growing as it wraps onto fewer rows)
-    // (likewise a pile kept room for, as it grows card by card: its `reserve`)
-    const n = z.faceUpHand ? Math.max(13, z.cards.length) : Math.max(z.reserve ?? 0, z.cards.length);
-    // (a row of cards: side by side up to four, overlapping from five; a trick: three cards wide)
-    const cards = z.layout === 'spread' ? (n < 5 ? Math.max(1, n) * 1.1 * w : w + (n - 1) * 0.55 * w) : z.layout === 'trick' ? 3 * w : w;
-    return Math.max(cards, (labelLength(z) + 3) * 8.5) + gap;
-  });
-  let rows = 1;
-  let x = 0;
-  for (const w of widths) {
-    if (x && x + w > m.mainW + gap) {
-      rows++;
-      x = 0;
-    }
-    x += w;
-  }
-  return rows;
-}
-
-/**
- * How tall the middle's piles stand at card width `cw`, row by row as they wrap (as in
- * centerRows): a trick 2.25 card widths, a pile or a row of cards 1.4 (a cascade 1.82) and its
- * label, a whole hand face up at the size that fits thirteen across.
- */
-export function centerHeight(m: Middle, cw: number): number {
-  if (!m.mainW) return 0;
-  const gap = pileGap(m.vw);
-  let height = 0;
-  let row = 0;
-  let x = 0;
-  for (const z of m.zones) {
-    const w = Math.max(MIN_CW, Math.max(34, cw) * (z.scale ?? 1));
-    const card = z.faceUpHand ? Math.min(w, Math.floor((m.mainW - 16) / FULL_HAND)) : w;
-    const n = Math.max(z.reserve ?? 0, z.cards.length);
-    const cards =
-      z.layout === 'trick'
-        ? 3 * w
-        : z.faceUpHand
-          ? FULL_HAND * card
-          : z.layout === 'spread'
-            ? n < 5
-              ? Math.max(1, n) * 1.1 * card
-              : card + (n - 1) * 0.55 * card
-            : card;
-    const width = Math.max(cards, (labelLength(z) + 3) * 8.5) + gap;
-    const tall = z.layout === 'trick' ? 2.25 * w : (z.cascade ? 1.82 : 1.4) * card + (z.label ? 40 : 0);
-    if (x && x + width > m.mainW + gap) {
-      height += row + 8;
-      row = 0;
-      x = 0;
-    }
-    x += width;
-    row = Math.max(row, tall);
-  }
-  return height + row;
-}
-
-export interface SizeInput {
-  vw: number;
-  vh: number;
-  display: boolean;
-  handMode: boolean;
-  /** A phone on its side: whose turn it is and the last move go in the column on the left. */
-  side: boolean;
-  /** Measured once they're drawn: the seats' bar, the headline, your own part of the column. */
-  headerH: number;
-  headH: number;
-  meOwnH: number;
-  /** There's a headline over the middle. */
-  headline: boolean;
-  middle: Middle;
-  /** There's a strip of melds (or room kept for one). */
-  strips: boolean;
-  /** The strip's cards' size against the middle's. */
-  stripScale: number;
-  /** Your own face-down pile instead of a hand (slap games). */
-  pileOnly: boolean;
-  /** Your hand is empty at the end of a hand: the middle gets its room. */
-  handEmpty: boolean;
-}
-
-/**
- * The table's height shared out between the cards in the middle and your hand, from what's left
- * once the seats, the score track and the headline have theirs. On a short screen (a phone with
- * the browser's bars showing) both shrink together, so neither runs into the other. (Worked out
- * from the screen, not from the sizes they end up, so the layout can't chase itself.)
- */
-export function cardSizes(i: SizeInput): { center: number; hand: number; lastFits: boolean } {
-  const zones = i.middle.zones;
-  // (a pile or two in the middle and nothing else there, as in Cheat, Spit or the slap games:
-  // they're what everyone watches, so they get the room; so does everything laid down at a
-  // hand's end, when your own hand is empty)
-  // (a game with a strip of melds counts it from the deal, before the first meld: the first book
-  // in Go Fish would otherwise shrink the pond for the rest of the game, all at once)
-  const big = i.pileOnly || i.handEmpty || (zones.length <= 2 && !i.strips && zones.every((z) => z.layout === 'stack'));
-  const wantCenter = Math.min(big ? 120 : 92, i.vh * (big ? 0.24 : 0.15), i.vw * (big ? 0.12 : 0.09));
-  const wantHand = i.handEmpty
-    ? 0
-    : i.handMode
-      ? // (hand mode: the middle is a pile or two at most, so the hand is bigger)
-        Math.min(168, i.vh * (zones.length ? 0.27 : 0.34), i.vw * 0.15)
-      : Math.min(112, i.vh * (i.pileOnly ? 0.14 : 0.2), i.vw * 0.11);
-  if (i.display || !i.headerH) return { center: wantCenter, hand: wantHand, lastFits: true };
-  const above = i.headline && !i.side ? i.headH + 6 : 0;
-  // (the table's padding and gaps, the middle's labels, and the hand's own: about 70px, the rest is cards;
-  // a pile is about 1.6 card widths tall with its label, a fanned hand 1.45 with its arc)
-  let room = i.vh - i.headerH - above - 70;
-  // the last move under the headline only when there's room for it: the cards come first
-  let lastFits = i.side || room - LAST_H >= 1.6 * 36 + 1.45 * 48;
-  if (lastFits && !i.side) room -= LAST_H;
-  // the largest share of the room that fits, both shrinking together (in small steps: a pile can't
-  // go below its smallest readable size, and the piles may wrap onto more rows as they shrink)
-  const scale = Math.max(0.3, ...zones.map((z) => z.scale ?? 1));
-  const need = (k: number) => {
-    const c = wantCenter * k;
-    // (everyone's melds on a row of their own, their cards smaller, with a label: counted even
-    // when there are no piles above it, as in hand mode with a TV showing them)
-    const strip = i.strips ? 1.4 * Math.max(MIN_CW, c * i.stripScale) + 30 : 0;
-    if (!zones.length) return strip + 1.45 * wantHand * k;
-    // (a pile's card as drawn: never under the smallest readable width)
-    const zw = Math.max(MIN_CW, Math.min(i.middle.rowFit, Math.max(34, c) * scale));
-    // (each row: a pile and its label; between rows, a gap)
-    const rows = centerRows(i.middle, c);
-    // (a cascade's bottom card peeks out above it)
-    const pile = (zones.some((z) => z.cascade) ? 1.82 : 1.4) * zw;
-    return Math.max(i.middle.rowFit < Infinity ? 0 : 1.6 * c, pile + 22) + (rows - 1) * (pile + 30) + strip + 1.45 * wantHand * k;
-  };
-  let k = 1;
-  while (k > 0.35 && need(k) > room) k -= 0.02;
-  // still too tall at the smallest sizes (Kings Corners' eight piles, six players, a phone):
-  // the last move's line gives its room to the cards
-  if (lastFits && !i.side && need(k) > room) {
-    lastFits = false;
-    room += LAST_H;
-    while (k < 1 && need(k + 0.02) <= room) k += 0.02;
-  }
-  // room left over once everything fits (a small middle, a short hand): most of it to your hand,
-  // up to a ceiling (some margin kept: the middle's height is an estimate)
-  let hand = wantHand * k;
-  // (not when the piles are one row as wide as fits, Kings Corners on a phone: they can't use the
-  // height, and the hand needn't be bigger than the piles it's played onto)
-  if (k >= 1 && wantHand && !i.handMode && i.middle.rowFit === Infinity) {
-    const spare = room - need(1);
-    if (spare > 0) hand = Math.min(Math.max(hand, Math.min(160, i.vh * 0.3, i.vw * 0.15)), hand + (0.8 * spare) / 1.45);
-  }
-  // a phone on its side: the column on the left (whose turn it is, then you) is only as tall as
-  // the middle, so the hand stops short of squeezing it: the middle is what's left of the screen
-  // under the seats once the hand (1.4 card heights and its arc) has its share
-  if (i.side && i.meOwnH) {
-    const column = i.headH + 6 + i.meOwnH + 8;
-    // (12px to spare: fonts differ a little from phone to phone)
-    hand = Math.max(0, Math.min(hand, (i.vh - i.headerH - 56 - column) / 1.4));
-  }
-  return { center: wantCenter * k, hand, lastFits };
-}
-
 /**
  * A table screen's cards in the middle: as big as the screen suits, but no bigger than lets every
  * row of piles fit the height there is (the dummy on its row and the trick under it, say), so
  * they're drawn at their size from the start rather than shrunk to fit after.
  */
-export function displayCw(i: { vw: number; vh: number; track: boolean; hasStrip: boolean; stripShown: boolean; middleRoom: number; middle: Middle }): number {
+export function displayCw(i: {
+  vw: number;
+  vh: number;
+  track: boolean;
+  hasStrip: boolean;
+  stripShown: boolean;
+  gridded: boolean;
+  middleRoom: number;
+  /** How tall the middle stands at a card width (middleHeight). */
+  middle: (cw: number) => number;
+}): number {
   const base = Math.max(60, Math.min(300, i.vh * (i.track ? 0.18 : i.hasStrip ? 0.14 : 0.22), i.vw * (i.hasStrip ? 0.07 : 0.1)));
-  if (!i.middleRoom || i.middle.gridded || i.stripShown) return base;
+  if (!i.middleRoom || i.gridded || i.stripShown) return base;
   let cw = base;
-  while (cw > 60 && centerHeight(i.middle, cw) > i.middleRoom) cw -= 2;
+  while (cw > 60 && i.middle(cw) > i.middleRoom) cw -= 2;
   return cw;
 }
 
@@ -353,4 +180,289 @@ export function tallActions(i: { mainH: number; buttons: number; menu: boolean; 
   const buttons = Math.min(i.buttons, 4) + (i.menu || i.buttons > 4 ? 1 : 0);
   const extra = (i.track ? 64 : 0) + (i.handDone ? 48 : 0);
   return buttons * 52 + extra > i.mainH;
+}
+
+// ---- the middle, exactly as the page lays it out ------------------------------------------
+
+/** How the page draws a zone's label (`.label.eyebrow`, small capitals on one line): measured once, by the table. */
+export interface Labels {
+  /** One line's height (px). */
+  lineH: number;
+  /** A line's width (px). */
+  width: (text: string) => number;
+}
+
+/** The lines a zone's label shows: a pile's count after its name; a hand shown down on two lines (who, then what). */
+export function labelLines(z: ZoneState): string[] {
+  if (!z.label || z.layout === 'trick') return [];
+  if (z.base === 'showdown') return z.label.split(' · ');
+  return [z.layout === 'stack' && !z.cascade ? `${z.label} · ${z.cards.length}` : z.label];
+}
+
+/** How many lines `text` takes wrapped at spaces within `maxW`. */
+function wrapped(text: string, maxW: number, labels: Labels): number {
+  const words = text.split(' ');
+  const space = labels.width('a b') - labels.width('ab');
+  let lines = 1;
+  let w = 0;
+  for (const word of words) {
+    const ww = labels.width(word);
+    if (w && w + space + ww > maxW) {
+      lines++;
+      w = ww;
+    } else w += (w ? space : 0) + ww;
+  }
+  return lines;
+}
+
+/** A zone's box in the middle: its label over its frame, as wide as the wider. */
+export function zoneBox(z: ZoneState, where: Where, labels: Labels, rem = 16, labelMinW = 0): { w: number; h: number } {
+  const frame = layoutZone(z, where);
+  const lines = labelLines(z);
+  if (!lines.length) return { w: frame.w, h: frame.h };
+  // (`.zone` stacks the label over the frame with a 0.35rem gap)
+  const labelW = Math.max(labelMinW, ...lines.map((l) => labels.width(l)));
+  return { w: Math.max(frame.w, labelW), h: frame.h + lines.length * labels.lineH + 0.35 * rem };
+}
+
+/** What sizes the middle's zones need, and where they sit (as the table lays them out). */
+export interface MiddleShape {
+  zones: ZoneState[];
+  /** Each zone's card width (slotCw). */
+  cwOf: (z: ZoneState) => number;
+  /** How each zone is laid out at that size (layout/index.ts). */
+  whereOf: (z: ZoneState, cw: number) => Where;
+  mainW: number;
+  vw: number;
+  rem: number;
+  labels: Labels;
+  /** Kings Corners' piles: a cross (big screen) or one row as wide as fits (a phone). */
+  cross: boolean;
+  rowFit: boolean;
+  /** A table screen keeps each pile's label at least this wide (its count changes all game). */
+  steadyLabel?: (cw: number) => number;
+  /** Other things in the middle's row beside the piles (the pot), measured. */
+  extras?: { w: number; h: number }[];
+  /** Everyone's melds, on a row of their own under the piles. */
+  strip?: { zones: ZoneState[]; cwOf: (z: ZoneState) => number; whereOf: (z: ZoneState, cw: number) => Where; wrap: boolean } | { room: number };
+}
+
+/**
+ * Kings Corners' piles in one tight row on a phone (`.zones.row-fit`): the row doesn't wrap, so
+ * when the piles and their labels are wider than the middle, each pile's place shrinks (as flex
+ * items do: in proportion to its width, never under its card or its longest word), and a label
+ * wider than its place wraps under it, a line at a time (`.label`: at most 1.5 cards wide, 1.15 lines).
+ */
+function rowFitHeight(m: MiddleShape): number {
+  const lineH = 0.7 * m.rem * 1.15;
+  const items = m.zones.map((z) => {
+    const cw = m.cwOf(z);
+    const frame = layoutZone(z, m.whereOf(z, cw));
+    const lines = labelLines(z);
+    const longest = Math.max(0, ...lines.flatMap((l) => l.split(' ').map((w) => m.labels.width(w))));
+    const label = Math.min(cw * 1.5, Math.max(0, ...lines.map((l) => m.labels.width(l))));
+    return { cw, frame, lines, basis: Math.max(frame.w, label), min: Math.max(frame.w, Math.min(cw * 1.5, longest)) };
+  });
+  const gap = 6;
+  const total = items.reduce((t, i) => t + i.basis, 0) + gap * Math.max(0, items.length - 1);
+  const over = Math.max(0, total - m.mainW);
+  const sum = items.reduce((t, i) => t + i.basis, 0) || 1;
+  return Math.max(
+    0,
+    ...items.map((i) => {
+      const w = Math.max(i.min, i.basis - (over * i.basis) / sum);
+      const n = i.lines.reduce((t, l) => t + wrapped(l, Math.min(w, i.cw * 1.5), m.labels), 0);
+      return i.frame.h + (i.lines.length ? n * lineH + 0.35 * m.rem : 0);
+    }),
+  );
+}
+
+/** The gap between two piles side by side in the middle (`.zones`' column gap). */
+export const pileGap = (vw: number) => Math.min(32, Math.max(10, vw * 0.03));
+
+/**
+ * How tall the middle's piles stand, row by row, as the page will lay them out (`.zones`: a row
+ * that wraps, or Kings Corners' cross, or one tight row), with everyone's melds on a row of their
+ * own under them. From the zones' own layouts: the same sizes the page gives their frames.
+ */
+export function middleHeight(m: MiddleShape): number {
+  if (m.rowFit && !m.cross) return rowFitHeight(m);
+  const boxes = m.zones.map((z) => {
+    const cw = m.cwOf(z);
+    return zoneBox(z, m.whereOf(z, cw), m.labels, m.rem, m.steadyLabel?.(cw) ?? 0);
+  });
+  if (!m.cross) boxes.push(...(m.extras ?? []).filter((b) => b.w && b.h));
+  let h: number;
+  if (m.cross) {
+    // a grid: each row as tall as its tallest pile, 6px between
+    const rows = new Map<number, number>();
+    m.zones.forEach((z, i) => rows.set(z.grid![0], Math.max(rows.get(z.grid![0]) ?? 0, boxes[i].h)));
+    h = [...rows.values()].reduce((a, b) => a + b, 0) + 6 * Math.max(0, rows.size - 1);
+  } else {
+    // a row that wraps: piles side by side with a gap, 8px between rows
+    const gap = pileGap(m.vw);
+    let rowW = 0;
+    let rowH = 0;
+    h = 0;
+    let rows = 0;
+    for (const b of boxes) {
+      if (rowW && rowW + gap + b.w > m.mainW) {
+        h += rowH;
+        rows++;
+        rowW = 0;
+        rowH = 0;
+      }
+      rowW += (rowW ? gap : 0) + b.w;
+      rowH = Math.max(rowH, b.h);
+    }
+    if (boxes.length) {
+      h += rowH;
+      rows++;
+    }
+    h += 8 * Math.max(0, rows - 1);
+  }
+  if (m.strip) {
+    const strip = 'room' in m.strip ? m.strip.room : stripHeight(m.strip, m);
+    // (the strip is a row of its own, 6px under the piles)
+    h += (h ? 6 : 0) + strip;
+  }
+  return h;
+}
+
+/**
+ * How tall the strip stands: each player's melds on a panel (a label over the cards, a little
+ * padding), the panels in one row that scrolls sideways, or on a table screen wrapping into rows
+ * across the middle (a little wider than it: the oval is wider lower down).
+ */
+export function stripHeight(
+  s: { zones: ZoneState[]; cwOf: (z: ZoneState) => number; whereOf: (z: ZoneState, cw: number) => Where; wrap: boolean },
+  m: { mainW: number; vw: number; rem: number; labels: Labels },
+): number {
+  const rem = m.rem;
+  const panels = s.zones.map((z) => {
+    const cw = s.cwOf(z);
+    const b = zoneBox(z, s.whereOf(z, cw), m.labels, rem);
+    // (`.strip > .zone`: padding 0.25rem 0.5rem 0.4rem)
+    return { w: b.w + rem, h: b.h + 0.65 * rem };
+  });
+  if (!s.wrap) return Math.max(0, ...panels.map((p) => p.h));
+  const across = m.mainW * 1.2;
+  const gap = Math.min(24, Math.max(10, m.vw * 0.025));
+  let h = 0;
+  let rowW = 0;
+  let rowH = 0;
+  let rows = 0;
+  for (const p of panels) {
+    if (rowW && rowW + gap + p.w > across) {
+      h += rowH;
+      rows++;
+      rowW = 0;
+      rowH = 0;
+    }
+    rowW += (rowW ? gap : 0) + p.w;
+    rowH = Math.max(rowH, p.h);
+  }
+  if (panels.length) {
+    h += rowH;
+    rows++;
+  }
+  return h + 0.6 * rem * Math.max(0, rows - 1);
+}
+
+// ---- the table's height shared out, exactly ---------------------------------------------
+
+export interface FitInput {
+  vw: number;
+  vh: number;
+  /** A table screen: the middle's size is its own (displayCw), and there's no hand. */
+  display?: boolean;
+  /** A phone on its side: whose turn it is goes in the column on the left. */
+  side: boolean;
+  handMode: boolean;
+  /** The table's own height (inside its padding), and the seats' bar. */
+  tableH: number;
+  headerH: number;
+  /** Whose turn it is (the headline, measured), and whether it's over the middle (not in the column on the left). */
+  headH: number;
+  headlineAbove: boolean;
+  /** Your own part of the column (name, chips), on a phone on its side. */
+  meOwnH: number;
+  /** Under the middle's piles (the hand's summary). */
+  belowH: number;
+  /** The middle at a given card size (its zones' card widths follow from it: see slotCw). */
+  middle: (centerCw: number) => number;
+  /** There are zones in the middle at all. */
+  hasMiddle: boolean;
+  /** Your own face-down pile (slap games) instead of a hand; your hand empty at a hand's end. */
+  pileOnly: boolean;
+  handEmpty: boolean;
+  /** Something big to watch in the middle (a pile or two and nothing else, or everything laid down). */
+  big: boolean;
+  /** The piles are one row as wide as fits (Kings Corners on a phone): they can't use more height. */
+  rowFit: boolean;
+  /** Your face-down pile's label (its height over the pile). */
+  pileLabelH: number;
+  /** Everyone's melds are on the table: your hand keeps its smallest size for them. */
+  stripShown: boolean;
+  /** Something else in your hand's row (the buttons, beside it): the row is at least this tall. */
+  bottomMinH?: number;
+}
+
+/** Between the table's rows (seats, middle, hand) and between what's stacked in the middle. */
+const ROW_GAP = 4;
+const MAIN_GAP = 6;
+
+/** How tall your hand stands at card width `cw`: a fan (its arc and a picked card's rise), or your own pile with its label. */
+export function handHeight(cw: number, i: Pick<FitInput, 'pileOnly' | 'handEmpty' | 'pileLabelH'>): number {
+  if (i.handEmpty || !cw) return 0;
+  return i.pileOnly ? cw * 1.4 + i.pileLabelH : fanHeight(cw);
+}
+
+/**
+ * The table's height shared out between the middle's cards and your hand: the largest share of
+ * what each would like that lets the middle (laid out exactly as the page will: middleHeight)
+ * and your hand fit under the seats, both shrinking together. The last move's line under the
+ * headline gives its room first if they still don't fit. Any height left over goes to your hand.
+ */
+export function fitSizes(i: FitInput): { center: number; hand: number; lastFits: boolean; spare: number } {
+  const wantCenter = Math.min(i.big ? 120 : 92, i.vh * (i.big ? 0.24 : 0.15), i.vw * (i.big ? 0.12 : 0.09));
+  const wantHand = i.handEmpty
+    ? 0
+    : i.handMode
+      ? Math.min(168, i.vh * (i.hasMiddle ? 0.27 : 0.34), i.vw * 0.15)
+      : Math.min(112, i.vh * (i.pileOnly ? 0.14 : 0.2), i.vw * 0.11);
+  if (i.display) return { center: wantCenter, hand: wantHand, lastFits: true, spare: 0 };
+  const handOf = (h: number) => (i.handEmpty ? 0 : handCw({ hand: h, handMode: i.handMode, stripShown: i.stripShown, pileOnly: i.pileOnly }));
+  // the room left for the middle's piles, with your hand at `hand` and the last move's line or not
+  const room = (hand: number, last: boolean) => {
+    const main = i.tableH - i.headerH - 2 * ROW_GAP - Math.max(handHeight(handOf(hand), i), i.bottomMinH ?? 0);
+    const above = i.headlineAbove ? i.headH + (last ? LAST_H : 0) + MAIN_GAP : 0;
+    const below = i.belowH ? i.belowH + MAIN_GAP : 0;
+    return main - above - below;
+  };
+  const fits = (k: number, last: boolean) => i.middle(Math.max(34, Math.round(wantCenter * k))) <= room(wantHand * k, last);
+  let lastFits = i.headlineAbove;
+  let k = 1;
+  while (k > 0.35 && !fits(k, lastFits)) k -= 0.02;
+  // still too tall at the smallest sizes: the last move's line gives its room to the cards
+  if (lastFits && !fits(k, true)) {
+    lastFits = false;
+    while (k < 1 && fits(k + 0.02, false)) k += 0.02;
+  }
+  if (!i.headlineAbove) lastFits = i.side;
+  const center = wantCenter * k;
+  let hand = wantHand * k;
+  const spare = Math.max(0, room(hand, lastFits) - i.middle(Math.max(34, Math.round(center))));
+  // room left over once everything fits (a small middle, a short hand): most of it to your hand,
+  // up to a ceiling (not when the piles are one row as wide as fits: the hand needn't be bigger
+  // than the piles it's played onto)
+  if (k >= 1 && wantHand && !i.handMode && !i.rowFit && spare > 0)
+    hand = Math.min(Math.max(hand, Math.min(160, i.vh * 0.3, i.vw * 0.15)), hand + (0.8 * spare) / 1.45);
+  // a phone on its side: the column on the left (whose turn it is, then you) is only as tall as
+  // the middle, so the hand stops short of squeezing it
+  if (i.side && i.meOwnH) {
+    const column = i.headH + 6 + i.meOwnH + 8;
+    hand = Math.max(0, Math.min(hand, (i.vh - i.headerH - 56 - column) / 1.4));
+  }
+  return { center, hand, lastFits, spare: Math.max(0, room(hand, lastFits) - i.middle(Math.max(34, Math.round(center)))) };
 }

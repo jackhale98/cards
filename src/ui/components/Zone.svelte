@@ -2,7 +2,7 @@
   import SuitText from './SuitText.svelte';
   import type { ZoneState } from '../../engine/types';
   import { cardName } from '../cardName';
-  import { FULL_HAND, handWidth, layoutZone, type Spot } from '../layout';
+  import { FULL_HAND, handWidth, layoutZone, TAP, type Spot } from '../layout';
   import { LAYER, useFrames } from '../layout/frames.svelte';
   import type { SpreadStyle } from '../layout/spread';
   import { CASCADE } from '../layout/stack';
@@ -46,8 +46,6 @@
   }
   /** How far (px) the room beside a dummy may dip before it shrinks to suit. */
   const HOLD = 8;
-  /** The least of a card that shows, when it's one you can pick (px): enough to tap. */
-  const TAP = 30;
   let {
     zone,
     cw,

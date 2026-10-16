@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { GameModule, GameState, ZoneState } from '../src/engine/types';
-import { FULL_HAND } from '../src/ui/layout';
+import { FULL_HAND, layoutZone, type Where } from '../src/ui/layout';
 import * as size from '../src/ui/layout/table';
 import { GAME_LIST } from './games';
 
@@ -58,31 +58,48 @@ const SCREENS = {
   laptop: { vw: 1280, vh: 800, headerH: 64, headH: 30, meOwnH: 70, side: false, mainW: 1280 - 170 - 170 },
 };
 
-function sizes(m: Moment, screen: (typeof SCREENS)[keyof typeof SCREENS], vh = screen.vh) {
-  const middle: size.Middle = {
-    zones: m.center,
-    mainW: screen.mainW,
-    vw: screen.vw,
-    gridded: size.isGridded(m.center),
-    cross: size.isGridded(m.center) && !screen.side,
-    rowFit: size.rowFit(m.center, screen.mainW, screen.side),
-  };
-  const pileOnly = false;
-  return size.cardSizes({
+/** Labels as the page draws them, near enough: 7px a letter, 14px a line. */
+const LABELS: size.Labels = { lineH: 14, width: (t) => t.length * 7 };
+const where = (cw: number): Where => ({ cw, you: 0, players: 4, style: 'middle', maxW: 600 });
+
+type Screen = (typeof SCREENS)[keyof typeof SCREENS];
+/** How tall a moment's middle stands at card width `cw` on `screen`. */
+function middleOf(m: Moment, screen: Screen) {
+  const rowFit = size.rowFit(m.center, screen.mainW, screen.side);
+  return (cw: number) =>
+    size.middleHeight({
+      zones: m.center,
+      cwOf: (z) => size.slotCw(z, { centerCw: cw, mainW: screen.mainW, rowFit, display: false }),
+      whereOf: (_z, zcw) => ({ ...where(zcw), maxW: screen.mainW - 4 }),
+      mainW: screen.mainW,
+      vw: screen.vw,
+      rem: 16,
+      labels: LABELS,
+      cross: size.isGridded(m.center) && !screen.side,
+      rowFit: rowFit < Infinity,
+    });
+}
+/** The table's sizes for a moment on a screen (`vh`: a taller one). */
+function sizes(m: Moment, screen: Screen, vh = screen.vh) {
+  return size.fitSizes({
     vw: screen.vw,
     vh,
-    display: false,
-    handMode: false,
     side: screen.side && vh <= 500,
+    handMode: false,
+    tableH: vh - 10,
     headerH: screen.headerH,
     headH: screen.headH,
+    headlineAbove: !(screen.side && vh <= 500),
     meOwnH: screen.meOwnH,
-    headline: true,
-    middle,
-    strips: m.hasStrip,
-    stripScale: Math.max(0, ...m.strip.map((z) => z.scale ?? 1)),
-    pileOnly,
+    belowH: 0,
+    middle: middleOf(m, screen),
+    hasMiddle: m.center.length > 0,
+    pileOnly: false,
     handEmpty: false,
+    big: false,
+    rowFit: size.rowFit(m.center, screen.mainW, screen.side) < Infinity,
+    pileLabelH: 20,
+    stripShown: false,
   });
 }
 
@@ -122,4 +139,101 @@ describe('the table’s sizes', () => {
     expect(size.tallActions({ mainH: 300, buttons: 2, menu: false, track: false, handDone: false })).toBe(false);
     expect(size.tallActions({ mainH: 180, buttons: 4, menu: true, track: false, handDone: false })).toBe(true);
   });
+});
+
+describe('the middle, laid out exactly', () => {
+  const pile = (id: string, label?: string): ZoneState => ({ id, label, visibility: 'all', layout: 'stack', cards: [{ id: '5C' }] }) as ZoneState;
+
+  it('is a pile’s frame and its label (with its count) over it', () => {
+    const z = pile('deck', 'Stock');
+    const h = size.middleHeight({
+      zones: [z],
+      cwOf: () => 60,
+      whereOf: (_z, cw) => where(cw),
+      mainW: 600,
+      vw: 800,
+      rem: 16,
+      labels: LABELS,
+      cross: false,
+      rowFit: false,
+    });
+    expect(h).toBeCloseTo(layoutZone(z, where(60)).h + 14 + 0.35 * 16);
+    expect(size.labelLines(z)).toEqual(['Stock · 1']);
+  });
+
+  it('wraps piles that don’t fit across onto another row', () => {
+    const zones = Array.from({ length: 6 }, (_, i) => pile(`p${i}`));
+    const one = size.middleHeight({
+      zones,
+      cwOf: () => 60,
+      whereOf: (_z, cw) => where(cw),
+      mainW: 2000,
+      vw: 800,
+      rem: 16,
+      labels: LABELS,
+      cross: false,
+      rowFit: false,
+    });
+    const two = size.middleHeight({
+      zones,
+      cwOf: () => 60,
+      whereOf: (_z, cw) => where(cw),
+      mainW: 250,
+      vw: 800,
+      rem: 16,
+      labels: LABELS,
+      cross: false,
+      rowFit: false,
+    });
+    expect(one).toBeCloseTo(84);
+    expect(two).toBeGreaterThan(2 * 84);
+  });
+
+  it('puts everyone’s melds on a row of their own underneath', () => {
+    const melds: ZoneState = {
+      id: 'melds:0',
+      label: 'Ada',
+      visibility: 'all',
+      layout: 'spread',
+      area: 'strip',
+      cards: [{ id: '5C' }, { id: '5D' }, { id: '5H' }],
+    } as ZoneState;
+    const base = {
+      zones: [pile('deck')],
+      cwOf: () => 60,
+      whereOf: (_z: ZoneState, cw: number) => where(cw),
+      mainW: 600,
+      vw: 800,
+      rem: 16,
+      labels: LABELS,
+      cross: false,
+      rowFit: false,
+    };
+    const without = size.middleHeight(base);
+    const withStrip = size.middleHeight({
+      ...base,
+      strip: { zones: [melds], cwOf: () => 40, whereOf: (_z, cw) => ({ ...where(cw), style: 'strip', maxW: Infinity }), wrap: false },
+    });
+    // (its panel: the label, the cards, a little padding)
+    expect(withStrip - without).toBeCloseTo(6 + 40 * 1.4 + 14 + 0.35 * 16 + 0.65 * 16);
+  });
+});
+
+describe('the table’s height shared out exactly', () => {
+  for (const [name, screen] of Object.entries(SCREENS))
+    it(`on a ${name}: the middle and your hand fit under the seats, every game, when they can`, () => {
+      for (const m of MOMENTS) {
+        const fit = sizes(m, screen);
+        const middle = middleOf(m, screen);
+        const hand = size.handCw({ hand: fit.hand, handMode: false, stripShown: false, pileOnly: false });
+        const used =
+          screen.headerH +
+          8 +
+          size.handHeight(hand, { pileOnly: false, handEmpty: false, pileLabelH: 20 }) +
+          middle(Math.max(34, Math.round(fit.center))) +
+          (screen.side ? 0 : screen.headH + (fit.lastFits ? size.LAST_H : 0) + 6);
+        // (when even the smallest cards can't fit, the middle is scaled to fit: phase 1c makes that rarer)
+        if (fit.center > 92 * 0.36) expect(used, `${m.game} ${m.at}`).toBeLessThanOrEqual(screen.vh - 10 + 0.5);
+      }
+    });
 });

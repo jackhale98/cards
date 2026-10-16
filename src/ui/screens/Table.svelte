@@ -12,7 +12,8 @@
   import Seat from '../components/Seat.svelte';
   import Zone from '../components/Zone.svelte';
   import * as size from '../layout/table';
-  import { FULL_HAND } from '../layout';
+  import { FULL_HAND, TAP, type Where } from '../layout';
+  import { labelMeasure } from '../labelMeasure';
   import { Frames, provideFrames } from '../layout/frames.svelte';
   import Sheet from '../components/Sheet.svelte';
   import LookPicker from '../components/LookPicker.svelte';
@@ -77,26 +78,100 @@
    * (On a phone only: on a table screen the dummy keeps one size all hand, for everyone watching.)
    */
   let growTo = $state(Infinity);
-  /** The middle: its zones and the room it has (see layout/table.ts). */
-  const middle = $derived.by((): size.Middle => ({ zones: centerZones, mainW, vw, gridded, cross, rowFit }));
-  /** How big the middle's cards and your hand's are (layout/table.ts). */
+  /** The table's height inside its padding, and what sits under the middle's piles (measured). */
+  let tableH = $state(0);
+  let tableClientH = $state(0);
+  $effect(() => {
+    const el = tableEl;
+    if (!el || !tableClientH) return;
+    const st = getComputedStyle(el);
+    tableH = tableClientH - parseFloat(st.paddingTop) - parseFloat(st.paddingBottom);
+  });
+  let recapH = $state(0);
+  /**
+   * How tall the buttons' column is (with everyone's melds on the table it sits in your hand's row,
+   * at its foot and only as tall as its buttons: the row is as tall as the taller of the two).
+   */
+  let asideH = $state(0);
+  /** The pot, beside the middle's piles (it doesn't change size with the cards). */
+  let potW = $state(0);
+  let potH = $state(0);
+  /** How the table draws a pile's label (measured once per text, see labelMeasure). */
+  const labels = labelMeasure();
+  /** A zone whose cards you can pick now: they spread out enough to tap (see Zone). */
+  const tappable = (z: ZoneState) => z.cards.some((c) => selectable?.has(c.id));
+  /**
+   * How tall the middle stands with its cards `cw` wide: every zone laid out by its own layout,
+   * the zones in rows as the page puts them, everyone's melds under them (layout/table.ts).
+   */
+  function middleAt(cw: number): number {
+    const roomyNow = size.roomy(centerZones, cw, mainW, vw, stripZones.length > 0);
+    const kept = stripKeep.cw;
+    const whereMiddle = (z: ZoneState, zcw: number): Where => ({
+      cw: zcw,
+      you,
+      players: n,
+      style: 'middle',
+      maxW: mainW ? mainW - 4 : Infinity,
+      roomy: roomyNow,
+      tap: tappable(z) ? TAP : undefined,
+      dummy: z.faceUpHand ? { cw: zcw, minW: Math.round(zcw * FULL_HAND) } : undefined,
+    });
+    const whereStrip = (z: ZoneState, zcw: number): Where => ({
+      cw: zcw,
+      you,
+      players: n,
+      style: 'strip',
+      maxW: display && mainW ? mainW * 1.2 - 1.6 * tvRem : Infinity,
+      rowGap: display ? 0.3 * tvRem : undefined,
+      tap: tappable(z) ? TAP : undefined,
+    });
+    const stripCwAt = (z: { scale?: number }) => size.stripCw(z, { centerCw: cw, display, kept });
+    return size.middleHeight({
+      zones: centerZones,
+      cwOf: (z) => size.slotCw(z, { centerCw: cw, mainW, rowFit, display }),
+      whereOf: whereMiddle,
+      mainW,
+      vw,
+      rem: tvRem,
+      labels,
+      cross,
+      rowFit: rowFit < Infinity,
+      steadyLabel: display ? (zcw) => zcw * 1.8 : undefined,
+      extras: status.pot && !handMode ? [{ w: potW, h: potH }] : [],
+      strip: stripZones.length
+        ? { zones: stripZones, cwOf: stripCwAt, whereOf: whereStrip, wrap: display }
+        : stripRoom && !display
+          ? { room: Math.round(1.4 * stripCwAt({ scale: stripScale }) + 30) }
+          : undefined,
+    });
+  }
+  /** How big the middle's cards and your hand's are (layout/table.ts): the table's height shared out exactly, once it's measured. */
   const cardSizes = $derived.by(() =>
-    size.cardSizes({
+    size.fitSizes({
       vw,
       vh,
       display,
-      handMode,
       side,
-      headerH,
+      handMode,
+      // (before the table's first measured: near enough, and measured a moment later)
+      tableH: tableH || vh - 10,
+      headerH: headerH || 56,
       headH,
+      headlineAbove: !!status.headline && !side,
       meOwnH,
-      headline: !!status.headline,
-      middle,
-      // (a game with a strip of melds counts it from the deal, before the first meld)
-      strips: handMode ? stripZones.length > 0 : hasStrip,
-      stripScale,
+      belowH: recapShown ? recapH : 0,
+      middle: middleAt,
+      hasMiddle: centerZones.length > 0,
       pileOnly,
       handEmpty,
+      big:
+        pileOnly || handEmpty || (centerZones.length <= 2 && !(handMode ? stripZones.length > 0 : hasStrip) && centerZones.every((z) => z.layout === 'stack')),
+      rowFit: rowFit < Infinity,
+      pileLabelH: labels.lineH + 0.35 * 16,
+      stripShown: stripZones.length > 0,
+      // (with everyone's melds on the table the buttons sit in your hand's row: `.wide-middle`)
+      bottomMinH: wideMiddle ? asideH : 0,
     }),
   );
   /** The middle's cards fit across side by side (a Hold'em board on a tablet): no need to overlap them. */
@@ -108,7 +183,7 @@
   const centerCw = $derived.by(() =>
     Math.round(
       display
-        ? size.displayCw({ vw, vh, track: !!status.track, hasStrip, stripShown: stripZones.length > 0, middleRoom, middle })
+        ? size.displayCw({ vw, vh, track: !!status.track, hasStrip, stripShown: stripZones.length > 0, gridded, middleRoom, middle: middleAt })
         : Math.max(34, cardSizes.center),
     ),
   );
@@ -818,6 +893,8 @@
     });
     return parts.length ? parts.join(' · ') : null;
   });
+  /** The hand's summary under the middle's piles (on a phone on its side it's in the column instead). */
+  const recapShown = $derived(!!recap && !side && !(showBanner && status.banner));
   /** Game night standings, shown when a game ends. */
   const tonight = $derived(nightTotals(view.lobby.night));
   const myInfo = $derived(you >= 0 ? status.seats[you] : undefined);
@@ -858,6 +935,7 @@
   class:wide-middle={wideMiddle}
   class:many-buttons={wideMiddle && manyButtons}
   bind:this={tableEl}
+  bind:clientHeight={tableClientH}
 >
   <!-- top: menu + opponents + scores -->
   <header bind:clientHeight={headerH}>
@@ -941,7 +1019,15 @@
         </button>
       </div>
     {/if}
-    <div class="zones" class:has-strip={stripZones.length > 0 || stripRoom} class:cross class:row-fit={rowFit < Infinity} use:fitHeight>
+    <!-- (data-middle-h: how tall the sizes reckoned the piles would stand, for tests and debugging: see layout/table.ts) -->
+    <div
+      class="zones"
+      class:has-strip={stripZones.length > 0 || stripRoom}
+      class:cross
+      class:row-fit={rowFit < Infinity}
+      use:fitHeight
+      data-middle-h={mainW ? Math.round(middleAt(centerCw)) : undefined}
+    >
       {#each shownCenter as z (playFrom?.id === z.id ? `mine:${z.id}` : z.id)}
         <div
           class="zone-slot"
@@ -970,7 +1056,7 @@
         </div>
       {/each}
       {#if status.pot && !handMode}
-        <div class="pot" data-flip>
+        <div class="pot" data-flip bind:offsetWidth={potW} bind:offsetHeight={potH}>
           <div class="chipstack" aria-hidden="true">
             {#each { length: Math.min(6, Math.ceil(Math.log2(status.pot + 1))) } as _, i (i)}
               <span style:bottom="{i * 4}px" style:--c={seatColor(i * 3)}></span>
@@ -1013,8 +1099,8 @@
       {/if}
     </div>
 
-    {#if recap && !side && !(showBanner && status.banner)}
-      <p class="recap" aria-label="This hand: {recap}">This hand: {recap}</p>
+    {#if recapShown}
+      <p class="recap" aria-label="This hand: {recap}" bind:clientHeight={recapH}>This hand: {recap}</p>
     {/if}
     {#if showBanner && status.banner}
       <div class="banner panel">
@@ -1117,7 +1203,7 @@
         {/if}
       </div>
     </footer>
-    <aside>
+    <aside bind:offsetHeight={asideH}>
       {#if status.track && !display}
         <!-- (the board is on a TV, and in the scores: here just the numbers, in the race to the target) -->
         <div class="race" aria-label="Score">
@@ -1411,6 +1497,11 @@
       'top top top'
       'me center center'
       'hand hand actions';
+  }
+  /* (at the foot of your hand's row, as tall as its buttons: not stretched to the row, so the
+     table's sizes can count on its height: see layout/table.ts) */
+  .table.wide-middle aside {
+    align-self: end;
   }
   .table.wide-middle aside :global(.bar) {
     gap: 0.35rem;
