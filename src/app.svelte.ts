@@ -191,7 +191,8 @@ function takeInvite() {
 }
 
 export function parseHash(hash = location.hash): Route {
-  const [, kind, code] = hash.replace(/^#\/?/, '/').split('/');
+  // (anything after a `?` in the hash is a setting someone added to the address, not the route)
+  const [, kind, code] = hash.replace(/\?.*$/, '').replace(/^#\/?/, '/').split('/');
   if (kind === 'room' && code) return { name: 'room', code: code.toUpperCase() };
   if (kind === 'display' && code) return { name: 'display', code: code.toUpperCase() };
   if (kind === 'join' && code) return { name: 'home', code: code.toUpperCase() };

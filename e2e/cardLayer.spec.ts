@@ -131,3 +131,29 @@ test('the layout check sees the cards on the layer: one put over a button is cau
   });
   expect(await screenProblems(page)).toContainEqual(expect.stringMatching(/^overlap, your hand and a button/));
 });
+
+test('it turns on from the end of the address at the table, and on and off from the menu', async ({ page }) => {
+  await page.setViewportSize({ width: 844, height: 390 });
+  await page.goto('/?net=local');
+  await page.fill('input[aria-label="Your name"]', 'Hana');
+  await page.click('text=Start a table');
+  await page.waitForURL(/#\/room\//);
+  await page.locator('[data-game="hearts"]').first().click();
+  for (let i = 0; i < 3; i++) await page.click('text=+ Add bot');
+  await page.click('button:has-text("Deal Hearts")');
+  await expect(page.locator('footer .hand .slot')).toHaveCount(13);
+  await expect(page.locator('.layer')).toHaveCount(0);
+  // added at the very end, after the room's code: the same table, now on the layer
+  const url = page.url();
+  await page.goto(`${url}?layer=1`);
+  await expect(mine(page)).toHaveCount(13);
+  await expect(page.locator('footer .hand .slot')).toHaveCount(0);
+  expect(page.url()).toContain(url.split('#')[1]);
+  // and from the menu
+  await page.click('button[aria-label="Menu"]');
+  await page.click('text=New card table (test): on');
+  await expect(page.locator('.layer')).toHaveCount(0);
+  await expect(page.locator('footer .hand .slot')).toHaveCount(13);
+  await page.click('text=New card table (test): off');
+  await expect(mine(page)).toHaveCount(13);
+});

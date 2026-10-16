@@ -36,7 +36,7 @@
   import { EXPORT_ABOUT, EXPORT_FILE, EXPORT_LABEL, recordFormats } from '../../net/exports/formats';
   import TvSheet from '../components/TvSheet.svelte';
   import CardLayer from '../components/CardLayer.svelte';
-  import { cardLayerOn } from '../cardLayer';
+  import { cardLayerOn, setCardLayer } from '../cardLayer';
 
   /** `replay`: a moment of a finished hand is on screen (the table shows it, quietly). */
   let { view, display = false, replay = null }: { view: View; display?: boolean; replay?: Frame | null } = $props();
@@ -615,7 +615,13 @@
    * The new card layer (a prototype, see ui/cardLayer.ts): on a phone at a table it can draw so
    * far, your hand fanned along the bottom and a trick in the middle, it draws every card.
    */
-  const layerAsked = cardLayerOn();
+  let layerAsked = $state(cardLayerOn());
+  // (added to the address while at the table: that changes only the part after the #, no reload)
+  $effect(() => {
+    const look = () => (layerAsked = cardLayerOn());
+    addEventListener('hashchange', look);
+    return () => removeEventListener('hashchange', look);
+  });
   const layered = $derived(layerAsked && !display && !handMode && !playFrom && myHandZone?.layout === 'fan' && centerZones.every((z) => z.layout === 'trick'));
   /** How long the two hands take to trade places (none, for reduced motion). */
   const swapMs = matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 320;
@@ -1464,6 +1470,13 @@
             hints = !hints;
             setHints(hints);
           }}>{hints ? 'Show playable cards: on' : 'Show playable cards: off'}</button
+        >
+        <button
+          class="btn"
+          onclick={() => {
+            layerAsked = !layerAsked;
+            setCardLayer(layerAsked);
+          }}>{layerAsked ? 'New card table (test): on' : 'New card table (test): off'}</button
         >
         {#if canNotify()}
           <button class="btn" onclick={async () => (turnAlerts = await setTurnAlerts(!turnAlerts))}
