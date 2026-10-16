@@ -39,6 +39,13 @@ export * from './contracts';
 const SETBACK_MS = 1000;
 /** Hard's bid for exact tricks: once a hand, so it may think a while (settled bids stop early). */
 const BID_BUDGET = { samples: 160, ms: 800 };
+/**
+ * Easy's lookahead in the games that need one (a few imagined deals), and how often it slips; in
+ * Setback, how often its rules slip. Each tuned so Normal wins about two games in three.
+ */
+const EASY_LOOK = { samples: 6, ms: 10 };
+const EASY_LOOK_SLIPS = 0.1;
+const EASY_PITCH_SLIPS = 0.1;
 
 export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
   const g = trickGame(config);
@@ -200,9 +207,16 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
         const dd = botLevel(s.options) === 2 ? ddCard(g, s, seat, ddBudget()) : null;
         if (dd) return { type: 'play', cards: [dd] };
         if (botLevel(s.options) === 2) return searchMove(hardSearch, s, seat, budget!, hardQuick(g, s, seat)) ?? hardQuick(g, s, seat);
-        return budget
-          ? (searchMove(search, s, seat, budget, quickBot(g, s, seat)) ?? quickBot(g, s, seat))
-          : easyMove(s.options, search.candidates(s, seat), quickBot(g, s, seat));
+        if (budget) return searchMove(search, s, seat, budget, quickBot(g, s, seat)) ?? quickBot(g, s, seat);
+        // Easy, where every card counts toward the score (Hearts' points, the tricks bid in Spades
+        // and Oh Hell): it looks a little way ahead, with a slip now and then (its rules alone lose
+        // nearly every game to Normal's lookahead). Elsewhere: the rules, with slips.
+        // (only at a table set to Easy: games built without the setting, as in tests, play the rules straight)
+        if ((g.lowWins || g.trickBids) && s.options.botLevel === 0) {
+          const slip = easyMove(s.options, search.candidates(s, seat), null, EASY_LOOK_SLIPS);
+          return slip ?? searchMove(search, s, seat, EASY_LOOK, quickBot(g, s, seat)) ?? quickBot(g, s, seat);
+        }
+        return easyMove(s.options, search.candidates(s, seat), quickBot(g, s, seat), g.pitchBids ? EASY_PITCH_SLIPS : undefined);
       }
       return botLevel(s.options) === 2 ? hardQuick(g, s, seat) : quickBot(g, s, seat);
     },
