@@ -436,14 +436,37 @@ describe('connection health', () => {
     vi.advanceTimersByTime(3100); // (the first ping: the round trip is known)
     const pings = () => ht.sent.filter((m) => m.t === 'ping').length;
     const before = pings();
-    // a busy game: the host sends a view and hears from the guest every half second
+    // a busy game: the host sends a change and hears from the guest every half second
     for (let i = 0; i < 36; i++) {
-      host.broadcast();
+      host.updateSelf(`H${i}`);
       gt.send({ t: 'replay', hand: 0, step: 0 }, 'host');
       vi.advanceTimersByTime(500);
     }
     // 18 seconds is six beats: two pings, not six
     expect(pings() - before).toBe(2);
+    host.close();
+  });
+
+  it('sends nothing when nothing a player can see has changed', () => {
+    const bus = new Bus();
+    const ht = new MemTransport(bus, 'host');
+    const host = new Host(ht, 'ABCD', { cid: 'h', name: 'H' });
+    bus.join(ht);
+    const gt = new MemTransport(bus, 'guest');
+    const guest = new Client(gt, 'g', 'G', undefined);
+    bus.join(gt);
+    vi.advanceTimersByTime(1000); // (the guest is seated)
+    expect(guest.view?.lobby.seats.map((s) => s.id)).toEqual(['h', 'g']);
+    const views = () => ht.sent.filter((m) => m.t === 'view' || m.t === 'patch').length;
+    const before = views();
+    host.broadcast();
+    host.broadcast();
+    expect(views()).toBe(before);
+    // and the next real change still fits what the guest has
+    host.updateSelf('Hana');
+    expect(views()).toBe(before + 1);
+    expect(guest.view!.lobby.seats[0].name).toBe('Hana');
+    expect(guest.view!.v).toBe(host.viewFor('g').v);
     host.close();
   });
 

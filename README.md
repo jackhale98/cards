@@ -105,13 +105,19 @@ The host pings every player every 3 seconds: everyone sees each player's latency
 goes to sleep is noticed within seconds (it keeps its seat), and a guest that loses the host
 rebuilds its connection automatically.
 
-**If the host's phone dies**, the game isn't lost. Every few seconds the host sends each seated
-player an encrypted backup of the whole game, and leaves only the key with the relay, so no phone
-can read anyone else's cards. Once the host has been gone for 20 seconds (and stopped sending its
-heartbeat), players see **Take over hosting**: the first to tap it gets the key from the relay,
-opens its backup and hosts from exactly where the game was. Everyone keeps their seat, bots carry
-on, and when the old host comes back it rejoins as a player in its own seat (`src/net/backup.ts`,
-`takeover` in `relay/src/index.ts`).
+**If the host's phone dies**, the game isn't lost. The host sends two of the players an encrypted,
+compressed backup of the whole game at the end of each trick or hand (and every 30 seconds at
+most otherwise: a game night lasts hours, and backups cost data), and leaves only the key with the
+relay, so no phone can read anyone else's cards. A holder who leaves is replaced at once. Once the
+host has been gone for 20 seconds (and stopped sending its heartbeat), those players see **Take
+over hosting**: the first to tap it gets the key from the relay, opens its backup and hosts from
+where the game was at that backup. Everyone keeps their seat, bots carry on, and when the old host
+comes back it rejoins as a player in its own seat (`src/net/backup.ts`, `takeover` in
+`relay/src/index.ts`).
+
+Players get only what changed on their screen (`src/net/patch.ts`), nothing at all when a move is
+hidden from them, and the relay's connections are compressed (`permessage-deflate`, which Workers
+negotiate on our compatibility date).
 
 The host's device runs the rules and is the single source of truth. Every other device sends
 _intents_ ("play the 7♣") and gets back a **personalised view**. Your device never receives

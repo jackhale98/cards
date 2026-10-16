@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { newBackupKey, open, seal } from '../src/net/backup';
 import { Client } from '../src/net/client';
-import { BACKUP_EVERY_MS, Host, STAND_IN } from '../src/net/host';
+import { BACKUP_EVERY_MS, BACKUP_SOON_MS, Host, STAND_IN } from '../src/net/host';
 import type { Msg } from '../src/net/protocol';
 import type { Transport } from '../src/net/transport';
 import { GAMES } from './games';
@@ -92,8 +92,8 @@ describe('host handoff', () => {
     expect(host.lobby.seats.map((s) => s.name)).toEqual(['Hana', 'Ann', 'Ben', expect.any(String)]);
     const before = structuredClone(host.state!);
 
-    // players are sent a sealed backup (not the table screen, not bots); it reveals nothing
-    await vi.waitFor(() => expect(ann.c.backup).not.toBeNull(), { timeout: BACKUP_EVERY_MS + 3000 });
+    // players are sent a sealed backup (not the table screen, not bots) soon after the deal; it reveals nothing
+    await vi.waitFor(() => expect(ann.c.backup).not.toBeNull(), { timeout: BACKUP_SOON_MS + 3000 });
     const blob = ann.c.backup!.blob;
     for (const z of Object.values(before.zones)) for (const c of z.cards) expect(blob).not.toContain(`"${c.id}"`);
 
@@ -133,6 +133,70 @@ describe('host handoff', () => {
     ben.c.close();
     hana.c.close();
   }, 30_000);
+
+  it('two players hold the backup: sent when a trick or hand ends, otherwise every 30 s at most, and passed on when a holder leaves', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'] });
+    // (sealing is real crypto, off the clock: give it real time to finish)
+    const settle = async () => {
+      const end = performance.now() + 150;
+      while (performance.now() < end) await new Promise((r) => setImmediate(r));
+    };
+    const bus = new Bus();
+    const ht = new MemTransport(bus, 'host-peer');
+    const host = new Host(ht, 'HOLDS', { cid: 'h', name: 'Hana', avatar: look }, undefined, { backupKey: newBackupKey() });
+    bus.join(ht);
+    const got: Record<string, number> = { a: 0, b: 0, c: 0 };
+    const people = ['a', 'b', 'c'].map((cid) => {
+      const t = new MemTransport(bus, `${cid}-peer`);
+      const c = new Client(t, cid, cid.toUpperCase(), look);
+      c.onBackup = () => got[cid]++;
+      bus.join(t);
+      return { c, t };
+    });
+    host.setGame('hearts');
+    host.start();
+    await vi.advanceTimersByTimeAsync(BACKUP_SOON_MS + 100);
+    await settle();
+    // the first two players hold one; the third doesn't need it
+    expect(got).toEqual({ a: 1, b: 1, c: 0 });
+
+    // a move mid-hand waits for the 30-second backup
+    const s = () => host.state!;
+    const pass = (cid: string, seat: number) =>
+      expect(
+        host.act(cid, {
+          type: 'pass',
+          cards: s()
+            .zones[`hand:${seat}`].cards.slice(0, 3)
+            .map((c) => c.id),
+        }),
+      ).toBeNull();
+    pass('h', 0);
+    await vi.advanceTimersByTimeAsync(BACKUP_SOON_MS + 100);
+    await settle();
+    expect(got).toEqual({ a: 1, b: 1, c: 0 });
+    await vi.advanceTimersByTimeAsync(BACKUP_EVERY_MS);
+    await settle();
+    expect(got).toEqual({ a: 2, b: 2, c: 0 });
+
+    // the passing ends (the phase changes): a backup at once
+    pass('a', 1);
+    pass('b', 2);
+    pass('c', 3);
+    expect(s().phase).not.toBe('pass');
+    await vi.advanceTimersByTimeAsync(BACKUP_SOON_MS + 100);
+    await settle();
+    expect(got).toEqual({ a: 3, b: 3, c: 0 });
+
+    // Ann leaves: Cal holds one now (and Ben a fresh one, as the table has changed: Ann's seat is empty)
+    people[0].t.leave();
+    await vi.advanceTimersByTimeAsync(BACKUP_SOON_MS + 100);
+    await settle();
+    expect(got).toEqual({ a: 3, b: 4, c: 1 });
+    host.close();
+    for (const p of people) p.c.close();
+    vi.useRealTimers();
+  });
 
   it('a takeover in the middle of the bidding carries on, and a bot can bid for the host that dropped', () => {
     vi.useFakeTimers();

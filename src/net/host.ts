@@ -47,8 +47,15 @@ export const TAKE_BACK_MS = 1500;
 export const SCREEN_SOUND = '__screenSound';
 /** Anyone at the table can let a bot play for a player who has dropped (`seat`: their game seat) until they're back. */
 export const STAND_IN = '__standIn';
-/** Host handoff: players get a fresh sealed backup at most this often. */
-export const BACKUP_EVERY_MS = 5000;
+/**
+ * Host handoff: two players hold a sealed backup (one is enough to take over; two in case one has
+ * gone too). It's sent when a trick or hand ends, and otherwise at most this often: a game night
+ * lasts hours, and every backup costs the holders' data.
+ */
+export const BACKUP_EVERY_MS = 30000;
+/** Backups after a trick or a hand wait this long, so a burst of moves makes one backup. */
+export const BACKUP_SOON_MS = 1000;
+export const BACKUP_HOLDERS = 2;
 const BOT_NAMES = ['Ada', 'Bix', 'Cleo', 'Dash', 'Echo', 'Fizz', 'Gus', 'Hux', 'Ivy'];
 /** A connection's hellos are handled at most this often; a burst is folded into its latest. */
 export const HELLO_GAP_MS = 400;
@@ -118,7 +125,15 @@ export class Host {
   /** Given to players with their backups: the relay lets only someone holding it take over. */
   private takeoverToken?: string;
   private backupTimer: ReturnType<typeof setTimeout> | null = null;
+  /** When the queued backup goes, and when the last one went. */
+  private backupDue = 0;
+  private backupAt = 0;
   private backedUp = -1;
+  /** Who holds the latest backup (client ids). */
+  private holders: string[] = [];
+  /** The phase, and the cards on the trick, at the last broadcast: their change marks a trick or hand ending. */
+  private seenPhase?: string;
+  private seenTrick = 0;
   private closed = false;
 
   constructor(
@@ -338,7 +353,6 @@ export class Host {
     }
     if (seat && key && !this.keys[cid]) this.keys[cid] = key;
     // a client may reach us on more than one network; keep them all, they're the same seat
-    if (!this.peers.has(peer)) this.backedUp = -1; // (someone new: they need a backup too)
     this.peers.set(peer, cid);
     this.health.set(peer, { rtt: this.health.get(peer)?.rtt ?? null, seen: Date.now() });
     if (seat) {
@@ -1341,8 +1355,7 @@ export class Host {
         const who = this.displays.has(peer) ? null : cid;
         let view = views.get(who);
         if (!view) views.set(who, (view = wire(this.viewFor(who))));
-        this.sendView(peer, view);
-        this.sentAt.set(peer, now);
+        if (this.sendView(peer, view)) this.sentAt.set(peer, now);
       }
     }
     this.onPersist({ lobby: this.lobby, state: this.state, keys: this.keys });
@@ -1355,15 +1368,22 @@ export class Host {
    * phone's data); otherwise the whole view.
    */
   /** (`view` is a copy, as sent: a view shares the lobby and game with the host, which change in place, and the next patch is worked out against it) */
-  private sendView(peer: string, view: View) {
+  private sendView(peer: string, view: View): boolean {
     const prev = this.sentViews.get(peer);
-    this.sentViews.set(peer, view);
     if (prev && prev.hid === view.hid && view.v > prev.v) {
       const ops = diff(prev, view);
-      if (JSON.stringify(ops).length < JSON.stringify(view).length * 0.6)
-        return this.transport?.send({ t: 'patch', hid: view.hid, base: prev.v, v: view.v, ops }, peer);
+      // nothing they can see has changed (someone else's move that's hidden from them): only the
+      // version number moved, so send nothing (the next patch still fits what they have)
+      if (ops.every(([, path]) => VERSION_PATHS.has(path.join('.')))) return false;
+      this.sentViews.set(peer, view);
+      if (JSON.stringify(ops).length < JSON.stringify(view).length * 0.6) {
+        this.transport?.send({ t: 'patch', hid: view.hid, base: prev.v, v: view.v, ops }, peer);
+        return true;
+      }
     }
+    this.sentViews.set(peer, view);
     this.transport?.send({ t: 'view', view }, peer);
+    return true;
   }
 
   /** A player's patch didn't fit: the whole view again (once a second at most, per connection). */
@@ -1378,26 +1398,60 @@ export class Host {
 
   // ---- host handoff -----------------------------------------------------------------------
 
-  /** Send seated players a sealed backup of the game soon (at most every BACKUP_EVERY_MS). */
+  /**
+   * Queue a backup: soon after a trick or a hand ends, or when someone new must hold one (a holder
+   * has gone); otherwise within BACKUP_EVERY_MS of the last.
+   */
   private queueBackup() {
-    if (!this.transport || !this.backupKey || this.backupTimer) return;
+    if (!this.transport || !this.backupKey) return;
+    const s = this.state;
+    const trick = s?.zones.trick?.cards.length ?? 0;
+    const ended = !!s && (s.phase !== this.seenPhase || (this.seenTrick > 0 && trick === 0));
+    this.seenPhase = s?.phase;
+    this.seenTrick = trick;
+    const newHolder = this.backupHolders().some(([cid]) => !this.holders.includes(cid));
+    const now = Date.now();
+    const due = ended || newHolder ? now + BACKUP_SOON_MS : Math.max(now, this.backupAt + BACKUP_EVERY_MS);
+    if (this.backupTimer) {
+      if (this.backupDue <= due) return;
+      clearTimeout(this.backupTimer);
+    }
+    this.backupDue = due;
     this.backupTimer = setTimeout(() => {
       this.backupTimer = null;
       void this.sendBackup();
-    }, BACKUP_EVERY_MS);
+    }, due - now);
+  }
+
+  /**
+   * The players to hold backups, and the connection to send each one's on: seated people who could
+   * take over (not bots, not table screens), connected now. Those already holding one come first, so
+   * a backup isn't passed around; then in seat order.
+   */
+  private backupHolders(): [string, string][] {
+    const reach = new Map<string, string>();
+    for (const [peer, cid] of this.peers) if (!this.displays.has(peer) && !reach.has(cid)) reach.set(cid, peer);
+    const people = this.lobby.seats.filter((x) => !x.bot && !x.host && reach.has(x.id)).map((x) => x.id);
+    const order = [...people.filter((c) => this.holders.includes(c)), ...people.filter((c) => !this.holders.includes(c))];
+    return order.slice(0, BACKUP_HOLDERS).map((cid) => [cid, reach.get(cid)!]);
   }
 
   private async sendBackup() {
-    if (this.v === this.backedUp) return;
     const v = this.v;
+    const to = this.backupHolders();
+    // (nothing new: only a new holder needs it)
+    const fresh = v === this.backedUp ? to.filter(([cid]) => !this.holders.includes(cid)) : to;
+    this.backupAt = Date.now();
+    if (!fresh.length) return;
     const blob = await seal({ lobby: this.lobby, state: this.state, keys: this.keys }, this.backupKey!);
     this.backedUp = v;
-    // the players who could take over: seated people (not bots, not table screens)
-    const players = new Set(this.lobby.seats.filter((x) => !x.bot && !x.host).map((x) => x.id));
-    for (const [peer, cid] of this.peers)
-      if (players.has(cid) && !this.displays.has(peer)) this.transport?.send({ t: 'backup', blob, v, token: this.takeoverToken }, peer);
+    this.holders = to.map(([cid]) => cid);
+    for (const [, peer] of fresh) this.transport?.send({ t: 'backup', blob, v, token: this.takeoverToken }, peer);
   }
 }
+
+/** Where a view carries its version number. */
+const VERSION_PATHS = new Set(['v', 'state.v']);
 
 /** A copy of a view as it goes over the wire (JSON: what's undefined isn't there). */
 const wire = <T>(x: T): T => JSON.parse(JSON.stringify(x)) as T;

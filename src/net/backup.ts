@@ -2,8 +2,8 @@ import type { HostSnapshot } from './host';
 
 /**
  * Host handoff backups. The host seals a snapshot of the whole game with a key only the relay
- * holds, and sends it to every player: a phone can't read the backup it keeps (so nobody sees
- * anyone's cards), but if the host disappears the relay releases the key to whoever takes over.
+ * holds, and sends it to two of the players: a phone can't read the backup it keeps (so nobody
+ * sees anyone's cards), but if the host disappears the relay releases the key to whoever takes over.
  */
 
 const b64 = (bytes: Uint8Array) =>
@@ -29,8 +29,8 @@ async function squeeze(data: Uint8Array, how: 'compress' | 'decompress'): Promis
 
 /**
  * Seal a snapshot, compressed first: `z.<iv>.<ciphertext>`, both base64url. (A game's state is
- * repetitive JSON: about a fifth the size, which players on a phone's data notice, as a backup goes
- * out every few seconds.)
+ * repetitive JSON: about a fifth the size, which players on a phone's data notice over a long
+ * game night.)
  */
 export async function seal(snap: HostSnapshot, key: string): Promise<string> {
   const iv = crypto.getRandomValues(new Uint8Array(12));
