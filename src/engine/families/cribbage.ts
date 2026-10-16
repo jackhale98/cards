@@ -52,6 +52,10 @@ type S = GameState<CribData>;
 
 /** How long Hard thinks over its throw, at most (once a hand). */
 const HARD_DISCARD_MS = 300;
+/** How often Easy pegs a card at random rather than by the quick rules. */
+const EASY_PEG_SLIPS = 0.5;
+/** A game won or lost in the pegging, in points (about a game's worth of hands). */
+const GAME_WORTH = 60;
 
 const LAYOUT: Record<number, { deal: number; discard: number; fromDeck: number }> = {
   2: { deal: 6, discard: 2, fromDeck: 0 },
@@ -419,7 +423,10 @@ export function cribbageFamily(config: GameConfig): GameModule<CribData> {
     },
     apply: (s, seat, a) => module.apply(s, seat, a),
     rollout: (s) => playOut(module, quickBot, s, (x) => x.phase !== 'peg'),
-    score: (before, after, seat) => edge(before.data.scores, after.data.scores, teamOf(before, seat)),
+    // (near the end, pegging out wins the game: worth far more than its points)
+    score: (before, after, seat) =>
+      edge(before.data.scores, after.data.scores, teamOf(before, seat)) +
+      (after.phase === 'gameOver' ? (after.winner?.includes(seat) ? GAME_WORTH : -GAME_WORTH) : 0),
   };
 
   const module: GameModule<CribData> = {
@@ -615,7 +622,8 @@ export function cribbageFamily(config: GameConfig): GameModule<CribData> {
         };
       if (s.phase === 'peg' && s.turn === seat) {
         if (level === 2) return searchMove(search, s, seat, botBudget(s.options)!, quickBot(s, seat)) ?? quickBot(s, seat);
-        if (level === 0) return easyMove(s.options, search.candidates(s, seat), quickBot(s, seat));
+        // (a beginner misses the pegging's fifteens and pairs as often as not)
+        if (level === 0) return easyMove(s.options, search.candidates(s, seat), quickBot(s, seat), EASY_PEG_SLIPS);
       }
       return quickBot(s, seat);
     },

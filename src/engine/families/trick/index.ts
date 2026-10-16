@@ -37,6 +37,8 @@ export * from './contracts';
 
 /** How long Hard Setback thinks over a card, at most (its deals are solved, so it needs fewer). */
 const SETBACK_MS = 1000;
+/** Hard's bid for exact tricks: once a hand, so it may think a while (settled bids stop early). */
+const BID_BUDGET = { samples: 160, ms: 800 };
 
 export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
   const g = trickGame(config);
@@ -166,6 +168,12 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
           return { type: 'bid', amount: hooked ? (bid > 0 ? bid - 1 : bid + 1) : bid };
         }
       }
+      // Hard, bidding exact tricks (Oh Hell): each bid it may make played out on imagined deals,
+      // everyone playing toward their own bid, for the one that scores best
+      if (s.phase === 'bid' && s.turn === seat && botLevel(s.options) === 2 && g.R.scoring.type === 'exact') {
+        const bid = searchMove(bidSearch, s, seat, BID_BUDGET, quickBot(g, s, seat));
+        if (bid) return bid;
+      }
       // Hard Euchre: ordering up and naming trumps from deals solved double dummy
       if ((s.phase === 'order' || s.phase === 'name') && s.turn === seat && botLevel(s.options) === 2) {
         const call = ddEuchreCall(g, s, seat, quickBot(g, s, seat));
@@ -230,5 +238,17 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
   const search = trickSearch(g, module);
   // (Hard: its own rules of thumb, for its moves and everyone's in its imagined playouts)
   const hardSearch = trickSearch(g, module, (x, seat) => hardQuick(g, x, seat));
+  // (the bids a seat may make: any number of tricks, but the dealer's that would make the bids add
+  // up to the tricks there are, with the hook)
+  const bidSearch: typeof hardSearch = {
+    ...hardSearch,
+    candidates(s, seat) {
+      const others = s.data.bids.reduce<number>((n, b) => n + (b ?? 0), 0);
+      const hooked = (b: number) => !!g.trickBids?.hook && seat === s.dealer && others + b === s.data.handSize;
+      return Array.from({ length: s.data.handSize + 1 }, (_, b) => b)
+        .filter((b) => !hooked(b))
+        .map((b) => ({ type: 'bid', amount: b }));
+    },
+  };
   return module;
 }

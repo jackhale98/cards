@@ -162,15 +162,25 @@ before is chips a single hand, after chips a 20-hand session):
 | 500             | points a deal              | +5 ± 4          | +7 ± 4       |
 | Setback         | points a deal              | —               | +0.21 ± 0.17 |
 | Cribbage        | points a hand              | −0.30 ± 0.17    | +0.63 ± 0.15 |
-| Gin             | points a deal              | +0.28 ± 0.25    | +1.99 ± 0.28 |
+| Gin             | points a deal              | +0.28 ± 0.25    | +2.86 ± 0.32 |
+| Oh Hell         | points a deal              | +0.46 ± 0.25    | +1.12 ± 0.26 |
+| President       | places a hand              | −0.04 ± 0.05    | about level  |
 
 (Setback's Hard plays the last four cards solved exactly and bids what that makes three deals in
 four; its card play alone measured +0.53 ± 0.25. Cribbage's Normal is now an average player, a step
 down; its Easy is a beginner. Normal against Easy: Cribbage +0.97 ± 0.16 a hand.)
 
 Points a deal undersell a step in games that score a point or two a hand, so whole games
-(`WHOLE=1`, which counts wins) say more. Hard against Normal: Euchre 78%, Whist 59%, Cribbage
-60%. Normal against Easy: Cribbage 55%, Gin 68%. Two thirds a step is the aim.
+(`WHOLE=1`, which counts wins) say more. Hard against Normal: Euchre 78%, Setback 66%, Gin 66%
+(before its later gains), Cribbage 62%, Whist 59%. Normal against Easy: Gin 68%, Cribbage 62%.
+Two thirds a step is the aim where the game's luck allows it: published work puts a strong
+player's edge over an average one near 55–60% in Cribbage and Whist, and lower in Crazy Eights.
+
+Gin's Hard follows the 2021 AAAI Gin Rummy contest's papers: Maravich, Neller & Neller's knocking
+rule, MARJJ's best-few-draws discard and its discard safety. Oh Hell's Hard bids by playing each bid
+out. President's Hard (an endgame plan over Normal's rules) is about level with Normal: there, the
+deal and the exchange decide most hands, and more would need a play policy tuned by self-play, as
+the strongest Daihinmin programs use.
 
 Tried and left out: weighing each imagined deal by how well it explains the others' plays (as the
 Skat program Kermit does, with a model of play learned from human games). With the quick bot as the

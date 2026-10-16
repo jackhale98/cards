@@ -48,9 +48,9 @@ export const TESTING = import.meta.env?.MODE === 'test';
  */
 export const EASY_SLIPS = 0.2;
 
-/** The Easy bot's move: `quick`, or now and then any one of `moves`. */
-export function easyMove(options: Record<string, number | boolean>, moves: Action[], quick: Action | null): Action | null {
-  if (options.botLevel === 0 && moves.length > 1 && Math.random() < EASY_SLIPS) return moves[Math.floor(Math.random() * moves.length)];
+/** The Easy bot's move: `quick`, or now and then (`slips` of the time) any one of `moves`. */
+export function easyMove(options: Record<string, number | boolean>, moves: Action[], quick: Action | null, slips = EASY_SLIPS): Action | null {
+  if (options.botLevel === 0 && moves.length > 1 && Math.random() < slips) return moves[Math.floor(Math.random() * moves.length)];
   return quick;
 }
 

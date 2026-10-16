@@ -11,7 +11,7 @@
   "zones": [
     { "id": "deck", "visibility": "none", "layout": "stack", "area": "none" },
     { "id": "pile", "label": "Lead anything", "visibility": "all", "layout": "spread", "area": "center" },
-    { "id": "cleared", "visibility": "none", "layout": "stack", "area": "none" },
+    { "id": "cleared", "visibility": "all", "layout": "stack", "area": "none" },
     { "id": "hand", "perPlayer": true, "visibility": "owner", "layout": "fan", "area": "hand" }
   ],
   "rules": { "family": "climbing", "style": "president", "end": { "target": 11 } },

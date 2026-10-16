@@ -136,6 +136,28 @@ describe('president', () => {
   });
 });
 
+describe('president: Hard plans its hand', () => {
+  it('with all but one set unbeatable, it plays those first and goes out on the last', () => {
+    const s = rig([
+      ['2S', '5H'],
+      ['3C', '4C', '6D'],
+      ['7C', '8C', '9D'],
+      ['TC', 'JC', 'QD'],
+    ]);
+    s.options.botLevel = 2;
+    // the quick rules lead the low card; the plan leads the 2 nobody can beat, then the 5 goes out
+    expect(g.bot!(s, 0)).toEqual({ type: 'play', cards: ['2S'] });
+  });
+
+  it('gives back its lowest odd cards in the exchange, not half a pair', () => {
+    const s = rig([['3S', '3H', '4D', '9C', 'KH'], [], [], []]);
+    s.options.botLevel = 2;
+    s.phase = 'swap';
+    s.data.owed = [{ from: 0, to: 3, count: 2 }];
+    expect(g.bot!(s, 0)).toEqual({ type: 'giveBack', cards: ['4D', '9C'] });
+  });
+});
+
 describe('president reseating (pagat)', () => {
   it('after a hand, play goes round in order of rank: President first, Scum last', () => {
     const g = GAMES.president as GameModule<ClimbingData>;

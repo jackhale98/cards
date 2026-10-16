@@ -1,6 +1,6 @@
-import { parseCard, rankLabel } from '../cards';
+import { buildDeck, parseCard, rankLabel } from '../cards';
 import { createState, deal, hand, ids, log, moveCards, name, placesFromScores, resetDeck, zone } from '../state';
-import { botBudget, dealUnseen, easyMove, fork, playOut, type SearchGame, searchMove } from '../bots/search';
+import { botBudget, botLevel, dealUnseen, easyMove, fork, playOut, type SearchGame, searchMove } from '../bots/search';
 import { familyRules, assertRule, type Action, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
 import { ownOnly } from '../redact';
 /** This family's settings in game.json (generated from the schema). */
@@ -32,6 +32,9 @@ export interface ClimbingData {
 }
 
 type S = GameState<ClimbingData>;
+
+/** The pack, to count what's still out. */
+const DECK = buildDeck({});
 
 /** 3 lowest … A, 2 highest. */
 export const climbRank = (id: string) => {
@@ -194,6 +197,45 @@ export function climbingFamily(config: GameConfig): GameModule<ClimbingData> {
     return { type: 'play', cards: pick[1].slice(0, top.count) };
   }
 
+  /**
+   * Hard's play: the usual rules, plus a good player's endgame. It counts which of its sets nobody
+   * can beat now (no one else can hold that many of a higher rank, from its own cards and those
+   * already played). When all but one are unbeatable, it plays those first and goes out on the
+   * last, taking the lead with an unbeatable set to do it.
+   */
+  function hardPlay(s: S, seat: number): Action {
+    const d = s.data;
+    const cards = ids(hand(s, seat));
+    const groups = [...byRank(cards)].sort((a, b) => a[0] - b[0]);
+    const gone = new Set([...cards, ...ids(zone(s, 'cleared')), ...ids(zone(s, 'pile'))]);
+    const out = new Map<number, number>();
+    for (const c of DECK) if (!gone.has(c)) out.set(climbRank(c), (out.get(climbRank(c)) ?? 0) + 1);
+    const boss = (rank: number, k: number) => [...out].every(([r, n]) => r <= rank || n < k);
+    const plan = (gs: [number, string[]][]) => gs.filter(([r, cs]) => !boss(r, cs.length)).length <= 1;
+    // the endgame: all but one set unbeatable, so play those and go out on the last
+    if (!d.top) {
+      if (groups.length > 1 && plan(groups)) {
+        const sure = groups.find(([r, cs]) => boss(r, cs.length));
+        if (sure) return { type: 'play', cards: sure[1] };
+      }
+      return botPlay(s, seat);
+    }
+    const top = d.top;
+    // going out, or taking the lead with a set nobody can beat when the rest then plays out
+    for (const [r, cs] of groups.filter(([x, xs]) => x > top.rank && xs.length >= top.count)) {
+      const rest = groups.filter(([x]) => x !== r).concat(cs.length > top.count ? [[r, cs.slice(top.count)]] : []);
+      if (!rest.length || (cs.length === top.count && boss(r, top.count) && plan(rest))) return { type: 'play', cards: cs.slice(0, top.count) };
+    }
+    // otherwise the usual rules
+    return botPlay(s, seat);
+  }
+
+  /** Hard's give-back in the exchange: its lowest odd cards, never splitting a pair if it can help it. */
+  function hardGive(s: S, seat: number, count: number): string[] {
+    const groups = [...byRank(ids(hand(s, seat)))].sort((a, b) => a[1].length - b[1].length || a[0] - b[0]);
+    return groups.flatMap(([, cs]) => cs).slice(0, count);
+  }
+
   function quickBot(s: S, seat: number): Action | null {
     const d = s.data;
     if (s.phase === 'swap') {
@@ -232,6 +274,18 @@ export function climbingFamily(config: GameConfig): GameModule<ClimbingData> {
       const place = after.data.finished.indexOf(seat);
       return -(place < 0 ? after.players.length : place);
     },
+  };
+
+  // (Hard: everyone in its imagined playouts plays as it does)
+  const hardSearch: SearchGame<ClimbingData> = {
+    ...search,
+    rollout: (s) =>
+      playOut(
+        module,
+        (x, seat) => (x.phase === 'play' && x.turn === seat ? hardPlay(x, seat) : quickBot(x, seat)),
+        s,
+        (x) => x.phase !== 'play',
+      ),
   };
 
   const module: GameModule<ClimbingData> = {
@@ -374,6 +428,11 @@ export function climbingFamily(config: GameConfig): GameModule<ClimbingData> {
 
     bot(s, seat) {
       const budget = botBudget(s.options);
+      if (botLevel(s.options) === 2) {
+        const owe = s.data.owed.find((o) => o.from === seat);
+        if (s.phase === 'swap' && owe) return { type: 'giveBack', cards: hardGive(s, seat, owe.count) };
+        if (s.phase === 'play' && s.turn === seat) return searchMove(hardSearch, s, seat, budget!, hardPlay(s, seat)) ?? hardPlay(s, seat);
+      }
       if (s.phase === 'play' && s.turn === seat)
         return budget
           ? (searchMove(search, s, seat, budget, quickBot(s, seat)) ?? quickBot(s, seat))

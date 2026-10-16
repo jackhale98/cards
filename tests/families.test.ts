@@ -126,6 +126,29 @@ describe('oh hell (config only)', () => {
   });
 });
 
+describe('oh hell: Hard bids by playing its bids out', () => {
+  const g = GAMES['oh-hell'] as GameModule<TrickData>;
+
+  it('bids the top trumps it holds, and never the dealer’s hooked bid', () => {
+    const s = g.setup(bots(4), 3, { maxHand: 3, botLevel: 2 });
+    const trump = s.data.trump!;
+    const seat = s.turn!;
+    const top = ['A', 'K', 'Q'].map((r) => `${r}${trump}`);
+    // three top trumps: three sure tricks
+    for (const z of Object.values(s.zones)) z.cards = z.cards.filter((c) => !top.includes(c.id));
+    const spare = s.zones[`hand:${seat}`].cards.splice(0, 3);
+    s.zones[`hand:${seat}`].cards.push(...top.map((id) => ({ id })));
+    s.zones.deck.cards.push(...spare);
+    expect(g.bot!(s, seat)).toEqual({ type: 'bid', amount: 3 });
+    // the dealer, after bids of 0, 0 and 0, may not bid 3
+    const d = g.setup(bots(4), 4, { maxHand: 3, botLevel: 2 });
+    while (d.turn !== d.dealer) g.apply(d, d.turn!, { type: 'bid', amount: 0 });
+    const last = g.bot!(d, d.dealer)!;
+    expect(last.type).toBe('bid');
+    expect(last.amount).not.toBe(3);
+  });
+});
+
 describe('omaha (config only)', () => {
   it('must use exactly two hole cards', () => {
     // four spades in hand but only one on board: no flush in Omaha

@@ -1,4 +1,4 @@
-import { buildDeck, cardLabel, cardName } from '../cards';
+import { buildDeck, cardLabel, cardName, parseCard } from '../cards';
 import { bestMelds, deadwoodValue, meldOrder } from '../lib/melds';
 import { createState, cutForDeal, hand, ids, log, moveCards, moveTop, name, placesFromScores, resetDeck, zone } from '../state';
 import { botLevel } from '../bots/search';
@@ -26,6 +26,9 @@ export interface RummyData {
 }
 
 type S = GameState<RummyData>;
+
+/** Hard judges a discard by the deadwood after this many of its best draws. */
+const TOP_DRAWS = 6;
 
 export function rummyFamily(config: GameConfig): GameModule<RummyData> {
   const R = familyRules(config, 'rummy', 'gin');
@@ -91,11 +94,12 @@ export function rummyFamily(config: GameConfig): GameModule<RummyData> {
 
   /**
    * Bots. Easy sometimes settles for a worse discard and only takes the discard pile for an obvious
-   * gain. Normal keeps the least deadwood and takes the face-up card whenever it cuts the deadwood.
-   * Hard looks a draw ahead in its discards, and takes the face-up card only when it beats what the
-   * stock can be expected to give. All knock as soon as they can. (Tried for Hard and dropped, as they
-   * measured worse: waiting to knock when an undercut looked likely, and keeping away from discards
-   * that would help hands imagined for the opponent.)
+   * gain. Normal keeps the least deadwood, takes the face-up card whenever it cuts the deadwood, and
+   * knocks as soon as it can. Hard plays as the 2021 AAAI Gin Rummy contest's stronger entries did:
+   * it judges a discard by the deadwood after its best few draws, keeps cards the opponent is known
+   * to want, takes the face-up card only when it beats what the stock can be expected to give, and
+   * knocks by Maravich, Neller & Neller's rule rather than at once. (Tried and dropped, as worse:
+   * whole imagined opponent hands to judge discards and knocks by.)
    */
   function botMove(s: S, seat: number): Action | null {
     if (s.turn !== seat) return null;
@@ -119,24 +123,23 @@ export function rummyFamily(config: GameConfig): GameModule<RummyData> {
     const unseen = level === 2 ? unseenBy(s, seat) : [];
     const nextTurn = (card: string) => {
       const keep = cards.filter((c) => c !== card);
-      let t = 0;
-      for (const u of unseen) {
+      const after = unseen.map((u) => {
         const m = bestMelds([...keep, u]);
-        t += m.points - Math.max(0, ...m.deadwood.map(deadwoodValue));
-      }
-      return t / Math.max(1, unseen.length);
+        return m.points - Math.max(0, ...m.deadwood.map(deadwoodValue));
+      });
+      const best = after.sort((a, b) => a - b).slice(0, TOP_DRAWS);
+      return best.reduce((a, b) => a + b, 0) / Math.max(1, best.length);
     };
     const ahead = new Map(level === 2 ? opts.map((o) => [o.card, nextTurn(o.card)]) : []);
-    const cost = (o: { card: string; points: number }) => (ahead.get(o.card) ?? o.points + (level === 2 ? 99 : 0)) - deadwoodValue(o.card) / 100;
+    const cost = (o: { card: string; points: number }) =>
+      (ahead.get(o.card) ?? o.points + (level === 2 ? 99 : 0)) + (level === 2 ? danger(s, seat, o.card) : 0) - deadwoodValue(o.card) / 100;
     opts = opts.sort((a, b) => cost(a) - cost(b));
     let pick = opts[0];
     if (level === 0 && opts.length > 1 && Math.random() < 0.35) pick = opts[1 + Math.floor(Math.random() * Math.min(2, opts.length - 1))];
     // going out: the best discard for it (whatever its danger, the hand ends)
     const out = [...opts].sort((a, b) => a.points - b.points)[0];
     if (out.points === 0) return { type: 'gin', cards: [out.card] };
-    // (knock as soon as it can: waiting for a better count, even when an undercut looks likely,
-    // measured worse, as good players say)
-    if (out.points <= R.knockMax) return { type: 'knock', cards: [out.card] };
+    if (out.points <= R.knockMax && (level < 2 || knockNow(s, seat, out.card, out.points))) return { type: 'knock', cards: [out.card] };
     return { type: 'discard', cards: [pick.card] };
   }
 
@@ -146,6 +149,43 @@ export function rummyFamily(config: GameConfig): GameModule<RummyData> {
    * seen, then improved by as many draws as they've had (a card in, their worst deadwood out),
    * since a hand that has been played a while is better than a fresh deal. Then they lay off.
    */
+  /**
+   * Hard: what a discard risks giving the opponent, from what's certain (as the 2021 AAAI contest's
+   * winner, MARJJ, did): a card that makes a meld with two they've picked up, a lot; one beside or
+   * matching a card they took, a little; one that can't meld for them at all (the cards it would
+   * need are in our hand or the discard pile), less than nothing.
+   */
+  function danger(s: S, seat: number, card: string): number {
+    const pile = ids(zone(s, 'discard'));
+    const mine = ids(hand(s, seat));
+    const theirs = (s.data.pickedUp?.[other(seat)] ?? []).filter((c) => !pile.includes(c) && !mine.includes(c));
+    const gone = new Set([...pile, ...mine.filter((c) => c !== card)]);
+    const { suit } = parseCard(card);
+    // (aces low)
+    const rank = parseCard(card).rank === 14 ? 1 : parseCard(card).rank;
+    const at = (r: number, x: string = suit) => `${'  23456789TJQKA'[r === 1 ? 14 : r]}${x}`;
+    const held = (r: number) => r >= 1 && r <= 13 && theirs.includes(at(r));
+    const open = (r: number) => r >= 1 && r <= 13 && !gone.has(at(r));
+    const sameRank = theirs.filter((c) => parseCard(c).rank === parseCard(card).rank).length;
+    if (sameRank >= 2 || (held(rank - 1) && held(rank + 1)) || (held(rank - 1) && held(rank - 2)) || (held(rank + 1) && held(rank + 2))) return 20;
+    if (sameRank || held(rank - 1) || held(rank + 1)) return 4;
+    const setOpen = ['S', 'H', 'D', 'C'].filter((x) => x !== suit && !gone.has(at(rank, x))).length >= 2;
+    const runOpen = (open(rank - 2) && open(rank - 1)) || (open(rank - 1) && open(rank + 1)) || (open(rank + 1) && open(rank + 2));
+    return setOpen || runOpen ? 0 : -5;
+  }
+
+  /**
+   * Hard: knock now, or hold on for a lower count or gin? Maravich, Neller & Neller's rule
+   * (fitted to 10,000s of games, AAAI 2021): knock while the deadwood is low, early in the hand,
+   * and with few cards left that would give gin.
+   */
+  function knockNow(s: S, seat: number, discard: string, deadwood: number): boolean {
+    const keep = ids(hand(s, seat)).filter((c) => c !== discard);
+    const ginHits = unseenBy(s, seat).filter((u) => bestAfterTaking(keep, u) === 0).length;
+    const turns = Math.floor((31 - zone(s, 'deck').cards.length) / 2);
+    return 25.878 - 0.152 * deadwood ** 2 - 1.148 * turns - 1.202 * ginHits ** 2 > 0;
+  }
+
   /** Pagat's bonuses (gin 20, undercut 10, box 20), or the common 25-each variant. */
   const bonusesFor = (s: S) => ({ ...R.bonuses, ...(s.options.bonus25 ? { gin: 25, undercut: 25, box: 25 } : {}) });
 
