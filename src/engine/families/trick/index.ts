@@ -14,6 +14,7 @@ import { controller, teamOf, teamsFor } from './sides';
 import { trickStatus } from './status';
 import { applyPitchBid } from './pitch';
 import { trickGame, type TrickData } from './types';
+import { setbackBid, setbackCard } from './setbackHard';
 import { dd500Bid, ddBid, ddBudget, ddCard, ddEuchreCall, ddGame } from './ddPlay';
 
 /**
@@ -33,6 +34,9 @@ import { dd500Bid, ddBid, ddBudget, ddCard, ddEuchreCall, ddGame } from './ddPla
  */
 export type { TrickData, TrickRules } from './types';
 export * from './contracts';
+
+/** How long Hard Setback thinks over a card, at most (its deals are solved, so it needs fewer). */
+const SETBACK_MS = 1000;
 
 export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
   const g = trickGame(config);
@@ -167,6 +171,8 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
         const call = ddEuchreCall(g, s, seat, quickBot(g, s, seat));
         if (call) return call;
       }
+      // Hard Setback: the bid, from deals played to the end with the solver
+      if (s.phase === 'pitch' && s.turn === seat && botLevel(s.options) === 2) return setbackBid(g, module, search, s, seat, SETBACK_MS);
       // Hard 500: the auction, from deals solved double dummy
       if (s.phase === 'auction' && s.turn === seat && botLevel(s.options) === 2) {
         const bid = dd500Bid(g, s, seat, quickBot(g, s, seat));
@@ -176,6 +182,11 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
       const budget = botBudget(s.options);
       // (Pitch: the first lead names trumps, a choice of its own: the quick rules make it)
       const pitching = g.R.trump === 'pitched' && !s.data.trump;
+      // Hard Setback: the end of the hand solved exactly, the pitch included (see setbackHard.ts)
+      if (g.pitchBids && s.phase === 'play' && controller(s) === seat && botLevel(s.options) === 2) {
+        const card = setbackCard(g, module, search, s, seat, SETBACK_MS);
+        if (card) return { type: 'play', cards: [card] };
+      }
       if (s.phase === 'play' && controller(s) === seat && !pitching) {
         // Hard, in the partnership games: deals of the unseen cards, each solved double dummy (see ddPlay.ts)
         const dd = botLevel(s.options) === 2 ? ddCard(g, s, seat, ddBudget()) : null;
@@ -199,8 +210,10 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
         // who holds honours is told when the hand is scored, not before
         honours: s.phase === 'roundOver' || s.phase === 'gameOver' ? d.honours : null,
         // Pitch: which cards are High, Low and Jack would say who holds what (or that a card
-        // wasn't dealt): only once the hand is scored
-        ...(d.pitch && s.phase !== 'roundOver' && s.phase !== 'gameOver' ? { pitch: { ...d.pitch, high: null, low: null, jack: null } } : {}),
+        // wasn't dealt), and so would who has them so far: only once the hand is scored
+        ...(d.pitch && s.phase !== 'roundOver' && s.phase !== 'gameOver'
+          ? { pitch: { ...d.pitch, high: null, low: null, jack: null, highBy: null, lowTo: null, jackTo: null } }
+          : {}),
       };
     },
 

@@ -3,6 +3,9 @@ import { parseCard } from '../src/engine/cards';
 import type { TrickData } from '../src/engine/families/trick';
 import type { GameModule, GameState } from '../src/engine/types';
 import { GAMES } from './games';
+import { solveSetback } from '../src/engine/families/trick/setbackSolve';
+import { trickSearch } from '../src/engine/families/trick/bots';
+import { trickGame } from '../src/engine/families/trick/types';
 
 const g = GAMES.setback as GameModule<TrickData>;
 const people = (n: number) => Array.from({ length: n }, (_, i) => ({ name: `P${i}` }));
@@ -184,6 +187,77 @@ describe('setback (pagat: Pitch)', () => {
     expect(s.data.pitch!.low).not.toBeNull();
     for (let v = 0; v < 4; v++) expect(g.redactData!(s, v).pitch).toMatchObject({ high: null, low: null, jack: null });
   });
+
+  it('nor who has taken them so far (that would say which trumps were dealt)', () => {
+    const s = g.setup(people(4), 5, {});
+    deal(s, [
+      ['AS', 'KS', 'JS', '2S', 'TH', 'TD'],
+      ['3H', '4H', '5H', '6H', '7H', '8H'],
+      ['3D', '4D', '5D', '6D', '7D', '8D'],
+      ['3C', '4C', '5C', '6C', '7C', '8C'],
+    ]);
+    bid(s, [4, null, null, null]);
+    for (const [seat, card] of [
+      [0, '2S'],
+      [1, '3H'],
+      [2, '3D'],
+      [3, '3C'],
+    ] as const)
+      g.apply(s, seat, { type: 'play', cards: [card] });
+    g.system!(s)!.run(s);
+    expect(s.data.pitch!.lowTo).toBe(0);
+    for (let v = 0; v < 4; v++) expect(g.redactData!(s, v).pitch).toMatchObject({ highBy: null, lowTo: null, jackTo: null });
+  });
+
+  it('the exact solver keeps the jack back until the king has fallen', () => {
+    // head to head, spades trumps, two cards left: lead the ace to draw the king, then the jack is safe
+    const solved = solveSetback({
+      hands: [
+        ['AS', 'JS'],
+        ['KS', '3H'],
+      ],
+      trump: 'S',
+      trick: [],
+      turn: 0,
+      side: [0, 1],
+      me: 0,
+      bidders: 0,
+      bid: 2,
+      game: [0, 0],
+      lowTo: 0,
+      jackTo: -1,
+      tricks: [4, 0],
+      highSide: 0,
+      low: '2S',
+      jack: 'JS',
+      handSize: 6,
+    })!;
+    const v = Object.fromEntries(solved.map((x) => [x.card, x.value]));
+    // the ace first: High, Low, Jack and Game (4 to 0); the jack first loses it and Game to the king
+    expect(v.AS).toBe(4);
+    expect(v.JS).toBeLessThan(v.AS);
+  });
+
+  it('imagined deals know which trumps score, from the cards placed in them', () => {
+    const s = g.setup(bots(4), 5, { botLevel: 1 });
+    bid(s, [4, null, null, null]);
+    g.apply(s, s.turn!, { type: 'play', cards: [s.zones[`hand:${s.turn}`].cards[0].id] });
+    const view = structuredClone(s);
+    view.data = g.redactData!(s, 1) as TrickData;
+    const deal = trickSearch(trickGame(g.config), g).determinize(view, 1);
+    const trumps = Object.values(deal.zones)
+      .filter((z) => z.id === 'trick' || z.id.startsWith('hand:'))
+      .flatMap((z) => z.cards.map((c) => c.id))
+      .filter((c) => parseCard(c).suit === deal.data.trump)
+      .sort((a, b) => parseCard(a).rank - parseCard(b).rank);
+    expect(deal.data.pitch).toMatchObject({ low: trumps[0], high: trumps[trumps.length - 1] });
+  });
+
+  it('Hard bots play a hand through (the end of it solved exactly)', () => {
+    const s = g.setup(bots(4), 21, { botLevel: 2 });
+    playOut(s);
+    expect(s.phase).toMatch(/roundOver|gameOver/);
+  }, 60_000);
 
   it('three play cutthroat (each for themselves), two head to head', () => {
     const three = g.setup(people(3), 9, {});

@@ -160,6 +160,17 @@ before is chips a single hand, after chips a 20-hand session):
 | Euchre          | points a deal              | +0.08 ± 0.05    | +0.34 ± 0.05 |
 | Whist           | points a deal              | +0.37 ± 0.11    | +0.48 ± 0.09 |
 | 500             | points a deal              | +5 ± 4          | +7 ± 4       |
+| Setback         | points a deal              | —               | +0.21 ± 0.17 |
+| Cribbage        | points a hand              | −0.30 ± 0.17    | +0.63 ± 0.15 |
+| Gin             | points a deal              | +0.28 ± 0.25    | +1.99 ± 0.28 |
+
+(Setback's Hard plays the last four cards solved exactly and bids what that makes three deals in
+four; its card play alone measured +0.53 ± 0.25. Cribbage's Normal is now an average player, a step
+down; its Easy is a beginner. Normal against Easy: Cribbage +0.97 ± 0.16 a hand.)
+
+Points a deal undersell a step in games that score a point or two a hand, so whole games
+(`WHOLE=1`, which counts wins) say more. Hard against Normal: Euchre 78%, Whist 59%, Cribbage
+60%. Normal against Easy: Cribbage 55%, Gin 68%. Two thirds a step is the aim.
 
 Tried and left out: weighing each imagined deal by how well it explains the others' plays (as the
 Skat program Kermit does, with a model of play learned from human games). With the quick bot as the

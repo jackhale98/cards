@@ -77,6 +77,29 @@ export function pitchTrumps(s: S, card: string) {
   s.players.forEach((_, i) => sortHand(s, i, { trump }));
 }
 
+/**
+ * An imagined deal's scoring trumps. A bot's view doesn't say which cards score High, Low and Jack,
+ * or who has them so far (that would tell which trumps were dealt); in a deal the bot has imagined,
+ * every card is placed, so they're settled from it: the top and bottom trumps in play, who played
+ * the top one, and who won the low and the jack in a trick already taken.
+ */
+export function settlePitch(s: S) {
+  const d = s.data;
+  const p = d.pitch;
+  if (!p || !d.trump) return;
+  const played = d.played ?? [];
+  const inPlay = new Set([...s.players.flatMap((x) => ids(hand(s, x.seat))), ...ids(zone(s, 'trick')), ...played.flat()]);
+  const trumps = [...inPlay].filter((c) => parseCard(c).suit === d.trump).sort((a, b) => parseCard(a).rank - parseCard(b).rank);
+  p.low = trumps[0] ?? null;
+  p.high = trumps[trumps.length - 1] ?? null;
+  p.jack = trumps.find((c) => parseCard(c).rank === 11) ?? null;
+  const wonBy = (c: string | null) => (c ? s.players.findIndex((x) => ids(zone(s, `taken:${x.seat}`)).includes(c)) : -1);
+  const highBy = p.high ? played.findIndex((xs) => xs.includes(p.high!)) : -1;
+  p.highBy = highBy < 0 ? null : highBy;
+  p.lowTo = wonBy(p.low) < 0 ? null : wonBy(p.low);
+  p.jackTo = wonBy(p.jack) < 0 ? null : wonBy(p.jack);
+}
+
 /** A trick is won: its card points count for Game, and it may hold the low trump or the jack. */
 export function pitchTrick(s: S, winner: number) {
   const d = s.data;

@@ -23,11 +23,13 @@ it.skipIf(!process.env.LEVELS)(
       const family = g.config.rules?.family;
       const n = Math.min(4, g.config.players.max);
       const poker = family === 'poker';
-      const wholeGame = family === 'cheat' || family === 'gofish';
+      // (WHOLE=1: play whole games, and count who wins them)
+      const whole = !!process.env.WHOLE;
+      const wholeGame = whole || family === 'cheat' || family === 'gofish';
       const result = (before: GameState, after: GameState, seat: number): number => {
         const d = after.data as any;
         if (poker) return after.players[seat].chips - before.players[seat].chips;
-        if (family === 'cheat') return after.winner?.includes(seat) ? 1 : 0;
+        if (whole || family === 'cheat') return after.winner?.includes(seat) ? 1 : 0;
         if (family === 'gofish') return d.books[seat];
         if (family === 'climbing' || family === 'palace') return -(d.finished.indexOf(seat) < 0 ? n : d.finished.indexOf(seat));
         const scores = d.scores as number[];
@@ -61,7 +63,7 @@ it.skipIf(!process.env.LEVELS)(
             // (HANDS: a session of that many hands, as a real table plays, so habits build up)
             let ended = 0;
             let last = hand0;
-            for (let i = 0; i < 6000 * hands; i++) {
+            for (let i = 0; i < (whole ? 200000 : 6000 * hands); i++) {
               if (startHand(s) !== last) {
                 ended++;
                 last = startHand(s);
@@ -90,7 +92,13 @@ it.skipIf(!process.env.LEVELS)(
                   break;
                 }
               }
-              if (!a) break;
+              if (!a) {
+                // (between deals at a table of bots: someone presses "Next hand")
+                const next = whole ? s.players.find((p) => g.actions(s, p.seat).some((x) => x.type === 'next')) : undefined;
+                if (!next) break;
+                g.apply(s, next.seat, { type: 'next' });
+                continue;
+              }
               g.apply(s, seat, a);
             }
             const others = s.players.map((p) => p.seat).filter((x) => !smart.includes(x));

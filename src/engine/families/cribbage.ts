@@ -18,7 +18,7 @@ import {
   sortHand,
   zone,
 } from '../state';
-import { botBudget, dealUnseen, easyMove, edge, fork, playOut, type SearchGame, searchMove, shuffled } from '../bots/search';
+import { botBudget, botLevel, dealUnseen, easyMove, edge, fork, now, playOut, type SearchGame, searchMove, shuffled, TESTING } from '../bots/search';
 import { familyRules, assertRule, type Action, type GameConfig, type GameModule, type GameState } from '../types';
 import { acrossTeams, sideName, soloTeams, teamIndex } from '../lib/teams';
 /** This family's settings in game.json (generated from the schema). */
@@ -49,6 +49,9 @@ export interface CribData {
 }
 
 type S = GameState<CribData>;
+
+/** How long Hard thinks over its throw, at most (once a hand). */
+const HARD_DISCARD_MS = 300;
 
 const LAYOUT: Record<number, { deal: number; discard: number; fromDeck: number }> = {
   2: { deal: 6, discard: 2, fromDeck: 0 },
@@ -250,40 +253,118 @@ export function cribbageFamily(config: GameConfig): GameModule<CribData> {
   // ---- bots -------------------------------------------------------------------------------
 
   /**
-   * The best cards to throw to the crib: the kept hand's average over every possible starter, plus
-   * (or minus, for an opponent's crib) what the throw is worth to the crib. With `samples`, the crib
-   * is valued by imagining the other cards that go in and the starter; without, by rule of thumb.
+   * An average player's throw (Normal): the kept hand's average over every possible starter, plus
+   * (or minus, for an opponent's crib) what the throw is worth to the crib by rule of thumb.
    */
-  function botDiscard(s: S, seat: number, samples = 0): string[] {
+  function botDiscard(s: S, seat: number): string[] {
     const cards = ids(hand(s, seat));
-    const k = layout(s).discard;
-    const mine = s.dealer === seat || teamOf(s, s.dealer) === teamOf(s, seat);
     const unseen = buildDeck(config.deck).filter((c) => !cards.includes(c));
-    // the other crib cards and the starter, drawn once from the cards we can't see and shared by
-    // every choice, so choices are compared on the same cribs (not each on its own luck)
-    const more = 4 - k;
-    const draws = Array.from({ length: samples }, () => shuffled([...unseen]).slice(0, more + 1));
-    let best: { keep: string[]; value: number } | null = null;
+    return averageThrow(cards, layout(s).discard, ownsCrib(s, seat), unseen);
+  }
+
+  /** Is the crib this hand `seat`'s side's? */
+  const ownsCrib = (s: S, seat: number) => s.dealer === seat || teamOf(s, s.dealer) === teamOf(s, seat);
+
+  /** The average player's throw from `cards`, the kept hand averaged over `starters`. */
+  function averageThrow(cards: string[], k: number, own: boolean, starters: string[]): string[] {
+    let best: { drop: string[]; value: number } | null = null;
     for (const drop of combos(cards, k)) {
       const keep = cards.filter((c) => !drop.includes(c));
       // average over possible starters, plus a nudge for what the discards give the crib
       let total = 0;
-      for (const st of unseen) total += scoreHand(keep, st).total;
-      const avg = total / unseen.length;
+      for (const st of starters) total += scoreHand(keep, st).total;
+      const avg = total / starters.length;
       // what the discards are worth to whoever owns the crib: a fifteen or a pair is 2, a five is promising
       const sum = drop.reduce((n, c) => n + pipValue(c), 0);
       const pair = drop.length === 2 && parseCard(drop[0]).rank === parseCard(drop[1]).rank;
       const fives = drop.filter((c) => pipValue(c) === 5).length;
-      let cribValue = (sum === 15 ? 2 : 0) + (pair ? 2 : 0) + fives * 1.5;
-      if (samples) {
-        let t = 0;
-        for (const pick of draws) t += scoreHand([...drop, ...pick.slice(0, more)], pick[more], true).total;
-        cribValue = t / samples;
-      }
-      const value = avg + (mine ? 1 : -1) * cribValue;
-      if (!best || value > best.value) best = { keep, value };
+      const cribValue = (sum === 15 ? 2 : 0) + (pair ? 2 : 0) + fives * 1.5;
+      const value = avg + (own ? 1 : -1) * cribValue;
+      if (!best || value > best.value) best = { drop, value };
     }
-    return cards.filter((c) => !best!.keep.includes(c));
+    return best!.drop;
+  }
+
+  /**
+   * An average player's throw (Normal), by rules of thumb rather than sums: what the four score as
+   * they stand, a little more for fives and for cards close in rank (a starter may make a run or a
+   * fifteen of them), and the crib's nudge: fives, pairs and fifteens are good in your own crib and
+   * bad in theirs.
+   */
+  function thumbDiscard(s: S, seat: number): string[] {
+    const cards = ids(hand(s, seat));
+    const own = ownsCrib(s, seat);
+    let best: { drop: string[]; value: number } | null = null;
+    for (const drop of combos(cards, layout(s).discard)) {
+      const keep = cards.filter((c) => !drop.includes(c));
+      const ranks = keep.map((c) => parseCard(c).rank);
+      const close = ranks.reduce((n, r, i) => n + ranks.slice(i + 1).filter((x) => x !== r && Math.abs(x - r) <= 2).length, 0);
+      const fives = keep.filter((c) => pipValue(c) === 5).length;
+      const sum = drop.reduce((n, c) => n + pipValue(c), 0);
+      const pair = drop.length === 2 && parseCard(drop[0]).rank === parseCard(drop[1]).rank;
+      const crib = (sum === 15 ? 2 : 0) + (pair ? 2 : 0) + drop.filter((c) => pipValue(c) === 5).length * 1.5;
+      const value = scoreHand(keep, null).total + fives * 0.5 + close * 0.3 + (own ? 1 : -1) * crib;
+      if (!best || value > best.value) best = { drop, value };
+    }
+    return best!.drop;
+  }
+
+  /**
+   * A beginner's throw (Easy): keep the four that score most as they stand, never minding the
+   * starter to come or whose crib it is.
+   */
+  function beginnerDiscard(s: S, seat: number): string[] {
+    const cards = ids(hand(s, seat));
+    let best: { drop: string[]; value: number } | null = null;
+    for (const drop of combos(cards, layout(s).discard)) {
+      const value = scoreHand(
+        cards.filter((c) => !drop.includes(c)),
+        null,
+      ).total;
+      if (!best || value > best.value) best = { drop, value };
+    }
+    return best!.drop;
+  }
+
+  /**
+   * Hard's throw, as strong players reckon it: the kept hand's average over every starter, plus
+   * the crib's, with the rest of the crib thrown as a sensible player would throw it (from hands
+   * imagined out of the cards not seen) rather than at random: an opponent keeps good cards out of
+   * your crib, a partner feeds it.
+   */
+  function hardDiscard(s: S, seat: number, samples: number): string[] {
+    const L = layout(s);
+    const cards = ids(hand(s, seat));
+    const drops = combos(cards, L.discard);
+    const unseen = buildDeck(config.deck).filter((c) => !cards.includes(c));
+    const exact = drops.map((drop) => {
+      const keep = cards.filter((c) => !drop.includes(c));
+      return unseen.reduce((n, st) => n + scoreHand(keep, st).total, 0) / unseen.length;
+    });
+    const others = s.players.map((p) => p.seat).filter((x) => x !== seat);
+    const crib = drops.map(() => 0);
+    let cribs = 0;
+    const stop = now() + HARD_DISCARD_MS;
+    const max = TESTING ? Math.min(samples, 12) : samples;
+    for (let runs = 0; runs < max && (TESTING || runs === 0 || now() < stop); runs++) {
+      const pool = shuffled([...unseen]);
+      const rest: string[] = [];
+      for (const o of others) {
+        const theirs = pool.splice(0, L.deal);
+        // (their hand judged over a few starters: enough to throw as they would)
+        rest.push(...averageThrow(theirs, L.discard, ownsCrib(s, o), pool.slice(0, 10)));
+      }
+      rest.push(...pool.splice(0, L.fromDeck));
+      for (const st of pool.slice(0, 6)) {
+        drops.forEach((drop, i) => (crib[i] += scoreHand([...drop, ...rest], st, true).total));
+        cribs++;
+      }
+    }
+    const sign = ownsCrib(s, seat) ? 1 : -1;
+    let best = 0;
+    const value = (i: number) => exact[i] + (sign * crib[i]) / Math.max(1, cribs);
+    for (let i = 1; i < drops.length; i++) if (value(i) > value(best)) best = i;
+    return drops[best];
   }
 
   function botPeg(s: S, seat: number): string {
@@ -327,6 +408,9 @@ export function cribbageFamily(config: GameConfig): GameModule<CribData> {
         { zone: 'crib', fixed: c.data.discards[viewer] ?? [] },
         { zone: 'deck' },
       ]);
+      // the others' throws stay in their hands until everyone has thrown: in an imagined deal,
+      // they threw cards of the hand imagined for them (a view shows their throw as no cards)
+      c.data.discards = c.data.discards.map((x, i) => (x && i !== viewer ? ids(hand(c, i)).slice(0, layout(c).discard) : x));
       return c;
     },
     candidates(s, seat) {
@@ -520,12 +604,19 @@ export function cribbageFamily(config: GameConfig): GameModule<CribData> {
     },
 
     bot(s, seat) {
-      const budget = botBudget(s.options);
-      if (budget && s.phase === 'discard' && !s.data.discards[seat]) return { type: 'crib', cards: botDiscard(s, seat, budget.samples) };
-      if (s.phase === 'peg' && s.turn === seat)
-        return budget
-          ? (searchMove(search, s, seat, budget, quickBot(s, seat)) ?? quickBot(s, seat))
-          : easyMove(s.options, search.candidates(s, seat), quickBot(s, seat));
+      const level = botLevel(s.options);
+      // Easy: a beginner (keeps what scores now; pegs by the quick rules, with slips). Normal: an
+      // average player (rules of thumb for the throw; the quick rules for the pegging). Hard: a
+      // strong one (the throw reckoned over every starter, and the crib; the pegging searched).
+      if (s.phase === 'discard' && !s.data.discards[seat])
+        return {
+          type: 'crib',
+          cards: level === 2 ? hardDiscard(s, seat, botBudget(s.options)!.samples) : level === 1 ? thumbDiscard(s, seat) : beginnerDiscard(s, seat),
+        };
+      if (s.phase === 'peg' && s.turn === seat) {
+        if (level === 2) return searchMove(search, s, seat, botBudget(s.options)!, quickBot(s, seat)) ?? quickBot(s, seat);
+        if (level === 0) return easyMove(s.options, search.candidates(s, seat), quickBot(s, seat));
+      }
       return quickBot(s, seat);
     },
 

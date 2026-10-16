@@ -62,6 +62,33 @@ export function moreSamples(runs: number, max: number, min: number, stop: number
   return runs < max && (TESTING || runs < min || now() < stop);
 }
 
+/**
+ * Has the sampling settled which move is best? Each other move trails the leader, deal for deal,
+ * by more than SETTLED standard errors (or scores the same on every deal: an equal choice). Then
+ * thinking stops: more deals would only confirm it, at the cost of battery. Close calls get the
+ * whole budget.
+ */
+export function settled(scores: number[][], min = 8): boolean {
+  const runs = scores[0]?.length ?? 0;
+  if (runs < min || scores.length < 2) return scores.length < 2;
+  const total = scores.map((xs) => xs.reduce((a, b) => a + b, 0));
+  const best = total.indexOf(Math.max(...total));
+  return scores.every((xs, i) => {
+    if (i === best) return true;
+    let sum = 0;
+    let sq = 0;
+    for (let k = 0; k < runs; k++) {
+      const d = scores[best][k] - xs[k];
+      sum += d;
+      sq += d * d;
+    }
+    const mean = sum / runs;
+    const sd = Math.sqrt(Math.max(0, sq / runs - mean * mean) * (runs / (runs - 1)));
+    return sd === 0 ? true : mean > SETTLED * (sd / Math.sqrt(runs));
+  });
+}
+const SETTLED = 3;
+
 export const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
 /**
@@ -91,7 +118,7 @@ export function searchMove<D>(game: SearchGame<D>, s: GameState<D>, seat: number
   // (in tests, a set number of deals rather than a time limit, so a busy machine can't change the
   // answer: about what a phone manages in that time)
   const samples = TESTING ? Math.min(budget.samples, Math.ceil(budget.ms / 4)) : budget.samples;
-  while (runs < samples && (TESTING || runs === 0 || now() < stop)) {
+  while (runs < samples && (TESTING || runs === 0 || now() < stop) && !(runs % 4 === 0 && settled(scores))) {
     const deal = game.determinize(s, seat);
     moves.forEach((m, i) => {
       const sim = structuredClone(deal);

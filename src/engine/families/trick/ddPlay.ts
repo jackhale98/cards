@@ -1,5 +1,5 @@
 import { parseCard } from '../../cards';
-import { moreSamples, now, TESTING, type SearchBudget } from '../../bots/search';
+import { moreSamples, now, settled, TESTING, type SearchBudget } from '../../bots/search';
 import { solveCards } from '../../bots/dds';
 import { ids, nextSeat, zone } from '../../state';
 import { isMisere, legalCards, rankFor, suitFor, suitless, suitOf } from './play';
@@ -126,10 +126,16 @@ export function ddCard(g: TrickGame, s: S, seat: number, budget = DD_BUDGET, ran
 
   const total = new Map<string, number>(legal.map((c) => [c, 0]));
   const best = new Map<string, number>(legal.map((c) => [c, 0]));
+  // each card's tricks on each deal: once one card is clearly best, the rest of the budget is saved
+  const each = new Map<string, number[]>(legal.map((c) => [c, []]));
   let runs = 0;
   let strict = true;
   const stop = now() + budget.ms;
-  for (let tries = 0; moreSamples(runs, budget.samples, budget.least, stop) && tries < budget.samples * 60; tries++) {
+  for (
+    let tries = 0;
+    moreSamples(runs, budget.samples, budget.least, stop) && tries < budget.samples * 60 && !(runs % 4 === 0 && settled([...each.values()]));
+    tries++
+  ) {
     // (after many misses, the bids are let go: someone may have bid a little off the card)
     if (tries === budget.samples * 30) strict = false;
     const dealt = deal(pool, [...counts, rest], [...voids, new Set<string>()], suitIn, rand);
@@ -144,6 +150,7 @@ export function ddCard(g: TrickGame, s: S, seat: number, budget = DD_BUDGET, ran
       const id = named.get(`${v.suit}:${v.rank}`)!;
       if (!total.has(id)) continue;
       total.set(id, total.get(id)! + v.tricks);
+      each.get(id)!.push(v.tricks);
       if (v.tricks === top) best.set(id, best.get(id)! + 1);
     }
   }

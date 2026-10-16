@@ -1,4 +1,4 @@
-import { buildDeck, cardLabel, cardName, parseCard } from '../cards';
+import { buildDeck, cardLabel, cardName } from '../cards';
 import { bestMelds, deadwoodValue, meldOrder } from '../lib/melds';
 import { createState, cutForDeal, hand, ids, log, moveCards, moveTop, name, placesFromScores, resetDeck, zone } from '../state';
 import { botLevel } from '../bots/search';
@@ -91,8 +91,11 @@ export function rummyFamily(config: GameConfig): GameModule<RummyData> {
 
   /**
    * Bots. Easy sometimes settles for a worse discard and only takes the discard pile for an obvious
-   * gain. Normal keeps the least deadwood. Hard also keeps away from feeding the opponent (cards
-   * that fit what they've picked up).
+   * gain. Normal keeps the least deadwood and takes the face-up card whenever it cuts the deadwood.
+   * Hard looks a draw ahead in its discards, and takes the face-up card only when it beats what the
+   * stock can be expected to give. All knock as soon as they can. (Tried for Hard and dropped, as they
+   * measured worse: waiting to knock when an undercut looked likely, and keeping away from discards
+   * that would help hands imagined for the opponent.)
    */
   function botMove(s: S, seat: number): Action | null {
     if (s.turn !== seat) return null;
@@ -100,21 +103,18 @@ export function rummyFamily(config: GameConfig): GameModule<RummyData> {
     const cards = ids(hand(s, seat));
     const top = topDiscard(s);
     const now = bestMelds(cards).points;
-    const wants = (c: string | null) => !!c && bestAfterTaking(cards, c) < now - (level === 0 ? 4 : 0);
+    // Hard takes the face-up card only when it beats what a card from the stock can be expected to
+    // do (and it tells the opponent what it's collecting); the others whenever it cuts the deadwood
+    const stock = () => {
+      const unseen = unseenBy(s, seat).filter((c) => c !== top);
+      return unseen.reduce((n, u) => n + bestAfterTaking(cards, u), 0) / Math.max(1, unseen.length);
+    };
+    const wants = (c: string | null) => !!c && bestAfterTaking(cards, c) < (level === 2 ? Math.min(now, stock() - 1) : now - (level === 0 ? 4 : 0));
     if (s.phase === 'firstPick') return wants(top) ? { type: 'take' } : { type: 'pass' };
     if (s.phase === 'draw') return !s.data.mustDrawStock && wants(top) ? { type: 'take' } : { type: 'draw' };
     if (s.phase !== 'discard') return null;
     if (now === 0 && s.options.bigGin) return { type: 'bigGin' };
     let opts = discardOptions(s, seat);
-    const theirs = s.data.pickedUp?.[other(seat)] ?? [];
-    // how much a card would help the opponent: same rank, or a near neighbour in suit, as cards they took
-    const feeds = (c: string) => {
-      const x = parseCard(c);
-      return theirs.reduce((n, t) => {
-        const y = parseCard(t);
-        return n + (y.rank === x.rank ? 3 : y.suit === x.suit && Math.abs(y.rank - x.rank) <= 2 ? 2 : 0);
-      }, 0);
-    };
     // Hard looks a draw ahead: the deadwood it can expect next turn, averaged over every card it might draw
     const unseen = level === 2 ? unseenBy(s, seat) : [];
     const nextTurn = (card: string) => {
@@ -127,18 +127,25 @@ export function rummyFamily(config: GameConfig): GameModule<RummyData> {
       return t / Math.max(1, unseen.length);
     };
     const ahead = new Map(level === 2 ? opts.map((o) => [o.card, nextTurn(o.card)]) : []);
-    const cost = (o: { card: string; points: number }) =>
-      (ahead.get(o.card) ?? o.points + (level === 2 ? 99 : 0)) + (level === 2 ? feeds(o.card) * 0.5 : 0) - deadwoodValue(o.card) / 100;
+    const cost = (o: { card: string; points: number }) => (ahead.get(o.card) ?? o.points + (level === 2 ? 99 : 0)) - deadwoodValue(o.card) / 100;
     opts = opts.sort((a, b) => cost(a) - cost(b));
     let pick = opts[0];
     if (level === 0 && opts.length > 1 && Math.random() < 0.35) pick = opts[1 + Math.floor(Math.random() * Math.min(2, opts.length - 1))];
     // going out: the best discard for it (whatever its danger, the hand ends)
     const out = [...opts].sort((a, b) => a.points - b.points)[0];
     if (out.points === 0) return { type: 'gin', cards: [out.card] };
+    // (knock as soon as it can: waiting for a better count, even when an undercut looks likely,
+    // measured worse, as good players say)
     if (out.points <= R.knockMax) return { type: 'knock', cards: [out.card] };
     return { type: 'discard', cards: [pick.card] };
   }
 
+  /**
+   * Hard: what knocking now (throwing `discard`) is worth, and how often it'd be undercut. The
+   * opponent's hand is imagined: the cards they're known to have taken, the rest from cards not
+   * seen, then improved by as many draws as they've had (a card in, their worst deadwood out),
+   * since a hand that has been played a while is better than a fresh deal. Then they lay off.
+   */
   /** Pagat's bonuses (gin 20, undercut 10, box 20), or the common 25-each variant. */
   const bonusesFor = (s: S) => ({ ...R.bonuses, ...(s.options.bonus25 ? { gin: 25, undercut: 25, box: 25 } : {}) });
 

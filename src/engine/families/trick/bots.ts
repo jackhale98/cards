@@ -8,7 +8,7 @@ import { ALL_BIDS, bidOf, MISERE, NAMEABLE, OPEN_MISERE, STRAINS } from './contr
 import { currentWinner, isMisere, jokerLeadSuits, legalCards, rankFor, rankOf, suitFor, suitOf } from './play';
 import { controller, teamOf, teamsFor } from './sides';
 import { pointsOf, target, type S, type TrickData, type TrickGame } from './types';
-import { botPitchBid, botPitchLead } from './pitch';
+import { botPitchBid, botPitchLead, settlePitch } from './pitch';
 import { heartsCard, heartsPass } from './heartsHard';
 import { handOf } from './systems/hands';
 import { systemCall } from './systems/bidder';
@@ -384,6 +384,7 @@ export function trickSearch(
         { zone: 'deck' },
         ...(kittyKnown ? [] : [{ zone: 'kitty', fixed: d.upcard ? [d.upcard] : [] }]),
       ]);
+      if (g.pitchBids) settlePitch(c);
       return c;
     },
 

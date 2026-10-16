@@ -287,3 +287,31 @@ describe('cribbage: counting your own hands (muggins)', () => {
     expect(hands).toBeGreaterThan(2);
   });
 });
+
+describe('cribbage bot levels', () => {
+  const hands = (s: GameState<CribData>, cards: string[][]) => {
+    cards.forEach((c, i) => (s.zones[`hand:${i}`].cards = c.map((id) => ({ id }))));
+    const used = new Set(cards.flat());
+    s.zones.deck.cards = s.zones.deck.cards.filter((c) => !used.has(c.id));
+  };
+
+  it('Easy throws like a beginner: it keeps what scores now, never minding the starter or the crib', () => {
+    const s = crib.setup(bots(2), 3, { botLevel: 0 });
+    // keeping 7 8 9 K scores 5 as it stands (a run and a fifteen); 5 5 is a better keep with a starter to come
+    hands(s, [h('7H 8H 9C KS 5D 5C'), h('AS 2S 3S 4S 6S 8S')]);
+    const thrown = crib.bot!(s, 0)!.cards!;
+    const kept = h('7H 8H 9C KS 5D 5C').filter((c) => !thrown.includes(c));
+    const best = Math.max(...['7H 8H 9C KS', '7H 8H 9C 5D', '5D 5C KS 7H'].map((k) => scoreHand(h(k), null).total));
+    expect(scoreHand(kept, null).total).toBe(best);
+  });
+
+  it('Hard, valuing the hand and its own crib, keeps the fives and the face cards', () => {
+    const s = crib.setup(bots(2), 4, { botLevel: 2 });
+    const mine = h('5H 5D JC QC 9S 2D');
+    const theirs = h('AS 2S 3S 4S 6S 8S');
+    hands(s, s.dealer === 0 ? [mine, theirs] : [theirs, mine]);
+    const thrown = crib.bot!(s, s.dealer)!.cards!;
+    // the dealer's own crib: the five pair and the face cards stay, whatever the deals
+    expect(thrown.sort()).toEqual(['2D', '9S']);
+  });
+});
