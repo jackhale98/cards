@@ -171,7 +171,11 @@ with one job:
 
 1. **The page** (`Table.svelte`) lays out the table's areas: the seats, the middle's piles in
    rows, the strip, your hand along the bottom, the labels and the buttons. Each zone gets a
-   frame there, sized by its layout.
+   frame there, sized by its layout. How big the cards are comes from `layout/table.ts`, a pure
+   function of the screen and the zones: it asks each zone's layout how tall it stands at a card
+   size, packs them into rows as the page will, and picks the largest cards (never under 30px
+   wide) that let the middle and your hand fit. `tests/tableSize.test.ts` checks it for every
+   game, and `e2e/tableSize.spec.ts` checks the page lays the middle out as tall as it predicted.
 2. **A layout** (`src/ui/layout/`) says where every card of one zone goes inside its frame: a pure
    function from the zone's cards and card size to the frame's size and a place (centre, width,
    turn, stacking) for each card. `fan.ts` is your hand, `trick.ts` a trick, `stack.ts` a pile,
@@ -191,7 +195,8 @@ own cards.
 
 So a game that lays its cards out like an existing one needs nothing new. A new way of laying
 cards out is a new layout function (sizes and places, tested in `tests/layout.test.ts`), a case
-for it in `layout/index.ts`, and a new `layout` value in the schema; nothing else changes.
+for it in `layout/index.ts`, and a new `layout` value in the schema; nothing else changes: the
+table's sizing reads every zone's size from its layout, so a new layout's size counts there too.
 
 ## When a game needs something new
 

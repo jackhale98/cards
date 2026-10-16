@@ -81,7 +81,10 @@ function middleOf(m: Moment, screen: Screen) {
 }
 /** The table's sizes for a moment on a screen (`vh`: a taller one). */
 function sizes(m: Moment, screen: Screen, vh = screen.vh) {
-  return size.fitSizes({
+  return size.fitSizes(sizesInput(m, screen, vh));
+}
+function sizesInput(m: Moment, screen: Screen, vh = screen.vh): size.FitInput {
+  return {
     vw: screen.vw,
     vh,
     side: screen.side && vh <= 500,
@@ -100,7 +103,7 @@ function sizes(m: Moment, screen: Screen, vh = screen.vh) {
     rowFit: size.rowFit(m.center, screen.mainW, screen.side) < Infinity,
     pileLabelH: 20,
     stripShown: false,
-  });
+  };
 }
 
 describe('the table’s sizes', () => {
@@ -252,4 +255,22 @@ describe('the table’s height shared out exactly', () => {
         if (fit.center > 92 * 0.36) expect(used, `${m.game} ${m.at}`).toBeLessThanOrEqual(screen.vh - 10 + 0.5);
       }
     });
+});
+
+describe('the last move’s line', () => {
+  it('when it wraps onto two lines, the middle and your hand make room for both', () => {
+    // (the headline's over the middle: not a phone on its side, where it's in the column)
+    const screen = SCREENS.laptop;
+    let gave = 0;
+    for (const m of MOMENTS) {
+      const one = sizes(m, screen);
+      const two = size.fitSizes({ ...sizesInput(m, screen), lastH: 40 });
+      if (!one.lastFits || !two.lastFits) continue;
+      // (a taller line: never bigger cards, and smaller ones whenever the room was already tight)
+      expect(two.center + two.hand, `${m.game} ${m.at}`).toBeLessThanOrEqual(one.center + one.hand);
+      expect(two.spare, `${m.game} ${m.at}`).toBeLessThanOrEqual(one.spare);
+      if (two.center + two.hand < one.center + one.hand || two.spare < one.spare) gave++;
+    }
+    expect(gave).toBeGreaterThan(0);
+  });
 });

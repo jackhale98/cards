@@ -73,18 +73,83 @@ chrome (seats bar, headline, your column), and the middle is never scaled below 
 
 ## Phase 2: `Table.svelte` into parts
 
-Goal: the table screen is markup plus small modules; each job readable on its own.
+Goal: the table screen is markup plus small modules; each job readable (and testable) on its own.
+No visible change: every step is a move, proven by the same pictures and the same tests.
 
-- [ ] 2a. Sheets into components: `MenuSheet`, `ScoresSheet`, `SaveSheet`, `MeldsSheet` (the
-      full-screen melds), `LookSheet` if not already one. Props in, events out.
-- [ ] 2b. Logic into `src/ui/table/` modules (plain TS or `.svelte.ts` classes): `selection`
-      (selected, selectable, tap, swipe, run, quick), `fresh` (cards just received), `race`
-      (real-time reaction timing), `shown` (which zones show where: centre, strip, showdown,
-      `keptRoom`, hand mode's usable piles, play-from dummy), `announce` (the screen-reader line),
-      `tvSeats` (seat positions round the oval: into `layout/table.ts`).
-- [ ] 2c. `TableStatus` (headline, last move) and the `.me` column as components.
-- [ ] 2d. Unit tests for the modules that hold logic (selection rules, fresh-card rules, which
-      zones show). Target: `Table.svelte` under ~1000 lines, mostly markup and CSS.
+**Where it stands** (after phase 1, 2578 lines): script ~955 (sizing ~250, which zones show ~120,
+selection and acting ~110, fresh cards ~25, real-time timing ~25, sounds and reactions ~75, flight
+anchors ~45, the seats row ~35, sheets' state ~60, announcements and last move ~30, the rest
+derived lookups), markup ~565 (header and seats ~115, the middle ~140, the result banner ~45, your
+column ~40, hand and buttons ~75, five sheets ~215), CSS ~1055.
+
+**How it's split.** Logic goes into pure functions first (plain TS, unit tested with no DOM) with
+thin rune classes over them where state must persist between updates; markup goes into
+components that each own their CSS. Rules for the components:
+
+- Class names stay the same (`.headline`, `.last`, `.recap`, `.side-status`, `.me`, `.hand-wrap`,
+  `.zones`, `.strip`, `.banner`, …): the e2e tests, the screen audit and `screenCheck` find things
+  by them.
+- A component gets the table's modes as props (`display`, `side`, `handMode`) and styles its own
+  variants (`.table.display .headline` becomes the headline's own `.display` class): no
+  `:global` reaching into children, except the few places the table's grid places a child
+  (`.table.wide-middle aside`), which stay on the table's own elements.
+- Props in, callbacks out (`onclose`, `onsheet`, `onact`); the shared selection is one object
+  passed down, not a dozen props.
+- Measured sizes the sizing needs (`headH`, `meOwnH`, `sideRecapH`, …) are bound from the
+  component back (`bind:`) to the sizing state, never re-measured.
+
+### Steps (each a commit: `pnpm verify`, full e2e, the picture check below)
+
+- [ ] 2.0 **A picture check for "nothing changed"** (pulled forward from 4a): development builds
+      take `?seed=…` so a table deals the same cards each time; a script (`e2e/pictures.spec.ts`,
+      not in CI) deals each of a dozen games (one per layout: hearts, bridge, holdem, stud,
+      rummy-500, canasta, kings-corners, cribbage, slapjack, spit, gin-rummy, palace) at a phone
+      on its side, a phone in hand mode and a TV, with no bot moves, and saves screenshots;
+      run before and after each step, compared pixel for pixel (`toHaveScreenshot` against the
+      "before" set). Bots' later moves aren't seeded, so only the dealt moment and a scripted
+      first move are compared; e2e covers the rest.
+- [ ] 2a. **Sheets into components** (`src/ui/table/`): `MenuSheet` (the menu and How to play,
+      with the per-device settings moved into `settings.svelte.ts`: sound, four colours, hints,
+      turn notifications, hand order), `ScoresSheet`, `SaveSheet`, `MeldsSheet` (everyone's melds
+      full screen, with its own `spreadCw` sizing and measuring), the `Look` sheet stays a
+      three-line inline; `ResultBanner` (title, lines, recap, replay and how-it-went buttons,
+      tonight's standings, the support line); `RotatePrompt`. ~−400 lines from the table.
+- [ ] 2b. **Logic into modules** (`src/ui/table/`, each with `tests/table*.test.ts`):
+  - `shown.ts`: which zones show where, pure: the showdown's zones, the middle (with `keptRoom`
+    as an input, its update a pure `keptRoomAfter`), hand mode's usable piles, the strip in
+    order (`stripZones`' ranking), `playFrom`, gridded/cross order, the seats' cards.
+  - `selection.svelte.ts`: selected cards; `tap`, `swipe`, `zoneAction`, pruning on update;
+    the rules as pure functions (`afterTap(selected, id, specs) → { selected } | { play }`).
+  - `fresh.ts`: `freshAfter(before, now, fresh)` (cards that just came into your hand; a new deal
+    isn't "fresh").
+  - `race.svelte.ts`: when a race showed on this screen and the reaction time to send.
+  - `events.ts`: `lastMoveOf` (the line under the headline), `announceText` (the screen-reader
+    line), `soundFor`, `recapOf` (the hand's summary).
+  - `reactions.svelte.ts`: emoji reactions showing on seats, and what each seat "said".
+  - `tvSeatPos` into `layout/table.ts` (pure: seat, players, measured size).
+  - `run(spec, …)` stays in the table, composing selection, fresh and race in four lines.
+- [ ] 2c. **Table parts as components**: `TableStatus` (headline and last move, used in the
+      middle and in the side column), `MeColumn` (your column: whose turn on a phone on its side,
+      the recap, your name, chips and hint), `SeatsBar` (the header's seats: the row that scrolls
+      to whoever's turn it is, the TV's oval, reactions button and bar), `ActionsColumn` (the
+      race to the target, Replay hand, the action bar or the replay's controls).
+- [ ] 2d. **Sizing into one place**: everything sizing reads and works out (the measured chrome,
+      `middleAt`, `fitWith`, the reservation choice, `growTo`, the strip's hold, `stripSpace`,
+      `centerCw`, `handCw`, `tallActions`/`tallFor`) into `table/sizing.svelte.ts`, a class built
+      from a getter of its inputs; the DOM helpers (`fitHeight` guard, `fitSide`, `edgeFade`) into
+      `table/actions.ts`. The `__sizes` development hook moves with it (4a's snapshot reads it).
+- [ ] 2e. Docs: CLAUDE.md's map lists `src/ui/table/`; this plan's log. Target: `Table.svelte`
+      under ~1000 lines (script ~300, markup ~250, CSS ~400: the table's grid and the middle).
+
+Order and why: 2.0 first, so every later step is checked by pictures, not by eye. Sheets first
+because they're self-contained (little shared state). Logic before the remaining components, so
+the components get small, tested objects instead of a dozen loose props. Sizing last: it reads
+almost everything else, and is easiest to move once the rest is out of the way.
+
+Risks to watch: Svelte's scoped CSS (a style left behind silently stops applying: the picture check
+catches it); effects that ran in a particular order inside one component (the flight anchors'
+`$effect.pre` must still see the DOM before the update: it stays in the table); `bind:` to class
+state (works for `$state` fields; check in `pnpm check`).
 
 ## Phase 3: `host.ts` into parts
 

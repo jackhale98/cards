@@ -12,7 +12,7 @@ import { FULL_HAND } from './spread';
 
 /** No card on the table narrower than this: below it the corner's rank and suit can't be read. */
 export const MIN_CW = 30;
-/** The last move's line under the headline (px). */
+/** The last move's line under the headline (px, with the gap over it), until it's been measured. */
 export const LAST_H = 26;
 
 /** Piles with places on the table (Kings Corners' cross). */
@@ -352,6 +352,8 @@ export interface FitInput {
   /** Whose turn it is (the headline, measured), and whether it's over the middle (not in the column on the left). */
   headH: number;
   headlineAbove: boolean;
+  /** The last move's line, measured when last shown (it can wrap onto two lines). */
+  lastH?: number;
   /** Your own part of the column (name, chips), on a phone on its side… */
   meOwnH: number;
   /** …and the hand's summary there too, at a hand's end (it shows there when the column has room). */
@@ -382,6 +384,8 @@ export interface FitInput {
 /** Between the table's rows (seats, middle, hand) and between what's stacked in the middle. */
 const ROW_GAP = 4;
 const MAIN_GAP = 6;
+/** Over the last move's line: the middle's gap, less the line's -2px margin. */
+const LAST_GAP = MAIN_GAP - 2;
 
 /** How tall your hand stands at card width `cw`: a fan (its arc and a picked card's rise), or your own pile with its label. */
 export function handHeight(cw: number, i: Pick<FitInput, 'pileOnly' | 'handEmpty' | 'pileLabelH'>): number {
@@ -407,7 +411,7 @@ export function fitSizes(i: FitInput): { center: number; hand: number; lastFits:
   // the room left for the middle's piles, with your hand at `hand` and the last move's line or not
   const room = (hand: number, last: boolean) => {
     const main = i.tableH - i.headerH - 2 * ROW_GAP - Math.max(handHeight(handOf(hand), i), i.bottomMinH ?? 0);
-    const above = i.headlineAbove ? i.headH + (last ? LAST_H : 0) + MAIN_GAP : 0;
+    const above = i.headlineAbove ? i.headH + (last ? (i.lastH ? i.lastH + LAST_GAP : LAST_H) : 0) + MAIN_GAP : 0;
     const below = i.belowH ? i.belowH + MAIN_GAP : 0;
     return main - above - below;
   };

@@ -74,11 +74,6 @@
    */
   const side = $derived(!display && !handMode && vh <= 500);
   let headH = $state(0);
-  /**
-   * How wide a face-up hand in the middle (the dummy) may grow before the middle runs out of height.
-   * (On a phone only: on a table screen the dummy keeps one size all hand, for everyone watching.)
-   */
-  let growTo = $state(Infinity);
   /** The table's height inside its padding, and what sits under the middle's piles (measured). */
   let tableH = $state(0);
   let tableClientH = $state(0);
@@ -89,6 +84,15 @@
     tableH = tableClientH - parseFloat(st.paddingTop) - parseFloat(st.paddingBottom);
   });
   let recapH = $state(0);
+  /** The last move's line (it can wrap): kept from when it was last shown, as it isn't always. */
+  let lastH = $state(0);
+  function measureLast(el: HTMLElement) {
+    const ro = new ResizeObserver(() => {
+      if (el.offsetHeight && el.offsetHeight !== lastH) lastH = el.offsetHeight;
+    });
+    ro.observe(el);
+    return { destroy: () => ro.disconnect() };
+  }
   /** The recap in your column (side mode): the column keeps room for it. */
   let sideRecapH = $state(0);
   /**
@@ -117,7 +121,7 @@
    * How tall the middle stands with its cards `cw` wide: every zone laid out by its own layout,
    * the zones in rows as the page puts them, everyone's melds under them (layout/table.ts).
    */
-  function middleAt(cw: number, reserve: boolean = stripRoomShown): number {
+  function middleAt(cw: number, reserve: boolean = stripRoomShown, withStrip = true): number {
     const roomyNow = size.roomy(centerZones, cw, mainW, vw, stripZones.length > 0);
     const kept = stripKeep.cw;
     const whereMiddle = (z: ZoneState, zcw: number): Where => ({
@@ -143,11 +147,13 @@
       rowFit: rowFit < Infinity,
       steadyLabel: display ? (zcw) => zcw * 1.8 : undefined,
       extras: status.pot && !handMode ? [{ w: potW, h: potH }] : [],
-      strip: stripZones.length
-        ? { zones: stripZones, cwOf: stripCwAt, whereOf: whereStrip, wrap: display }
-        : reserve && !display
-          ? { room: Math.round(1.4 * stripCwAt({ scale: stripScale }) + 30) }
-          : undefined,
+      strip: !withStrip
+        ? undefined
+        : stripZones.length
+          ? { zones: stripZones, cwOf: stripCwAt, whereOf: whereStrip, wrap: display }
+          : reserve && !display
+            ? { room: Math.round(1.4 * stripCwAt({ scale: stripScale }) + 30) }
+            : undefined,
     });
   }
   /** How big the middle's cards and your hand's are (layout/table.ts): the table's height shared out exactly, once it's measured. */
@@ -163,6 +169,7 @@
       headerH: headerH || 56,
       headH,
       headlineAbove: !!status.headline && !side,
+      lastH,
       meOwnH,
       belowH: recapShown ? recapH : 0,
       sideRecapH: side && recap && !(showBanner && status.banner) ? sideRecapH || 40 : 0,
@@ -229,6 +236,16 @@
 
   /** Each middle zone's card size (layout/table.ts). */
   const slotCw = (z: ZoneState) => size.slotCw(z, { centerCw, mainW, rowFit, display });
+  /**
+   * How wide a face-up hand in the middle (the dummy, a row of cards) may grow: its cards as much
+   * taller as the height that's spare (fitSizes leaves it spare for this). On a table screen the
+   * dummy keeps one size all hand, for everyone watching.
+   */
+  const growTo = $derived.by(() => {
+    const dummy = shownCenter.find((z) => z.faceUpHand);
+    if (display || !dummy) return 0;
+    return slotCw(dummy) + Math.floor(cardSizes.spare / 1.4);
+  });
 
   /**
    * The safety net under the sizes worked out above: if the middle's cards still come out taller
@@ -293,33 +310,21 @@
       return Number.isFinite(top) ? { h: bottom - Math.min(top, el.offsetTop), w: right - left } : { h: 0, w: 0 };
     };
     const fit = () => {
-      // (anything below the piles in the middle, the hand's summary say, keeps its room)
+      // (anything below the piles in the middle, the hand's summary say, keeps its room; not what
+      // floats over the table, the result banner)
       let below = 0;
       for (let c = el.nextElementSibling as HTMLElement | null; c; c = c.nextElementSibling as HTMLElement | null)
-        if (c.offsetHeight && getComputedStyle(c).position !== 'absolute') below += c.offsetHeight + 6;
+        if (c.offsetHeight && !['absolute', 'fixed'].includes(getComputedStyle(c).position)) below += c.offsetHeight + 6;
       const room = main.clientHeight - el.offsetTop - below;
       // (a table screen sizes its cards to this room: see displayCw)
       if (display && Math.abs(room - middleRoom) >= 4) middleRoom = room;
       const { h, w } = extent();
       // (too tall, or too wide: a showdown's two seven-card hands side by side on a phone)
-      const k = Math.min(1, room / Math.max(1, h), main.clientWidth / Math.max(1, w, el.offsetWidth));
+      // (nothing in the middle, hand mode between moves say: nothing to fit)
+      const k = h ? Math.min(1, room / h, main.clientWidth / Math.max(1, w, el.offsetWidth)) : 1;
       // (a table screen lets the middle run a few percent past its box into the oval, rather than
       // shrink everything by a hair and back as melds land)
       const want = display && k >= 0.96 ? 1 : Math.max(0.6, Math.min(1, k));
-      // (a table screen's strip of melds: the height from its top to the foot of the middle, which
-      // stripFit sizes the melds to fill; read at full size, as the scale would shrink it)
-      const strip = el.querySelector<HTMLElement>(':scope > .strip, :scope > .strip-room');
-      if (strip && display) {
-        const now = Number(/scale\(([\d.]+)\)/.exec(el.style.transform)?.[1] ?? 1);
-        const space = Math.floor(main.clientHeight - (strip.getBoundingClientRect().top - main.getBoundingClientRect().top) / now - 8);
-        if (Math.abs(space - stripSpace) >= 4) stripSpace = space;
-      }
-      // the dummy's cards grow as it empties: only into the height that's spare, not past it
-      const card = el.querySelector<HTMLElement>('.handdown .scard');
-      if (card?.offsetHeight) {
-        const max = Math.floor((card.offsetWidth * (card.offsetHeight + room - h)) / card.offsetHeight);
-        if (Math.abs(max - growTo) >= 1) growTo = max;
-      }
       // (back to full size at once; smaller only once it's lasted a moment, so the brief overflow
       // as a meld lands, before the sizes catch up, doesn't make the middle twitch. A pile that
       // has just appeared, bridge's dummy, is drawn at its size from the start.)
@@ -638,8 +643,11 @@
    * the middle, with cards small enough that the longest set of melds fits a row. Through a hand
    * they only get smaller (once, as melds outgrow the row), never back and forth.
    */
-  /** The height a table screen's strip of melds has, measured (see fitHeight). */
-  let stripSpace = $state(0);
+  /**
+   * The height a table screen's strip of melds has: the room under the headline less the piles'
+   * row over it (6px between) and a little clear of the seat at the bottom.
+   */
+  const stripSpace = $derived(display && middleRoom ? Math.floor(middleRoom - middleAt(centerCw, false, false) - 6 - 8) : 0);
   const stripFit = $derived.by(() =>
     size.stripFit({ display, zones: stripZones, mainW, mainH, rem: tvRem, vw, stripSpace, centerCw, labels, whereOf: whereStrip }),
   );
@@ -972,7 +980,7 @@
     <div class="headline" aria-hidden="true" style:visibility="hidden">&nbsp;</div>{/if}
   {#if lastMove && cardSizes.lastFits}
     {#key lastMove.t}
-      <div class="last">
+      <div class="last" use:measureLast>
         {#if lastMove.seat != null}
           <AvatarBadge avatar={lobbySeat(lastMove.seat)?.avatar} name={s.players[lastMove.seat]?.name ?? ''} seat={lastMove.seat} size={16} />
         {/if}
@@ -1109,7 +1117,7 @@
             onzone={zoneAction(z.id) ? () => run(zoneAction(z.id)!) : undefined}
             fast={!!zoneAction(z.id)?.react}
             {roomy}
-            growTo={display ? 0 : growTo}
+            {growTo}
             steady={display}
             room={mainW ? mainW - 4 : Infinity}
           />
