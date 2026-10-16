@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { PokerData } from '../src/engine/families/poker';
 import type { TrickData } from '../src/engine/families/trick';
+import { worth } from '../src/engine/families/trick/bots';
+import { trickGame } from '../src/engine/families/trick/types';
 import { bestWithHole } from '../src/engine/lib/pokerEval';
 import { seatRelation } from '../src/engine/state';
 import type { GameModule, GameState } from '../src/engine/types';
@@ -78,6 +80,15 @@ describe('spades (config only)', () => {
     // team 1: bid 5 took 6: 51
     expect(s.data.scores).toEqual([-157, 51]);
     expect(s.data.bags).toEqual([1, 1]);
+  });
+
+  it('the search bots count a bag at what it will cost (10 bags lose 100), not as a point won', () => {
+    const tg = trickGame(g.config);
+    const d = { scores: [51, 51], bags: [9, 0] } as TrickData;
+    // nine bags: 90 owed
+    expect(worth(tg, d)).toEqual([-39, 51]);
+    // one more makes ten: −100 now, and none owed
+    expect(worth(tg, { scores: [-48, 51], bags: [0, 0] } as TrickData)).toEqual([-48, 51]);
   });
 });
 

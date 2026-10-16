@@ -396,9 +396,17 @@ export function trickSearch(
 
     apply: (s, seat, a) => module.apply(s, seat, a),
     rollout: (s) => playOut(module, quick, s, (x) => x.phase === 'roundOver' || x.phase === 'gameOver'),
-    // the hand's points for our side against the others' (Hearts: fewer is better)
-    score: (before, after, seat) => edge(before.data.scores, after.data.scores, teamOf(g, before, seat), g.lowWins),
+    // the hand's points for our side against the others' (Hearts: fewer is better), each bag
+    // (Spades' overtricks) at what it will cost: a share of the penalty every so many bring
+    score: (before, after, seat) => edge(worth(g, before.data), worth(g, after.data), teamOf(g, before, seat), g.lowWins),
   };
+}
+
+/** Each side's score, less its bags at what they'll cost (Spades: 10 bags lose 100, so a bag is −10). */
+export function worth(g: TrickGame, d: TrickData): number[] {
+  const bags = 'bags' in g.R.scoring ? g.R.scoring.bags : undefined;
+  if (!bags || !d.bags) return d.scores;
+  return d.scores.map((x, i) => x - ((d.bags[i] ?? 0) * bags.penalty) / bags.every);
 }
 
 /** Hard's own rules of thumb where it has them (Hearts), else the quick bot's. */
