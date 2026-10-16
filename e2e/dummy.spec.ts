@@ -113,6 +113,8 @@ test('on a table screen the dummy holds its size and place through every trick',
   const spread = (xs: number[]) => Math.max(...xs) - Math.min(...xs);
   expect(seen.every((x) => x.widths.length === 1)).toBe(true);
   expect(spread(seen.map((x) => x.widths[0]))).toBeLessThanOrEqual(2);
-  expect(spread(seen.map((x) => x.width))).toBeLessThanOrEqual(2);
+  // (on failure: each width it took, in turn)
+  const widths = seen.map((x) => Math.round(x.width)).filter((w, i, xs) => i === 0 || w !== xs[i - 1]);
+  expect(spread(seen.map((x) => x.width)), `widths: ${widths.join(' → ')}`).toBeLessThanOrEqual(2);
   expect(spread(seen.map((x) => x.left))).toBeLessThanOrEqual(2);
 });

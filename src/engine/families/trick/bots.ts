@@ -115,8 +115,9 @@ function botAuction(g: TrickGame, s: S, seat: number): Action {
   // a hand of nothing but low cards (and no joker) can go misère
   const parsed = cards.map(parseCard);
   const low = parsed.every((c) => c.suit !== 'X' && c.rank <= 10) && parsed.filter((c) => c.rank >= 9).length <= 1;
-  if (low && parsed.every((c) => c.rank <= 8) && open.includes(OPEN_MISERE)) return { type: 'bid500', amount: ALL_BIDS.indexOf(OPEN_MISERE) };
-  if (low && open.includes(MISERE)) return { type: 'bid500', amount: ALL_BIDS.indexOf(MISERE) };
+  // (misère has its own buttons, as for a person)
+  if (low && parsed.every((c) => c.rank <= 8) && open.includes(OPEN_MISERE)) return { type: 'openMisere' };
+  if (low && open.includes(MISERE)) return { type: 'misere' };
   return { type: 'decline' };
 }
 

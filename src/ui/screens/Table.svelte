@@ -10,7 +10,7 @@
   import ActionBar from '../components/ActionBar.svelte';
   import Hand from '../components/Hand.svelte';
   import Seat from '../components/Seat.svelte';
-  import Zone from '../components/Zone.svelte';
+  import Zone, { FULL_HAND } from '../components/Zone.svelte';
   import Sheet from '../components/Sheet.svelte';
   import LookPicker from '../components/LookPicker.svelte';
   import AvatarBadge from '../components/AvatarBadge.svelte';
@@ -199,6 +199,17 @@
   );
 
   /**
+   * Each middle zone's card size. A whole hand face up (bridge's dummy) keeps its thirteen cards'
+   * width all hand (its slot holds that much, so it never shares a row with the trick as it
+   * empties): no wider than the middle.
+   */
+  function slotCw(z: ZoneState): number {
+    const fit = z.faceUpHand && mainW ? Math.floor((mainW - 16) / FULL_HAND) : Infinity;
+    const size = Math.round(centerCw * (z.scale ?? 1) * (z.layout === 'spread' && (z.faceUpHand || z.cards.length >= 10) && !display ? 0.82 : 1));
+    return Math.max(MIN_CW, Math.min(rowFit, fit, size));
+  }
+
+  /**
    * The safety net under the sizes worked out above: if the middle's cards still come out taller
    * than the room under the headline (labels grow during play; a row wraps that wasn't expected),
    * they're drawn smaller to fit. A transform doesn't change the layout, so measuring it can't
@@ -284,15 +295,19 @@
         if (Math.abs(max - growTo) >= 1) growTo = max;
       }
       // (back to full size at once; smaller only once it's lasted a moment, so the brief overflow
-      // as a meld lands, before the sizes catch up, doesn't make the middle twitch)
+      // as a meld lands, before the sizes catch up, doesn't make the middle twitch. A pile that
+      // has just appeared, bridge's dummy, is drawn at its size from the start.)
       clearTimeout(settle);
       const set = () => (el.style.transform = want < 0.999 ? `scale(${want.toFixed(3)})` : '');
       const now = Number(/scale\(([\d.]+)\)/.exec(el.style.transform)?.[1] ?? 1);
-      if (want >= now) set();
+      const piles = el.children.length;
+      if (want >= now || piles !== seen) set();
       else settle = window.setTimeout(set, 250);
+      seen = piles;
     };
     let settle = 0;
     let frame = 0;
+    let seen = el.children.length;
     const later = () => {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(fit);
@@ -937,7 +952,10 @@
 {#snippet tableStatus()}
   {#if status.headline}<div class="headline" class:mine={actor === you && you >= 0} bind:clientHeight={headH}>
       {#if side}<span class="tip" use:marquee><span class="run"><SuitText text={status.headline} /></span></span>{:else}<SuitText text={status.headline} />{/if}
-    </div>{/if}
+    </div>
+  {:else if display}
+    <!-- (a table screen keeps the headline's room too, between tricks say: the piles below stay put) -->
+    <div class="headline" aria-hidden="true" style:visibility="hidden">&nbsp;</div>{/if}
   {#if lastMove && cardSizes.lastFits}
     {#key lastMove.t}
       <div class="last">
@@ -1053,16 +1071,11 @@
           in:fade={{ duration: z.faceUpHand || z.id === `hand:${you}` ? swapMs : 0, delay: z.faceUpHand || z.id === `hand:${you}` ? swapMs * 0.6 : 0 }}
           style:grid-row={cross ? z.grid![0] + 1 : undefined}
           style:grid-column={cross ? z.grid![1] + 1 : undefined}
+          style:min-width={z.faceUpHand ? `${Math.round(slotCw(z) * FULL_HAND)}px` : undefined}
         >
           <Zone
             zone={playFrom?.id === z.id ? { ...z, id: `hand:${you}`, label: 'Your hand', cards: myHand } : z}
-            cw={Math.max(
-              MIN_CW,
-              Math.min(
-                rowFit,
-                Math.round(centerCw * (z.scale ?? 1) * (z.layout === 'spread' && (z.faceUpHand || z.cards.length >= 10) && !display ? 0.82 : 1)),
-              ),
-            )}
+            cw={slotCw(z)}
             {you}
             players={n}
             {selected}

@@ -1,3 +1,14 @@
+<script module lang="ts">
+  /** A face-up hand's overlap: each card shows this much of the one under it (in card widths)… */
+  const STEP = 0.38;
+  /** …and a new suit this much more… */
+  const SUIT_GAP = 0.32;
+  /** …with the row's gap between every two (`.spread`'s gap). */
+  const GAP = 0.1;
+  /** A whole face-up hand of thirteen, four suits, in card widths (the middle must have this room for one). */
+  export const FULL_HAND = 1 + 12 * (STEP + GAP) + 3 * SUIT_GAP;
+</script>
+
 <script lang="ts">
   import SuitText from './SuitText.svelte';
   import type { ZoneState } from '../../engine/types';
@@ -29,14 +40,6 @@
     /** A table screen's pile in the middle: its label keeps the widest it has been (its count and hint change all game), so the row doesn't re-centre as it changes. */
     steady?: boolean;
   }
-  /** A face-up hand's overlap: each card shows this much of the one under it (in card widths)… */
-  const STEP = 0.38;
-  /** …and a new suit this much more… */
-  const SUIT_GAP = 0.32;
-  /** …with the row's gap between every two (`.spread`'s gap). */
-  const GAP = 0.1;
-  /** A whole face-up hand of thirteen, four suits, in card widths. */
-  const FULL_HAND = 1 + 12 * (STEP + GAP) + 3 * SUIT_GAP;
   /** How far (px) the room beside a dummy may dip before it shrinks to suit. */
   const HOLD = 8;
   let {

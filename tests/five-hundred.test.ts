@@ -3,6 +3,7 @@ import { buildDeck } from '../src/engine/cards';
 import { avondale, type TrickData } from '../src/engine/families/trick';
 import type { GameModule, GameState } from '../src/engine/types';
 import { GAMES } from './games';
+import { checkAction } from '../src/engine/validate';
 
 const g = GAMES['five-hundred'] as GameModule<TrickData>;
 const bots = Array.from({ length: 4 }, (_, i) => ({ name: `P${i}`, bot: true }));
@@ -155,6 +156,15 @@ describe('500', () => {
       .find((a) => a.type === 'bid500')!
       .choose!.options.filter((o) => !o.disabled);
     expect(grid.every((o) => o.label.startsWith('8') || o.label.startsWith('9') || o.label.startsWith('10'))).toBe(true);
+  });
+
+  it('a bot with a hand of low cards asks for misère with the misère button (a move the host accepts)', () => {
+    const s = g.setup(bots, 3, { botLevel: 0 });
+    const seat = s.turn!;
+    s.zones[`hand:${seat}`].cards = ['4H', '5H', '6H', '7H', '4D', '5D', '6D', '7D', '5C', '6C'].map((id) => ({ id }));
+    const a = g.bot!(s, seat)!;
+    expect(a.type).toMatch(/^(misere|openMisere)$/);
+    expect(checkAction(a, g.actions(s, seat))).not.toHaveProperty('error');
   });
 
   it('plays misère alone: partner sits out, the first trick taken ends it', () => {

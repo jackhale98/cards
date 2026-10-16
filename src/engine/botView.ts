@@ -17,11 +17,19 @@ export interface BotView<D = unknown> {
   unfill: (a: Action) => Action;
 }
 
-/** Each game's whole pack (built once: some games use several decks). */
-const packs = new WeakMap<object, string[]>();
-const packOf = (m: GameModule<unknown>) => {
-  let p = packs.get(m.config);
-  if (!p) packs.set(m.config, (p = buildDeck(m.config.deck)));
+/**
+ * Each game's whole pack at a table of `n` (built once: some games use several decks, and some a
+ * different deck for a size, `byPlayers`: 500 for six has 63 cards).
+ */
+const packs = new WeakMap<object, Map<number, string[]>>();
+const packOf = (m: GameModule<unknown>, n: number) => {
+  let bySize = packs.get(m.config);
+  if (!bySize) packs.set(m.config, (bySize = new Map()));
+  let p = bySize.get(n);
+  if (!p) {
+    const deck = m.config.byPlayers?.[n]?.deck;
+    bySize.set(n, (p = buildDeck(deck ? { ...m.config.deck, ...deck } : m.config.deck)));
+  }
   return p;
 };
 
@@ -36,7 +44,7 @@ export function botView<D>(m: GameModule<D>, s: GameState<D>, seat: number, rand
       if (isHidden(c.id)) hidden++;
       else seen.add(c.id);
     }
-  const unseen = hidden ? packOf(m as GameModule<unknown>).filter((id) => !seen.has(id)) : [];
+  const unseen = hidden ? packOf(m as GameModule<unknown>, s.players.length).filter((id) => !seen.has(id)) : [];
   const back = new Map<string, string>();
   for (const z of Object.values(view.zones))
     z.cards = z.cards.map((c) => {

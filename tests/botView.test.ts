@@ -87,4 +87,26 @@ describe('bots think only with what their seat can see', () => {
     expect(new Set(all).size).toBe(all.length);
     expect(all.length).toBe(52);
   });
+
+  it('at every table size, from the deck that size plays with (500 for six has 63 cards; for three, no sixes)', () => {
+    const g = GAME_LIST.find((x) => x.config.id === 'five-hundred')!;
+    for (const n of [3, 4, 5, 6]) {
+      const s = g.setup(
+        Array.from({ length: n }, (_, i) => ({ name: `B${i}`, bot: true })),
+        n,
+        {},
+      );
+      const real = new Set(Object.values(s.zones).flatMap((z) => z.cards.map((c) => c.id)));
+      const { view } = botView(g, s, 0);
+      const all = Object.values(view.zones).flatMap((z) => z.cards.map((c) => c.id));
+      expect(
+        all.filter((c) => c.startsWith('?')),
+        `${n} players`,
+      ).toEqual([]);
+      expect(
+        all.filter((c) => !real.has(c)),
+        `${n} players`,
+      ).toEqual([]);
+    }
+  });
 });
