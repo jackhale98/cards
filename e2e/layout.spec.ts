@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readdirSync, readFileSync } from 'node:fs';
+import { zoneCards } from './cards';
 import { cardsLanded, playOn } from './wait';
 
 /**
@@ -79,7 +80,13 @@ async function checkLayout(page: Page, opts: { seatsMayScroll: boolean }) {
     // the cards in the middle stay in the middle: clear of your hand below and the headline above
     const footer = document.querySelector('.table:not(.display) footer')?.getBoundingClientRect();
     const head = document.querySelector('.table:not(.display) main .headline')?.getBoundingClientRect();
-    document.querySelectorAll('.table:not(.display) main .zones .card, .table:not(.display) .layer .lc:not(.mine) .card').forEach((el) => {
+    // (the cards are drawn by the card layer, each where its zone's frame puts it)
+    const inMiddle = (el: Element) => {
+      const lc = el.closest<HTMLElement>('.layer-card');
+      if (!lc || lc.dataset.leaving || lc.dataset.frame === 'hand') return false;
+      return !!document.querySelector(`.zone[data-zone="${CSS.escape(lc.dataset.in ?? '')}"]`)?.closest('.table:not(.display) main');
+    };
+    [...document.querySelectorAll('.table:not(.display) .layer .card')].filter(inMiddle).forEach((el) => {
       const r = el.getBoundingClientRect();
       if (!r.width || !r.height) return;
       if (footer && footer.height && r.bottom > footer.top + 2 && r.top < footer.bottom)
@@ -206,7 +213,7 @@ for (const id of ['egyptian-rat-screw', 'slapjack']) {
       .poll(
         async () => {
           if (await turn.isEnabled().catch(() => false)) await turn.click().catch(() => {});
-          return page.locator('main [data-zone="pile"] .card').count();
+          return zoneCards(page, 'pile').count();
         },
         { timeout: 20_000 },
       )

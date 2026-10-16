@@ -1,8 +1,16 @@
 <script lang="ts">
   import type { CardRef } from '../../engine/types';
-  import { receive, send } from '../motion';
+  import { cardName } from '../cardName';
+  import { fan, fanHeight, landing, type Spot } from '../layout';
+  import { LAYER, useFrames } from '../layout/frames.svelte';
   import Card from './Card.svelte';
 
+  /**
+   * Your hand, fanned (layout/fan.ts). Each card's place is a button here, in the hand's order:
+   * tap to pick it, drag it up to play it, drag it sideways to move it in the hand, or use the
+   * keyboard. At a table the card layer draws the cards over them (CardLayer.svelte); elsewhere
+   * (under the full-screen melds) they're drawn here.
+   */
   interface Props {
     cards: CardRef[];
     cw: number;
@@ -16,37 +24,53 @@
     onswipe: (id: string) => void;
     /** Drag a card sideways to move it within the hand: the hand's new order, by card id. */
     onreorder?: (ids: string[]) => void;
-    /** Only the room for the hand: the card layer draws its cards (see CardLayer.svelte). */
-    ghost?: boolean;
+    /** The zone it holds (yours; bridge's dummy when you play from it). */
+    zone?: string;
+    /** Draw its own cards, even at a table (it's on a sheet over it). */
+    inline?: boolean;
   }
-  let { cards, cw, selected, selectable, fresh = [], hints = true, ontap, onswipe, onreorder, ghost = false }: Props = $props();
+  let { cards, cw, selected, selectable, fresh = [], hints = true, ontap, onswipe, onreorder, zone = 'hand', inline = false }: Props = $props();
+
+  const frames = useFrames();
+  const layered = $derived(!!frames && !inline);
 
   let width = $state(0);
   /** A card being dragged: up (to play it) or, with `slide`, sideways (to move it in the hand). */
   let drag = $state<{ id: string; x: number; y: number; dx: number; dy: number; moved: boolean; slide: boolean } | null>(null);
 
-  const layout = $derived.by(() => {
-    const n = cards.length;
-    if (!n || !width) return [];
-    const mid = (n - 1) / 2;
-    const spread = Math.min(3.2, 26 / n);
-    // the outer cards lean out, turning about a point below the card (transform-origin 50% 120%),
-    // so their top corners reach past the card's own width: leave room for that at each end (or
-    // they'd run under your name and the buttons beside the hand)
-    const lean = ((spread * mid) / 180) * Math.PI;
-    const reach = n > 1 ? Math.max(0, (cw / 2) * (Math.cos(lean) - 1) + 1.2 * cw * 1.4 * Math.sin(lean)) : 0;
-    const room = width - 2 * reach;
-    const gap = Math.min(cw * 0.62, n > 1 ? (room - cw - 8) / (n - 1) : 0);
-    const total = cw + gap * (n - 1);
-    const left = (width - total) / 2;
-    return cards.map((_, i) => {
-      const off = i - mid;
+  const placed = $derived(
+    fan(
+      cards.map((c) => c.id),
+      width,
+      cw,
+    ),
+  );
+  /** Each card's place (and, being dragged, where your finger has it), and how it looks there. */
+  const spots = $derived(
+    placed.spots.map((p): Spot => {
+      const can = !selectable || selectable.has(p.id);
+      const held = drag?.id === p.id;
       return {
-        x: left + i * gap,
-        rot: off * spread,
-        y: Math.abs(off) ** 2 * Math.min(1.4, 40 / (n * n)) + Math.abs(off) * 0.6,
+        ...p,
+        x: p.x + (held ? drag!.dx : 0),
+        y: p.y + (held ? drag!.dy : 0),
+        z: held && drag!.slide ? cards.length + 1 : p.z,
+        held,
+        selected: selected.includes(p.id),
+        playable: hints && !!selectable && can && selectable.size < cards.length,
+        dim: hints && !!selectable && !can,
+        fresh: fresh.includes(p.id),
       };
-    });
+    }),
+  );
+
+  let handEl = $state<HTMLElement>();
+  // (at a table: the card layer draws your hand)
+  $effect(() => {
+    const el = handEl;
+    if (!frames || inline || !el) return;
+    frames.set('hand', { el, zone, layer: LAYER.hand, spots, ids: cards.map((c) => c.id) });
+    return () => frames.drop('hand', el);
   });
 
   function down(e: PointerEvent, id: string) {
@@ -69,15 +93,6 @@
       drag.dx = dx;
       drag.dy = 0;
     } else drag.dy = Math.min(0, dy);
-  }
-  /** Where a card slid sideways by `dx` lands: the slot nearest where it was let go. */
-  function landing(from: number, dx: number): number {
-    const x = (layout[from]?.x ?? 0) + dx;
-    let best = from;
-    layout.forEach((p, i) => {
-      if (Math.abs(p.x - x) < Math.abs(layout[best].x - x)) best = i;
-    });
-    return best;
   }
   /** Enter or Space picks the card; Alt with an arrow key moves it along the hand. */
   function key(e: KeyboardEvent, id: string, i: number) {
@@ -104,7 +119,7 @@
     drag = null;
     if (slide) {
       const from = cards.findIndex((c) => c.id === id);
-      const at = landing(from, slid);
+      const at = from < 0 ? from : landing(placed, placed.spots[from].x + slid);
       if (from >= 0 && at !== from) {
         const ids = cards.map((c) => c.id);
         ids.splice(from, 1);
@@ -120,45 +135,38 @@
 
 <div
   class="hand"
+  bind:this={handEl}
   bind:clientWidth={width}
   style:--cw="{cw}px"
-  style:height={cards.length ? 'calc(var(--cw) * 1.4 + 26px)' : '0px'}
+  style:height="{cards.length ? fanHeight(cw) : 0}px"
   onpointermove={move}
   onpointerup={up}
   onpointercancel={() => (drag = null)}
-  role={ghost ? undefined : 'group'}
-  aria-label={ghost ? undefined : 'Your hand'}
-  data-layer={ghost ? 'hand' : undefined}
+  role="group"
+  aria-label="Your hand"
 >
-  {#each ghost ? [] : cards as c, i (c.id)}
-    {@const p = layout[i] ?? { x: 0, rot: 0, y: 0 }}
+  {#each cards as c, i (c.id)}
+    {@const p = spots[i]}
     {@const can = !selectable || selectable.has(c.id)}
-    <!-- (data-flip: a card whose place in the hand changes, as when the hand is sorted afresh, is
-         moved in the page, which loses its transition: the table slides it there instead) -->
-    <div
-      class="slot"
-      data-flip
-      class:dragging={drag?.id === c.id}
-      style:left="{p.x + (drag?.id === c.id ? drag.dx : 0)}px"
-      style:transform="translateY({p.y + (drag?.id === c.id ? drag.dy : 0)}px) rotate({p.rot}deg)"
-      style:z-index={drag?.id === c.id && drag.slide ? cards.length + 1 : i + 1}
-      onpointerdown={(e) => down(e, c.id)}
-      onkeydown={(e) => key(e, c.id, i)}
-      in:receive={{ key: c.id }}
-      out:send={{ key: c.id }}
-      role="button"
-      tabindex="0"
-      aria-pressed={selected.includes(c.id)}
-      aria-disabled={hints && !can}
-    >
-      <Card
-        id={c.id}
-        selected={selected.includes(c.id)}
-        playable={hints && !!selectable && can && selectable.size < cards.length}
-        dim={hints && !!selectable && !can}
-        fresh={fresh.includes(c.id)}
-      />
-    </div>
+    {#if p}
+      <div
+        class="slot"
+        class:dragging={p.held}
+        style:transform="translate({p.x - p.w / 2}px, {p.y - p.w * 0.7}px) rotate({p.rot}deg)"
+        style:z-index={p.z}
+        onpointerdown={(e) => down(e, c.id)}
+        onkeydown={(e) => key(e, c.id, i)}
+        role="button"
+        tabindex="0"
+        aria-label={cardName(c.id)}
+        aria-pressed={selected.includes(c.id)}
+        aria-disabled={hints && !can}
+      >
+        {#if !layered}
+          <Card id={c.id} selected={p.selected} playable={p.playable} dim={p.dim} fresh={p.fresh} />
+        {/if}
+      </div>
+    {/if}
   {/each}
 </div>
 
@@ -168,22 +176,27 @@
     width: 100%;
     touch-action: none;
   }
-  /* (cards that change size, a hand grown long after picking up a pile, ease into it) */
-  @media (prefers-reduced-motion: no-preference) {
-    .hand {
-      transition: --cw 0.35s var(--ease-out);
-    }
-  }
+  /* each card's place, to tap or drag: the card is drawn in it, or at a table by the card layer over it */
   .slot {
     position: absolute;
-    bottom: 6px;
-    transform-origin: 50% 120%;
-    transition:
-      left 0.3s var(--ease-out),
-      transform 0.3s var(--ease-out);
+    left: 0;
+    top: 0;
+    width: var(--cw);
+    height: calc(var(--cw) * 1.4);
+    border-radius: var(--card-radius);
+    transition: transform 0.3s var(--ease-out);
     cursor: pointer;
   }
   .slot.dragging {
     transition: none;
+  }
+  .slot:focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: 2px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .slot {
+      transition: none;
+    }
   }
 </style>

@@ -63,6 +63,10 @@ export function report(kind: 'error' | 'rejection' | 'engine' | 'bot', err: unkn
 /** Catch what nothing else did. */
 export function watchErrors() {
   if (typeof window === 'undefined') return;
-  addEventListener('error', (e) => report('error', e.error ?? e.message));
+  addEventListener('error', (e) => {
+    // (a browser's notice that a layout took two frames to settle, not a fault: nothing to report)
+    if (!e.error && /ResizeObserver loop/.test(e.message)) return;
+    report('error', e.error ?? e.message);
+  });
   addEventListener('unhandledrejection', (e) => report('rejection', e.reason));
 }

@@ -25,17 +25,20 @@ export async function poppedIn(el: Locator) {
  * a pulsing seat) and never move what the layout checks.
  */
 export async function cardsLanded(page: Page) {
-  await page.waitForFunction(() =>
-    document
-      .getAnimations()
-      // (on the card layer a card's move is a transition of its own, and anywhere cards ease to a
-      // new size by a transition of --cw: until those end, the cards aren't where they'll stay)
-      .every(
-        (a) =>
-          a.playState !== 'running' ||
-          a instanceof CSSAnimation ||
-          (a instanceof CSSTransition && a.transitionProperty !== '--cw' && !(a.effect as KeyframeEffect | null)?.target?.closest?.('.layer')),
-      ),
+  await page.waitForFunction(
+    () =>
+      // (and the card layer settled: it says so while its cards move or it's about to look again)
+      !document.querySelector('.layer[data-busy]') &&
+      document
+        .getAnimations()
+        // (on the card layer a card's move is a transition of its own, and anywhere cards ease to a
+        // new size by a transition of --cw: until those end, the cards aren't where they'll stay)
+        .every(
+          (a) =>
+            a.playState !== 'running' ||
+            a instanceof CSSAnimation ||
+            (a instanceof CSSTransition && a.transitionProperty !== '--cw' && !(a.effect as KeyframeEffect | null)?.target?.closest?.('.layer')),
+        ),
   );
 }
 

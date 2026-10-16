@@ -12,7 +12,7 @@ async function hearts(page: Page) {
   await page.click('button:has-text("Deal Hearts")');
   await expect(page.locator('.hand .slot')).toHaveCount(13);
 }
-const order = (page: Page) => page.locator('.hand .slot .card').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label')));
+const order = (page: Page) => page.locator('.hand .slot').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label')));
 
 test('drag a card sideways to move it in your hand; sort your hand by rank from the menu', async ({ page }) => {
   await hearts(page);

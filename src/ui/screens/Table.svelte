@@ -10,7 +10,9 @@
   import ActionBar from '../components/ActionBar.svelte';
   import Hand from '../components/Hand.svelte';
   import Seat from '../components/Seat.svelte';
-  import Zone, { FULL_HAND } from '../components/Zone.svelte';
+  import Zone from '../components/Zone.svelte';
+  import { FULL_HAND } from '../layout';
+  import { Frames, provideFrames } from '../layout/frames.svelte';
   import Sheet from '../components/Sheet.svelte';
   import LookPicker from '../components/LookPicker.svelte';
   import AvatarBadge from '../components/AvatarBadge.svelte';
@@ -25,8 +27,7 @@
   import { hintsOn, setHints } from '../hints';
   import { arrangeHand, HAND_SORT_LABEL, HAND_SORTS, handSortOn, setHandSort, type HandSort } from '../handOrder';
   import { marquee } from '../marquee';
-  import { fade, fly } from 'svelte/transition';
-  import { cubicIn, cubicOut } from 'svelte/easing';
+  import { fade } from 'svelte/transition';
   import { isHidden } from '../../engine/redact';
   import { parseCard } from '../../engine/cards';
   import { SCREEN_SOUND, STAND_IN } from '../../net/host';
@@ -36,7 +37,6 @@
   import { EXPORT_ABOUT, EXPORT_FILE, EXPORT_LABEL, recordFormats } from '../../net/exports/formats';
   import TvSheet from '../components/TvSheet.svelte';
   import CardLayer from '../components/CardLayer.svelte';
-  import { cardLayerOn, setCardLayer } from '../cardLayer';
 
   /** `replay`: a moment of a finished hand is on screen (the table shows it, quietly). */
   let { view, display = false, replay = null }: { view: View; display?: boolean; replay?: Frame | null } = $props();
@@ -612,17 +612,15 @@
   const playFrom = $derived(display || you < 0 ? null : (centerZones.find((z) => z.faceUpHand && z.cards.some((c) => selectable?.has(c.id))) ?? null));
   const fanCards = $derived(playFrom ? playFrom.cards : myHand);
   /**
-   * The new card layer (a prototype, see ui/cardLayer.ts): on a phone at a table it can draw so
-   * far, your hand fanned along the bottom and a trick in the middle, it draws every card.
+   * Every card on the table is drawn by one layer (CardLayer.svelte): each zone and your hand lay
+   * their cards out in frames, which register here. When your hand and the dummy trade places,
+   * their cards trade quietly rather than flying past each other.
    */
-  let layerAsked = $state(cardLayerOn());
-  // (added to the address while at the table: that changes only the part after the #, no reload)
+  const frames = new Frames();
+  provideFrames(frames);
   $effect(() => {
-    const look = () => (layerAsked = cardLayerOn());
-    addEventListener('hashchange', look);
-    return () => removeEventListener('hashchange', look);
+    frames.calm = playFrom?.id ?? 'own';
   });
-  const layered = $derived(layerAsked && !display && !handMode && !playFrom && myHandZone?.layout === 'fan' && centerZones.every((z) => z.layout === 'trick'));
   /** How long the two hands take to trade places (none, for reduced motion). */
   const swapMs = matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 320;
   /**
@@ -1186,7 +1184,7 @@
             {roomy}
             growTo={display ? 0 : growTo}
             steady={display}
-            ghost={layered}
+            room={mainW ? mainW - 4 : Infinity}
           />
         </div>
       {/each}
@@ -1216,6 +1214,9 @@
             <Zone
               zone={z}
               cw={stripCw(z)}
+              style="strip"
+              room={display && mainW ? mainW * 1.2 - 1.6 * tvRem : Infinity}
+              rowGap={display ? 0.3 * tvRem : undefined}
               {you}
               players={n}
               {selected}
@@ -1316,29 +1317,22 @@
             fast={!!zoneAction(myHandZone.id)?.react}
           />
         {:else}
-          <!-- (your hand and the dummy trade places as two whole hands, each sliding in: not
-               twenty-six cards flying past each other) -->
-          {#key playFrom?.id ?? 'own'}
-            <div
-              class="fan"
-              in:fly={{ y: 48, duration: swapMs, delay: swapMs * 0.6, easing: cubicOut }}
-              out:fly={{ y: 48, duration: swapMs * 0.75, easing: cubicIn }}
-            >
-              {#if playFrom?.label}<div class="fan-label eyebrow">{playFrom.label}</div>{/if}
-              <Hand
-                cards={fanCards}
-                cw={handCw}
-                {selected}
-                {selectable}
-                fresh={playFrom ? [] : freshIds}
-                {hints}
-                ontap={tap}
-                onswipe={swipe}
-                onreorder={playFrom ? undefined : (ids) => (handOrder = ids)}
-                ghost={layered}
-              />
-            </div>
-          {/key}
+          <!-- (your hand and the dummy trade places quietly: see frames.calm) -->
+          <div class="fan">
+            {#if playFrom?.label}<div class="fan-label eyebrow">{playFrom.label}</div>{/if}
+            <Hand
+              cards={fanCards}
+              cw={handCw}
+              zone={playFrom?.id ?? `hand:${you}`}
+              {selected}
+              {selectable}
+              fresh={playFrom ? [] : freshIds}
+              {hints}
+              ontap={tap}
+              onswipe={swipe}
+              onreorder={playFrom ? undefined : (ids) => (handOrder = ids)}
+            />
+          </div>
         {/if}
       </div>
     </footer>
@@ -1374,23 +1368,7 @@
         />{/if}
     </aside>
   {/if}
-  {#if layered}
-    <CardLayer
-      hand={{ ids: fanCards.map((c) => c.id), cw: handCw }}
-      trick={centerZones.flatMap((z) => z.cards.map((c) => ({ id: c.id, by: c.by })))}
-      {you}
-      players={n}
-      v={s.v}
-      entry={s.log.at(-1)}
-      {selected}
-      {selectable}
-      fresh={freshIds}
-      {hints}
-      ontap={tap}
-      onswipe={swipe}
-      onreorder={(ids) => (handOrder = ids)}
-    />
-  {/if}
+  <CardLayer {frames} {you} entry={s.log.at(-1)} />
 </div>
 
 {#if !portraitOk && !display}
@@ -1408,6 +1386,10 @@
         <Zone
           zone={z}
           cw={spreadCw}
+          inline
+          style="sheet"
+          room={spreadW ? spreadW - 20 : Infinity}
+          rowGap={4.8}
           {you}
           players={n}
           {selected}
@@ -1423,7 +1405,7 @@
     <!-- (your hand and your moves, so you can meld and lay off from here) -->
     <div class="spread-dock">
       <div class="spread-hand">
-        <Hand cards={myHand} cw={spreadHandCw} {selected} {selectable} {hints} ontap={tap} onswipe={swipe} onreorder={(ids) => (handOrder = ids)} />
+        <Hand cards={myHand} cw={spreadHandCw} inline {selected} {selectable} {hints} ontap={tap} onswipe={swipe} onreorder={(ids) => (handOrder = ids)} />
       </div>
       <div class="spread-acts">
         <ActionBar
@@ -1470,13 +1452,6 @@
             hints = !hints;
             setHints(hints);
           }}>{hints ? 'Show playable cards: on' : 'Show playable cards: off'}</button
-        >
-        <button
-          class="btn"
-          onclick={() => {
-            layerAsked = !layerAsked;
-            setCardLayer(layerAsked);
-          }}>{layerAsked ? 'New card table (test): on' : 'New card table (test): off'}</button
         >
         {#if canNotify()}
           <button class="btn" onclick={async () => (turnAlerts = await setTurnAlerts(!turnAlerts))}
@@ -1979,12 +1954,8 @@
     justify-content: center;
     flex-shrink: 0;
   }
-  /* (when the safety net must shrink the middle, it eases into the new size) */
-  @media (prefers-reduced-motion: no-preference) {
-    .zones {
-      transition: transform 0.35s var(--ease-out);
-    }
-  }
+  /* (when the safety net shrinks the middle it does so at once: the cards, drawn by the card layer,
+     ease to their new places and sizes, which they couldn't find while the middle was still easing) */
   .zones {
     transform-origin: 50% 0;
     display: flex;
@@ -2059,12 +2030,6 @@
     background: rgba(0, 0, 0, 0.16);
     box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
   }
-  .strip :global(.spread) {
-    flex-wrap: nowrap;
-  }
-  .strip :global(.spread .scard + .scard) {
-    margin-left: calc(var(--cw) * -0.45);
-  }
   .spread-open {
     position: sticky;
     left: 0;
@@ -2097,18 +2062,6 @@
     background: rgba(0, 0, 0, 0.16);
     box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
   }
-  .spread-all :global(.spread),
-  .spread-all :global(.piles) {
-    flex-wrap: wrap;
-    row-gap: 0.3rem;
-  }
-  /* (the same overlap however long the melds, as spreadCw reckons, and a gap before each meld) */
-  .spread-all :global(.spread.spread .scard + .scard) {
-    margin-left: calc(var(--cw) * -0.45) !important;
-  }
-  .spread-all :global(.spread.spread .scard.newgroup) {
-    margin-left: calc(var(--cw) * 0.22) !important;
-  }
   .spread-dock {
     display: flex;
     align-items: flex-end;
@@ -2139,11 +2092,6 @@
   .strip-room {
     flex: 1 0 100%;
   }
-  /* (and a long run of melds wraps onto more lines within its panel) */
-  .table.display .strip :global(.spread) {
-    flex-wrap: wrap;
-    row-gap: 0.3rem;
-  }
   .table.display .strip > :global(.zone) {
     max-width: 100%;
   }
@@ -2170,32 +2118,6 @@
     row-gap: 0.6rem;
     -webkit-mask-image: none;
     mask-image: none;
-  }
-  /* a pile spread out card by card that keeps growing or shrinking (a zone's `reserve`: rummy 500's
-     discard pile, cribbage's count, stud's cards showing) keeps room for that many cards, overlapped
-     the same way from the first, filling from the left: it changes without the piles beside it
-     sliding about */
-  .zones > .zone-slot :global(.spread.reserve),
-  .strip :global(.spread.reserve) {
-    min-width: calc(var(--cw) * (1 + (var(--reserve) - 1) * 0.65));
-    justify-content: flex-start;
-  }
-  .zones > .zone-slot :global(.spread.reserve .scard + .scard),
-  .strip :global(.spread.reserve .scard + .scard) {
-    margin-left: calc(var(--cw) * -0.45);
-  }
-  /* (past eight cards they overlap more, so the pile still fits its room up to about nineteen) */
-  .zones > .zone-slot :global(.spread.reserve:has(> :nth-child(9)) .scard + .scard),
-  .strip :global(.spread.reserve:has(> :nth-child(9)) .scard + .scard) {
-    margin-left: calc(var(--cw) * -0.65);
-  }
-  .zones > .zone-slot :global(.spread.reserve:has(> :nth-child(12)) .scard + .scard),
-  .strip :global(.spread.reserve:has(> :nth-child(12)) .scard + .scard) {
-    margin-left: calc(var(--cw) * -0.8);
-  }
-  .zones > .zone-slot :global(.spread.reserve:has(> :nth-child(17)) .scard + .scard),
-  .strip :global(.spread.reserve:has(> :nth-child(17)) .scard + .scard) {
-    margin-left: calc(var(--cw) * -0.85);
   }
   .pot {
     display: flex;

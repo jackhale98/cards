@@ -164,6 +164,35 @@ Zones are where cards live. Every game needs a `deck` zone.
 The host enforces visibility: cards a player can't see are replaced with anonymous placeholders
 **before** anything is sent over the network.
 
+## How the cards are drawn
+
+A game never draws cards: its zones' `layout` (and the fields above) say how. Three parts, each
+with one job:
+
+1. **The page** (`Table.svelte`) lays out the table's areas: the seats, the middle's piles in
+   rows, the strip, your hand along the bottom, the labels and the buttons. Each zone gets a
+   frame there, sized by its layout.
+2. **A layout** (`src/ui/layout/`) says where every card of one zone goes inside its frame: a pure
+   function from the zone's cards and card size to the frame's size and a place (centre, width,
+   turn, stacking) for each card. `fan.ts` is your hand, `trick.ts` a trick, `stack.ts` a pile,
+   `spread.ts` a row (how it overlaps and wraps depends on where it is: the middle, the strip,
+   the full-screen melds, a dummy), `piles.ts` melds squared into piles; `index.ts` picks one by
+   the zone's `layout`. They're tested on their own in `tests/layout.test.ts`.
+3. **The card layer** (`src/ui/components/CardLayer.svelte`) draws every card on the table, each
+   one element for as long as it's on the table, wherever its zone's frame is on screen. When a
+   card's place changes (played, drawn, re-sorted, a pile moved over by the page), the same
+   element eases there; a card new to the table comes from the pile or seat the move came from
+   (the log entry's `fromZone`, `seat`), and one leaving goes to where it went (`toZone`, `to`).
+
+What you tap stays in the frames (`Zone.svelte`, `Hand.svelte`): each card's place is a button
+there, in order, named for its card, so the keyboard and screen readers work as before; the
+layer lets every touch through. Outside a table (the full-screen melds sheet) a frame draws its
+own cards.
+
+So a game that lays its cards out like an existing one needs nothing new. A new way of laying
+cards out is a new layout function (sizes and places, tested in `tests/layout.test.ts`), a case
+for it in `layout/index.ts`, and a new `layout` value in the schema; nothing else changes.
+
 ## When a game needs something new
 
 1. **A missing variation of an existing family** (say, Hearts with the J♦ worth −10): add the
@@ -232,7 +261,9 @@ tally. The winners come first; everyone else is ranked by the family's optional
 
 A zone can set `"scale"` (e.g. `0.6`) to draw its cards smaller than other table cards, and
 `"area": "strip"` to sit in one row beside the centre piles that scrolls sideways instead of
-wrapping. Rummy 500 uses both for everyone's melds, so a busy table still fits on a phone.
+wrapping (on a table screen it wraps instead). Rummy 500 uses both for everyone's melds, so a
+busy table still fits on a phone. A row whose cards you can pick right now spreads out enough to
+tap each one.
 
 ## Smarter bots
 

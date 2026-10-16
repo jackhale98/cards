@@ -1,22 +1,18 @@
-<script module lang="ts">
-  /** A face-up hand's overlap: each card shows this much of the one under it (in card widths)… */
-  const STEP = 0.38;
-  /** …and a new suit this much more… */
-  const SUIT_GAP = 0.32;
-  /** …with the row's gap between every two (`.spread`'s gap). */
-  const GAP = 0.1;
-  /** A whole face-up hand of thirteen, four suits, in card widths (the middle must have this room for one). */
-  export const FULL_HAND = 1 + 12 * (STEP + GAP) + 3 * SUIT_GAP;
-</script>
-
 <script lang="ts">
   import SuitText from './SuitText.svelte';
   import type { ZoneState } from '../../engine/types';
-  import { receive, send } from '../motion';
-  import { isHidden } from '../../engine/redact';
-  import { parseCard } from '../../engine/cards';
+  import { cardName } from '../cardName';
+  import { FULL_HAND, handWidth, layoutZone, type Spot } from '../layout';
+  import { LAYER, useFrames } from '../layout/frames.svelte';
+  import type { SpreadStyle } from '../layout/spread';
+  import { CASCADE } from '../layout/stack';
   import Card from './Card.svelte';
 
+  /**
+   * A zone on the table: its label, and a frame that its layout (layout/index.ts) sizes and
+   * places its cards in. At a table the card layer draws the cards (CardLayer.svelte), and the
+   * frame keeps what you tap, in order; elsewhere (the full-screen melds) the frame draws them.
+   */
   interface Props {
     zone: ZoneState;
     cw: number;
@@ -33,17 +29,25 @@
     zoneActive?: boolean;
     /** The selected card(s) can be put here: a tap places them (rather than selecting the top card). */
     place?: boolean;
+    /** Where on the table it is: how its rows overlap and wrap (layout/spread.ts). */
+    style?: Exclude<SpreadStyle, 'dummy'>;
+    /** The widest its rows may be before they wrap (Infinity: never). */
+    room?: number;
+    /** Between its rows, when they wrap (default: a tenth of a card). */
+    rowGap?: number;
     /** There's room for a row of cards side by side: no need to overlap them. */
     roomy?: boolean;
     /** The widest a face-up hand's cards may grow and still fit the middle's height. */
     growTo?: number;
     /** A table screen's pile in the middle: its label keeps the widest it has been (its count and hint change all game), so the row doesn't re-centre as it changes. */
     steady?: boolean;
-    /** Only the room for the cards: the card layer draws them (see CardLayer.svelte). */
-    ghost?: boolean;
+    /** Draw its own cards, even at a table (it's on a sheet over it). */
+    inline?: boolean;
   }
   /** How far (px) the room beside a dummy may dip before it shrinks to suit. */
   const HOLD = 8;
+  /** The least of a card that shows, when it's one you can pick (px): enough to tap. */
+  const TAP = 30;
   let {
     zone,
     cw,
@@ -56,18 +60,18 @@
     zoneActive = false,
     place = false,
     fast = false,
+    style = 'middle',
+    room = Infinity,
+    rowGap,
     roomy = false,
     growTo = Infinity,
     steady = false,
-    ghost = false,
+    inline = false,
   }: Props = $props();
 
-  /** Trick cards sit between the centre and the seat that played them. */
-  function trickPos(by: number | undefined) {
-    const rel = ((by ?? 0) - Math.max(0, you) + players) % players;
-    const angle = Math.PI / 2 + (rel * 2 * Math.PI) / players;
-    return { x: Math.cos(angle) * cw * 0.9, y: Math.sin(angle) * cw * 0.42, rot: (rel % 2 ? 1 : -1) * (3 + rel * 2) };
-  }
+  const frames = useFrames();
+  const layered = $derived(!!frames && !inline);
+
   /** Keep the widest a label has been (while `on`): it widens when its text grows, and never narrows. */
   function holdWidth(el: HTMLElement, on: boolean) {
     let widest = 0;
@@ -88,47 +92,20 @@
       destroy: () => ro.disconnect(),
     };
   }
-  /**
-   * Melds drawn as piles (`zone.piles`, canasta's): each meld's cards of its first card's rank
-   * squared into one pile with a count, and any others in it (wild cards) fanned beside it; a
-   * finished one (`square`) all in the pile.
-   */
-  const piles = $derived.by(() => {
-    if (!zone.piles) return [];
-    const out: { key: string; same: typeof zone.cards; odd: typeof zone.cards }[] = [];
-    for (const c of zone.cards) {
-      const last = out.at(-1);
-      // (a new pile once the group changes)
-      if (last && c.group === last.same[0].group) {
-        (c.square || parseCard(c.id).rank === parseCard(last.same[0].id).rank ? last.same : last.odd).push(c);
-        // (known by its meld, not its first card: a card sorted in at the front mustn't make it a new pile, which can't slide)
-      } else out.push({ key: c.group != null && !out.some((p) => p.key === `g${c.group}`) ? `g${c.group}` : c.id, same: [c], odd: [] });
-    }
-    return out;
-  });
-  const top = $derived(zone.cards[zone.cards.length - 1]);
-  const under = $derived.by(() => {
-    const n = zone.cards.length;
-    // (not where it's already drawn: fanned out beside the top, or as a cascade's peeking bottom card)
-    if (zone.peek || (zone.cascade && n === 2)) return undefined;
-    const c = zone.cards[n - 2];
-    return c && c.up !== false && !isHidden(c.id) ? c : undefined;
-  });
 
   /**
-   * A whole hand face up (bridge's dummy) keeps the width its thirteen cards took (held with a
-   * min-width, so it never moves up beside the trick as it empties: the height it frees there would
-   * let its cards grow, push it back onto its own row, and shrink them again): as it's played
-   * from, the cards left grow into it, the same overlap and the same room between suits, up to a
-   * size that still fits the middle beside the trick (`cw` is a thirteen-card dummy's size) and its
-   * height (`growTo`: past it, the whole middle would shrink to fit, a moment late, and the dummy
-   * would swell and settle back with every card played).
+   * A whole hand face up (bridge's dummy) keeps the width its thirteen cards took, so it never
+   * moves up beside the trick as it empties (the height it frees there would let its cards grow,
+   * push it back onto its own row, and shrink them again): as it's played from, the cards left
+   * grow into it, the same overlap and the same room between suits, up to a size that still fits
+   * the middle beside the trick (`cw` is a thirteen-card dummy's size) and its height (`growTo`:
+   * past it, the whole middle would shrink to fit, a moment late, and the dummy would swell and
+   * settle back with every card played).
    */
   const fitCw = $derived.by(() => {
     if (!zone.faceUpHand) return cw;
-    const n = Math.max(1, zone.cards.length);
     const groups = zone.cards.filter((c, i) => i > 0 && c.group != null && c.group !== zone.cards[i - 1].group).length;
-    return Math.round(Math.min(cw * 1.45, Math.max(cw, growTo), (cw * FULL_HAND) / (1 + (n - 1) * (STEP + GAP) + groups * SUIT_GAP)));
+    return Math.round(Math.min(cw * 1.45, Math.max(cw, growTo), (cw * FULL_HAND) / handWidth(zone.cards.length, groups)));
   });
   /**
    * Through a hand the dummy only grows: the room beside the trick wobbles by a few pixels as cards
@@ -137,16 +114,67 @@
    * then it follows, rather than overflow the middle).
    */
   let kept = $state({ n: 0, cw: 0, size: 0 });
-  const handCw = $derived(
+  const dummyCw = $derived(
     zone.faceUpHand && kept.cw === cw && zone.cards.length <= kept.n && fitCw < kept.size && fitCw >= kept.size - HOLD ? kept.size : fitCw,
   );
   $effect(() => {
     const n = zone.cards.length;
     // (a new deal, or a different card size for the table: start again)
-    if (n > kept.n || kept.cw !== cw || handCw !== kept.size) kept = { n, cw, size: handCw };
+    if (n > kept.n || kept.cw !== cw || dummyCw !== kept.size) kept = { n, cw, size: dummyCw };
     else if (n !== kept.n) kept.n = n;
   });
+
+  const placed = $derived(
+    layoutZone(zone, {
+      cw,
+      you,
+      players,
+      style,
+      maxW: room,
+      roomy,
+      rowGap,
+      // (cards you can pick now spread out enough to tap each one)
+      tap: zone.cards.some((c) => selectable?.has(c.id)) ? TAP : undefined,
+      dummy: zone.faceUpHand ? { cw: dummyCw, minW: Math.round(cw * FULL_HAND) } : undefined,
+    }),
+  );
+  const top = $derived(zone.cards.at(-1));
+  /** Each card's place, and how it looks there. */
+  const spots = $derived(
+    placed.spots.map((p): Spot => ({
+      ...p,
+      selected: selected.includes(p.id),
+      glow: zone.layout === 'stack' && zoneActive && p.id === top?.id,
+    })),
+  );
+  /** A card you can pick here (a pile is tapped as a whole). */
+  const pickable = (id: string) => !!selectable?.has(id);
+
+  let frameEl = $state<HTMLElement>();
+  // (at a table: the card layer draws this zone's cards)
+  $effect(() => {
+    const el = frameEl;
+    if (!frames || inline || !el) return;
+    const key = zone.id;
+    frames.set(key, {
+      el,
+      zone: zone.id,
+      owner: zone.owner,
+      layer: zone.layout === 'trick' ? LAYER.trick : LAYER.piles,
+      spots,
+      ids: zone.cards.map((c) => c.id),
+    });
+    return () => frames.drop(key, el);
+  });
+
+  const at = (p: Spot) => `translate(${p.x - p.w / 2}px, ${p.y - p.w * 0.7}px) rotate(${p.rot}deg)`;
+  const pileName = $derived(zone.label ?? 'Pile');
 </script>
+
+{#snippet drawn(p: Spot)}
+  <Card id={p.id} down={p.down} selected={p.selected} dim={p.dim} />
+  {#if p.count}<span class="count">{p.count}</span>{/if}
+{/snippet}
 
 <div class="zone" data-zone={zone.id} data-layout={zone.layout} style:--cw="{cw}px">
   {#if zone.label && zone.layout !== 'trick'}<div class="label eyebrow" data-flip use:holdWidth={steady}>
@@ -159,145 +187,114 @@
     </div>{/if}
 
   {#if zone.layout === 'stack'}
-    {@const below = zone.peek ? zone.cards.slice(-zone.peek, -1).filter((c) => c.up !== false && !isHidden(c.id)) : []}
+    <!-- a pile is tapped as a whole: its top card, or what the pile is for (draw, take, put) -->
     <button
-      class="stack"
-      class:cascade={zone.cascade}
-      style:margin-left={zone.peek ? `calc(var(--cw) * ${0.3 * (zone.peek - 1)})` : undefined}
-      data-flip
+      class="frame stack"
+      bind:this={frameEl}
+      style:width="{placed.w}px"
+      style:height="{placed.h}px"
       class:active={zoneActive}
       onpointerdown={fast ? () => onzone?.() : undefined}
       onclick={(e) => (fast && e.detail !== 0 ? undefined : !place && top && selectable?.has(top.id) ? ontap(top.id) : onzone?.())}
       disabled={!zoneActive && !(top && selectable?.has(top.id))}
+      aria-label={!top
+        ? `${pileName}, empty`
+        : `${pileName}, ${zone.cards.length} ${zone.cards.length === 1 ? 'card' : 'cards'}${top.up === false ? '' : `, ${cardName(top.id)} on top`}`}
     >
-      {#if zone.cascade && zone.cards.length > 1}
-        <!-- a cascade: the bottom card peeks out above the top one (where the whole pile can go) -->
-        <div class="bottom"><Card id={zone.cards[0].id} /></div>
-      {/if}
-      {#if zone.cards.length > 1}
-        <!-- the card under the top: as it was, when it's face up, so it stays in sight while a new
-             card flies in to cover it (a corner pile in Kings Corners mustn't flash its bottom card) -->
-        <div class="under">
-          {#if under}<Card id={under.id} />{:else}<Card id="?u" />{/if}
-        </div>{/if}
-      {#if zone.cards.length > 8}<div class="under two"><Card id="?u2" /></div>{/if}
-      {#each below as c, i (c.id)}
-        <!-- the cards just under the top, fanned out to the left -->
-        <div class="peeked" style:transform="translateX(calc(var(--cw) * {-0.3 * (below.length - i)})) rotate({-4 * (below.length - i)}deg)">
-          <Card id={c.id} />
-        </div>
-      {/each}
-      {#if top && isHidden(top.id)}
-        <!-- a face-down top just sits there: cards drawn from it fly out on their own (it still shows
-             when it's picked, as a Free Table discard face down can be, to take it) -->
-        <div class="top"><Card id={top.id} selected={selected.includes(top.id)} /></div>
-      {:else if top}
-        {#key top.id}
-          <div class="top" in:receive={{ key: top.id }} out:send={{ key: top.id }}>
-            <Card id={top.id} down={top.up === false} selected={selected.includes(top.id)} />
-          </div>
-        {/key}
-      {:else}
-        <div class="empty"></div>
+      {#if !zone.cards.length}<div class="empty" data-flip style:top={zone.cascade ? `${CASCADE * cw}px` : undefined}></div>{/if}
+      {#if !layered}
+        {#each spots as p (p.key)}
+          <div class="card-at" class:glow={p.glow} style:transform={at(p)} style:--cw="{p.w}px" style:z-index={p.z}>{@render drawn(p)}</div>
+        {/each}
       {/if}
     </button>
-  {:else if zone.layout === 'trick'}
-    <div class="trick" data-flip data-layer={ghost ? 'trick' : undefined}>
-      {#each ghost ? [] : zone.cards as c (c.id)}
-        {@const p = trickPos(c.by)}
-        <div
-          class="tcard"
-          style:transform="translate(-50%, -50%) translate({p.x}px, {p.y}px) rotate({p.rot}deg)"
-          in:receive={{ key: c.id }}
-          out:send={{ key: c.id }}
-        >
-          <Card id={c.id} />
-        </div>
-      {/each}
-    </div>
-  {:else if zone.piles}
-    <div class="piles">
-      {#each piles as p (p.key)}
-        <div class="pile" data-flip>
-          <div class="stack" style:--n={p.same.length} aria-label="{p.same.length} cards">
-            {#each p.same as c, k (c.id)}
-              <button
-                class="scard"
-                style:--k={Math.min(k, 6)}
-                onclick={() => ontap(c.id)}
-                disabled={!selectable?.has(c.id)}
-                in:receive={{ key: c.id }}
-                out:send={{ key: c.id }}
-              >
-                <Card id={c.id} selected={selected.includes(c.id)} dim={c.dim} />
-              </button>
-            {/each}
-            {#if p.same.length > 1}<span class="count">{p.same.length}</span>{/if}
-          </div>
-          {#each p.odd as c (c.id)}
-            <button class="scard odd" onclick={() => ontap(c.id)} disabled={!selectable?.has(c.id)} in:receive={{ key: c.id }} out:send={{ key: c.id }}>
-              <Card id={c.id} selected={selected.includes(c.id)} dim={c.dim} />
-            </button>
-          {/each}
-        </div>
-      {/each}
-    </div>
   {:else}
-    <div
-      class="spread"
-      class:handdown={zone.faceUpHand}
-      class:reserve={!!zone.reserve}
-      class:roomy={roomy && !zone.faceUpHand}
-      style:--cw={zone.faceUpHand ? `${handCw}px` : undefined}
-      style:min-width={zone.faceUpHand ? `${Math.round(cw * FULL_HAND)}px` : undefined}
-      style:--reserve={zone.reserve}
-    >
-      {#each zone.cards as c, i (c.id)}
-        <button
-          class="scard"
-          data-flip
-          class:newgroup={i > 0 && c.group != null && c.group !== zone.cards[i - 1].group}
-          onclick={() => ontap(c.id)}
-          disabled={!selectable?.has(c.id)}
-          in:receive={{ key: c.id }}
-          out:send={{ key: c.id }}
-        >
-          <Card id={c.id} down={c.up === false} selected={selected.includes(c.id)} dim={c.dim} />
-        </button>
-      {:else}
-        <div class="empty wide" data-flip></div>
+    <div class="frame" class:handdown={zone.faceUpHand} bind:this={frameEl} style:width="{placed.w}px" style:height="{placed.h}px">
+      {#if !zone.cards.length && zone.layout !== 'trick'}<div class="empty wide" data-flip></div>{/if}
+      {#each spots as p (p.key)}
+        {#if zone.layout === 'trick'}
+          {#if !layered}<div class="card-at" style:transform={at(p)} style:--cw="{p.w}px" style:z-index={p.z}>{@render drawn(p)}</div>{/if}
+        {:else}
+          <!-- (where the card is, to tap it: the card is drawn in it, or at a table by the card layer over it) -->
+          <button
+            class="scard card-at"
+            style:transform={at(p)}
+            style:--cw="{p.w}px"
+            style:z-index={p.z}
+            onclick={() => ontap(p.id)}
+            disabled={!pickable(p.id)}
+            aria-label={cardName(p.id, p.down)}
+            aria-pressed={pickable(p.id) ? !!p.selected : undefined}
+          >
+            {#if !layered}{@render drawn(p)}{/if}
+          </button>
+        {/if}
       {/each}
     </div>
   {/if}
 </div>
 
 <style>
-  /* melds as piles: a squared pile per meld (each card a hair further up and along, so it reads as
-     a stack), its count on the corner, and any cards of another rank fanned beside it */
-  .piles {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    align-items: flex-end;
-    gap: calc(var(--cw) * 0.22);
-  }
-  .pile {
-    display: flex;
-    align-items: flex-end;
-  }
-  .stack {
+  .zone {
     position: relative;
-    width: var(--cw);
-    height: calc(var(--cw) * 1.4);
-    margin-top: calc(min(var(--n) - 1, 6) * 2px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.35rem;
+    min-width: 0;
   }
-  .stack .scard {
+  .label .line {
+    display: block;
+    text-align: center;
+  }
+  .label {
+    font-size: 0.7rem;
+    white-space: nowrap;
+    position: relative;
+    z-index: 1;
+  }
+  .frame {
+    position: relative;
+    flex: none;
+    padding: 0;
+  }
+  .stack:disabled {
+    cursor: default;
+  }
+  /* each card's place: the card is drawn here (or, at a table, by the card layer over it) */
+  .card-at {
     position: absolute;
     left: 0;
     top: 0;
+    width: var(--cw);
+    height: calc(var(--cw) * 1.4);
     padding: 0;
-    transform: translate(calc(var(--k) * 2px), calc(var(--k) * -2px));
+    border-radius: var(--card-radius);
+    transition: transform 0.3s var(--ease-out);
   }
+  .scard:disabled {
+    cursor: default;
+  }
+  .scard:focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: 2px;
+  }
+  .card-at.glow {
+    filter: drop-shadow(0 0 8px rgba(233, 196, 106, 0.8));
+  }
+  .empty {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: var(--cw);
+    height: calc(var(--cw) * 1.4);
+    border-radius: var(--card-radius);
+    border: 1.5px dashed rgba(255, 255, 255, 0.18);
+  }
+  .empty.wide {
+    width: calc(var(--cw) * 2);
+  }
+  /* a squared pile's size, on its corner */
   .count {
     position: absolute;
     left: calc(var(--cw) * -0.08);
@@ -315,144 +312,9 @@
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
     pointer-events: none;
   }
-  .pile .odd {
-    position: relative;
-    padding: 0;
-    margin-left: calc(var(--cw) * -0.6);
-  }
-  .pile .stack + .odd {
-    margin-left: calc(var(--cw) * -0.5);
-  }
-  .zone {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.35rem;
-    min-width: 0;
-  }
-  /* (a pile that has to change size eases into it; a new one starts at its size) */
-  @media (prefers-reduced-motion: no-preference) {
-    .zone {
-      transition: --cw 0.35s var(--ease-out);
+  @media (prefers-reduced-motion: reduce) {
+    .card-at {
+      transition: none;
     }
-  }
-  .label .line {
-    display: block;
-    text-align: center;
-  }
-  .label {
-    font-size: 0.7rem;
-    white-space: nowrap;
-    position: relative;
-    z-index: 1;
-  }
-  .stack {
-    position: relative;
-    width: var(--cw);
-    height: calc(var(--cw) * 1.4);
-    padding: 0;
-  }
-  /* (room above for the bottom card, whether or not there's one yet: the pile doesn't jump) */
-  .stack.cascade {
-    margin-top: calc(var(--cw) * 0.42);
-  }
-  .stack > .bottom {
-    inset: auto;
-    left: 0;
-    top: calc(var(--cw) * -0.42);
-  }
-  .stack:disabled {
-    cursor: default;
-  }
-  .stack.active .top {
-    filter: drop-shadow(0 0 8px rgba(233, 196, 106, 0.8));
-  }
-  .stack > div {
-    position: absolute;
-    inset: 0;
-  }
-  .under {
-    transform: translate(2px, 2px);
-  }
-  .under.two {
-    transform: translate(4px, 4px);
-    z-index: -1;
-  }
-  .empty {
-    width: var(--cw);
-    height: calc(var(--cw) * 1.4);
-    border-radius: var(--card-radius);
-    border: 1.5px dashed rgba(255, 255, 255, 0.18);
-    font-size: calc(var(--cw) / 5);
-  }
-  .empty.wide {
-    width: calc(var(--cw) * 2);
-  }
-  .spread {
-    position: relative;
-    display: flex;
-    gap: calc(var(--cw) * 0.1);
-    flex-wrap: wrap;
-    justify-content: center;
-    max-width: 100%;
-  }
-  .spread:has(> :nth-child(5)) .scard + .scard {
-    margin-left: calc(var(--cw) * -0.45);
-  }
-  .spread.roomy .scard + .scard {
-    margin-left: 0;
-  }
-  /* a whole hand on the table (bridge dummy): just the corner indices show */
-  .spread:has(> :nth-child(12)) .scard + .scard {
-    margin-left: calc(var(--cw) * -0.66);
-  }
-  .scard {
-    position: relative;
-    padding: 0;
-  }
-  /* a whole hand face up (bridge's dummy): the same overlap from thirteen cards down to one, a
-     little room between suits, one row; as it's played from, the cards left grow (smoothly) into
-     the room the others took */
-  .spread.handdown {
-    flex-wrap: nowrap;
-  }
-  .spread.handdown.handdown .scard + .scard {
-    margin-left: calc(var(--cw) * -0.62) !important;
-  }
-  .spread.handdown.handdown .scard.newgroup {
-    margin-left: calc(var(--cw) * -0.3) !important;
-  }
-  .spread.handdown .scard {
-    transition: margin-left 0.3s var(--ease-out);
-  }
-  .spread.handdown :global(.card) {
-    transition:
-      width 0.3s var(--ease-out),
-      height 0.3s var(--ease-out),
-      font-size 0.3s var(--ease-out),
-      transform 0.22s var(--ease-out),
-      box-shadow 0.22s,
-      filter 0.2s,
-      opacity 0.2s;
-  }
-  .spread .scard.newgroup {
-    margin-left: calc(var(--cw) * 0.22) !important;
-  }
-  .spread:has(> :nth-child(12)) .scard.newgroup {
-    margin-left: calc(var(--cw) * -0.5) !important;
-  }
-  .scard:disabled {
-    cursor: default;
-  }
-  .trick {
-    position: relative;
-    width: calc(var(--cw) * 3);
-    height: calc(var(--cw) * 2.25);
-  }
-  .tcard {
-    position: absolute;
-    left: 50%;
-    top: 50%;
   }
 </style>

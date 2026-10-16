@@ -12,7 +12,8 @@ export function marquee(el: HTMLElement) {
   const update = () => {
     const r = run();
     if (!r) return;
-    const moving = r.offsetWidth > el.clientWidth + 2;
+    // (the box's own overflow, rounded up as the browser rounds it: a line a pixel too long glides too)
+    const moving = el.scrollWidth > el.clientWidth + 1;
     el.classList.toggle('moving', moving);
     // far enough that the last letter ends up clear of the soft right edge (and the padding)
     const css = getComputedStyle(el);

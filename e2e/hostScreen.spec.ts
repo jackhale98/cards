@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { handCards } from './cards';
 
 /** A laptop hosts as the table screen: it takes no seat, and the table opens in the big-screen layout. */
 test('the host’s device can be the table screen instead of a player', async ({ page }) => {
@@ -46,7 +47,7 @@ test('a phone runs the table for a host that is the table screen', async ({ cont
   await phone.click('text=+ Add bot');
   await phone.click('button:has-text("Deal Gin Rummy")');
   await expect(laptop.locator('.table.display')).toBeVisible();
-  await expect(phone.locator('.table .hand-wrap .card').first()).toBeVisible();
+  await expect(handCards(phone).first()).toBeVisible();
   // and back to the lobby from the phone's menu
   await phone.click('button[aria-label="Menu"]');
   await phone.click('text=Back to lobby');

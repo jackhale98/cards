@@ -24,7 +24,7 @@ test('the last trick of a hand is the size the others were', async ({ page }) =>
   // the trick's card width, read only when nothing is moving; and whether the dummy still has cards
   const read = () =>
     page.evaluate(() => {
-      const cards = [...document.querySelectorAll('[data-zone="trick"] .card')] as HTMLElement[];
+      const cards = [...document.querySelectorAll('.layer .layer-card[data-in="trick"]:not([data-leaving]) .card')] as HTMLElement[];
       // (cards flying and sizes changing are script animations and transitions; a pulsing seat is a CSS animation)
       const still = cards.length > 0 && document.getAnimations().every((a) => a.playState !== 'running' || a instanceof CSSAnimation);
       return {

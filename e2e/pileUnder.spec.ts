@@ -16,11 +16,21 @@ test('a face-up pile keeps the card under its top in sight', async ({ page }) =>
   for (let i = 0; i < 3; i++) await page.click('text=+ Add bot');
   await page.click('button:has-text("Deal Kings Corners")');
   // a pile three cards deep: its bottom card peeking out above, the one under the top face up
-  const deep = page.locator('.stack.cascade:has(.bottom) .under .card:not(.back)');
+  // (a cascade's pile: room above its top card for the bottom one)
+  const deep = () =>
+    page.evaluate(() =>
+      [...document.querySelectorAll<HTMLElement>('.zone[data-layout="stack"] .frame.stack')].some((frame) => {
+        if (frame.offsetHeight < frame.offsetWidth * 1.6) return false;
+        const zone = frame.closest<HTMLElement>('.zone')!.dataset.zone!;
+        const cards = [...document.querySelectorAll<HTMLElement>(`.layer .layer-card[data-in="${zone}"]:not([data-leaving])`)];
+        // three deep, every card drawn face up: the one under the top as itself, not a card back
+        return cards.length >= 3 && cards.every((c) => !c.querySelector('.card.back'));
+      }),
+    );
   await expect
     .poll(
       async () => {
-        if (await deep.count()) return true;
+        if (await deep()) return true;
         await page.evaluate(() => (window as unknown as { __botMove: () => unknown }).__botMove());
         await page.waitForTimeout(100);
         return false;

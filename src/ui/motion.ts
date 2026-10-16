@@ -2,16 +2,14 @@ import { cubicOut } from 'svelte/easing';
 import type { TransitionConfig } from 'svelte/transition';
 
 /**
- * Card motion.
+ * Motion for what the card layer (components/CardLayer.svelte, which moves every card on the
+ * table) doesn't draw: the seats' small cards and the labels around the piles.
  *
- * 1. `send` / `receive`: a card that moves between zones (hand → table, table → hand…) glides
- *    as ONE solid card from where it was to where it lands. The copy it leaves behind is hidden
- *    at once and lifted out of the layout, so there is no see-through double image and the
- *    remaining cards can start closing the gap immediately.
- * 2. Cards with no visible counterpart (an opponent's hidden card) fly to/from the seat of the
- *    player who acted (`flight`).
- * 3. `snapshot` / `play`: everything marked `data-flip` that merely shifts position (a row closing
- *    a gap, a zone re-centring) slides there — translation only, never scaled.
+ * 1. `send` / `receive`: a seat's small card that moves glides as ONE solid card from where it was
+ *    to where it lands. The copy it leaves behind is hidden at once and lifted out of the layout.
+ * 2. Cards with no visible counterpart fly to/from the seat of the player who acted (`flight`).
+ * 3. `snapshot` / `play`: everything marked `data-flip` that merely shifts position (a label as its
+ *    pile moves, the pot) slides there — translation only, never scaled.
  */
 
 /** Where the current move came from / goes to; set by the table right before each update. */

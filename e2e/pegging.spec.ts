@@ -27,12 +27,13 @@ test('the pegging count grows without moving the piles beside it', async ({ page
         const z = document.querySelector(`[data-zone="${id}"]`);
         if (!z) return '-';
         const r = z.getBoundingClientRect();
-        const c = z.querySelector('.card') as HTMLElement | null;
+        // (the pile's own room, its card's size: the card layer draws its cards in it)
+        const c = z.querySelector('.frame') as HTMLElement | null;
         return `${Math.round(r.left)},${Math.round(r.top)},${c?.offsetWidth ?? 0}`;
       };
       return {
         phase: (window as unknown as { __phase: () => string | null }).__phase(),
-        count: document.querySelectorAll('[data-zone="pegging"] .card').length,
+        count: document.querySelectorAll('.layer .layer-card[data-in="pegging"]:not([data-leaving])').length,
         look: still ? ['deck', 'starter', 'crib'].map(at).join(' ') : null,
       };
     });

@@ -52,7 +52,7 @@ test('keyboard: pop-ups take focus, keep it, close on Escape and give it back', 
   await page.click('button:has-text("Deal Hearts")');
   await expect(page.locator('.hand .slot')).toHaveCount(13);
   // cards are named in words, and the table says whose turn it is
-  await expect(page.locator('.hand .card').first()).toHaveAttribute('aria-label', /^(\d+|jack|queen|king|ace) of (spades|hearts|diamonds|clubs)$/);
+  await expect(page.locator('.hand .slot').first()).toHaveAttribute('aria-label', /^(\d+|jack|queen|king|ace) of (spades|hearts|diamonds|clubs)$/);
   await expect(page.locator('.sr-only[aria-live]')).toContainText('Your turn');
   const menu = page.getByRole('button', { name: 'Menu' });
   await menu.focus();

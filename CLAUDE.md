@@ -58,8 +58,10 @@ src/net/exports/       the standard records a game can also be saved as: PBN (br
                        (Hold'em, Omaha); formats.ts says which game gets which
                        (and PHH, poker for PokerKit: written only for checking, see tools/)
 src/ui/screens/        Home, Lobby, Table, TvScreen;  src/ui/components/  the pieces
-src/ui/layout/         cardLayout.ts: where every card goes (pure: areas + cards → places); drawn by
-                       components/CardLayer.svelte, a prototype behind the menu's "New card table (test)" or `layer=1` in the address (your hand + a trick so far)
+src/ui/layout/         where each zone's cards go in its frame: pure functions, one per `layout` (fan, trick,
+                       stack, spread, piles; index.ts picks); frames.svelte.ts, the frames zones register
+src/ui/components/CardLayer.svelte  draws every card on the table, one element each, eased from place to
+                       place; Zone.svelte / Hand.svelte are the frames (what you tap, in order)
 src/app.svelte.ts      app state, routing, starting a host or client
 src/sw.js              the service worker (opens at once, and offline); vite.config.ts writes in its file list
 tools/                 Python checks with other people's programs: endplay (bridge, double dummy) and
@@ -95,6 +97,10 @@ docs/ADDING_A_GAME.md  how to add a game: read it before touching families or ga
   so a seed replays a deal. Bots may use `Math.random` for their own thinking only.
 - **The UI knows no rules.** It renders zones, `ActionSpec`s and `GameStatus`. No game ids or family
   checks in `src/ui`.
+- **Cards are drawn by the card layer only.** A zone lays its cards out with a layout function
+  (`src/ui/layout/`) and registers its frame; it never draws them itself at a table (only on a
+  sheet over it). A new arrangement of cards is a new layout function, not new CSS around cards.
+  Tests find drawn cards with `e2e/cards.ts` and wait for them with `cardsLanded`.
 - **The relay is a dumb pipe** that never sees a card. Protocol changes go in `relay/src/index.ts`,
   `src/net/relayTransport.ts` and the `FakeRelay` in `tests/relay.test.ts` together, and must keep
   working with the other side one version behind (the relay deploys separately from the site).

@@ -1,276 +1,410 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import type { LogEntry } from '../../engine/types';
-  import { landing, layout, offstage, travel, type Box, type Spot } from '../layout/cardLayout';
+  import { isHidden } from '../../engine/redact';
+  import { type Frames, type Frame, LAYER } from '../layout/frames.svelte';
+  import { offstage, placement, travel, type Placement } from '../layout/motion';
+  import type { Box } from '../layout/types';
   import Card from './Card.svelte';
 
   /**
-   * Every card on the table in one layer (a prototype: your hand and the trick so far). Each card
-   * is one element for as long as it's on the table, placed by the layout and eased from place to
-   * place by its own transition: a card played from your hand is the same element that lands in
-   * the trick, so nothing is swapped, and nothing reflows around it.
+   * Every card on the table, in one layer. Each zone (and your hand) lays its cards out in a frame
+   * of its own (see layout/ and Zone.svelte); this draws them all, each card one element for as
+   * long as it's anywhere on the table, eased from place to place by its own transition. A card
+   * played from your hand is the same element that lands on the pile, so nothing is swapped, and
+   * nothing jumps when the page around it reflows: only where it's going changes.
    *
-   * The table still lays out its areas (where your hand's strip and the trick's box are); this
-   * finds them by `data-layer` and puts the cards in them.
+   * The layer only draws. What you tap is in the frames underneath (the cards' places, in order,
+   * for the keyboard and screen readers too): the layer lets every touch through to them.
    */
   interface Props {
-    /** Your hand in the order shown, and its card width. */
-    hand: { ids: string[]; cw: number } | null;
-    trick: { id: string; by?: number }[];
+    frames: Frames;
     you: number;
-    players: number;
-    /** Bumped on every change of the game (when to look again at where the areas are). */
-    v: number;
     /** The latest move: where cards that weren't on the table come from, and leaving ones go. */
     entry: LogEntry | undefined;
-    selected: string[];
-    selectable: Set<string> | null;
-    fresh: string[];
-    hints: boolean;
-    ontap: (id: string) => void;
-    onswipe: (id: string) => void;
-    onreorder?: (ids: string[]) => void;
   }
-  let { hand, trick, you, players, v, entry, selected, selectable, fresh, hints, ontap, onswipe, onreorder }: Props = $props();
+  let { frames, you, entry }: Props = $props();
 
   let el: HTMLDivElement;
-  let boxes = $state<{ hand: Box | null; trick: Box | null }>({ hand: null, trick: null });
+  const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  /** An element's place relative to the layer. */
-  function boxOf(target: Element | null): Box | null {
+  /** A card on screen. */
+  interface Shown {
+    key: string;
+    /** The frame it's in (gone: where it was). */
+    frame: string;
+    at: Placement;
+    /** How long its move takes (ms; 0 snaps). */
+    ms: number;
+    /** Where a new card starts (it eases from there to `at` as it's first drawn). */
+    from: Placement | null;
+    /** Clipped to what shows of a row that scrolls. */
+    clip: string | undefined;
+    leaving: boolean;
+    /** On its way to another frame: over everything until it lands. */
+    flying: boolean;
+    /** Trading places quietly (see Frames.calm): it fades out here and in there. */
+    swap: boolean;
+  }
+  let shown = $state<Shown[]>([]);
+  /** Cards are moving, or the layer will look again shortly (`data-busy`, for tests to wait on). */
+  let busy = $state(false);
+  const timers = new Map<string, ReturnType<typeof setTimeout>>();
+  const later = (key: string, ms: number, run: () => void) => {
+    clearTimeout(timers.get(key));
+    timers.set(
+      key,
+      setTimeout(() => {
+        timers.delete(key);
+        run();
+      }, ms),
+    );
+  };
+  const settle = (key: string, change: Partial<Shown>) => (shown = shown.map((x) => (x.key === key ? { ...x, ...change } : x)));
+  $effect(() => () => timers.forEach((t) => clearTimeout(t)));
+
+  // ---- where the frames are ----------------------------------------------------------------
+
+  interface Seen {
+    box: Box;
+    /** The frame's px to the layer's (the middle is scaled to fit). */
+    k: number;
+    /** What shows of it, when it's in a row that scrolls. */
+    clip: Box | null;
+  }
+  /** Where an element is, relative to the layer. */
+  function boxOf(target: Element | null | undefined): Box | null {
     if (!target || !el) return null;
     const r = target.getBoundingClientRect();
+    if (!r.width && !r.height) return null;
     const o = el.getBoundingClientRect();
     return { x: r.left - o.left, y: r.top - o.top, w: r.width, h: r.height };
   }
-  const table = () => el?.parentElement ?? null;
-  function measure() {
-    const t = table();
-    if (!t) return;
-    const next = { hand: boxOf(t.querySelector('[data-layer="hand"]')), trick: boxOf(t.querySelector('[data-layer="trick"]')) };
-    // (only a real change: a new object would set every card's place again)
-    const same = (a: Box | null, b: Box | null) =>
-      a === b || (!!a && !!b && Math.abs(a.x - b.x) < 0.5 && Math.abs(a.y - b.y) < 0.5 && Math.abs(a.w - b.w) < 0.5 && Math.abs(a.h - b.h) < 0.5);
-    if (!same(next.hand, boxes.hand) || !same(next.trick, boxes.trick)) boxes = next;
-  }
-  // after every change, and again once the table's own easing (sizes, rows) has settled
-  $effect(() => {
-    void v;
-    measure();
-    const later = setTimeout(measure, 380);
-    return () => clearTimeout(later);
-  });
-  $effect(() => {
-    const ro = new ResizeObserver(() => measure());
-    ro.observe(el);
-    return () => ro.disconnect();
-  });
-
-  const spots = $derived(
-    layout({
-      hand: hand && boxes.hand ? { ids: hand.ids, box: boxes.hand, cw: hand.cw } : null,
-      trick: boxes.trick ? { cards: trick, box: boxes.trick } : null,
-      you,
-      players,
-    }),
-  );
-
-  /** A card on screen: where it's going, how long it takes, and where it starts if it's new. */
-  interface Shown {
-    id: string;
-    spot: Spot;
-    ms: number;
-    from: Spot | null;
-    leaving: boolean;
-  }
-  let shown = $state<Shown[]>([]);
-  const gone = new Map<string, ReturnType<typeof setTimeout>>();
-
-  /** A seat on the table (yours is your hand), or a pile, to come from or go to. */
-  function anchor(seat: number | undefined, pile: string | undefined): { box: Box | null; pile: boolean } {
-    const t = table();
-    if (pile) {
-      const b = boxOf(t?.querySelector(`[data-zone="${CSS.escape(pile)}"]`) ?? null);
-      if (b) return { box: b, pile: true };
+  const intersect = (a: Box, b: Box): Box => {
+    const x = Math.max(a.x, b.x);
+    const y = Math.max(a.y, b.y);
+    return { x, y, w: Math.max(0, Math.min(a.x + a.w, b.x + b.w) - x), h: Math.max(0, Math.min(a.y + a.h, b.y + b.h) - y) };
+  };
+  function see(f: Frame): Seen | null {
+    const box = boxOf(f.el);
+    if (!box || !f.el.offsetWidth) return null;
+    let clip: Box | null = null;
+    for (let p = f.el.parentElement; p && p !== el.parentElement; p = p.parentElement) {
+      const st = getComputedStyle(p);
+      if (!/(auto|scroll)/.test(st.overflowX + st.overflowY)) continue;
+      const b = boxOf(p);
+      if (b) clip = clip ? intersect(clip, b) : b;
     }
-    if (seat == null) return { box: null, pile: false };
-    if (seat === you) return { box: untrack(() => boxes.hand), pile: false };
-    return { box: boxOf(t?.querySelector(`[data-seat="${seat}"]`) ?? null), pile: false };
+    return { box, k: box.w / f.el.offsetWidth, clip };
+  }
+  /** The part of a card at `p` inside `clip`, as its own clip-path (none when it all shows). */
+  function clipFor(p: Placement, clip: Box | null): string | undefined {
+    if (!clip) return undefined;
+    const h = p.w * 1.4;
+    const t = clip.y - (p.y - h / 2);
+    const l = clip.x - (p.x - p.w / 2);
+    const r = p.x + p.w / 2 - (clip.x + clip.w);
+    const b = p.y + h / 2 - (clip.y + clip.h);
+    if (t <= 0 && l <= 0 && r <= 0 && b <= 0) return undefined;
+    return `inset(${Math.max(0, t)}px ${Math.max(0, r)}px ${Math.max(0, b)}px ${Math.max(0, l)}px)`;
   }
 
-  // the cards that came, went or moved: each keeps its element, and only its place changes
+  // ---- when to look ------------------------------------------------------------------------
+
+  let queued = false;
+  /** Look again soon (once, however many frames changed meanwhile). */
+  function schedule() {
+    if (queued) return;
+    queued = true;
+    queueMicrotask(() => {
+      queued = false;
+      update();
+    });
+  }
   $effect(() => {
-    const next = spots;
-    untrack(() => {
-      const byId = new Map(next.map((p) => [p.id, p]));
-      const had = new Set(shown.map((c) => c.id));
-      const out: Shown[] = [];
-      for (const c of shown) {
-        const p = byId.get(c.id);
-        if (p) {
-          // (one leaving that's back again, as after an undo: it turns round)
-          clearTimeout(gone.get(c.id));
-          gone.delete(c.id);
-          out.push({ id: c.id, spot: p, ms: travel(c.spot, p), from: null, leaving: false });
-        } else if (c.leaving) out.push(c);
-        else {
-          const to = anchor(entry?.to ?? entry?.seat, entry?.toZone);
-          const away = offstage(c.spot, to.box, { arriving: false, pile: to.pile });
-          const ms = travel(c.spot, away);
-          out.push({ id: c.id, spot: away, ms, from: null, leaving: true });
-          gone.set(
-            c.id,
-            setTimeout(() => {
-              gone.delete(c.id);
-              shown = shown.filter((x) => x.id !== c.id || !x.leaving);
-            }, ms + 80),
-          );
+    void frames.all;
+    void frames.calm;
+    schedule();
+    // (and once the page has settled: the middle scales to fit a frame later, labels slide)
+    const frame = requestAnimationFrame(schedule);
+    const settled = setTimeout(schedule, 380);
+    return () => {
+      cancelAnimationFrame(frame);
+      clearTimeout(settled);
+    };
+  });
+  /** A row just scrolled: its cards follow it at once. */
+  let scrolled: Element | null = null;
+  $effect(() => {
+    const ro = new ResizeObserver(() => schedule());
+    ro.observe(el);
+    const table = el.parentElement!;
+    // anything that changes on the table may move a frame without changing its cards (a headline
+    // growing a line, the middle scaled to fit): look again after any change but the layer's own
+    const mo = new MutationObserver((records) => {
+      if (records.some((m) => !el.contains(m.target))) schedule();
+    });
+    mo.observe(table, { subtree: true, childList: true, attributes: true, characterData: true });
+    // (and once anything around the cards has finished easing somewhere)
+    const eased = (e: Event) => e.target instanceof Element && !el.contains(e.target) && schedule();
+    table.addEventListener('transitionend', eased);
+    const onScroll = (e: Event) => {
+      if (!(e.target instanceof Element)) return;
+      scrolled = e.target;
+      update();
+      scrolled = null;
+    };
+    table.addEventListener('scroll', onScroll, { capture: true, passive: true });
+    return () => {
+      ro.disconnect();
+      mo.disconnect();
+      table.removeEventListener('transitionend', eased);
+      table.removeEventListener('scroll', onScroll, { capture: true });
+    };
+  });
+
+  // ---- what changed ------------------------------------------------------------------------
+
+  /** Each frame's card count last time: a frame that didn't grow didn't get a card from anywhere. */
+  let counts = new Map<string, number>();
+  let calm = '';
+
+  /** Just above the screen, in the middle: where the table is, from a phone that shows only your hand. */
+  const offTop = (): Box => ({ x: el.clientWidth / 2 - 24, y: -80, w: 48, h: 67 });
+  /** A seat's place (yours: your hand), to come from or go to. */
+  function seatBox(seat: number | undefined): Box | null {
+    if (seat == null || seat < 0) return null;
+    const table = el.parentElement!;
+    if (seat === you) return boxOf(frames.all.hand?.el) ?? boxOf(table.querySelector('.me'));
+    return boxOf(table.querySelector(`[data-seat="${seat}"]`));
+  }
+
+  function update() {
+    if (!el) return;
+    const all = frames.all;
+    const move = untrack(() => entry);
+    // every frame's cards, where they are on screen now
+    const seen = new Map<string, Seen>();
+    const now = new Map<string, { frame: string; at: Placement; clip: string | undefined }>();
+    for (const [name, f] of Object.entries(all)) {
+      const s = see(f);
+      if (!s) continue;
+      seen.set(name, s);
+      for (const p of f.spots) {
+        const at = placement({ ...p, x: s.box.x + p.x * s.k, y: s.box.y + p.y * s.k, w: p.w * s.k, z: p.held ? LAYER.held : f.layer + p.z });
+        now.set(p.key, { frame: name, at, clip: clipFor(at, s.clip) });
+      }
+    }
+    const frameOfZone = (zone: string | undefined) => (zone ? Object.keys(all).find((k) => all[k].zone === zone && seen.has(k)) : undefined);
+    /** A frame's top card (where a card put on it lands), or its middle. */
+    const topOf = (name: string): { box: Box; w: number } => {
+      const s = seen.get(name)!;
+      const top = [...all[name].spots].sort((a, b) => a.z - b.z).at(-1);
+      if (!top) return { box: s.box, w: Math.min(s.box.w, s.box.h / 1.4) };
+      const w = top.w * s.k;
+      return { box: { x: s.box.x + top.x * s.k - w / 2, y: s.box.y + top.y * s.k - w * 0.7, w, h: w * 1.4 }, w };
+    };
+    const buried = new Set(Object.values(all).flatMap((f) => f.ids));
+    const swapping = frames.calm !== calm;
+    calm = frames.calm;
+
+    const out: Shown[] = [];
+    const had = new Set<string>();
+    /** Frames that cards were just put on (and how long they take to get there). */
+    const landing = new Map<string, number>();
+    for (const c of shown) {
+      had.add(c.key);
+      const next = now.get(c.key);
+      if (next) {
+        // staying, or moving: the same element eases there
+        const moved = next.frame !== c.frame;
+        if (moved && swapping && !still) {
+          out.push({ ...c, frame: next.frame, at: { ...next.at, delay: 260 }, ms: 0, from: null, clip: next.clip, leaving: false, flying: false, swap: true });
+          later(c.key, 600, () => settle(c.key, { swap: false }));
+          continue;
+        }
+        const snap = !!scrolled && scrolled.contains(all[next.frame].el);
+        const ms = snap ? 0 : travel(c.at, next.at);
+        if (moved) later(c.key, ms + 40, () => settle(c.key, { flying: false }));
+        else if (c.leaving) clearTimeout(timers.get(c.key));
+        out.push({
+          key: c.key,
+          frame: next.frame,
+          at: next.at,
+          ms,
+          from: null,
+          clip: next.clip,
+          leaving: false,
+          flying: moved || (c.flying && !c.leaving),
+          swap: false,
+        });
+        continue;
+      }
+      if (c.leaving) {
+        out.push(c);
+        continue;
+      }
+      // gone from every frame: under a pile's top, onto a pile, or to someone's hand
+      let away: Placement;
+      let ms: number;
+      if (buried.has(c.at.id)) {
+        away = { ...c.at, z: 1, opacity: 0 };
+        ms = 200;
+      } else {
+        const toFrame = frameOfZone(move?.toZone);
+        if (toFrame && toFrame !== c.frame) {
+          const top = topOf(toFrame);
+          away = offstage(c.at, top.box, { arriving: false, pile: { w: top.w } });
+        } else {
+          const seat = move?.to ?? move?.seat;
+          // (from your hand to a pile not on this screen, the phone beside a table screen: up, toward the table)
+          away = offstage(c.at, c.frame === 'hand' && (seat == null || seat === you) ? offTop() : seatBox(seat), { arriving: false });
+        }
+        away.z = LAYER.leaving + (c.at.z % 100);
+        ms = still ? 0 : travel(c.at, away);
+        if (toFrame) landing.set(toFrame, Math.max(landing.get(toFrame) ?? 0, ms));
+      }
+      out.push({ ...c, at: away, ms, from: null, leaving: true, flying: false, swap: false });
+      later(c.key, ms + 80, () => (shown = shown.filter((x) => x.key !== c.key || !x.leaving)));
+    }
+
+    // cards new to the table: where each comes from
+    const arriving = [...now].filter(([key]) => !had.has(key));
+    const perFrame = new Map<string, number>();
+    for (const [, n] of arriving) perFrame.set(n.frame, (perFrame.get(n.frame) ?? 0) + 1);
+    const dealt = new Map<string, number>();
+    for (const [key, n] of arriving) {
+      const f = all[n.frame];
+      const grew = !counts.has(n.frame) || f.ids.length > (counts.get(n.frame) ?? 0);
+      const hidden = isHidden(n.at.id);
+      let start: Placement;
+      let at = n.at;
+      let ms: number;
+      if (still) {
+        start = { ...at, opacity: 0 };
+        ms = 0;
+      } else if (hidden && landing.has(n.frame)) {
+        // put there face down: it shows once the card going there has landed
+        start = { ...at, opacity: 0 };
+        at = { ...at, delay: landing.get(n.frame)! };
+        ms = 1;
+      } else if (hidden && !grew) {
+        // (it was there already, under another name: the pile's next card)
+        start = { ...at, opacity: 0 };
+        ms = 120;
+      } else {
+        const fromFrame = frameOfZone(move?.fromZone);
+        if (fromFrame === n.frame) start = { ...at, opacity: 0 };
+        else if (fromFrame) {
+          const top = topOf(fromFrame);
+          start = offstage(at, top.box, { arriving: true, pile: { w: top.w } });
+        } else {
+          // (a player's own zone, their melds or their hand shown down: from their seat)
+          const seat = f.owner != null && f.owner !== you && n.frame !== 'hand' ? f.owner : move?.seat;
+          // (into your hand from a pile not on this screen: down from the table, not up out of your own hand)
+          const fromAbove = n.frame === 'hand' && !!move?.fromZone && (seat == null || seat === you);
+          start = offstage(at, fromAbove ? offTop() : seatBox(seat), { arriving: true });
+        }
+        ms = travel(start, at);
+        // a new hand comes in a card at a time
+        if ((perFrame.get(n.frame) ?? 0) >= 5) {
+          const i = dealt.get(n.frame) ?? 0;
+          dealt.set(n.frame, i + 1);
+          at = { ...at, delay: Math.min(600, i * 30) };
         }
       }
-      const arriving = next.filter((p) => !had.has(p.id));
-      // a new hand comes in a card at a time
-      const dealing = arriving.length >= 5;
-      const from = anchor(entry?.seat, entry?.fromZone);
-      arriving.forEach((p, i) => {
-        const start = offstage(p, from.box, { arriving: true, pile: from.pile });
-        out.push({ id: p.id, spot: dealing ? { ...p, delay: i * 30 } : p, ms: travel(start, p), from: start, leaving: false });
-      });
-      shown = out;
-    });
-  });
-  $effect(() => () => gone.forEach((t) => clearTimeout(t)));
+      const flying = !still && ms > 1;
+      out.push({ key, frame: n.frame, at, ms, from: start, clip: n.clip, leaving: false, flying, swap: false });
+      if (flying) later(key, ms + at.delay + 40, () => settle(key, { flying: false }));
+    }
+    counts = new Map(Object.entries(all).map(([k, f]) => [k, f.ids.length]));
+    // (nothing moved: leave it all be, so a look that finds nothing new costs nothing)
+    if (out.length === shown.length && out.every((c, i) => same(c, shown[i]))) return;
+    shown = out;
+    // (busy until the longest move ends, and the second look after a change has been taken)
+    const longest = Math.max(400, ...out.map((c) => c.ms + c.at.delay));
+    busy = true;
+    later('', longest + 60, () => (busy = false));
+  }
 
-  const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  /** The same card in the same place, looking the same. */
+  function same(a: Shown, b: Shown): boolean {
+    if (a.key !== b.key || a.frame !== b.frame || a.leaving !== b.leaving || a.flying !== b.flying || a.swap !== b.swap || a.clip !== b.clip) return false;
+    const p = a.at;
+    const q = b.at;
+    return (
+      Math.abs(p.x - q.x) < 0.5 &&
+      Math.abs(p.y - q.y) < 0.5 &&
+      Math.abs(p.w - q.w) < 0.5 &&
+      p.rot === q.rot &&
+      p.z === q.z &&
+      p.opacity === q.opacity &&
+      p.id === q.id &&
+      p.down === q.down &&
+      p.selected === q.selected &&
+      p.playable === q.playable &&
+      p.dim === q.dim &&
+      p.fresh === q.fresh &&
+      p.glow === q.glow &&
+      p.count === q.count &&
+      p.held === q.held
+    );
+  }
+
+  // ---- drawing -----------------------------------------------------------------------------
+
+  const place = (p: Placement) => `translate(${p.x - p.w / 2}px, ${p.y - p.w * 0.7}px) rotate(${p.rot}deg)`;
   /** A new card starts where it comes from, and then eases to its place (set before it's first drawn). */
-  function arrive(node: HTMLElement, from: Spot | null) {
-    if (!from || still) return;
-    const keep = { transform: node.style.transform, opacity: node.style.opacity, cw: node.style.getPropertyValue('--cw'), z: node.style.zIndex };
+  function arrive(node: HTMLElement, from: Placement | null) {
+    if (!from) return;
+    const keep = { transform: node.style.transform, opacity: node.style.opacity, cw: node.style.getPropertyValue('--cw') };
     // (the property only: the inline duration and delay stay as they are)
     node.style.transitionProperty = 'none';
     node.style.transform = place(from);
     node.style.opacity = String(from.opacity);
     node.style.setProperty('--cw', `${from.w}px`);
-    node.style.zIndex = String(from.z + 1000);
     void node.offsetWidth;
     node.style.transitionProperty = '';
     node.style.transform = keep.transform;
     node.style.opacity = keep.opacity;
     node.style.setProperty('--cw', keep.cw);
-    node.style.zIndex = keep.z;
   }
-  const place = (p: Spot, dx = 0, dy = 0) => `translate(${p.x - p.w / 2 + dx}px, ${p.y - p.w * 0.7 + dy}px) rotate(${p.rot}deg)`;
-
-  // ---- your hand: tap to pick, drag up to play, drag sideways to move a card along -------------
-  let drag = $state<{ id: string; x: number; y: number; dx: number; dy: number; moved: boolean; slide: boolean } | null>(null);
-  const handSpots = $derived(spots.filter((p) => p.inHand));
-
-  function down(e: PointerEvent, id: string) {
-    try {
-      (e.currentTarget as Element).setPointerCapture(e.pointerId);
-    } catch {
-      /* not a live pointer (a synthetic event) */
-    }
-    drag = { id, x: e.clientX, y: e.clientY, dx: 0, dy: 0, moved: false, slide: false };
-  }
-  function move(e: PointerEvent) {
-    if (!drag) return;
-    const dy = e.clientY - drag.y;
-    const dx = e.clientX - drag.x;
-    if (Math.abs(dy) > 6 || Math.abs(dx) > 6) drag.moved = true;
-    if (onreorder && handSpots.length > 1 && !drag.slide && Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.5) drag.slide = true;
-    if (drag.slide) {
-      drag.dx = dx;
-      drag.dy = 0;
-    } else drag.dy = Math.min(0, dy);
-  }
-  function up(e: PointerEvent) {
-    if (!drag) return;
-    const { id, dy, moved, slide } = drag;
-    const slid = e.clientX - drag.x;
-    drag = null;
-    const ids = handSpots.map((p) => p.id);
-    const from = ids.indexOf(id);
-    if (slide) {
-      const at = from < 0 ? from : landing(handSpots, handSpots[from].x + slid);
-      if (from >= 0 && at !== from) {
-        ids.splice(from, 1);
-        ids.splice(at, 0, id);
-        onreorder?.(ids);
-      }
-      return;
-    }
-    if (dy < -Math.max(36, (hand?.cw ?? 60) * 0.45) && Math.abs(slid) < -dy) onswipe(id);
-    else if (!moved || Math.abs(dy) < 10) ontap(id);
-  }
-  /**
-   * The keyboard goes along the hand in its order (the cards' elements stay in the order they
-   * came, so moving one never interrupts its easing): arrows move between cards, Enter or Space
-   * picks one, and Alt with an arrow moves it along the hand.
-   */
-  let focusId = $state<string | null>(null);
-  const tabStop = $derived(handSpots.some((p) => p.id === focusId) ? focusId : (handSpots[0]?.id ?? null));
-  function key(e: KeyboardEvent, id: string) {
-    const ids = handSpots.map((p) => p.id);
-    const i = ids.indexOf(id);
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      ontap(id);
-      return;
-    }
-    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
-    const at = i + (e.key === 'ArrowLeft' ? -1 : 1);
-    if (at < 0 || at >= ids.length) return;
-    e.preventDefault();
-    if (e.altKey && onreorder) {
-      ids.splice(i, 1);
-      ids.splice(at, 0, id);
-      onreorder(ids);
-      return;
-    }
-    focusId = ids[at];
-    el.querySelector<HTMLElement>(`[data-card="${CSS.escape(ids[at])}"]`)?.focus();
+  /** Trading places quietly: out where it was, in where it's going (the move itself waits for the middle of it). */
+  function fadeSwap(node: HTMLElement, on: boolean) {
+    const run = (yes: boolean) => {
+      if (yes)
+        node.animate([{ opacity: 1 }, { opacity: 0, offset: 0.4 }, { opacity: 0, offset: 0.55 }, { opacity: 1 }], { duration: 560, easing: 'ease-in-out' });
+    };
+    run(on);
+    return { update: run };
   }
 </script>
 
-<div class="layer" bind:this={el} role="group" aria-label="Your hand and the table">
-  {#each shown as c (c.id)}
-    {@const p = c.spot}
-    {@const held = drag?.id === c.id ? drag : null}
-    {@const mine = p.inHand && !c.leaving}
-    {@const can = !selectable || selectable.has(c.id)}
-    <!-- (a card of your hand is a button; the rest are pictures) -->
-    <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+<!-- (only pictures: what you tap, and what a screen reader reads, is in the frames underneath) -->
+<div class="layer" bind:this={el} aria-hidden="true" data-busy={busy || undefined}>
+  {#each shown as c (c.key)}
+    {@const p = c.at}
     <div
-      class="lc"
-      class:mine
-      class:held
-      data-card={c.id}
-      data-area={p.inHand ? 'hand' : 'trick'}
-      style:transform={place(p, held?.dx, held?.dy)}
+      class="layer-card"
+      class:held={p.held}
+      class:glow={p.glow}
+      data-key={c.key}
+      data-card={p.id}
+      data-frame={c.frame}
+      data-in={frames.all[c.frame]?.zone ?? c.frame}
+      data-leaving={c.leaving || undefined}
+      style:transform={place(p)}
       style:--cw="{p.w}px"
-      style:z-index={held?.slide ? 999 : p.z}
+      style:z-index={c.flying ? LAYER.flying + (p.z % 100) : p.z}
       style:opacity={p.opacity}
       style:transition-duration="{c.ms}ms"
       style:transition-delay="{p.delay}ms"
+      style:clip-path={c.clip}
       use:arrive={c.from}
-      onpointerdown={mine ? (e) => down(e, c.id) : undefined}
-      onpointermove={mine ? move : undefined}
-      onpointerup={mine ? up : undefined}
-      onpointercancel={() => (drag = null)}
-      onkeydown={mine ? (e) => key(e, c.id) : undefined}
-      onfocus={() => (focusId = c.id)}
-      role={mine ? 'button' : undefined}
-      tabindex={mine ? (tabStop === c.id ? 0 : -1) : undefined}
-      aria-pressed={mine ? selected.includes(c.id) : undefined}
-      aria-disabled={mine && hints && !can ? true : undefined}
+      use:fadeSwap={c.swap}
     >
-      <Card
-        id={c.id}
-        selected={mine && selected.includes(c.id)}
-        playable={mine && hints && !!selectable && can && selectable.size < handSpots.length}
-        dim={mine && hints && !!selectable && !can}
-        fresh={mine && fresh.includes(c.id)}
-      />
+      <Card id={p.id} down={p.down} selected={p.selected} playable={p.playable} dim={p.dim} fresh={p.fresh} />
+      {#if p.count}<span class="count">{p.count}</span>{/if}
     </div>
   {/each}
 </div>
@@ -283,29 +417,38 @@
     pointer-events: none;
     overflow: hidden;
   }
-  .lc {
+  .layer-card {
     position: absolute;
     left: 0;
     top: 0;
     transition-property: transform, --cw, opacity;
     transition-timing-function: var(--ease-out);
-    will-change: transform;
   }
-  .lc.mine {
-    pointer-events: auto;
-    cursor: pointer;
-    touch-action: none;
-  }
-  .lc.held {
+  .layer-card.held {
     transition: none;
   }
-  .lc:focus-visible {
-    outline: 2px solid var(--gold);
-    outline-offset: 2px;
-    border-radius: var(--card-radius);
+  /* (the pile's yours to tap now) */
+  .layer-card.glow {
+    filter: drop-shadow(0 0 8px rgba(233, 196, 106, 0.8));
+  }
+  /* a squared pile's size, on its corner */
+  .count {
+    position: absolute;
+    left: calc(var(--cw) * -0.08);
+    bottom: calc(var(--cw) * -0.08);
+    min-width: 1.5em;
+    padding: 0.05em 0.35em;
+    border-radius: 999px;
+    background: var(--gold);
+    color: #1a1408;
+    font-size: max(11px, calc(var(--cw) * 0.22));
+    font-weight: 800;
+    line-height: 1.3;
+    text-align: center;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
   }
   @media (prefers-reduced-motion: reduce) {
-    .lc {
+    .layer-card {
       transition: none;
     }
   }

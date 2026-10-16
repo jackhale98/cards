@@ -3,9 +3,9 @@ import type { Page } from '@playwright/test';
 /**
  * The screen audit's layout check (e2e/audit.spec.ts), also used by tests of their own: anything
  * off-screen, overlapping what it shouldn't, with its text cut off, or too small to touch or read.
- * It knows both ways the cards are drawn: in their zones and your hand, and on the card layer
- * (`.layer`: see src/ui/components/CardLayer.svelte), where `.lc.mine` are your hand's cards and
- * the rest are the middle's.
+ * The cards are drawn by the card layer (`.layer`: see src/ui/components/CardLayer.svelte), each
+ * where its frame (the zone or hand it's laid out in) puts it: a card is in your hand or in the
+ * middle as its frame is. Cards on their way out (`data-leaving`) don't count.
  */
 /** Everything wrong with the layout as it stands. */
 export async function screenProblems(page: Page): Promise<string[]> {
@@ -16,8 +16,20 @@ export async function screenProblems(page: Page): Promise<string[]> {
     const shown = (el: Element) => {
       const r = rect(el);
       const st = getComputedStyle(el);
+      // (a card on the layer fades as a whole, and one on its way out isn't on the table)
+      const lc = el.closest<HTMLElement>('.layer .layer-card');
+      if (lc && (lc.dataset.leaving || Number(getComputedStyle(lc).opacity) <= 0.05)) return false;
       return r.width > 0 && r.height > 0 && st.visibility !== 'hidden' && st.display !== 'none' && Number(st.opacity) > 0.05;
     };
+    /** Where a card on the layer is laid out: its frame (your hand's fan, or a zone). */
+    const frameOf = (el: Element): Element | null => {
+      const lc = el.closest<HTMLElement>('.layer .layer-card');
+      if (!lc) return null;
+      return lc.dataset.frame === 'hand'
+        ? lc.closest('.table')!.querySelector('footer .hand')
+        : lc.closest('.table')!.querySelector(`.zone[data-zone="${CSS.escape(lc.dataset.in ?? '')}"]`);
+    };
+    const inHand = (el: Element) => !!el.closest('footer') || !!frameOf(el)?.closest('footer');
     const name = (el: Element) => {
       const cls = typeof el.className === 'string' ? el.className.split(' ').filter((c) => c && !c.startsWith('s-'))[0] : '';
       const text = (el.textContent ?? '').trim().replace(/\s+/g, ' ').slice(0, 40);
@@ -63,7 +75,7 @@ export async function screenProblems(page: Page): Promise<string[]> {
         if (el.closest('.seats, .strip')) return;
         const r = rect(el);
         // a hand of cards may sit a little below the screen's edge (its corners show)
-        const handCard = !!el.closest('footer .hand, footer .hand-wrap, .layer .lc.mine');
+        const handCard = inHand(el);
         const bottom = handCard ? r.top + r.height * 0.65 : r.bottom;
         if (r.left < -1 || r.top < -1 || r.right > W + 1 || bottom > H + 1)
           out.push(`off-screen: ${name(el)} at ${Math.round(r.left)},${Math.round(r.top)}→${Math.round(r.right)},${Math.round(r.bottom)}`);
@@ -100,8 +112,9 @@ export async function screenProblems(page: Page): Promise<string[]> {
     if (!sheet) {
       // 3. nothing overlapping that shouldn't
       const all = (sel: string) => [...document.querySelectorAll(sel)].filter(shown);
-      const center = all('.table:not(.display) main .zones .card, .table:not(.display) .layer .lc:not(.mine) .card');
-      const hand = all('.table:not(.display) footer .card, .table:not(.display) .layer .lc.mine .card');
+      const cards = all('.table:not(.display) .card').filter((c) => !c.closest('header'));
+      const center = cards.filter((c) => (c.closest('main') ?? frameOf(c)?.closest('main')) && !inHand(c));
+      const hand = cards.filter(inHand);
       const buttons = all('.table:not(.display) aside button');
       // (whose turn it is and the last move: above the middle, or on a phone in the column on the left)
       const text = all('.table:not(.display) .headline, .table:not(.display) .last, .table:not(.display) main .track');
@@ -137,11 +150,8 @@ export async function screenProblems(page: Page): Promise<string[]> {
           }
       }
       // a zone's label clear of the other zones' cards; zones clear of each other
-      // (a card on the layer belongs to the zone whose room it's drawn in)
-      const zoneOf = (el: Element) => {
-        const area = el.closest<HTMLElement>('.layer .lc')?.dataset.area;
-        return area ? (document.querySelector(`[data-layer="${area}"]`)?.closest('.zone-slot, .strip > *') ?? null) : el.closest('.zone-slot, .strip > *');
-      };
+      // (a card on the layer belongs to the zone it's laid out in)
+      const zoneOf = (el: Element) => (frameOf(el) ?? el).closest('.zone-slot, .strip > *');
       for (const l of labels)
         for (const c of center)
           if (zoneOf(l) !== zoneOf(c) && meets(rect(l), rect(c))) {
@@ -165,16 +175,15 @@ export async function screenProblems(page: Page): Promise<string[]> {
     // 4. big enough to touch: buttons at least 44×44 (Apple; Google asks 48), never under 24 (WCAG 2.5.8);
     // an overlapped card needs a strip of at least 28px showing to tap it
     root.querySelectorAll('button:not(:disabled), a.btn, [role="button"], input, select').forEach((el) => {
-      if (!shown(el) || el.closest('.scrim') || el.classList.contains('scrim') || el.closest('.slot, .scard, .stack, .lc')) return;
+      if (!shown(el) || el.closest('.scrim') || el.classList.contains('scrim') || el.closest('.slot, .scard, .stack, .layer-card')) return;
       const r = rect(el);
       const small = Math.min(r.width, r.height);
       if (small < 24) out.push(`too small to touch: ${name(el)} ${Math.round(r.width)}×${Math.round(r.height)}`);
       else if (small < 44) out.push(`small to touch (under 44): ${name(el)} ${Math.round(r.width)}×${Math.round(r.height)}`);
     });
-    const strips = (sel: string, what: string, byPlace = false) => {
+    // (what you tap: each card's place in your hand or a zone, under the card the layer draws there)
+    const strips = (sel: string, what: string) => {
       const els = [...document.querySelectorAll(sel)].filter(shown);
-      // (the layer's cards are in the order they came, not the order they're shown in)
-      if (byPlace) els.sort((a, b) => rect(a).left - rect(b).left);
       els.forEach((el, i) => {
         const next = els[i + 1];
         if (!next || el.parentElement !== next.parentElement) return;
@@ -185,7 +194,6 @@ export async function screenProblems(page: Page): Promise<string[]> {
     };
     if (!sheet) {
       strips('.table:not(.display) footer .hand .slot', 'a card in your hand');
-      strips('.table:not(.display) .layer .lc.mine', 'a card in your hand', true);
       strips('.table:not(.display) main .zones .scard:not(:disabled)', 'a card you can pick on the table');
     }
     // 5. big enough to read, touched or not: text at least 11px (Apple's smallest, for captions),
@@ -213,7 +221,7 @@ export async function screenProblems(page: Page): Promise<string[]> {
       const w = el.getBoundingClientRect().width;
       if (w < 30)
         out.push(
-          `hard to read: a face-up card ${Math.round(w)}px wide (${el.closest('header') ? 'in a seat' : el.closest('footer, .lc.mine') ? 'in your hand' : 'on the table'}: ${el.getAttribute('aria-label')})`,
+          `hard to read: a face-up card ${Math.round(w)}px wide (${el.closest('header') ? 'in a seat' : inHand(el) ? 'in your hand' : 'on the table'}: ${el.getAttribute('aria-label')})`,
         );
     });
 
