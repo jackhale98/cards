@@ -35,6 +35,9 @@ type S = GameState<ClimbingData>;
 
 /** The pack, to count what's still out. */
 const DECK = buildDeck({});
+/** Easy's lookahead (a few imagined deals) and how often it slips, tuned so Normal wins about two games in three. */
+const EASY_LOOK = { samples: 6, ms: 10 };
+const EASY_SLIPS = 0.1;
 
 /** 3 lowest … A, 2 highest. */
 export const climbRank = (id: string) => {
@@ -433,10 +436,16 @@ export function climbingFamily(config: GameConfig): GameModule<ClimbingData> {
         if (s.phase === 'swap' && owe) return { type: 'giveBack', cards: hardGive(s, seat, owe.count) };
         if (s.phase === 'play' && s.turn === seat) return searchMove(hardSearch, s, seat, budget!, hardPlay(s, seat)) ?? hardPlay(s, seat);
       }
-      if (s.phase === 'play' && s.turn === seat)
-        return budget
-          ? (searchMove(search, s, seat, budget, quickBot(s, seat)) ?? quickBot(s, seat))
-          : easyMove(s.options, search.candidates(s, seat), quickBot(s, seat));
+      if (s.phase === 'play' && s.turn === seat) {
+        if (budget) return searchMove(search, s, seat, budget, quickBot(s, seat)) ?? quickBot(s, seat);
+        // Easy looks a little way ahead, with a slip now and then (its rules alone lost nine games
+        // in ten to Normal: a hand's finish carries into the next, through the exchange)
+        if (s.options.botLevel === 0) {
+          const slip = easyMove(s.options, search.candidates(s, seat), null, EASY_SLIPS);
+          return slip ?? searchMove(search, s, seat, EASY_LOOK, quickBot(s, seat)) ?? quickBot(s, seat);
+        }
+        return quickBot(s, seat);
+      }
       return quickBot(s, seat);
     },
 
