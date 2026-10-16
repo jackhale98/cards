@@ -58,6 +58,8 @@ src/net/exports/       the standard records a game can also be saved as: PBN (br
                        (Hold'em, Omaha); formats.ts says which game gets which
                        (and PHH, poker for PokerKit: written only for checking, see tools/)
 src/ui/screens/        Home, Lobby, Table, TvScreen;  src/ui/components/  the pieces
+src/ui/layout/         cardLayout.ts: where every card goes (pure: areas + cards → places); drawn by
+                       components/CardLayer.svelte, a prototype behind `?layer=1` (your hand + a trick so far)
 src/app.svelte.ts      app state, routing, starting a host or client
 src/sw.js              the service worker (opens at once, and offline); vite.config.ts writes in its file list
 tools/                 Python checks with other people's programs: endplay (bridge, double dummy) and

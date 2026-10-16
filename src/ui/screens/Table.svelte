@@ -35,6 +35,8 @@
   import { canNotify, clearTurn, raiseTurn, setTurnAlerts, turnAlertsOn } from '../turnAlert';
   import { EXPORT_ABOUT, EXPORT_FILE, EXPORT_LABEL, recordFormats } from '../../net/exports/formats';
   import TvSheet from '../components/TvSheet.svelte';
+  import CardLayer from '../components/CardLayer.svelte';
+  import { cardLayerOn } from '../cardLayer';
 
   /** `replay`: a moment of a finished hand is on screen (the table shows it, quietly). */
   let { view, display = false, replay = null }: { view: View; display?: boolean; replay?: Frame | null } = $props();
@@ -609,6 +611,12 @@
    */
   const playFrom = $derived(display || you < 0 ? null : (centerZones.find((z) => z.faceUpHand && z.cards.some((c) => selectable?.has(c.id))) ?? null));
   const fanCards = $derived(playFrom ? playFrom.cards : myHand);
+  /**
+   * The new card layer (a prototype, see ui/cardLayer.ts): on a phone at a table it can draw so
+   * far, your hand fanned along the bottom and a trick in the middle, it draws every card.
+   */
+  const layerAsked = cardLayerOn();
+  const layered = $derived(layerAsked && !display && !handMode && !playFrom && myHandZone?.layout === 'fan' && centerZones.every((z) => z.layout === 'trick'));
   /** How long the two hands take to trade places (none, for reduced motion). */
   const swapMs = matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 320;
   /**
@@ -1172,6 +1180,7 @@
             {roomy}
             growTo={display ? 0 : growTo}
             steady={display}
+            ghost={layered}
           />
         </div>
       {/each}
@@ -1320,6 +1329,7 @@
                 ontap={tap}
                 onswipe={swipe}
                 onreorder={playFrom ? undefined : (ids) => (handOrder = ids)}
+                ghost={layered}
               />
             </div>
           {/key}
@@ -1357,6 +1367,23 @@
           })}
         />{/if}
     </aside>
+  {/if}
+  {#if layered}
+    <CardLayer
+      hand={{ ids: fanCards.map((c) => c.id), cw: handCw }}
+      trick={centerZones.flatMap((z) => z.cards.map((c) => ({ id: c.id, by: c.by })))}
+      {you}
+      players={n}
+      v={s.v}
+      entry={s.log.at(-1)}
+      {selected}
+      {selectable}
+      fresh={freshIds}
+      {hints}
+      ontap={tap}
+      onswipe={swipe}
+      onreorder={(ids) => (handOrder = ids)}
+    />
   {/if}
 </div>
 

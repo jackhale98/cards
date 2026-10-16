@@ -16,8 +16,10 @@
     onswipe: (id: string) => void;
     /** Drag a card sideways to move it within the hand: the hand's new order, by card id. */
     onreorder?: (ids: string[]) => void;
+    /** Only the room for the hand: the card layer draws its cards (see CardLayer.svelte). */
+    ghost?: boolean;
   }
-  let { cards, cw, selected, selectable, fresh = [], hints = true, ontap, onswipe, onreorder }: Props = $props();
+  let { cards, cw, selected, selectable, fresh = [], hints = true, ontap, onswipe, onreorder, ghost = false }: Props = $props();
 
   let width = $state(0);
   /** A card being dragged: up (to play it) or, with `slide`, sideways (to move it in the hand). */
@@ -124,10 +126,11 @@
   onpointermove={move}
   onpointerup={up}
   onpointercancel={() => (drag = null)}
-  role="group"
-  aria-label="Your hand"
+  role={ghost ? undefined : 'group'}
+  aria-label={ghost ? undefined : 'Your hand'}
+  data-layer={ghost ? 'hand' : undefined}
 >
-  {#each cards as c, i (c.id)}
+  {#each ghost ? [] : cards as c, i (c.id)}
     {@const p = layout[i] ?? { x: 0, rot: 0, y: 0 }}
     {@const can = !selectable || selectable.has(c.id)}
     <!-- (data-flip: a card whose place in the hand changes, as when the hand is sorted afresh, is

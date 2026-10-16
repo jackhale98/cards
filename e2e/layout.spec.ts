@@ -79,7 +79,7 @@ async function checkLayout(page: Page, opts: { seatsMayScroll: boolean }) {
     // the cards in the middle stay in the middle: clear of your hand below and the headline above
     const footer = document.querySelector('.table:not(.display) footer')?.getBoundingClientRect();
     const head = document.querySelector('.table:not(.display) main .headline')?.getBoundingClientRect();
-    document.querySelectorAll('.table:not(.display) main .zones .card').forEach((el) => {
+    document.querySelectorAll('.table:not(.display) main .zones .card, .table:not(.display) .layer .lc:not(.mine) .card').forEach((el) => {
       const r = el.getBoundingClientRect();
       if (!r.width || !r.height) return;
       if (footer && footer.height && r.bottom > footer.top + 2 && r.top < footer.bottom)

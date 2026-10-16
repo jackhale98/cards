@@ -19,11 +19,24 @@ export async function poppedIn(el: Locator) {
 
 /**
  * Wait until no card is in flight: the card motion (deals, plays, rows sliding into place) runs
- * as script animations. CSS ones are left out: they're small pops, or decorative and slow (a
- * speech bubble that fades over seconds, a pulsing seat) and never move what the layout checks.
+ * as script animations, and on the card layer as each card's own transition; cards changing size
+ * ease by a transition of their width (--cw). Other CSS ones are
+ * left out: they're small pops, or decorative and slow (a speech bubble that fades over seconds,
+ * a pulsing seat) and never move what the layout checks.
  */
 export async function cardsLanded(page: Page) {
-  await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== 'running' || a instanceof CSSAnimation || a instanceof CSSTransition));
+  await page.waitForFunction(() =>
+    document
+      .getAnimations()
+      // (on the card layer a card's move is a transition of its own, and anywhere cards ease to a
+      // new size by a transition of --cw: until those end, the cards aren't where they'll stay)
+      .every(
+        (a) =>
+          a.playState !== 'running' ||
+          a instanceof CSSAnimation ||
+          (a instanceof CSSTransition && a.transitionProperty !== '--cw' && !(a.effect as KeyframeEffect | null)?.target?.closest?.('.layer')),
+      ),
+  );
 }
 
 /**

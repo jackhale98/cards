@@ -39,6 +39,8 @@
     growTo?: number;
     /** A table screen's pile in the middle: its label keeps the widest it has been (its count and hint change all game), so the row doesn't re-centre as it changes. */
     steady?: boolean;
+    /** Only the room for the cards: the card layer draws them (see CardLayer.svelte). */
+    ghost?: boolean;
   }
   /** How far (px) the room beside a dummy may dip before it shrinks to suit. */
   const HOLD = 8;
@@ -57,6 +59,7 @@
     roomy = false,
     growTo = Infinity,
     steady = false,
+    ghost = false,
   }: Props = $props();
 
   /** Trick cards sit between the centre and the seat that played them. */
@@ -199,8 +202,8 @@
       {/if}
     </button>
   {:else if zone.layout === 'trick'}
-    <div class="trick" data-flip>
-      {#each zone.cards as c (c.id)}
+    <div class="trick" data-flip data-layer={ghost ? 'trick' : undefined}>
+      {#each ghost ? [] : zone.cards as c (c.id)}
         {@const p = trickPos(c.by)}
         <div
           class="tcard"
