@@ -183,9 +183,13 @@ export const receive = pair(true);
 /** Positions of `data-flip` elements just before the latest update (also used by card moves). */
 let lastRects = new Map<Element, DOMRect>();
 
+/** What's already sliding since the latest update (play runs twice: see the table). */
+let slid = new WeakSet<Element>();
+
 /** Record where every `data-flip` element is, right before the DOM updates. */
 export function snapshot(root: Element) {
   lastRects = new Map();
+  slid = new WeakSet();
   root.querySelectorAll('[data-flip]').forEach((el) => lastRects.set(el, el.getBoundingClientRect()));
 }
 
@@ -194,11 +198,12 @@ export function play(root: Element) {
   if (matchMedia('(prefers-reduced-motion: reduce)').matches || flight.quiet) return;
   root.querySelectorAll<HTMLElement>('[data-flip]').forEach((el) => {
     const a = lastRects.get(el);
-    if (!a) return; // new element: its own transition handles it
+    if (!a || slid.has(el)) return; // new element: its own transition handles it
     const b = el.getBoundingClientRect();
     const dx = a.left - b.left;
     const dy = a.top - b.top;
     if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+    slid.add(el);
     el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'translate(0, 0)' }], {
       duration: travel(dx, dy) * 0.8,
       easing: CSS_EASE,

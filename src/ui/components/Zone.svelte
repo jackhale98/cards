@@ -98,7 +98,8 @@
       // (a new pile once the group changes)
       if (last && c.group === last.same[0].group) {
         (c.square || parseCard(c.id).rank === parseCard(last.same[0].id).rank ? last.same : last.odd).push(c);
-      } else out.push({ key: c.id, same: [c], odd: [] });
+        // (known by its meld, not its first card: a card sorted in at the front mustn't make it a new pile, which can't slide)
+      } else out.push({ key: c.group != null && !out.some((p) => p.key === `g${c.group}`) ? `g${c.group}` : c.id, same: [c], odd: [] });
     }
     return out;
   });
@@ -214,7 +215,7 @@
   {:else if zone.piles}
     <div class="piles">
       {#each piles as p (p.key)}
-        <div class="pile">
+        <div class="pile" data-flip>
           <div class="stack" style:--n={p.same.length} aria-label="{p.same.length} cards">
             {#each p.same as c, k (c.id)}
               <button

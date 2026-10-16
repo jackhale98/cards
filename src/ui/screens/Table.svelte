@@ -947,14 +947,16 @@
     shownPlayFrom = playFrom?.id ?? null;
     snapshot(tableEl);
   });
-  // …and after it, slide whatever merely shifted into its new place. This waits for the next
-  // animation frame (still before the screen is drawn) so every other change, including
-  // leaving cards being lifted out of their row, has happened first, whatever order the
-  // browser runs them in (Safari does some of it a beat later than Chrome).
+  // …and after it, slide whatever merely shifted into its new place: at once, before the screen
+  // is next drawn (waiting for the next animation frame let a frame show the new places with no
+  // slide, a jump and then the glide), and again on that frame, for anything that moved a beat
+  // later (leaving cards being lifted out of their row, which Safari does after Chrome; what
+  // already slides is where it was, so it isn't slid twice).
   $effect(() => {
     void s.v;
     const el = tableEl;
     if (!el) return;
+    play(el);
     const frame = requestAnimationFrame(() => play(el));
     return () => cancelAnimationFrame(frame);
   });
