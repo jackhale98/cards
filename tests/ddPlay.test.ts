@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { TrickData } from '../src/engine/families/trick';
 import { ddTable, loadDds, solveCards } from '../src/engine/bots/dds';
-import { ddBid, ddCard } from '../src/engine/families/trick/ddPlay';
+import { bagWorth, ddBid, ddCard } from '../src/engine/families/trick/ddPlay';
 import { quickTricks } from '../src/engine/families/trick/bots';
 import { trickGame } from '../src/engine/families/trick/types';
 import type { GameModule, GameState } from '../src/engine/types';
@@ -130,5 +130,31 @@ describe('Hard Spades bots bid from deals solved double dummy', () => {
     expect(bid(s, seat)).toBeLessThan(alone + 1);
     s.data.bids[(seat + 2) % 4] = 1;
     expect(bid(s, seat)).toBeGreaterThanOrEqual(alone);
+  });
+});
+
+describe('Spades: Hard plays for the score, not the most tricks', () => {
+  it('a trick past the bid is a bag (−9 net: ten lose 100), short of the bid is a set', () => {
+    const spades = GAMES.spades as GameModule<TrickData>;
+    const tg = trickGame(spades.config);
+    const s = spades.setup(
+      Array.from({ length: 4 }, (_, i) => ({ name: `B${i}`, bot: true })),
+      1,
+      {},
+    );
+    // our side (0 and 2) bid 6 and has 4; theirs bid 5 and has 4; 5 tricks left
+    Object.assign(s.data, { bids: [3, 2, 3, 3], tricks: [2, 2, 2, 2] });
+    for (let i = 0; i < 4; i++) s.zones[`hand:${i}`].cards = s.zones[`hand:${i}`].cards.slice(0, 5);
+    const worth = bagWorth(tg, s, 0)!;
+    // two more: we make 60 exactly; they take three, two over their bid: 50 less two bags
+    expect(worth(2)).toBe(60 - (50 + 2 * -9));
+    // a third: a bag for us, one fewer for them, so worse than two (28 against 10)
+    expect(worth(3)).toBe(60 - 9 - (50 - 9));
+    expect(worth(3)).toBeLessThan(worth(2));
+    // four: two bags for us, and they make their bid exactly
+    expect(worth(4)).toBe(60 - 18 - 50);
+    // one: we're set
+    expect(worth(1)).toBe(-60 - (50 + 3 * -9));
+    expect(bagWorth(trickGame(g.config), s, 0)).toBeNull();
   });
 });

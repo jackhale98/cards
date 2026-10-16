@@ -124,6 +124,8 @@ export function ddCard(g: TrickGame, s: S, seat: number, budget = DD_BUDGET, ran
   };
   const named = new Map([...map].map(([c, p]) => [`${p.suit}:${p.rank}`, c]));
 
+  // what the side's tricks from here are worth: the tricks themselves, or in Spades the score they make
+  const worth = bagWorth(g, s, mover) ?? ((t: number) => t);
   const total = new Map<string, number>(legal.map((c) => [c, 0]));
   const best = new Map<string, number>(legal.map((c) => [c, 0]));
   // each card's tricks on each deal: once one card is clearly best, the rest of the budget is saved
@@ -145,13 +147,14 @@ export function ddCard(g: TrickGame, s: S, seat: number, budget = DD_BUDGET, ran
     const values = solveCards({ hands, trump, leader, trick: shown });
     if (!values) return null;
     runs++;
-    const top = Math.max(...values.map((v) => v.tricks));
+    const top = Math.max(...values.map((v) => worth(v.tricks)));
     for (const v of values) {
       const id = named.get(`${v.suit}:${v.rank}`)!;
       if (!total.has(id)) continue;
-      total.set(id, total.get(id)! + v.tricks);
-      each.get(id)!.push(v.tricks);
-      if (v.tricks === top) best.set(id, best.get(id)! + 1);
+      const w = worth(v.tricks);
+      total.set(id, total.get(id)! + w);
+      each.get(id)!.push(w);
+      if (w === top) best.set(id, best.get(id)! + 1);
     }
   }
   if (!runs) return null;
@@ -172,6 +175,26 @@ export function ddCard(g: TrickGame, s: S, seat: number, budget = DD_BUDGET, ran
     if (h.len.some((n, k) => n < p.minLen[k] || n > p.maxLen[k])) return false;
     return !p.test || p.test(hand);
   }
+}
+
+/**
+ * Spades: the side's tricks from here (`t`, of those left) as the hand's score, ours less theirs.
+ * Short of the bid is a set; past it each trick is a bag, which will cost its share of the penalty
+ * (ten lose 100), so the solver's most tricks aren't the best. Null where there are no bags.
+ */
+export function bagWorth(g: TrickGame, s: S, mover: number): ((t: number) => number) | null {
+  const bags = 'bags' in g.R.scoring ? g.R.scoring.bags : undefined;
+  const d = s.data;
+  if (!bags || !d.bids?.length) return null;
+  const us = teamOf(g, s, mover);
+  const seats = (team: number) => s.players.map((p) => p.seat).filter((x) => teamOf(g, s, x) === team);
+  const them = seats(1 - us).length ? 1 - us : null;
+  const bid = (team: number) => seats(team).reduce((n, x) => n + (d.bids[x] ?? 0), 0);
+  const won = (team: number) => seats(team).reduce((n, x) => n + (d.tricks[x] ?? 0), 0);
+  const left = zone(s, `hand:${mover}`).cards.length;
+  const cost = bags.penalty / bags.every;
+  const score = (b: number, w: number) => (w >= b ? 10 * b + (w - b) * (1 - cost) : -10 * b);
+  return (t) => score(bid(us), won(us) + t) - (them == null ? 0 : score(bid(them), won(them) + left - t));
 }
 
 /** The unseen cards dealt to the hidden hands (sizes `counts`), none in a suit its holder is out of. */
