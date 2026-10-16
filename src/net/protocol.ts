@@ -225,10 +225,11 @@ export type HostMsg =
   | { t: 'frame'; frame: Frame | null }
   | { t: 'export'; format: 'csv' | 'pbn' | 'ohh'; text: string | null }
   | { t: 'err'; msg: string; seq?: number }
-  /** Heartbeat; clients answer with a pong carrying the same timestamp. */
-  | { t: 'ping'; ts: number }
-  /** Round-trip time (ms) from the host to each seated player, by seat index. */
-  | { t: 'pings'; pings: (number | null)[] }
+  /**
+   * Heartbeat; clients answer with a pong carrying the same timestamp. `pings`, when they've
+   * changed: the round-trip time (ms) from the host to each seated player, by seat index.
+   */
+  | { t: 'ping'; ts: number; pings?: (number | null)[] }
   /** The whole game, sealed with a key only the relay holds (see backup.ts), for host handoff. */
   | { t: 'backup'; blob: string; v: number; token?: string }
   /**
@@ -266,3 +267,8 @@ export const normaliseCode = (c: string) =>
     .slice(0, CODE_LENGTH);
 // (four-letter codes from before the switch still open)
 export const isValidCode = (c: string) => /^[A-Z]{4,5}$/.test(c);
+
+/** A round trip's light: green under 120 ms, amber under 400 ms, red beyond. */
+export function pingBand(ms: number | null | undefined): 'none' | 'good' | 'ok' | 'slow' {
+  return ms == null ? 'none' : ms < 120 ? 'good' : ms < 400 ? 'ok' : 'slow';
+}

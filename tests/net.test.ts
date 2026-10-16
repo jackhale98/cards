@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Client } from '../src/net/client';
-import { Host, STAND_IN } from '../src/net/host';
+import { DEAD_AFTER_MS, HEARTBEAT_MS, Host, PING_AFTER_MS, STAND_IN } from '../src/net/host';
 import type { View } from '../src/net/protocol';
 import { loadRules } from '../src/games';
 import { Bus, MemTransport } from './netHarness';
@@ -404,6 +404,8 @@ describe('connection health', () => {
     expect(pings).toHaveLength(2);
     expect(pings[0]).toBe(0);
     expect(typeof pings[1]).toBe('number');
+    // the guest hears the round trips with its next ping (when it has been quiet a while)
+    vi.advanceTimersByTime(PING_AFTER_MS + HEARTBEAT_MS);
     expect(guestPings).toEqual(pings);
 
     // the guest's phone goes to sleep: silent both ways, but WebRTC hasn't noticed yet
@@ -411,7 +413,7 @@ describe('connection health', () => {
     const send = gt.send.bind(gt);
     gt.onMessage = () => {};
     gt.send = () => {};
-    vi.advanceTimersByTime(16000);
+    vi.advanceTimersByTime(DEAD_AFTER_MS + HEARTBEAT_MS * 2);
     // before the game starts, a vanished player's seat is freed
     expect(host.lobby.seats.map((s) => s.id)).toEqual(['h']);
     // the guest also notices the host has gone quiet
@@ -425,7 +427,7 @@ describe('connection health', () => {
     expect(host.lobby.seats.map((s) => s.id)).toEqual(['h', 'g']);
   });
 
-  it('skips pings while the table is busy (views out, moves in), but pings every third beat even so', () => {
+  it('pings only a connection that has gone quiet, and carries the latency lights only when they change', () => {
     const bus = new Bus();
     const ht = new MemTransport(bus, 'host');
     const host = new Host(ht, 'ABCD', { cid: 'h', name: 'H' });
@@ -434,16 +436,23 @@ describe('connection health', () => {
     new Client(gt, 'g', 'G', undefined);
     bus.join(gt);
     vi.advanceTimersByTime(3100); // (the first ping: the round trip is known)
-    const pings = () => ht.sent.filter((m) => m.t === 'ping').length;
-    const before = pings();
-    // a busy game: the host sends a change and hears from the guest every half second
-    for (let i = 0; i < 36; i++) {
+    const pings = () => ht.sent.filter((m) => m.t === 'ping');
+    let before = pings().length;
+    // a quiet table: a ping every 9 seconds (three beats), not every beat
+    vi.advanceTimersByTime(36_000);
+    expect(pings().length - before).toBe(4);
+    // a busy one (the host sends a change and hears from the guest every half second): only the
+    // round-trip refresh, every 30 seconds
+    before = pings().length;
+    for (let i = 0; i < 120; i++) {
       host.updateSelf(`H${i}`);
       gt.send({ t: 'replay', hand: 0, step: 0 }, 'host');
       vi.advanceTimersByTime(500);
     }
-    // 18 seconds is six beats: two pings, not six
-    expect(pings() - before).toBe(2);
+    expect(pings().length - before).toBe(2);
+    // the lights went out once (with the first ping after the round trip was known), then not again: nothing changed
+    expect(pings().filter((m) => m.t === 'ping' && m.pings).length).toBe(2);
+    expect(ht.sent.some((m) => (m.t as string) === 'pings')).toBe(false);
     host.close();
   });
 
@@ -467,6 +476,43 @@ describe('connection health', () => {
     expect(views()).toBe(before + 1);
     expect(guest.view!.lobby.seats[0].name).toBe('Hana');
     expect(guest.view!.v).toBe(host.viewFor('g').v);
+    host.close();
+  });
+
+  it('sends a person’s views on one of their networks, and moves to another when that one goes quiet', () => {
+    const bus = new Bus();
+    const ht = new MemTransport(bus, 'host');
+    const host = new Host(ht, 'ABCD', { cid: 'h', name: 'H' });
+    bus.join(ht);
+    const nets = ['g-relay', 'g-p2p'].map((peer) => {
+      const t = new MemTransport(bus, peer);
+      const c = new Client(t, 'g', 'G', undefined, false, 'k');
+      bus.join(t);
+      return { t, c, got: 0 };
+    });
+    for (const n of nets) {
+      const receive = n.t.onMessage;
+      n.t.onMessage = (m, from) => {
+        if (m.t === 'view' || m.t === 'patch') n.got++;
+        receive(m, from);
+      };
+    }
+    vi.advanceTimersByTime(1000);
+    for (let i = 0; i < 5; i++) host.updateSelf(`H${i}`);
+    const [a, b] = nets;
+    // one network carries them all
+    expect(Math.min(a.got, b.got)).toBe(0);
+    const [used, spare] = a.got ? [a, b] : [b, a];
+    expect(used.c.view!.lobby.seats[0].name).toBe('H4');
+    // that network goes quiet: the next change goes on the other, whole, and the player follows it
+    used.t.onMessage = () => {};
+    used.t.send = () => {};
+    vi.advanceTimersByTime(PING_AFTER_MS + HEARTBEAT_MS * 3);
+    spare.got = 0;
+    host.updateSelf('Hana');
+    host.updateSelf('Hana!');
+    expect(spare.got).toBe(2);
+    expect(spare.c.view!.lobby.seats[0].name).toBe('Hana!');
     host.close();
   });
 
@@ -535,7 +581,7 @@ describe('connection health', () => {
     host.start();
     gt.onMessage = () => {};
     gt.send = () => {};
-    vi.advanceTimersByTime(16000);
+    vi.advanceTimersByTime(DEAD_AFTER_MS + HEARTBEAT_MS * 2);
     expect(host.lobby.seats[1]).toMatchObject({ id: 'g', connected: false });
     void guest;
   });

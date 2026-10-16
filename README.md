@@ -101,9 +101,11 @@ to one connection. If the host can't reach the relay for 5 seconds it opens all 
 guest adds them one by one if nobody answers through the relay. A device can be reached on several
 networks at once; each view carries the host's id and version, so duplicates are ignored.
 
-The host pings every player every 3 seconds: everyone sees each player's latency, a phone that
-goes to sleep is noticed within seconds (it keeps its seat), and a guest that loses the host
-rebuilds its connection automatically.
+The host pings a player whose phone has been quiet for a while (about every 9 seconds; moves and
+answers count): everyone sees each player's latency (riding along with the pings, when a light
+changes), a phone that goes to sleep is noticed within 20 seconds (it keeps its seat), and a guest
+that loses the host rebuilds its connection automatically. A player reached on several networks
+gets everything on one of them.
 
 **If the host's phone dies**, the game isn't lost. The host sends two of the players an encrypted,
 compressed backup of the whole game at the end of each trick or hand (and every 30 seconds at

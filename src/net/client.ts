@@ -4,8 +4,8 @@ import type { ExportFormat } from './exports/formats';
 import type { Transport } from './transport';
 import { apply } from './patch';
 
-/** No word from the host (which pings every 3s) for this long means we've lost it. */
-export const SILENT_AFTER_MS = 9000;
+/** No word from the host (which pings a quiet connection every 9 s or so) for this long means we've lost it. */
+export const SILENT_AFTER_MS = 15_000;
 
 /** A player's (or table display's) connection to the host. Holds the latest view. */
 export class Client {
@@ -15,7 +15,7 @@ export class Client {
   onView: (v: View) => void = () => {};
   onError: (msg: string) => void = () => {};
   onConnection: (connected: boolean) => void = () => {};
-  /** Round-trip times from the host to each seat (ms), refreshed every few seconds. */
+  /** Round-trip times from the host to each seat (ms), when they change. */
   onPings: (pings: (number | null)[]) => void = () => {};
   /** A moment of a finished hand, asked for with `replay` (null: there isn't one). */
   onFrame: (f: Frame | null) => void = () => {};
@@ -62,6 +62,7 @@ export class Client {
       if (msg.t === 'ping') {
         this.transport.send({ t: 'pong', ts: msg.ts }, from);
         if (this.isHost(from)) this.heard();
+        if (from === this.hostPeer && Array.isArray(msg.pings)) this.onPings(msg.pings.slice(0, 64));
         return;
       }
       // everything else only counts from the host: other players can message us too
@@ -86,12 +87,6 @@ export class Client {
       if (msg.t === 'export') {
         if (from !== this.hostPeer) return;
         this.onExport(typeof msg.text === 'string' ? msg.text : null);
-        return;
-      }
-      if (msg.t === 'pings') {
-        if (from !== this.hostPeer || !Array.isArray(msg.pings)) return;
-        this.heard();
-        this.onPings(msg.pings);
         return;
       }
       if (msg.t === 'view') {
@@ -126,11 +121,19 @@ export class Client {
         // what changed since the view we have: from the host we're with, on top of the version
         // it was made from (a repeat over a second network is skipped; one that doesn't fit, as
         // after a lost message, gets the whole view instead)
-        if (from !== this.hostPeer || !this.view || msg.hid !== this.view.hid || typeof msg.v !== 'number') return;
+        if (!this.view || msg.hid !== this.view.hid || typeof msg.v !== 'number') return;
+        // the host has moved us to another network: ask there for the whole view, then follow it
+        if (from !== this.hostPeer) {
+          if (msg.v > this.view.v) this.transport.send({ t: 'sync' }, from);
+          return;
+        }
         this.heard();
         if (msg.v <= this.view.v) return;
         const next = msg.base === this.view.v ? apply(this.view, msg.ops) : null;
-        if (!next || typeof next !== 'object' || next.v !== msg.v) return this.transport.send({ t: 'sync' }, from);
+        if (!next || typeof next !== 'object') return this.transport.send({ t: 'sync' }, from);
+        // (the version isn't among the changes: it's the patch's own)
+        next.v = msg.v;
+        if (next.state && typeof next.state === 'object') next.state.v = msg.v;
         this.view = next;
         this.onView(next);
       } else if (msg.t === 'react') {

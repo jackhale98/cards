@@ -25,6 +25,7 @@ import {
   type View,
   REACTIONS,
   type ScoreHistory,
+  pingBand,
 } from './protocol';
 import { seal } from './backup';
 import { GameRecord, toCsv } from './gameRecord';
@@ -37,9 +38,18 @@ import { report } from './reports';
 import type { Transport } from './transport';
 import { diff } from './patch';
 
+/** How often the host checks on everyone (a timer: nothing is sent unless someone needs a ping). */
 export const HEARTBEAT_MS = 3000;
-/** A peer silent for this long is treated as gone (it keeps its seat and can come back). */
-export const DEAD_AFTER_MS = 12000;
+/**
+ * A connection we haven't heard from for this long gets a ping (its moves and answers show it's
+ * there): in practice one every 9 seconds. Each ping and answer costs a phone's data and wakes its
+ * radio; over a game night of hours they would outnumber the game's own messages.
+ */
+export const PING_AFTER_MS = 7000;
+/** Round-trip times are refreshed at least this often, even for a connection that's talking anyway. */
+const RTT_EVERY_MS = 30_000;
+/** A peer silent for this long is treated as gone (it keeps its seat and can come back): two pings unanswered. */
+export const DEAD_AFTER_MS = 20_000;
 const UNDO = '__undo';
 /** With take-backs on, bots and automatic steps wait this much longer after a person's move (time to take it back). */
 export const TAKE_BACK_MS = 1500;
@@ -384,47 +394,45 @@ export class Host {
     return this.peers.get(peer) === cid || ![...this.peers.values()].includes(cid);
   }
 
-  /** Ping everyone; drop peers we haven't heard from in a while (faster than WebRTC notices). */
+  /** Ping whoever has been quiet; drop peers we haven't heard from in a while (faster than WebRTC notices). */
   private beat() {
     const now = Date.now();
     // our own page was asleep (a phone locked, a tab in the background): nobody could be heard
     // meanwhile, so everyone gets a fresh chance to answer rather than all being dropped at once
     if (now - this.lastBeat > HEARTBEAT_MS * 3) for (const h of this.health.values()) h.seen = Math.max(h.seen, now);
     this.lastBeat = now;
+    const pings = this.pings();
     for (const [peer, h] of this.health) {
       if (now - h.seen > DEAD_AFTER_MS) {
         this.forget(peer);
         this.peerLeft(peer);
         continue;
       }
-      // mid-game, views go out and moves come in all the time: they show both ends are there, so
-      // a ping would only wake the radio (and the relay) for nothing. Every third beat pings anyway,
-      // to keep the round-trip times fresh.
-      const busy = h.rtt != null && now - h.seen < HEARTBEAT_MS && now - (this.sentAt.get(peer) ?? 0) < HEARTBEAT_MS;
-      const skipped = this.pingSkips.get(peer) ?? 0;
-      if (busy && skipped < 2) {
-        this.pingSkips.set(peer, skipped + 1);
-        continue;
-      }
-      this.pingSkips.set(peer, 0);
-      this.transport?.send({ t: 'ping', ts: performance.now() }, peer);
+      // someone who has been talking (moves, answers) and been sent something lately needs no ping
+      const sent = this.sentAt.get(peer) ?? 0;
+      const pinged = this.pingedAt.get(peer) ?? 0;
+      if (h.rtt != null && now - h.seen < PING_AFTER_MS && now - sent < PING_AFTER_MS && now - pinged < RTT_EVERY_MS) continue;
+      // the latency lights ride along when they've changed for this connection (in the lobby, which
+      // shows the numbers, by 25 ms; at the table, which shows only a light, when a light changes)
+      const told = this.toldPings.get(peer);
+      const fresh = !told || pingsMoved(told, pings, !this.lobby.started);
+      if (fresh) this.toldPings.set(peer, pings);
+      this.pingedAt.set(peer, now);
+      this.sentAt.set(peer, now);
+      this.transport?.send({ t: 'ping', ts: performance.now(), ...(fresh ? { pings } : {}) }, peer);
     }
-    // (everyone's phone hears about connections when they change, or every so often: not every beat)
-    const pings = this.pings();
-    const moved =
-      pings.length !== this.sentPings.length ||
-      pings.some((p, i) => (p == null) !== (this.sentPings[i] == null) || Math.abs((p ?? 0) - (this.sentPings[i] ?? 0)) > 25);
-    if (!moved && ++this.quietBeats < 5) return;
-    this.quietBeats = 0;
-    this.sentPings = pings;
-    this.onPings(pings);
-    this.transport?.send({ t: 'pings', pings });
+    // (the host's own screen hears of every change: that costs nothing)
+    const now2 = this.pings();
+    if (pingsMoved(this.sentPings, now2, true)) {
+      this.sentPings = now2;
+      this.onPings(now2);
+    }
   }
   private sentPings: (number | null)[] = [];
-  /** When each connection was last sent a view, and how many pings in a row it has gone without. */
+  /** When each connection was last sent anything, last pinged, and the latency lights it was last told. */
   private sentAt = new Map<string, number>();
-  private pingSkips = new Map<string, number>();
-  private quietBeats = 0;
+  private pingedAt = new Map<string, number>();
+  private toldPings = new Map<string, (number | null)[]>();
   private lastBeat = Date.now();
 
   /** Best round-trip time for each seat over any of its connections (host itself = 0). */
@@ -447,7 +455,9 @@ export class Host {
     this.health.delete(peer);
     this.displays.delete(peer);
     this.sentAt.delete(peer);
-    this.pingSkips.delete(peer);
+    this.pingedAt.delete(peer);
+    this.toldPings.delete(peer);
+    if (cid !== undefined && ![...this.peers.values()].includes(cid)) this.routes.delete(cid);
     const seat = this.lobby.seats.find((s) => s.id === cid);
     if (seat && ![...this.peers.values()].includes(seat.id)) {
       seat.connected = false;
@@ -1348,10 +1358,12 @@ export class Host {
     if (this.state) this.state.v = this.v;
     this.onLocalView(this.viewFor(this.hostCid));
     if (this.transport) {
-      // one view per person (or table screen), however many networks reach them
+      // one view per person (or table screen), sent on one of the networks that reach them
       const views = new Map<string | null, View>();
       const now = Date.now();
-      for (const [peer, cid] of this.peers) {
+      for (const cid of new Set(this.peers.values())) {
+        const peer = this.routeTo(cid);
+        if (!peer) continue;
         const who = this.displays.has(peer) ? null : cid;
         let view = views.get(who);
         if (!view) views.set(who, (view = wire(this.viewFor(who))));
@@ -1371,10 +1383,11 @@ export class Host {
   private sendView(peer: string, view: View): boolean {
     const prev = this.sentViews.get(peer);
     if (prev && prev.hid === view.hid && view.v > prev.v) {
-      const ops = diff(prev, view);
-      // nothing they can see has changed (someone else's move that's hidden from them): only the
-      // version number moved, so send nothing (the next patch still fits what they have)
-      if (ops.every(([, path]) => VERSION_PATHS.has(path.join('.')))) return false;
+      // (the version number is the patch's own `v`: the player sets it, it isn't sent twice more)
+      const ops = diff(prev, view).filter((op) => !(op[0] === 's' && VERSION_PATHS.has(op[1].join('.')) && op[2] === view.v));
+      // nothing they can see has changed (a phone saying hello again, someone else's move that's
+      // hidden from them): send nothing (the next patch still fits what they have)
+      if (!ops.length) return false;
       this.sentViews.set(peer, view);
       if (JSON.stringify(ops).length < JSON.stringify(view).length * 0.6) {
         this.transport?.send({ t: 'patch', hid: view.hid, base: prev.v, v: view.v, ops }, peer);
@@ -1386,11 +1399,33 @@ export class Host {
     return true;
   }
 
+  /**
+   * The connection a person's views go on, when several networks reach them (as after the relay
+   * dropped and the backup networks opened): the one in use while it answers, else the one heard
+   * from last. Everything twice would be twice the data. A new one starts with a whole view: the
+   * player takes patches only from the connection their last whole view came on.
+   */
+  private routeTo(cid: string): string | undefined {
+    const now = Date.now();
+    const seen = (p: string) => this.health.get(p)?.seen ?? 0;
+    const conns = [...this.peers].filter(([, c]) => c === cid).map(([p]) => p);
+    const cur = this.routes.get(cid);
+    if (cur && conns.includes(cur) && now - seen(cur) < PING_AFTER_MS + HEARTBEAT_MS * 2) return cur;
+    const best = conns.reduce<string | undefined>((a, p) => (!a || seen(p) > seen(a) ? p : a), undefined);
+    if (best && best !== cur) this.sentViews.delete(best);
+    if (best) this.routes.set(cid, best);
+    else this.routes.delete(cid);
+    return best;
+  }
+  private routes = new Map<string, string>();
+
   /** A player's patch didn't fit: the whole view again (once a second at most, per connection). */
   private resync(peer: string) {
     const cid = this.peers.get(peer);
     const last = this.syncedAt.get(peer) ?? 0;
     if (cid === undefined || Date.now() - last < 1000) return;
+    // (they're listening on this one: their views go here from now on)
+    this.routes.set(cid, peer);
     this.syncedAt.set(peer, Date.now());
     this.sentViews.delete(peer);
     this.sendView(peer, wire(this.viewFor(this.displays.has(peer) ? null : cid)));
@@ -1448,6 +1483,17 @@ export class Host {
     this.holders = to.map(([cid]) => cid);
     for (const [, peer] of fresh) this.transport?.send({ t: 'backup', blob, v, token: this.takeoverToken }, peer);
   }
+}
+
+/**
+ * Whether the latency lights have changed enough to tell anyone: someone arriving or leaving, a
+ * light changing colour, or (`exact`: where the numbers show) a round trip moving by 25 ms.
+ */
+function pingsMoved(a: (number | null)[], b: (number | null)[], exact: boolean): boolean {
+  return (
+    a.length !== b.length ||
+    b.some((p, i) => (p == null) !== (a[i] == null) || pingBand(p) !== pingBand(a[i]) || (exact && Math.abs((p ?? 0) - (a[i] ?? 0)) > 25))
+  );
 }
 
 /** Where a view carries its version number. */

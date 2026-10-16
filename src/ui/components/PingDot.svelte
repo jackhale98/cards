@@ -1,7 +1,9 @@
 <script lang="ts">
+  import { pingBand } from '../../net/protocol';
+
   /** A small signal light for a player's connection: green < 120 ms, amber < 400 ms, red beyond. */
   let { ms, label = false }: { ms: number | null | undefined; label?: boolean } = $props();
-  const level = $derived(ms == null ? 'none' : ms < 120 ? 'good' : ms < 400 ? 'ok' : 'slow');
+  const level = $derived(pingBand(ms));
 </script>
 
 {#if ms != null}
