@@ -327,6 +327,12 @@
     gap: 0.35rem;
     min-width: 0;
   }
+  /* (a pile that has to change size eases into it; a new one starts at its size) */
+  @media (prefers-reduced-motion: no-preference) {
+    .zone {
+      transition: --cw 0.35s var(--ease-out);
+    }
+  }
   .label .line {
     display: block;
     text-align: center;

@@ -71,7 +71,10 @@
    */
   const side = $derived(!display && !handMode && vh <= 500);
   let headH = $state(0);
-  /** How wide a face-up hand in the middle (the dummy) may grow before the middle runs out of height. */
+  /**
+   * How wide a face-up hand in the middle (the dummy) may grow before the middle runs out of height.
+   * (On a phone only: on a table screen the dummy keeps one size all hand, for everyone watching.)
+   */
   let growTo = $state(Infinity);
   /**
    * The table's height shared out between the cards in the middle and your hand, from what's left
@@ -192,11 +195,59 @@
   // a score track takes some height, so table cards get a little smaller with one
   /** A game with a strip of melds: on a table screen its piles give up some room to everyone's melds. */
   const hasStrip = $derived(Object.values(s.zones).some((z) => z.area === 'strip'));
-  const centerCw = $derived(
-    Math.round(
-      display ? Math.max(60, Math.min(300, vh * (status.track ? 0.18 : hasStrip ? 0.14 : 0.22), vw * (hasStrip ? 0.07 : 0.1))) : Math.max(34, cardSizes.center),
-    ),
-  );
+  const centerCw = $derived(Math.round(display ? displayCw() : Math.max(34, cardSizes.center)));
+  /**
+   * A table screen's cards in the middle: as big as the screen suits, but no bigger than lets every
+   * row of piles fit the height there is (the dummy on its row and the trick under it, say), so
+   * they're drawn at their size from the start rather than shrunk to fit after.
+   */
+  function displayCw(): number {
+    const base = Math.max(60, Math.min(300, vh * (status.track ? 0.18 : hasStrip ? 0.14 : 0.22), vw * (hasStrip ? 0.07 : 0.1)));
+    if (!middleRoom || gridded || stripZones.length) return base;
+    let cw = base;
+    while (cw > 60 && centerHeight(cw) > middleRoom) cw -= 2;
+    return cw;
+  }
+  /** Room for the piles in a table screen's middle, under the headline (measured: see fitHeight). */
+  let middleRoom = $state(0);
+  /**
+   * How tall the middle's piles stand at card width `cw`, row by row as they wrap (as in
+   * centerRows): a trick 2.25 card widths, a pile or a row of cards 1.4 (a cascade 1.82) and its
+   * label, a whole hand face up at the size that fits thirteen across.
+   */
+  function centerHeight(cw: number): number {
+    if (!mainW) return 0;
+    const gap = Math.min(32, Math.max(10, vw * 0.03));
+    let height = 0;
+    let row = 0;
+    let x = 0;
+    for (const z of centerZones) {
+      const w = Math.max(MIN_CW, Math.max(34, cw) * (z.scale ?? 1));
+      const card = z.faceUpHand ? Math.min(w, Math.floor((mainW - 16) / FULL_HAND)) : w;
+      const n = z.cards.length;
+      const cards =
+        z.layout === 'trick'
+          ? 3 * w
+          : z.faceUpHand
+            ? FULL_HAND * card
+            : z.layout === 'spread'
+              ? n < 5
+                ? Math.max(1, n) * 1.1 * card
+                : card + (n - 1) * 0.55 * card
+              : card;
+      const label = Math.max(0, ...(z.label ?? '').split(z.base === 'showdown' ? ' · ' : '\u0000').map((l) => l.length));
+      const width = Math.max(cards, (label + 3) * 8.5) + gap;
+      const tall = z.layout === 'trick' ? 2.25 * w : (z.cascade ? 1.82 : 1.4) * card + (z.label ? 40 : 0);
+      if (x && x + width > mainW + gap) {
+        height += row + 8;
+        row = 0;
+        x = 0;
+      }
+      x += width;
+      row = Math.max(row, tall);
+    }
+    return height + row;
+  }
 
   /**
    * Each middle zone's card size. A whole hand face up (bridge's dummy) keeps its thirteen cards'
@@ -274,6 +325,8 @@
       for (let c = el.nextElementSibling as HTMLElement | null; c; c = c.nextElementSibling as HTMLElement | null)
         if (c.offsetHeight && getComputedStyle(c).position !== 'absolute') below += c.offsetHeight + 6;
       const room = main.clientHeight - el.offsetTop - below;
+      // (a table screen sizes its cards to this room: see displayCw)
+      if (display && Math.abs(room - middleRoom) >= 4) middleRoom = room;
       const { h, w } = extent();
       // (too tall, or too wide: a showdown's two seven-card hands side by side on a phone)
       const k = Math.min(1, room / Math.max(1, h), main.clientWidth / Math.max(1, w, el.offsetWidth));
@@ -1086,7 +1139,7 @@
             onzone={zoneAction(z.id) ? () => run(zoneAction(z.id)!) : undefined}
             fast={!!zoneAction(z.id)?.react}
             {roomy}
-            {growTo}
+            growTo={display ? 0 : growTo}
             steady={display}
           />
         </div>
@@ -1854,6 +1907,12 @@
     display: flex;
     justify-content: center;
     flex-shrink: 0;
+  }
+  /* (when the safety net must shrink the middle, it eases into the new size) */
+  @media (prefers-reduced-motion: no-preference) {
+    .zones {
+      transition: transform 0.35s var(--ease-out);
+    }
   }
   .zones {
     transform-origin: 50% 0;

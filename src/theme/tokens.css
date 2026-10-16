@@ -1,3 +1,11 @@
+/* A card's width, registered as a length so a change of size can ease rather than jump (a pile
+   resized to make room for another). Unregistered, a custom property only ever snaps. */
+@property --cw {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 64px;
+}
+
 :root {
   color-scheme: dark;
   --felt-1: #1d5c47;

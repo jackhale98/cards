@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { cardsLanded } from './wait';
 
 test.setTimeout(120_000);
 
@@ -89,7 +90,12 @@ test('on a table screen the dummy holds its size and place through every trick',
   await host.click('button:has-text("Deal Contract Bridge")');
   const dummy = tv.locator('[data-zone="dummy"]');
   await expect(dummy.locator('.scard').first()).toBeVisible({ timeout: 60_000 });
-  const seen: { widths: number[]; left: number; width: number }[] = [];
+  // (once it has come down: its cards fly in from the seat and the trick eases smaller to make room)
+  await cardsLanded(tv);
+  await tv.waitForFunction(() =>
+    document.getAnimations().every((a) => !(a instanceof CSSTransition) || !['--cw', 'transform'].includes(a.transitionProperty) || a.playState !== 'running'),
+  );
+  const seen: { widths: number[]; left: number; width: number; scaled: boolean }[] = [];
   let fewest = 13;
   // (sampled often, through the end of each trick, down to the last two cards)
   await expect
@@ -98,7 +104,9 @@ test('on a table screen the dummy holds its size and place through every trick',
         const at = await dummy.evaluate((el) => {
           const cards = [...el.querySelectorAll<HTMLElement>('.scard')].filter((c) => c.offsetWidth > 0);
           const box = el.getBoundingClientRect();
-          return { n: cards.length, widths: [...new Set(cards.map((c) => c.offsetWidth))], left: box.left, width: box.width };
+          // (whether the middle had to be shrunk to fit, rather than sized to fit from the start)
+          const scaled = !!(el.closest('.zones') as HTMLElement | null)?.style.transform;
+          return { n: cards.length, widths: [...new Set(cards.map((c) => c.offsetWidth))], left: box.left, width: box.width, scaled };
         });
         if (at.n) {
           fewest = Math.min(fewest, at.n);
@@ -109,6 +117,8 @@ test('on a table screen the dummy holds its size and place through every trick',
       { timeout: 120_000, intervals: [50] },
     )
     .toBeLessThanOrEqual(2);
+  // sized to fit from the start: never shrunk to fit after
+  expect(seen.filter((x) => x.scaled)).toEqual([]);
   // one card size, one width and one place throughout (a pixel or two of rounding aside)
   const spread = (xs: number[]) => Math.max(...xs) - Math.min(...xs);
   expect(seen.every((x) => x.widths.length === 1)).toBe(true);
