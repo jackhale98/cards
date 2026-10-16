@@ -442,7 +442,22 @@
   const shownDownSeats = $derived(new Set(showdownZones.map((z) => z.owner)));
   /** The zones whose cards are on show in the middle: not shown elsewhere meanwhile. */
   const shownDownZones = $derived(new Set((status.showdown ?? []).flatMap((x) => x.zones)));
-  const allCenterZones = $derived([...Object.values(s.zones).filter((z) => z.area === 'center' && !(z.hideEmpty && !z.cards.length)), ...showdownZones]);
+  /**
+   * A hand laid face up on the table (bridge's dummy) that has emptied keeps its room until the
+   * middle is clear: its last card goes to the last trick, which would otherwise jump up into its
+   * place and grow, for that one trick.
+   */
+  let keptRoom = $state<string[]>([]);
+  $effect(() => {
+    const centre = Object.values(s.zones).filter((z) => z.area === 'center');
+    const down = centre.filter((z) => z.faceUpHand && z.cards.length && !keptRoom.includes(z.id)).map((z) => z.id);
+    if (down.length) keptRoom = [...keptRoom, ...down];
+    else if (keptRoom.length && centre.every((z) => !z.cards.length)) keptRoom = [];
+  });
+  const allCenterZones = $derived([
+    ...Object.values(s.zones).filter((z) => z.area === 'center' && !(z.hideEmpty && !z.cards.length && !keptRoom.includes(z.id))),
+    ...showdownZones,
+  ]);
   /** Zones on the compact strip along the bottom of the table (e.g. everyone's melds). */
   const allStripZones = $derived(Object.values(s.zones).filter((z) => z.area === 'strip' && !(z.hideEmpty && !z.cards.length) && !shownDownZones.has(z.id)));
   const seatZone = (seat: number) => (shownDownSeats.has(seat) ? [] : (s.zones[`hand:${seat}`]?.cards ?? []));
@@ -619,8 +634,12 @@
     return () => clearTimeout(t);
   });
   const actionsBesideHand = $derived(tallActions || tallFor === tallKey);
-  /** Your hand is empty (all laid down at a hand's end, say): the middle gets its room. */
-  const handEmpty = $derived(!display && myHandZone?.layout !== 'stack' && !fanCards.length);
+  /**
+   * Your hand is empty at a hand's end (all laid down, say): the middle gets its room. (Only once
+   * the hand is over: in a trick game your hand empties as you play your last card, and the last
+   * trick would grow for that one trick.)
+   */
+  const handEmpty = $derived(!display && myHandZone?.layout !== 'stack' && !fanCards.length && !!view.handDone);
   const stripZones = $derived.by(() => {
     const list = handMode ? allStripZones.filter(usable) : allStripZones;
     const rank = (z: (typeof list)[number]) => (usable(z) ? -2 : z.owner === you && you >= 0 ? -1 : z.owner == null ? n : (z.owner - Math.max(0, you) + n) % n);

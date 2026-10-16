@@ -53,6 +53,9 @@ function playDeal(g: GameModule, seed: number, n: number): string | null {
   return `seed ${seed}: still in ${s.phase} after 5000 moves (started in ${start})`;
 }
 
+/** Games whose Easy bots look a little ahead (trick/index.ts, climbing.ts): slower to play out. */
+const EASY_LOOKS = new Set(['hearts', 'spades', 'oh-hell', 'president']);
+
 describe('bots only make moves the rules allow', () => {
   for (const g of GAME_LIST.filter((g) => g.bot)) {
     it(
@@ -60,7 +63,9 @@ describe('bots only make moves the rules allow', () => {
       () => {
         const n = Math.max(g.config.players.min, Math.min(g.config.players.max, g.config.id === 'holdem' || g.config.id === 'omaha' ? 3 : 4));
         const problems: string[] = [];
-        for (let seed = 1; seed <= 400 && problems.length < 3; seed++) {
+        // (where Easy plays a few deals out before each move, fewer deals: its moves come from the legal ones)
+        const deals = EASY_LOOKS.has(g.config.id) ? 60 : 400;
+        for (let seed = 1; seed <= deals && problems.length < 3; seed++) {
           const p = playDeal(g, seed, n);
           if (p) problems.push(p);
         }

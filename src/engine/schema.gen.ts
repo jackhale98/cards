@@ -129,7 +129,7 @@ export interface ZoneConfig {
    */
   peek?: number;
   /**
-   * A whole hand laid face up on the table (bridge's dummy): drawn the same way however many cards are left, so the rest don't jump about as cards are played from it.
+   * A whole hand laid face up on the table (bridge's dummy): drawn the same way however many cards are left, so the rest don't jump about as cards are played from it; and once down it keeps its room until the middle is clear, so the last trick doesn't jump into its place.
    */
   faceUpHand?: boolean;
   /**

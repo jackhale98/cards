@@ -70,7 +70,7 @@ export interface ZoneState {
   hideEmpty?: boolean;
   scale?: number;
   peek?: number;
-  /** A whole hand face up on the table (bridge's dummy): one layout as it shrinks. */
+  /** A whole hand face up on the table (bridge's dummy): one layout as it shrinks, and its room kept until the middle is clear. */
   faceUpHand?: boolean;
   /** A stack laid out as a cascade (Kings Corners): its bottom card peeks out above the top. */
   cascade?: boolean;
