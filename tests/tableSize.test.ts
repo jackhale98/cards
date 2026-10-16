@@ -128,11 +128,27 @@ describe('the table’s sizes', () => {
         }
   });
 
-  it('packs melds into fewer rows when the cards are smaller', () => {
-    const units = [3, 4.2, 2.5, 5];
-    const labels = [40, 40, 40, 40];
-    const at = (cw: number) => size.packedHeight(units, labels, cw, 600, 16, { gap: 10, pad: 18, extra: 32 });
+  it('packs everyone’s melds into rows that stand lower when the cards are smaller', () => {
+    const melds = (i: number): ZoneState =>
+      ({
+        id: `melds:${i}`,
+        label: `P${i}`,
+        visibility: 'all',
+        layout: 'spread',
+        area: 'strip',
+        cards: [3, 4, 5, 6].map((r) => ({ id: `${r}H`, group: 0 })),
+      }) as ZoneState;
+    const zones = [0, 1, 2, 3].map(melds);
+    const at = (cw: number) =>
+      size.panelsHeight(
+        zones,
+        () => cw,
+        (_z, c) => ({ ...where(c), style: 'strip', maxW: Infinity }),
+        { labels: LABELS, rem: 16, across: 600, gap: 10, rowGap: 10 },
+      );
     expect(at(30)).toBeLessThan(at(60));
+    // (one row of four panels at 30px; at 60px they wrap)
+    expect(at(30)).toBeCloseTo(30 * 1.4 + 14 + 0.35 * 16 + 0.65 * 16);
   });
 
   it('puts the buttons beside your hand only when they don’t fit beside the middle', () => {

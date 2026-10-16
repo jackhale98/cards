@@ -37,7 +37,10 @@ test('you pass, then play a card by dragging it up, and the same card lands in t
   await page.getByRole('button', { name: /^Pass/ }).click();
   await expect(page.locator('.hand .slot[aria-pressed="true"]')).toHaveCount(0);
   // your turn: pick a card you may play
-  await expect(page.getByText('Your turn', { exact: true })).toBeVisible({ timeout: 60_000 });
+  // (it's your turn: the screen reader hears so, whatever the headline asks of you, "Lead the 2♣" say)
+  // (and not still from the pass: that's "your turn" too)
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __phase: () => string }).__phase()), { timeout: 30_000 }).toBe('play');
+  await expect(page.locator('[aria-live]')).toContainText('Your turn', { timeout: 60_000 });
   const slot = page.locator('.hand .slot:not([aria-disabled="true"])').first();
   const name = (await slot.getAttribute('aria-label'))!;
   await slot.click(EDGE);

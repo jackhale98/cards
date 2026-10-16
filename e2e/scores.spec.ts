@@ -13,14 +13,20 @@ test('after a hand, the scores show a chart and a hand-by-hand table, and chips 
   // play the hand out (this seat's moves as a bot would make them)
   // (the check and the move in one step: the hand can end between two, and then the move would deal the next)
   type Hooks = { __phase: () => string; __botMove: () => unknown };
-  for (let i = 0; i < 400; i++) {
-    const over = await page.evaluate(() => {
+  // (a hand where nobody's chips changed, a split pot, has no recap: play the next one)
+  let waited = 0;
+  for (let i = 0; i < 800; i++) {
+    const over = await page.evaluate((patient) => {
       const w = window as unknown as Hooks;
-      if (w.__phase() === 'handOver') return true;
+      if (w.__phase() === 'handOver') {
+        if (document.querySelector('.recap')) return true;
+        if (patient) return false;
+      }
       w.__botMove();
       return false;
-    });
+    }, waited < 10);
     if (over) break;
+    waited = (await page.evaluate(() => (window as unknown as Hooks).__phase() === 'handOver')) ? waited + 1 : 0;
     await page.waitForTimeout(100);
   }
   await expect(page.locator('.recap')).toContainText('This hand:');

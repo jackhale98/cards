@@ -1,5 +1,4 @@
 import type { ZoneState } from '../../engine/types';
-import { parseCard } from '../../engine/cards';
 import { layoutZone, type Where } from './index';
 import { fanHeight } from './fan';
 import { FULL_HAND } from './spread';
@@ -77,91 +76,45 @@ export function stripCw(z: { scale?: number }, i: { centerCw: number; display: b
   return Math.max(MIN_CW, Math.min(Math.round(i.centerCw * (z.scale ?? 1)), i.display ? i.kept : Infinity));
 }
 
-/** How wide a zone's melds are, in card widths. */
-export function unitsOf(z: { piles?: boolean; cards: { id: string; group?: number; square?: boolean }[] }): number {
-  const starts = z.cards.filter((c, i) => i > 0 && c.group != null && c.group !== z.cards[i - 1].group).length;
-  // (as piles: one card's width a meld, and half a card for each of another rank fanned beside it)
-  if (z.piles) {
-    let odd = 0;
-    z.cards.forEach((c, i) => {
-      const first = z.cards.findIndex((x) => x.group === c.group);
-      if (i !== first && !c.square && parseCard(c.id).rank !== parseCard(z.cards[first].id).rank) odd++;
-    });
-    return 1 + starts * 1.22 + odd * 0.45;
-  }
-  // (in the strip each card past the first shows 0.65 of a card; a new meld starts 0.67 further on)
-  return 1 + Math.max(0, z.cards.length - 1) * 0.65 + starts * 0.67;
-}
-
-/**
- * How tall everyone's melds stand with cards `cw` wide, each set on its own panel, the panels
- * packed into rows `across` wide (a long run of melds wraps onto more lines of its own).
- */
-export function packedHeight(
-  units: number[],
-  labelW: number[],
-  cw: number,
-  across: number,
-  rem: number,
-  { gap, pad, extra }: { gap: number; pad: number; extra: number },
-): number {
-  // (each set of melds sits on its own panel, a little wider (`pad`) and taller (`extra`, its label
-  // and padding) than its cards)
-  let height = 0;
-  let rowH = 0;
-  let x = 0;
-  for (const [i, u] of units.entries()) {
-    const w = Math.max(u * cw, labelW[i]) + pad;
-    const lines = Math.ceil(w / across);
-    const h = lines * cw * 1.4 + (lines - 1) * 0.3 * rem + extra;
-    if (lines > 1 || (x && x + gap + w > across)) {
-      height += rowH ? rowH + 0.6 * rem : 0;
-      rowH = 0;
-      x = 0;
-    }
-    rowH = Math.max(rowH, h);
-    x = lines > 1 ? across : x + (x ? gap : 0) + w;
-  }
-  return height + rowH;
-}
-
 /**
  * A table screen's strip (everyone's melds): it can't scroll, so it wraps into rows across the
- * middle, with cards small enough that every set of melds packs into the height left.
+ * middle (a little wider than it: lower down, the oval is wider), with the biggest cards that let
+ * every set of melds pack into the height left. (Each panel laid out by its own layout.)
  */
-export function stripFit(i: { display: boolean; zones: ZoneState[]; mainW: number; mainH: number; rem: number; stripSpace: number; centerCw: number }): number {
+export function stripFit(i: {
+  display: boolean;
+  zones: ZoneState[];
+  mainW: number;
+  mainH: number;
+  rem: number;
+  vw: number;
+  stripSpace: number;
+  centerCw: number;
+  labels: Labels;
+  /** How a strip zone is laid out at a card width. */
+  whereOf: (z: ZoneState, cw: number) => Where;
+}): number {
   if (!i.display || !i.zones.length || !i.mainW || !i.mainH) return Infinity;
-  const rem = i.rem;
-  // (the strip may reach a little past the middle's sides: lower down, the oval is wider)
-  const across = i.mainW * 1.2;
   // the height left under the headline and the row of piles (and clear of the seat at the bottom)
   // (measured once it's on screen; until then, a fair guess)
-  const room = i.stripSpace > 0 ? i.stripSpace : i.mainH - (i.centerCw * 1.4 + 2 * rem) - 5 * rem;
+  const room = i.stripSpace > 0 ? i.stripSpace : i.mainH - (i.centerCw * 1.4 + 2 * i.rem) - 5 * i.rem;
   if (room < 60) return Infinity;
-  const units = i.zones.map(unitsOf);
-  // (a panel is at least as wide as its label: small capitals, about half a rem a letter)
-  const labelW = i.zones.map((z) => (z.label?.length ?? 0) * 0.56 * rem);
   const largest = Math.round(i.centerCw * Math.max(...i.zones.map((z) => z.scale ?? 1)));
-  // the biggest cards that let everyone's melds pack into rows that fit across and down; a long
-  // run of melds (a team's in Hand and Foot) wraps onto more lines of its own
-  for (let cw = largest; cw > MIN_CW; cw -= 2)
-    if (packedHeight(units, labelW, cw, across, rem, { gap: 24, pad: 1.6 * rem, extra: 2.5 * rem }) <= room) return cw;
+  const at = (cw: number) => (z: ZoneState) => Math.max(MIN_CW, Math.min(Math.round(i.centerCw * (z.scale ?? 1)), cw));
+  for (let cw = largest; cw > MIN_CW; cw -= 2) if (stripHeight({ zones: i.zones, cwOf: at(cw), whereOf: i.whereOf, wrap: true }, i) <= room) return cw;
   return MIN_CW;
 }
 
 /**
  * Everyone's melds full screen: the biggest cards that let them all fit the room, so a few melds
- * fill the screen; only past a readable smallest size does the page scroll.
+ * fill the screen; only past a readable smallest size does the page scroll. (`.spread-all`: panels
+ * wrapping with 10px between, each laid out by its own layout.)
  */
-export function spreadCw(i: { zones: ZoneState[]; w: number; h: number }): number {
+export function spreadCw(i: { zones: ZoneState[]; w: number; h: number; labels: Labels; whereOf: (z: ZoneState, cw: number) => Where }): number {
   if (!i.w || !i.h || !i.zones.length) return 44;
-  const units = i.zones.map(unitsOf);
-  const labelW = i.zones.map((z) => (z.label?.length ?? 0) * 0.56 * 16);
   const room = i.h - 12;
-  // (a pile stands up to 12px taller than one card, its count badge hanging a little below)
-  const extra = 32 + (i.zones.some((z) => z.piles) ? 16 : 0);
   for (let cw = Math.min(140, Math.round(room / 1.4 - 30)); cw > 40; cw -= 2)
-    if (packedHeight(units, labelW, cw, i.w - 4, 16, { gap: 10, pad: 18, extra }) <= room) return cw;
+    if (panelsHeight(i.zones, () => cw, i.whereOf, { labels: i.labels, rem: 16, across: i.w - 4, gap: 10, rowGap: 10 }) <= room) return cw;
   return 40;
 }
 
@@ -338,35 +291,49 @@ export function stripHeight(
   s: { zones: ZoneState[]; cwOf: (z: ZoneState) => number; whereOf: (z: ZoneState, cw: number) => Where; wrap: boolean },
   m: { mainW: number; vw: number; rem: number; labels: Labels },
 ): number {
-  const rem = m.rem;
-  const panels = s.zones.map((z) => {
-    const cw = s.cwOf(z);
-    const b = zoneBox(z, s.whereOf(z, cw), m.labels, rem);
-    // (`.strip > .zone`: padding 0.25rem 0.5rem 0.4rem)
-    return { w: b.w + rem, h: b.h + 0.65 * rem };
+  return panelsHeight(s.zones, s.cwOf, s.whereOf, {
+    labels: m.labels,
+    rem: m.rem,
+    across: s.wrap ? m.mainW * 1.2 : Infinity,
+    gap: Math.min(24, Math.max(10, m.vw * 0.025)),
+    rowGap: 0.6 * m.rem,
   });
-  if (!s.wrap) return Math.max(0, ...panels.map((p) => p.h));
-  const across = m.mainW * 1.2;
-  const gap = Math.min(24, Math.max(10, m.vw * 0.025));
+}
+
+/**
+ * How tall a set of panels stands (each zone's label over its cards, with a little padding:
+ * `.strip > .zone`, `.spread-all > .zone`), packed into rows `across` wide (Infinity: one row).
+ */
+export function panelsHeight(
+  zones: ZoneState[],
+  cwOf: (z: ZoneState) => number,
+  whereOf: (z: ZoneState, cw: number) => Where,
+  o: { labels: Labels; rem: number; across: number; gap: number; rowGap: number },
+): number {
+  const panels = zones.map((z) => {
+    const b = zoneBox(z, whereOf(z, cwOf(z)), o.labels, o.rem);
+    // (padding 0.25rem 0.5rem 0.4rem)
+    return { w: b.w + o.rem, h: b.h + 0.65 * o.rem };
+  });
   let h = 0;
   let rowW = 0;
   let rowH = 0;
   let rows = 0;
   for (const p of panels) {
-    if (rowW && rowW + gap + p.w > across) {
+    if (rowW && rowW + o.gap + p.w > o.across) {
       h += rowH;
       rows++;
       rowW = 0;
       rowH = 0;
     }
-    rowW += (rowW ? gap : 0) + p.w;
+    rowW += (rowW ? o.gap : 0) + p.w;
     rowH = Math.max(rowH, p.h);
   }
   if (panels.length) {
     h += rowH;
     rows++;
   }
-  return h + 0.6 * rem * Math.max(0, rows - 1);
+  return h + o.rowGap * Math.max(0, rows - 1);
 }
 
 // ---- the table's height shared out, exactly ---------------------------------------------
@@ -385,8 +352,12 @@ export interface FitInput {
   /** Whose turn it is (the headline, measured), and whether it's over the middle (not in the column on the left). */
   headH: number;
   headlineAbove: boolean;
-  /** Your own part of the column (name, chips), on a phone on its side. */
+  /** Your own part of the column (name, chips), on a phone on its side… */
   meOwnH: number;
+  /** …and the hand's summary there too, at a hand's end (it shows there when the column has room). */
+  sideRecapH?: number;
+  /** A whole hand face up in the middle (the dummy) grows into height that's spare: leave it there, not to your hand. */
+  growing?: boolean;
   /** Under the middle's piles (the hand's summary). */
   belowH: number;
   /** The middle at a given card size (its zones' card widths follow from it: see slotCw). */
@@ -424,14 +395,14 @@ export function handHeight(cw: number, i: Pick<FitInput, 'pileOnly' | 'handEmpty
  * and your hand fit under the seats, both shrinking together. The last move's line under the
  * headline gives its room first if they still don't fit. Any height left over goes to your hand.
  */
-export function fitSizes(i: FitInput): { center: number; hand: number; lastFits: boolean; spare: number } {
+export function fitSizes(i: FitInput): { center: number; hand: number; lastFits: boolean; spare: number; fits: boolean } {
   const wantCenter = Math.min(i.big ? 120 : 92, i.vh * (i.big ? 0.24 : 0.15), i.vw * (i.big ? 0.12 : 0.09));
   const wantHand = i.handEmpty
     ? 0
     : i.handMode
       ? Math.min(168, i.vh * (i.hasMiddle ? 0.27 : 0.34), i.vw * 0.15)
       : Math.min(112, i.vh * (i.pileOnly ? 0.14 : 0.2), i.vw * 0.11);
-  if (i.display) return { center: wantCenter, hand: wantHand, lastFits: true, spare: 0 };
+  if (i.display) return { center: wantCenter, hand: wantHand, lastFits: true, spare: 0, fits: true };
   const handOf = (h: number) => (i.handEmpty ? 0 : handCw({ hand: h, handMode: i.handMode, stripShown: i.stripShown, pileOnly: i.pileOnly }));
   // the room left for the middle's piles, with your hand at `hand` and the last move's line or not
   const room = (hand: number, last: boolean) => {
@@ -456,13 +427,16 @@ export function fitSizes(i: FitInput): { center: number; hand: number; lastFits:
   // room left over once everything fits (a small middle, a short hand): most of it to your hand,
   // up to a ceiling (not when the piles are one row as wide as fits: the hand needn't be bigger
   // than the piles it's played onto)
-  if (k >= 1 && wantHand && !i.handMode && !i.rowFit && spare > 0)
+  if (k >= 1 && wantHand && !i.handMode && !i.rowFit && !i.growing && spare > 0)
     hand = Math.min(Math.max(hand, Math.min(160, i.vh * 0.3, i.vw * 0.15)), hand + (0.8 * spare) / 1.45);
-  // a phone on its side: the column on the left (whose turn it is, then you) is only as tall as
-  // the middle, so the hand stops short of squeezing it
+  // a phone on its side: the column on the left (whose turn it is, the hand's summary at a hand's
+  // end, then you) is only as tall as the middle's row, so your hand's row stops short of squeezing it
   if (i.side && i.meOwnH) {
-    const column = i.headH + 6 + i.meOwnH + 8;
-    hand = Math.max(0, Math.min(hand, (i.vh - i.headerH - 56 - column) / 1.4));
+    const column = i.headH + 6 + (i.sideRecapH ? i.sideRecapH + 6 : 0) + i.meOwnH + 8;
+    const row = i.tableH - i.headerH - 2 * ROW_GAP - column;
+    hand = Math.max(0, Math.min(hand, (row - (fanHeight(1) - 1.4)) / 1.4));
   }
-  return { center, hand, lastFits, spare: Math.max(0, room(hand, lastFits) - i.middle(Math.max(34, Math.round(center)))) };
+  const left = room(hand, lastFits) - i.middle(Math.max(34, Math.round(center)));
+  // (`fits`: false when even the smallest cards don't, and the middle will be scaled to fit)
+  return { center, hand, lastFits, spare: Math.max(0, left), fits: left >= -0.5 };
 }

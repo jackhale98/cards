@@ -258,6 +258,12 @@ export async function screenProblems(page: Page): Promise<string[]> {
         );
     }
 
+    // 7. the middle fits at the sizes the table worked out (layout/table.ts): it's scaled down only
+    // when even the smallest cards can't fit, which shrinks every card in it below its size
+    const zones = document.querySelector<HTMLElement>('.table:not(.display) .zones');
+    const k = Number(/scale\(([\d.]+)\)/.exec(zones?.style.transform ?? '')?.[1] ?? 1);
+    if (k < 0.999) out.push(`squeezed: the middle scaled to ${k.toFixed(2)} to fit`);
+
     if (document.documentElement.scrollWidth > W + 1) out.push(`page wider than the screen: ${document.documentElement.scrollWidth}px`);
     return [...new Set(out)];
   });

@@ -12,6 +12,7 @@
   import Seat from '../components/Seat.svelte';
   import Zone from '../components/Zone.svelte';
   import * as size from '../layout/table';
+  type Fit = ReturnType<typeof size.fitSizes>;
   import { FULL_HAND, TAP, type Where } from '../layout';
   import { labelMeasure } from '../labelMeasure';
   import { Frames, provideFrames } from '../layout/frames.svelte';
@@ -88,6 +89,8 @@
     tableH = tableClientH - parseFloat(st.paddingTop) - parseFloat(st.paddingBottom);
   });
   let recapH = $state(0);
+  /** The recap in your column (side mode): the column keeps room for it. */
+  let sideRecapH = $state(0);
   /**
    * How tall the buttons' column is (with everyone's melds on the table it sits in your hand's row,
    * at its foot and only as tall as its buttons: the row is as tall as the taller of the two).
@@ -100,11 +103,21 @@
   const labels = labelMeasure();
   /** A zone whose cards you can pick now: they spread out enough to tap (see Zone). */
   const tappable = (z: ZoneState) => z.cards.some((c) => selectable?.has(c.id));
+  /** How a zone on the strip (everyone's melds) is laid out at a card width (as the strip's Zones are). */
+  const whereStrip = (z: ZoneState, zcw: number): Where => ({
+    cw: zcw,
+    you,
+    players: n,
+    style: 'strip',
+    maxW: display && mainW ? mainW * 1.2 - 1.6 * tvRem : Infinity,
+    rowGap: display ? 0.3 * tvRem : undefined,
+    tap: tappable(z) ? TAP : undefined,
+  });
   /**
    * How tall the middle stands with its cards `cw` wide: every zone laid out by its own layout,
    * the zones in rows as the page puts them, everyone's melds under them (layout/table.ts).
    */
-  function middleAt(cw: number): number {
+  function middleAt(cw: number, reserve: boolean = stripRoomShown): number {
     const roomyNow = size.roomy(centerZones, cw, mainW, vw, stripZones.length > 0);
     const kept = stripKeep.cw;
     const whereMiddle = (z: ZoneState, zcw: number): Where => ({
@@ -116,15 +129,6 @@
       roomy: roomyNow,
       tap: tappable(z) ? TAP : undefined,
       dummy: z.faceUpHand ? { cw: zcw, minW: Math.round(zcw * FULL_HAND) } : undefined,
-    });
-    const whereStrip = (z: ZoneState, zcw: number): Where => ({
-      cw: zcw,
-      you,
-      players: n,
-      style: 'strip',
-      maxW: display && mainW ? mainW * 1.2 - 1.6 * tvRem : Infinity,
-      rowGap: display ? 0.3 * tvRem : undefined,
-      tap: tappable(z) ? TAP : undefined,
     });
     const stripCwAt = (z: { scale?: number }) => size.stripCw(z, { centerCw: cw, display, kept });
     return size.middleHeight({
@@ -141,13 +145,13 @@
       extras: status.pot && !handMode ? [{ w: potW, h: potH }] : [],
       strip: stripZones.length
         ? { zones: stripZones, cwOf: stripCwAt, whereOf: whereStrip, wrap: display }
-        : stripRoom && !display
+        : reserve && !display
           ? { room: Math.round(1.4 * stripCwAt({ scale: stripScale }) + 30) }
           : undefined,
     });
   }
   /** How big the middle's cards and your hand's are (layout/table.ts): the table's height shared out exactly, once it's measured. */
-  const cardSizes = $derived.by(() =>
+  const fitWith = (reserve: boolean): Fit =>
     size.fitSizes({
       vw,
       vh,
@@ -161,7 +165,8 @@
       headlineAbove: !!status.headline && !side,
       meOwnH,
       belowH: recapShown ? recapH : 0,
-      middle: middleAt,
+      sideRecapH: side && recap && !(showBanner && status.banner) ? sideRecapH || 40 : 0,
+      middle: (cw: number): number => middleAt(cw, reserve),
       hasMiddle: centerZones.length > 0,
       pileOnly,
       handEmpty,
@@ -172,8 +177,40 @@
       stripShown: stripZones.length > 0,
       // (with everyone's melds on the table the buttons sit in your hand's row: `.wide-middle`)
       bottomMinH: wideMiddle ? asideH : 0,
-    }),
-  );
+    });
+  /**
+   * The sizes, readable first: if even the smallest cards don't fit with room kept for everyone's
+   * melds before the first one (so the piles don't move when it comes), that room gives way.
+   */
+  const sizing = $derived.by((): { fit: Fit; reserve: boolean } => {
+    const kept = fitWith(stripRoom);
+    if (!stripRoom || display || kept.fits) return { fit: kept, reserve: stripRoom };
+    const without = fitWith(false);
+    return without.fits ? { fit: without, reserve: false } : { fit: kept, reserve: true };
+  });
+  const cardSizes = $derived(sizing.fit);
+  // (development builds: what the sizes were worked out from, for tests and debugging)
+  $effect(() => {
+    if (!import.meta.env.DEV) return;
+    (window as unknown as { __sizes: unknown }).__sizes = {
+      ...sizing.fit,
+      reserve: sizing.reserve,
+      handCw,
+      centerCw,
+      side,
+      handEmpty,
+      fan: fanCards.length,
+      tableH,
+      headerH,
+      headH,
+      meOwnH,
+      sideRecapH,
+      wideMiddle,
+      asideH,
+    };
+  });
+  /** Room kept for the strip, unless the table's too short to keep it (see sizing). */
+  const stripRoomShown = $derived.by(() => stripRoom && sizing.reserve);
   /** The middle's cards fit across side by side (a Hold'em board on a tablet): no need to overlap them. */
   const roomy = $derived.by(() => size.roomy(centerZones, centerCw, mainW, vw, stripZones.length > 0));
   const MIN_CW = size.MIN_CW;
@@ -218,6 +255,9 @@
     };
     const ro = new ResizeObserver(later);
     ro.observe(el);
+    // (and when the column itself grows: with something hidden, this box is only as tall as what's
+    // left in it, so it wouldn't change size by itself to show it again)
+    if (el.parentElement) ro.observe(el.parentElement);
     const mo = new MutationObserver(later);
     mo.observe(el, { childList: true, subtree: true, characterData: true });
     later();
@@ -600,7 +640,9 @@
    */
   /** The height a table screen's strip of melds has, measured (see fitHeight). */
   let stripSpace = $state(0);
-  const stripFit = $derived.by(() => size.stripFit({ display, zones: stripZones, mainW, mainH, rem: tvRem, stripSpace, centerCw }));
+  const stripFit = $derived.by(() =>
+    size.stripFit({ display, zones: stripZones, mainW, mainH, rem: tvRem, vw, stripSpace, centerCw, labels, whereOf: whereStrip }),
+  );
   const stripCards = $derived(stripZones.reduce((t, z) => t + z.cards.length, 0));
   let stripKeep = $state({ cards: 0, cw: Infinity });
   $effect(() => {
@@ -662,7 +704,25 @@
    * Everyone's melds full screen: the biggest cards that let them all fit the room, so a few melds
    * fill the screen; only past a readable smallest size does the page scroll.
    */
-  const spreadCw = $derived(sheet === 'spread' ? size.spreadCw({ zones: allStripZones, w: spreadW, h: spreadH }) : 44);
+  const spreadCw = $derived(
+    sheet === 'spread'
+      ? size.spreadCw({
+          zones: allStripZones,
+          w: spreadW,
+          h: spreadH,
+          labels,
+          whereOf: (z, cw) => ({
+            cw,
+            you,
+            players: n,
+            style: 'sheet',
+            maxW: spreadW ? spreadW - 20 : Infinity,
+            rowGap: 4.8,
+            tap: tappable(z) ? TAP : undefined,
+          }),
+        })
+      : 44,
+  );
   // (your hand under them stays small: the melds are what you're looking at)
   const spreadHandCw = $derived(Math.max(MIN_CW, Math.min(52, Math.round(vh * 0.1))));
   // (nothing left to show: the full-screen view of the melds closes itself, e.g. at a new hand)
@@ -1022,7 +1082,7 @@
     <!-- (data-middle-h: how tall the sizes reckoned the piles would stand, for tests and debugging: see layout/table.ts) -->
     <div
       class="zones"
-      class:has-strip={stripZones.length > 0 || stripRoom}
+      class:has-strip={stripZones.length > 0 || stripRoomShown}
       class:cross
       class:row-fit={rowFit < Infinity}
       use:fitHeight
@@ -1068,7 +1128,7 @@
           </div>
         </div>
       {/if}
-      {#if stripRoom}
+      {#if stripRoomShown}
         <!-- (where everyone's melds will go, kept from the deal) -->
         <div class="strip-room" aria-hidden="true" style:height={display ? undefined : `${Math.round(1.4 * stripCw({ scale: stripScale }) + 30)}px`}></div>
       {:else if stripZones.length}
@@ -1141,7 +1201,9 @@
           {@render tableStatus()}
           <!-- (the hand's summary: here on a phone held sideways, where the column is free once the hand
                is over, rather than under the middle, where a big showdown needs every bit of the height) -->
-          {#if recap && !(showBanner && status.banner)}<p class="recap" aria-label="This hand: {recap}">This hand: {recap}</p>{/if}
+          {#if recap && !(showBanner && status.banner)}<p class="recap" aria-label="This hand: {recap}" bind:clientHeight={sideRecapH}>
+              This hand: {recap}
+            </p>{/if}
         </div>
       {/if}
       <div class="me-own" bind:clientHeight={meOwnH}>
