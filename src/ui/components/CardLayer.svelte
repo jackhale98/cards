@@ -210,6 +210,11 @@
 
     const out: Shown[] = [];
     const had = new Set<string>();
+    // a face-down card leaving the pile a move draws from, when what was drawn turns up on this
+    // screen (in your hand, say): it becomes that card, rather than a back flying off beside it
+    const drawnFrom = frameOfZone(move?.fromZone);
+    const before = new Set(shown.map((c) => c.key));
+    const drawnHere = !!drawnFrom && [...now].some(([key, n]) => !before.has(key) && n.frame !== drawnFrom);
     /** Frames that cards were just put on (and how long they take to get there). */
     const landing = new Map<string, number>();
     for (const c of shown) {
@@ -250,6 +255,9 @@
       if (buried.has(c.at.id)) {
         away = { ...c.at, z: 1, opacity: 0 };
         ms = 200;
+      } else if (drawnHere && c.frame === drawnFrom && isHidden(c.at.id)) {
+        away = { ...c.at, opacity: 0 };
+        ms = 120;
       } else {
         const toFrame = frameOfZone(move?.toZone);
         if (toFrame && toFrame !== c.frame) {
