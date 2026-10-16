@@ -37,9 +37,12 @@ makes changes hard:
 
 ## Baseline
 
-- [ ] Full screen audit of the card layer (commit 18e7ddb), findings summarised in
-      `docs/audit-baseline.md`, then pushed to main. (Hand-drawn comparison against the table
-      before the layer: same or fewer findings per game.)
+- [x] Full screen audit of the card layer (commit 18e7ddb): 160 runs, no errors, nothing
+      overlapping, off screen or cut off (three replay "overlaps" were the check not knowing the
+      layer clips a scrolling row's cards: fixed in e2e/screenCheck.ts). The softer findings per
+      game are in `docs/audit-baseline.md`: 548 cards under 30px wide (18px at worst: Canasta, Go
+      Fish, Hand and Foot, Kings Corners, Rummy 500), 42 strips under 28px to tap. Spot checks
+      against the table before the layer (Bridge, Canasta, Rummy 500, Stud): same or fewer.
 
 ## Phase 1: one pure function sizes the table
 
@@ -63,7 +66,7 @@ chrome (seats bar, headline, your column), and the middle is never scaled below 
 - [ ] 1d. **Remove the patches it makes unnecessary**, one at a time, each with its regression
       test still passing: `growTo` (the dummy's growth computed from spare height), `stripSpace` /
       `stripKeep` (the strip's size from the function; a one-way hold only through a hand),
-      `rowFit`, `slotCw`/`stripCw` duplicates. `keptRoom` and `tallFor` are about *what* is shown
+      `rowFit`, `slotCw`/`stripCw` duplicates. `keptRoom` and `tallFor` are about _what_ is shown
       when, not sizes: keep them, moved into the table's state module (phase 2).
 - [ ] 1e. Audit: "hard to read" findings gone or explained; nothing new. Docs: ADDING_A_GAME's
       layout section says a new layout's size feeds the table automatically.
@@ -113,3 +116,10 @@ Goal: one module per job behind the same `Host` API (no protocol change).
 ## Log
 
 (newest last: what landed, what was learned)
+
+- Baseline: the card layer audited and pushed to main; `docs/audit-baseline.md`.
+- 1a (branch `arch-work`, 59ab490): sizing moved into `layout/table.ts`, same numbers.
+- 1b under way on `arch-work`: `middleHeight` (zones laid out exactly, labels measured by
+  `ui/labelMeasure.ts`), `fitSizes` (the table's height shared out from exact sizes), the middle's
+  predicted height on `.zones` as `data-middle-h` for tests. Next: check predictions against the
+  page in a browser (e2e/zzPredict.spec.ts, scratch).
