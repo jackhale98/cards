@@ -29,6 +29,7 @@
   const crowded = $derived(actions.filter((a) => !a.menu).length > 3);
   const main = $derived(actions.filter((a) => !a.menu && (!crowded || (a.select ? ready(a) : !(a.zone && selected.length)))));
   const more = $derived(actions.filter((a) => a.menu));
+  const clearing = $derived(!!selected.length && !!onclear);
 
   function ready(a: ActionSpec) {
     if (!a.select) return true;
@@ -61,23 +62,41 @@
   }
 </script>
 
+{#snippet button(a: ActionSpec)}
+  <!-- a slap goes the moment a finger touches it (a click waits for the finger to lift) -->
+  <button
+    class="btn {a.style ?? ''}"
+    class:slap={a.react}
+    disabled={!ready(a)}
+    onpointerdown={a.react ? () => press(a) : undefined}
+    onclick={(e) => (!a.react || e.detail === 0 ? press(a) : undefined)}
+  >
+    <SuitText text={a.label} />
+    {#if hint(a)}<small>{hint(a)}</small>{/if}
+  </button>
+{/snippet}
+
+<!-- (with cards picked, a ✕ to put them back sits beside the first button rather than on a row of
+     its own: picking a card mustn't make the column taller, which beside your hand would shrink the
+     whole table a moment, and grow it back as soon as you'd played) -->
+{#snippet clear()}
+  <button
+    class="btn quiet clear"
+    onclick={onclear}
+    aria-label={selected.length > 1 ? `Clear the ${selected.length} cards you picked` : 'Clear the card you picked'}
+    >✕{#if selected.length > 1}<small>{selected.length}</small>{/if}</button
+  >
+{/snippet}
+
 <div class="bar">
-  {#if selected.length && onclear}
-    <button class="btn quiet clear" onclick={onclear}>✕ Clear{selected.length > 1 ? ` (${selected.length})` : ''}</button>
-  {/if}
-  {#each main as a (a.type)}
-    <!-- a slap goes the moment a finger touches it (a click waits for the finger to lift) -->
-    <button
-      class="btn {a.style ?? ''}"
-      class:slap={a.react}
-      disabled={!ready(a)}
-      onpointerdown={a.react ? () => press(a) : undefined}
-      onclick={(e) => (!a.react || e.detail === 0 ? press(a) : undefined)}
-    >
-      <SuitText text={a.label} />
-      {#if hint(a)}<small>{hint(a)}</small>{/if}
-    </button>
+  {#each main as a, i (a.type)}
+    {#if i === 0 && clearing}
+      <div class="with-clear">{@render clear()}{@render button(a)}</div>
+    {:else}
+      {@render button(a)}
+    {/if}
   {/each}
+  {#if clearing && !main.length}{@render clear()}{/if}
   {#if more.length}
     <button class="btn quiet more" class:open={menuOpen} onclick={() => (menuOpen = !menuOpen)} aria-label="More actions">•••</button>
   {/if}
@@ -191,17 +210,21 @@
     font-weight: 500;
     opacity: 0.8;
   }
-  .clear {
-    position: relative;
-    min-height: 34px;
-    font-size: 0.8rem !important;
-    color: var(--ink-dim);
+  .with-clear {
+    display: flex;
+    gap: 0.45rem;
+    align-items: stretch;
   }
-  /* (a 44px tall target without making the bar taller) */
-  .clear::after {
-    content: '';
-    position: absolute;
-    inset: -5px 0;
+  .with-clear > :global(.btn:not(.clear)) {
+    flex: 1;
+    min-width: 0;
+  }
+  .clear {
+    flex: none;
+    width: 40px;
+    padding: 0;
+    font-size: 1rem !important;
+    color: var(--ink-dim);
   }
   .more {
     letter-spacing: 0.15em;

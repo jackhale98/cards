@@ -96,3 +96,31 @@ test('in a game with a trick, each seat shows the card they put in it, and a bac
     else await expect(front).toHaveAttribute('data-key', `seat:${seat}:front`);
   }
 });
+
+test('you can slide the row of players along to look, and once you let go it eases back', async ({ page }) => {
+  // (six at the table on a small phone: more players than fit)
+  await page.setViewportSize({ width: 667, height: 375 });
+  await page.goto('/?net=local&seed=7&still');
+  await page.fill('input[aria-label="Your name"]', 'Tester');
+  await page.click('text=Start a table');
+  await page.waitForURL(/#\/room\//);
+  await page.locator('[data-game="spades"]').first().click();
+  for (let i = 1; i < 6; i++) await page.click('text=+ Add bot');
+  await page.click('.dealbar button.primary');
+  await cardsLanded(page);
+  const row = page.getByRole('group', { name: 'The other players' });
+  const scrolled = () => row.evaluate((el) => Math.round(el.scrollLeft));
+  const wide = await row.evaluate((el) => el.scrollWidth > el.clientWidth);
+  expect(wide).toBe(true);
+  const was = await scrolled();
+  // (from a seat in view, slide toward the side with more to see)
+  const seat = (await page.locator('.seat-slot').nth(1).boundingBox())!;
+  const toward = was > 0 ? 1 : -1;
+  await page.mouse.move(seat.x + seat.width / 2, seat.y + seat.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(seat.x + seat.width / 2 + toward * 160, seat.y + seat.height / 2, { steps: 8 });
+  const held = await scrolled();
+  expect(Math.abs(held - was)).toBeGreaterThan(60);
+  await page.mouse.up();
+  await expect.poll(scrolled, { timeout: 3000 }).toBe(was);
+});
