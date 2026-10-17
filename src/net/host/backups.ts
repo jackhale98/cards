@@ -2,6 +2,7 @@ import type { GameState } from '../../engine/types';
 import { seal } from '../backup';
 import type { Lobby } from '../protocol';
 import type { HostEvent } from './event';
+import type { HostSnapshot } from '../host';
 import type { Transport } from '../transport';
 import { BACKUP_EVERY_MS, BACKUP_HOLDERS, BACKUP_SOON_MS } from './limits';
 
@@ -15,6 +16,8 @@ export interface BackupTable {
   readonly event: HostEvent | null;
   /** The table's version now. */
   readonly v: number;
+  /** Everything the host keeps (what a backup holds: see Host.snapshot). */
+  readonly snap: HostSnapshot;
   /** transport peer → client id, and which peers are table screens. */
   readonly peers: Map<string, string>;
   readonly displays: Set<string>;
@@ -103,7 +106,7 @@ export class Backups {
     const away = this.token && v !== this.awaySent ? this.away : null;
     this.at = Date.now();
     if (!fresh.length && !away) return;
-    const blob = await seal({ lobby: this.t.lobby, state: this.t.state, keys: this.t.keys, ...(this.t.event ? { event: this.t.event } : {}) }, this.key!);
+    const blob = await seal(this.t.snap, this.key!);
     this.sent = v;
     this.holders = to.map(([cid]) => cid);
     for (const [, peer] of fresh) this.t.transport?.send({ t: 'backup', blob, v, token: this.token }, peer);

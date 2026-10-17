@@ -23,7 +23,7 @@ import type { MultiTransport, NetworkStatus } from './net/multiTransport';
 import type { LocalTransport } from './net/localTransport';
 import type { RelayTransport } from './net/relayTransport';
 import { noteGames } from './ui/record';
-import { createTransport, FALLBACK_AFTER_MS, RELAY_GRACE_MS, type TransportKind } from './net/transport';
+import { createTransport, eventRooms, FALLBACK_AFTER_MS, RELAY_GRACE_MS, type TransportKind } from './net/transport';
 
 /** The host's table is saved this long after a change (and at once when the page is hidden). */
 const SAVE_AFTER_MS = 800;
@@ -629,7 +629,7 @@ class App {
       if (this.currentCode !== code) return gone();
     }
     // (the host's code loads when a table is first hosted: the home screen doesn't need it)
-    const { Host } = await import('./net/host');
+    const [{ Host }, rooms] = await Promise.all([import('./net/host'), eventRooms(this.net)]);
     if (this.currentCode !== code) return gone();
     const split = this.pendingSplit?.code === code ? this.pendingSplit : null;
     this.pendingSplit = null;
@@ -639,6 +639,9 @@ class App {
       night: split?.night,
       parent: split?.parent,
       game: split?.game,
+      // (duplicate bridge in a room: the other table, playing the same boards, is hosted here too, in
+      // a room of its own when people play there; its bots think in a worker of their own)
+      twin: { open: (c) => rooms(c, hostKey()), brain: () => workerBrain() },
       // (development builds: `?seed=7` deals the same cards every time, `&still` keeps the bots
       // and the table from moving, to put a moment on screen exactly)
       ...devTable(this.debugStill),

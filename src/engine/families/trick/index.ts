@@ -78,6 +78,7 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
         s.data.boards = table?.boards?.length ? structuredClone(table.boards) : dealBoards(g, s, Number(s.options.deals ?? g.R.end.deals ?? 4));
         s.data.results = [];
         s.data.others = [];
+        // (compared with other tables: a tournament's, or in a room, the other table its host keeps)
         s.data.compared = !!table?.compared;
       }
       startRound(g, s);
@@ -154,7 +155,7 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
           d.bags = d.bags.map(() => 0);
           s.winner = undefined;
           // (duplicate: fresh boards, dealt here; the comparison was with the last game's)
-          if (d.boards) Object.assign(d, { boards: dealBoards(g, s, d.boards.length), results: [], others: [], compared: false });
+          if (d.boards) Object.assign(d, { boards: dealBoards(g, s, d.boards.length), results: [], others: [] });
           startRound(g, s);
           return;
       }
@@ -266,6 +267,12 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
     report(s) {
       return { hand: s.data.round + 1, ...(s.data.results ? { boards: structuredClone(s.data.results) } : {}) };
     },
+
+    compareWith(options) {
+      return g.bridgeBids && Number(options.style ?? 0) === 2 && Number(options.compare ?? 0) === 0 ? 'table' : null;
+    },
+
+    boards: (s) => s.data.boards ?? null,
 
     compare(s, others) {
       const d = s.data;

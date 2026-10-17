@@ -57,7 +57,8 @@ src/net/host.ts        the authoritative host: seats and keys, checking and appl
                        bots (bots and automatic steps), history (replays, the game's record, scores,
                        tonight's tally), backups (host handoff), lobby (who plays, lobby buttons),
                        records, limits; event (a tournament's table: the seats the director assigns,
-                       held between hands, its result) and uplink (that table's host's link to the director)
+                       held between hands, its result) and uplink (that table's host's link to the director);
+                       twin (duplicate bridge in a room: the other table, playing the same boards, hosted here)
 src/net/brain.ts       where bots think: botWorker.ts (a Web Worker) in the app, inline in tests;
                        shareBrain, one brain taking turns between several tables
 src/net/director.ts    a tournament's director: runs the event, seats each round's tables (TableLinks);

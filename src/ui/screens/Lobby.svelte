@@ -221,7 +221,7 @@
     </div>
     {#if lobby.event}
       <!-- (a tournament's table: its players were sent here, nobody joins by invite) -->
-      <p class="small">Table {lobby.event.table} of {lobby.event.name}. Everyone here was sent by the director.</p>
+      <p class="small">Table {lobby.event.table} of {lobby.event.name}. {lobby.event.note ?? 'Everyone here was sent by the director.'}</p>
     {:else}
       <!-- the QR is generated a moment later: hold its place so the page doesn't jump -->
       {#if qr}<img class="qr" src={qr} alt="QR code to join this table" />{:else}<div class="qr" aria-hidden="true"></div>{/if}

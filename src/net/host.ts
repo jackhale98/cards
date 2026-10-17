@@ -2,7 +2,7 @@ import { botView } from '../engine/botView';
 import { isHidden, redact, redactActions, resolveAction } from '../engine/redact';
 import { randomSeed } from '../engine/rng';
 import { steadily } from '../engine/bots/search';
-import { RuleError, type Action, type GameModule, type GameState, type OtherResult, type TableChange } from '../engine/types';
+import { RuleError, type Action, type Board, type GameModule, type GameState, type OtherResult, type TableChange } from '../engine/types';
 import { cleanOthers } from './director/clean';
 import { checkAction } from '../engine/validate';
 import { getGame, GAMES, loadRules, rulesFor, startProblem } from '../games';
@@ -57,6 +57,7 @@ export {
 } from './host/limits';
 import { END_PHASES, EVENT_REPLAY_TOTAL, HEARTBEAT_MS, TAKE_BACK_MS, SCREEN_SOUND, STAND_IN, TABLE_MAX, UNDO } from './host/limits';
 import { EVENT_GRACE_MS, eventSeats, tableResult, type EventTable, type HostEvent, type TableNews } from './host/event';
+import { boardsKey, twinSeats, twinTable, type TwinSaved } from './host/twin';
 import type { TableTile } from './eventProtocol';
 
 export interface HostSnapshot {
@@ -66,6 +67,8 @@ export interface HostSnapshot {
   keys?: Record<string, string>;
   /** A tournament table's place in its event (see host/event.ts). */
   event?: HostEvent;
+  /** Duplicate in a room: the other table playing the same boards (see host/twin.ts). */
+  twin?: TwinSaved;
 }
 
 /**
@@ -78,8 +81,13 @@ export class Host {
   private module: GameModule | null = null;
   /** The bots and automatic steps (see host/bots.ts). */
   private readonly bots: Bots;
-  /** Development and tests: every game dealt from this seed (see opts). */
+  /** Development and tests: every game dealt from this seed, and nothing moving by itself (see opts). */
   private readonly seed?: number;
+  private readonly still: boolean;
+  private readonly twinOpts: { open?: (code: string) => Transport; brain?: () => Brain };
+  /** Duplicate in a room: the other table, playing the same boards (see host/twin.ts); its boards' mark. */
+  private twin: (Omit<TwinSaved, 'snap'> & { host: Host; key: string; snap: HostSnapshot | null }) | null = null;
+  private syncing = false;
   private history: GameState[] = [];
   /** The connections: who each is, its health, what it was last sent (see host/conns.ts). */
   private readonly conns = new Conns((msg, peer) => this.transport?.send(msg, peer));
@@ -141,9 +149,13 @@ export class Host {
        */
       seed?: number;
       still?: boolean;
+      /** Duplicate in a room: the other table's room, hosted here (its people play there), and where its bots think (see host/twin.ts). */
+      twin?: { open?: (code: string) => Transport; brain?: () => Brain };
     } = {},
   ) {
     this.seed = opts.seed;
+    this.still = !!opts.still;
+    this.twinOpts = opts.twin ?? {};
     // (the bots and the backups see the table as it is when they look: getters onto this host)
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const self = this;
@@ -190,6 +202,9 @@ export class Host {
       },
       get displays() {
         return self.displays;
+      },
+      get snap() {
+        return self.snapshot();
       },
     });
     this.backups.configure(opts.backupKey, opts.takeoverToken);
@@ -238,6 +253,7 @@ export class Host {
       if (this.state) this.module = rulesFor(this.state.game) ?? missing(this.state.game);
       // (a game saved before people could sit out: everyone at the table is in it)
       if (this.state && !this.lobby.playing) this.lobby.playing = this.lobby.seats.map((s) => s.id);
+      if (restore.twin) this.restoreTwin(restore.twin);
     } else {
       const carried = carriedGame(opts.game);
       this.lobby = {
@@ -548,6 +564,7 @@ export class Host {
     this.broadcast();
     this.tellDirector();
     this.bots.pump();
+    this.syncTwin();
   }
 
   // ---- replays ------------------------------------------------------------------------------
@@ -679,6 +696,10 @@ export class Host {
    * machine would cut short), or the plainest legal one. False: nothing left to do.
    */
   step(): boolean {
+    // (duplicate in a room: then the other table)
+    return this.stepHere() || !!this.twin?.host.step();
+  }
+  private stepHere(): boolean {
     const s = this.state;
     const m = this.module;
     if (!s || !m || this.held(s)) return false;
@@ -963,7 +984,8 @@ export class Host {
       players.map((s) => ({ name: s.name, bot: s.bot || away(s) })),
       this.event?.table.seed ?? this.seed ?? randomSeed(),
       { ...this.lobby.options },
-      this.event?.table.setup,
+      // (duplicate in a room: compared with the other table this host keeps, see syncTwin)
+      this.event?.table.setup ?? (this.module.compareWith?.(this.lobby.options) === 'table' ? { compared: true } : undefined),
     );
     delete this.lobby.scores;
     if (!this.module.realtime) this.noteScores(true);
@@ -973,6 +995,7 @@ export class Host {
   /** Back to the lobby (not at a tournament table: its director moves it on). */
   endGame() {
     if (this.event) return;
+    this.closeTwin();
     this.clearGame();
     this.lobby.seats = this.lobby.seats.filter((s) => s.connected || s.host);
     // whoever sat out that game gets priority for the next one
@@ -1118,6 +1141,107 @@ export class Host {
     return null;
   }
 
+  // ---- duplicate in a room: the other table (see host/twin.ts) -----------------------------
+
+  /** Duplicate in a room: the other table playing this game's boards (null: none). */
+  get otherTable(): Host | null {
+    return this.twin?.host ?? null;
+  }
+
+  /** Everything this host keeps, for resuming after a reload. */
+  private snapshot(): HostSnapshot {
+    const twin = this.twin;
+    return {
+      lobby: this.lobby,
+      state: this.state,
+      keys: this.keys,
+      ...(this.event ? { event: this.event } : {}),
+      ...(twin?.snap ? { twin: { snap: twin.snap, room: twin.room, label: twin.label, match: twin.match, seats: twin.seats } } : {}),
+    };
+  }
+  private persist() {
+    this.onPersist(this.snapshot());
+  }
+
+  /** The other table: a host of its own, in its room (people play there) or none (bots alone). */
+  private twinHost(room: string | null, restore?: HostSnapshot): Host {
+    const transport = room && this.twinOpts.open ? this.twinOpts.open(room) : null;
+    const host = new Host(transport, room ?? 'TWIN', { cid: 'twin', name: 'Table 2' }, restore, {
+      brain: this.twinOpts.brain?.(),
+      still: this.still,
+      seed: this.seed,
+    });
+    // (its every change: results to pass on, and its snapshot to keep with this table's)
+    host.onBroadcast = () => this.syncTwin();
+    host.onPersist = (snap) => {
+      if (this.twin?.host !== host) return;
+      this.twin.snap = snap;
+      this.persist();
+    };
+    return host;
+  }
+
+  private restoreTwin(t: TwinSaved) {
+    const boards = this.state && this.module?.boards?.(this.state);
+    if (!boards?.length) return;
+    this.twin = { ...t, key: boardsKey(boards), host: this.twinHost(t.room, t.snap) };
+    this.twin.host.resume();
+  }
+
+  /**
+   * Duplicate in a room: the other table plays this game's boards (seated afresh for a new game of
+   * them), and each table hears the other's results (only on boards it has played: see compare).
+   */
+  private syncTwin() {
+    const s = this.state;
+    const m = this.module;
+    if (this.syncing || this.closed || this.event || !s || !m?.boards || m.compareWith?.(this.lobby.options) !== 'table') return;
+    const boards = m.boards(s);
+    if (!boards?.length) return;
+    this.syncing = true;
+    try {
+      const key = boardsKey(boards);
+      if (this.twin?.key !== key) this.seatTwin(boards, key);
+      const twin = this.twin!;
+      const there = twin.host.state;
+      if (!there || !m.report) return;
+      this.compare((m.report(there).boards ?? []).map((r) => ({ ...r, at: twin.label })));
+      twin.host.compare((m.report(this.state!).boards ?? []).map((r) => ({ ...r, at: 'Table 1' })));
+    } finally {
+      this.syncing = false;
+    }
+  }
+
+  /** The other table, for these boards: made (whoever is sitting out goes there), or seated again for a new game. */
+  private seatTwin(boards: Board[], key: string) {
+    let twin = this.twin;
+    if (!twin) {
+      // (people sit there only if it can have a room of its own: else bots alone)
+      const seats = this.twinOpts.open
+        ? twinSeats(this.lobby.seats, this.keys, boards[0].hands.length)
+        : boards[0].hands.map(() => ({ bot: true as const, name: '' }));
+      const people = seats.filter((x) => 'key' in x);
+      const room = people.length ? makeRoomCode() : null;
+      twin = this.twin = { host: this.twinHost(room), room, label: room ? 'Table 2' : 'Bots', match: 0, seats, key, snap: null };
+      for (const p of people) this.sendTo(p.id, { t: 'move', code: room! });
+    }
+    twin.match++;
+    twin.key = key;
+    twin.host.seatTable(
+      twinTable({ code: this.lobby.code, match: twin.match, game: { id: this.lobby.gameId, options: { ...this.lobby.options } }, seats: twin.seats, boards }),
+    );
+  }
+
+  /** Back to the lobby: the other table closes, its people back here. */
+  private closeTwin() {
+    const twin = this.twin;
+    if (!twin) return;
+    this.twin = null;
+    for (const p of twin.seats) if ('key' in p) twin.host.tell(p.id, { t: 'move', code: this.lobby.code, back: true });
+    // (the moves get away first)
+    setTimeout(() => twin.host.close(), 500);
+  }
+
   /**
    * Duplicate: other tables' results on this table's boards (see GameModule.compare), as they come:
    * shown beside its own, and, with every board played, the game decided on them.
@@ -1191,6 +1315,8 @@ export class Host {
 
   close() {
     this.closed = true;
+    this.twin?.host.close();
+    this.twin = null;
     if (this.graceTimer) clearTimeout(this.graceTimer);
     this.bots.stop();
     for (const peer of this.conns.known) this.conns.forget(peer);
@@ -1249,7 +1375,7 @@ export class Host {
         this.conns.sendView(peer, view);
       }
     }
-    this.onPersist({ lobby: this.lobby, state: this.state, keys: this.keys, ...(this.event ? { event: this.event } : {}) });
+    this.persist();
     this.backups.queue();
     this.onBroadcast();
   }
