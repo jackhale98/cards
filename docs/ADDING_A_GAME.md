@@ -214,7 +214,10 @@ table's sizing reads every zone's size from its layout, so a new layout's size c
    overrides the family.
 
 Inside an engine, the UI knows nothing about rules. It renders zones and the `ActionSpec`s
-returned by `actions()` (buttons, which may require a card selection or an amount). The host
+returned by `actions()` (buttons, which may require a card selection or an amount; mark each
+move in a bidding `confirm: true` and the player is asked before it goes, over the middle of the
+table, since a call can't be taken back; `tests/confirmCalls.test.ts` lists the games with one).
+The host
 rejects any action it didn't offer, and `assertRule(cond, 'message')` inside `apply()` shows the
 message to the player. State must be plain JSON; shuffle with the seeded RNG.
 

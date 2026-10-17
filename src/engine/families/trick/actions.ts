@@ -31,23 +31,24 @@ export function trickActions(g: TrickGame, s: S, seat: number): ActionSpec[] {
   } else if (s.phase === 'bid' && s.turn === seat) {
     out.push({
       type: 'bid',
+      confirm: true,
       label: 'Bid',
       style: 'primary',
       amount: { min: 0, max: d.handSize, step: 1, default: botBid(g, s, seat), label: g.nilAllowed ? 'tricks (0 = nil)' : 'tricks' },
     });
   } else if (s.phase === 'order' && s.turn === seat) {
     const up = cardOrJokerLabel(d.upcard!);
-    out.push({ type: 'order', label: seat === s.dealer ? `Pick up ${up}` : `Order up ${up}`, style: 'primary' });
-    if (g.euchreBids?.alone) out.push({ type: 'orderAlone', label: 'Go alone' });
-    out.push({ type: 'decline', label: 'Pass', style: 'quiet' });
+    out.push({ type: 'order', confirm: true, label: seat === s.dealer ? `Pick up ${up}` : `Order up ${up}`, style: 'primary' });
+    if (g.euchreBids?.alone) out.push({ type: 'orderAlone', confirm: true, label: 'Go alone' });
+    out.push({ type: 'decline', confirm: true, label: 'Pass', style: 'quiet' });
   } else if (s.phase === 'name' && s.turn === seat) {
     const options = NAMEABLE.filter((x) => x !== parseCard(d.upcard!).suit).map((x) => ({
       value: NAMEABLE.indexOf(x),
       label: `${SUIT_SYMBOL[x]} ${SUIT_NAME[x]}`,
     }));
-    out.push({ type: 'name', label: 'Name trumps', style: 'primary', choose: { label: 'Trumps', options } });
-    if (g.euchreBids?.alone) out.push({ type: 'nameAlone', label: 'Name & go alone', choose: { label: 'Trumps — going alone', options } });
-    if (!(g.euchreBids?.stickTheDealer && seat === s.dealer)) out.push({ type: 'decline', label: 'Pass', style: 'quiet' });
+    out.push({ type: 'name', confirm: true, label: 'Name trumps', style: 'primary', choose: { label: 'Trumps', options } });
+    if (g.euchreBids?.alone) out.push({ type: 'nameAlone', confirm: true, label: 'Name & go alone', choose: { label: 'Trumps — going alone', options } });
+    if (!(g.euchreBids?.stickTheDealer && seat === s.dealer)) out.push({ type: 'decline', confirm: true, label: 'Pass', style: 'quiet' });
   } else if (s.phase === 'auction' && s.turn === seat) {
     const open = higherBids(g, s);
     // suit bids in whole rows of five (bids already passed greyed out); misère gets its own buttons
@@ -62,19 +63,21 @@ export function trickActions(g: TrickGame, s: S, seat: number): ActionSpec[] {
     if (first)
       out.push({
         type: 'bid500',
+        confirm: true,
         label: 'Bid',
         style: 'primary',
         choose: { label: d.contract ? `Bid over ${contractLabel(d.contract)}` : 'Your bid', options },
       });
-    if (open.includes(MISERE)) out.push({ type: 'misere', label: 'Misère · 250' });
-    if (open.includes(OPEN_MISERE)) out.push({ type: 'openMisere', label: 'Open misère · 500' });
-    out.push({ type: 'decline', label: 'Pass', style: 'quiet' });
+    if (open.includes(MISERE)) out.push({ type: 'misere', confirm: true, label: 'Misère · 250' });
+    if (open.includes(OPEN_MISERE)) out.push({ type: 'openMisere', confirm: true, label: 'Open misère · 500' });
+    out.push({ type: 'decline', confirm: true, label: 'Pass', style: 'quiet' });
   } else if (s.phase === 'pitch' && s.turn === seat) {
     const p = d.pitch!;
     const options = [2, 3, 4, 5].map((b) => ({ value: b, label: pitchLabel(b), disabled: !pitchBids(s, seat).includes(b) }));
     const suggest = botPitchBid(g, s, seat);
     out.push({
       type: 'pitchBid',
+      confirm: true,
       label: 'Bid',
       style: suggest.type === 'pitchBid' || forcedDealer(s, seat) ? 'primary' : undefined,
       choose: {
@@ -83,7 +86,7 @@ export function trickActions(g: TrickGame, s: S, seat: number): ActionSpec[] {
         options,
       },
     });
-    if (!forcedDealer(s, seat)) out.push({ type: 'decline', label: 'Pass', style: suggest.type === 'decline' ? 'primary' : 'quiet' });
+    if (!forcedDealer(s, seat)) out.push({ type: 'decline', confirm: true, label: 'Pass', style: suggest.type === 'decline' ? 'primary' : 'quiet' });
   } else if (s.phase === 'call' && s.turn === seat) {
     const a = auctionState(s);
     // whole levels, one per row (♣ ♦ ♥ ♠ NT), with bids already passed greyed out
@@ -91,10 +94,16 @@ export function trickActions(g: TrickGame, s: S, seat: number): ActionSpec[] {
       .filter((i) => i >= Math.floor((a.lastBid + 1) / 5) * 5)
       .map((i) => ({ value: i, label: bidLabel(i), disabled: i <= a.lastBid }));
     if (a.lastBid < 34)
-      out.push({ type: 'call', label: 'Bid', style: 'primary', choose: { label: a.lastBid >= 0 ? `Bid over ${bidLabel(a.lastBid)}` : 'Your bid', options } });
-    if (canDouble(g, s, seat)) out.push({ type: 'double', label: 'Double' });
-    if (canRedouble(g, s, seat)) out.push({ type: 'redouble', label: 'Redouble' });
-    out.push({ type: 'decline', label: 'Pass', style: 'quiet' });
+      out.push({
+        type: 'call',
+        confirm: true,
+        label: 'Bid',
+        style: 'primary',
+        choose: { label: a.lastBid >= 0 ? `Bid over ${bidLabel(a.lastBid)}` : 'Your bid', options },
+      });
+    if (canDouble(g, s, seat)) out.push({ type: 'double', confirm: true, label: 'Double' });
+    if (canRedouble(g, s, seat)) out.push({ type: 'redouble', confirm: true, label: 'Redouble' });
+    out.push({ type: 'decline', confirm: true, label: 'Pass', style: 'quiet' });
   } else if (s.phase === 'discard' && s.turn === seat) {
     const k = g.auction ? (R.kitty ?? 3) : 1;
     out.push({ type: 'bury', label: k > 1 ? `Discard ${k}` : 'Discard', style: 'primary', select: { min: k, max: k, cards: ids(hand(s, seat)) } });
@@ -115,7 +124,12 @@ export function trickActions(g: TrickGame, s: S, seat: number): ActionSpec[] {
         },
       });
   } else if (s.phase === 'blind' && s.turn === seat) {
-    out.push({ type: 'blindNil', label: `Bid blind nil · ${((R.scoring.type === 'contract' ? R.scoring.nil : undefined) ?? 100) * 2}`, style: 'danger' });
+    out.push({
+      type: 'blindNil',
+      confirm: true,
+      label: `Bid blind nil · ${((R.scoring.type === 'contract' ? R.scoring.nil : undefined) ?? 100) * 2}`,
+      style: 'danger',
+    });
     out.push({ type: 'look', label: 'Look at my cards', style: 'primary' });
   } else if (s.phase === 'blindPass' && s.turn === seat) {
     out.push({

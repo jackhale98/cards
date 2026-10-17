@@ -353,8 +353,8 @@ export function pinochleFamily(config: GameConfig): GameModule<PinochleData> {
         case 'bid': {
           const min = d.bid == null ? MIN_BID : d.bid + 10;
           return [
-            { type: 'bid', label: 'Bid', style: 'primary', amount: { min, max: 2000, step: 10, default: min } },
-            { type: 'pass', label: 'Pass' },
+            { type: 'bid', label: 'Bid', style: 'primary', confirm: true, amount: { min, max: 2000, step: 10, default: min } },
+            { type: 'pass', label: 'Pass', confirm: true },
           ];
         }
         case 'trump':
@@ -362,6 +362,7 @@ export function pinochleFamily(config: GameConfig): GameModule<PinochleData> {
             {
               type: 'trump',
               label: 'Name trumps',
+              confirm: true,
               style: 'primary',
               choose: { label: 'Trumps', options: SUITS.map((x, i) => ({ value: i, label: `${SUIT_SYMBOL[x]} ${SUIT_NAME[x]}` })) },
             },

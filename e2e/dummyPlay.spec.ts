@@ -6,11 +6,11 @@ test.setTimeout(150_000);
 /**
  * A whole hand face up on the table that you play from (bridge's dummy, 500's open misère) comes
  * down into your hand's place on your turn. Dealt from a fixed seed (development builds) so you're
- * the declarer: bridge's bots bid by their system, so the same cards make the same auction.
+ * the declarer, and played on a step at a time (`still`, `__advance`), the same way every run.
  */
 async function deal(page: Page, game: string, seed: number) {
   await page.setViewportSize({ width: 844, height: 390 });
-  await page.goto(`/?net=local&seed=${seed}`);
+  await page.goto(`/?net=local&seed=${seed}&still`);
   await page.fill('input[aria-label="Your name"]', 'Hana');
   await page.click('text=Start a table');
   await page.waitForURL(/#\/room\//);
@@ -20,16 +20,17 @@ async function deal(page: Page, game: string, seed: number) {
   await page.locator('.table').waitFor();
 }
 
-/** Play your moves as a bot would (or `pick` one), until `until` holds. */
+/** Step the game on (your moves as a bot would make them, or `pick` one), until `until` holds. */
 async function playUntil(page: Page, until: () => Promise<boolean>, pick?: string) {
+  const ask = page.getByRole('dialog', { name: 'Confirm your call' });
   for (let i = 0; i < 400 && !(await until()); i++) {
-    await page.evaluate((type) => {
-      const w = window as unknown as { __botMove: () => unknown; __act?: unknown };
-      const chosen = type && [...document.querySelectorAll<HTMLButtonElement>('aside button')].find((b) => b.textContent?.startsWith(type));
-      if (chosen) chosen.click();
-      else w.__botMove();
-    }, pick ?? '');
-    await page.waitForTimeout(150);
+    const chosen = pick ? page.locator('aside button', { hasText: pick }) : null;
+    if (chosen && (await chosen.isVisible())) {
+      await chosen.click();
+      // (a call is asked about before it goes)
+      await ask.getByRole('button', { name: 'Confirm' }).click();
+      await expect(chosen).toBeHidden();
+    } else await page.evaluate(() => (window as unknown as { __advance: (n: number) => number }).__advance(1));
   }
 }
 
@@ -76,6 +77,7 @@ test('an open misère hand stays in your hand’s place between your turns', asy
   expect(Math.min(...seen.map((s) => s.o))).toBeGreaterThan(0.9);
   // others play now: it stays in your hand's place, not back in the middle
   await page.waitForFunction(() => !document.querySelector('[aria-live]')?.textContent?.includes('Your turn'), undefined, { timeout: 20_000 });
+  await page.evaluate(() => (window as unknown as { __advance: (n: number) => number }).__advance(2));
   await expect(page.locator('.fan-label')).toBeVisible();
   await expect(page.locator('.hand .slot')).not.toHaveCount(0);
   await expect(page.locator('main [data-zone="dummy"] .scard')).toHaveCount(0);

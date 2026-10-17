@@ -180,6 +180,11 @@ export interface ActionSpec {
    * accidental play would be costly, e.g. the free table.
    */
   quick?: boolean | 'swipe';
+  /**
+   * Ask before sending (a bid, a pass in an auction): one tap on the wrong thing can't be taken
+   * back once the next player has called. An `amount` is already asked for on a sheet of its own.
+   */
+  confirm?: boolean;
 }
 
 // ---------------------------------------------------------------------------

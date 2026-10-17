@@ -23,6 +23,12 @@
 
   let amountFor = $state<ActionSpec | null>(null);
   let menuOpen = $state(false);
+  /** A call waiting to be confirmed (see ActionSpec.confirm), with the option picked for it. */
+  let asking = $state<{ spec: ActionSpec; amount?: number } | null>(null);
+  // (once it's no longer on offer, a turn gone by, there's nothing to ask about)
+  $effect(() => {
+    if (asking && !actions.some((a) => a.type === asking!.spec.type)) asking = null;
+  });
 
   // With many options, card actions only appear once a matching selection is made.
   // While cards are selected, pile shortcuts (Draw — also a tap on the deck) step aside for card actions.
@@ -58,7 +64,27 @@
       amountFor = a;
       return;
     }
-    onact(a);
+    send(a);
+  }
+
+  /** Send a move, or first ask, for a call (an amount was already confirmed on its sheet). */
+  function send(spec: ActionSpec, amount?: number) {
+    if (spec.confirm && !spec.amount) asking = { spec, amount };
+    else onact(spec, amount);
+  }
+
+  /** What's being called, and what it's worth ("6♠", "140"; "Misère", "250"). */
+  function calling(q: { spec: ActionSpec; amount?: number }) {
+    const label = q.spec.choose?.options.find((o) => o.value === q.amount)?.label ?? q.spec.label;
+    const [what, worth] = label.split(' · ');
+    return { what, worth, about: q.spec.choose ? (q.spec.choose.label ?? q.spec.label) : null };
+  }
+
+  /** Back to the options for another look (or, for a plain call, just back to the table). */
+  function change() {
+    const spec = asking?.spec;
+    asking = null;
+    if (spec?.choose) chooseFor = spec;
   }
 </script>
 
@@ -153,7 +179,7 @@
           class="choice"
           disabled={o.disabled}
           onclick={() => {
-            onact(spec, o.value);
+            send(spec, o.value);
             chooseFor = null;
           }}
           >{#if o.label.includes(' · ')}<SuitText text={o.label.split(' · ')[0]} /><small>{o.label.split(' · ')[1]}</small>{:else}<SuitText
@@ -161,6 +187,31 @@
             />{/if}</button
         >
       {/each}
+    </div>
+  </div>
+{/if}
+
+<!-- the call, over the middle of the table, before it goes -->
+{#if asking}
+  {@const q = asking}
+  {@const c = calling(q)}
+  <button class="scrim light" onclick={() => (asking = null)} aria-label="Cancel"></button>
+  <div class="ask panel" role="dialog" aria-modal="true" aria-label="Confirm your call" use:dialog={() => (asking = null)}>
+    {#if c.about}<span class="eyebrow"><SuitText text={c.about} /></span>{/if}
+    <div class="call">
+      <SuitText text={c.what} />{#if c.worth}<small>{c.worth}</small>{/if}
+    </div>
+    <div class="ask-row">
+      <button class="btn quiet" onclick={change}>Change</button>
+      <button
+        class="btn {q.spec.style === 'danger' ? 'danger' : 'primary'}"
+        data-autofocus
+        onclick={() => {
+          const { spec, amount } = q;
+          asking = null;
+          onact(spec, amount);
+        }}>Confirm</button
+      >
     </div>
   </div>
 {/if}
@@ -235,6 +286,48 @@
     inset: 0;
     z-index: 40;
     background: linear-gradient(rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0.1) 70%);
+  }
+  .scrim.light {
+    background: rgba(0, 0, 0, 0.25);
+  }
+  /* floats over the middle of the table: the hand and the seats' calls stay in sight around it */
+  .ask {
+    position: fixed;
+    z-index: 41;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: min(17rem, calc(100vw - 24px));
+    padding: 0.7rem 0.9rem 0.8rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.4rem;
+    text-align: center;
+    animation: pop 0.18s var(--ease-out);
+    background: rgba(8, 26, 20, 0.96);
+    background: color-mix(in srgb, var(--felt-3) 96%, transparent);
+  }
+  .call {
+    font-size: 1.6rem;
+    font-weight: 800;
+    line-height: 1.1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .call small {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--ink-dim);
+  }
+  .ask-row {
+    display: flex;
+    gap: 0.5rem;
+    width: 100%;
+  }
+  .ask-row .btn {
+    flex: 1;
   }
   .menu {
     background: rgba(8, 26, 20, 0.96);
