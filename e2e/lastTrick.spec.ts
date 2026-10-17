@@ -1,15 +1,17 @@
 import { expect, test } from '@playwright/test';
+import { cardsLanded } from './wait';
 
-test.setTimeout(180_000);
+test.setTimeout(120_000);
 
 /**
  * At a hand's end the table used to jump: bridge's dummy played its last card into the last trick
  * and gave up its room, so that one trick moved up and grew (and a player's own hand, empty after
  * their last card, gave the middle its room too). The last trick now looks like the ones before.
+ * (A hand dealt from a fixed seed and played a step at a time: `?seed`, `&still`, `__advance`.)
  */
 test('the last trick of a hand is the size the others were', async ({ page }) => {
   await page.setViewportSize({ width: 1000, height: 461 });
-  await page.goto('/?net=local');
+  await page.goto('/?net=local&seed=7&still');
   await page.fill('input[aria-label="Your name"]', 'Hana');
   await page.click('text=Start a table');
   await page.waitForURL(/#\/room\//);
@@ -19,34 +21,40 @@ test('the last trick of a hand is the size the others were', async ({ page }) =>
   await page.click('button[aria-label="Sit Hana out"]');
   await page.click('text=+ Add bot');
   await page.click('button:has-text("Deal Contract Bridge")');
-  // (a deal everyone passes is dealt again: wait for a contract and the opening lead)
-  await expect(page.locator('[data-zone="dummy"] .scard').first()).toBeVisible({ timeout: 60_000 });
-  // the trick's card width, read only when nothing is moving; and whether the dummy still has cards
+  await page.locator('.table').waitFor();
+  /** The table as the host has it: the trick's size in cards, the dummy's, and whether the hand's over. */
+  const now = () =>
+    page.evaluate(() => {
+      const s = JSON.parse((window as unknown as { __snapshot: () => string }).__snapshot()).snap.state;
+      return { trick: s.zones.trick.cards.length as number, dummy: (s.zones.dummy?.cards.length ?? 0) as number, phase: s.phase as string };
+    });
+  // the trick's card width and place, once the cards have landed; and whether the dummy still has cards
   const read = () =>
     page.evaluate(() => {
       const cards = [...document.querySelectorAll('.layer .layer-card[data-in="trick"]:not([data-leaving]) .card')] as HTMLElement[];
-      // (cards flying and sizes changing are script animations and transitions; a pulsing seat is a CSS animation)
-      const still = cards.length > 0 && document.getAnimations().every((a) => a.playState !== 'running' || a instanceof CSSAnimation);
       return {
-        phase: (window as unknown as { __phase: () => string | null }).__phase(),
-        dummy: document.querySelectorAll('[data-zone="dummy"] .scard').length,
-        width: still ? Math.max(...cards.map((c) => c.offsetWidth)) : 0,
-        top: still ? Math.round(document.querySelector('[data-zone="trick"]')!.getBoundingClientRect().top) : 0,
+        width: Math.max(...cards.map((c) => c.offsetWidth)),
+        top: Math.round(document.querySelector('[data-zone="trick"]')!.getBoundingClientRect().top),
       };
     });
   const before = new Set<string>();
   const last = new Set<string>();
-  await expect
-    .poll(
-      async () => {
-        const r = await read();
-        if (r.width) (r.dummy ? before : last).add(`${r.width}@${r.top}`);
-        return r.phase;
-      },
-      { timeout: 150_000, intervals: [60] },
-    )
-    .toMatch(/roundOver|handOver|gameOver/);
+  let played = false;
+  // (each trick looked at once it's full, through the whole hand)
+  for (let i = 0; i < 400; i++) {
+    const t = await now();
+    if (/roundOver|handOver|gameOver/.test(t.phase)) break;
+    if (t.trick === 4) {
+      await cardsLanded(page);
+      const r = await read();
+      (t.dummy ? before : last).add(`${r.width}@${r.top}`);
+      played = true;
+    }
+    if (!(await page.evaluate(() => (window as unknown as { __advance: (n: number) => number }).__advance(1)))) break;
+  }
+  expect(played).toBe(true);
   expect(before.size).toBeGreaterThan(0);
+  expect(last.size).toBeGreaterThan(0);
   // the last trick, once the dummy was empty: where and how big the tricks before it were
   for (const look of last) expect([...before]).toContain(look);
 });

@@ -80,62 +80,6 @@ test('the layout check sees the cards on the layer: one put over a button is cau
   expect(await screenProblems(page)).toContainEqual(expect.stringMatching(/^overlap, your hand and a button/));
 });
 
-/** The audit's findings that are always wrong: something over something else, off the screen, or cut off. */
-const FIRM = /^(overlap|off-screen|text cut off|text past its button|page wider|a button outside)/;
-
-/**
- * The screen audit's checks (e2e/screenCheck.ts) through part of a game, for a game of each way of
- * laying out cards: no card over a button, the headline, a seat or your name, or another pile's
- * label, and none off the screen.
- */
-const GAMES: [string, string, number][] = [
-  ['hearts', 'a fanned hand and a trick', 4],
-  ['bridge', 'a dummy face up beside the trick', 4],
-  ['canasta', 'melds squared into piles, on the strip', 4],
-  ['kings-corners', 'piles in a cross, cascading', 4],
-  ['egyptian-rat-screw', 'a pile fanned under its top, and your own pile', 4],
-  ['rummy-500', 'a discard pile kept room for, and melds', 4],
-  ['palace', 'face-up cards on the strip', 4],
-  ['seven-card-stud', 'cards showing on the strip, chips', 4],
-];
-for (const [game, what, seats] of GAMES)
-  for (const [where, size] of [
-    ['a small phone', { width: 667, height: 320 }],
-    ['a laptop', { width: 1280, height: 800 }],
-  ] as const)
-    test(`${game} (${what}) on ${where}: the cards clear of the text and buttons`, async ({ page }) => {
-      const errors: string[] = [];
-      page.on('pageerror', (e) => errors.push(e.message));
-      await deal(page, game, size, seats);
-      const found = new Map<string, string[]>();
-      let checks = 0;
-      for (let i = 0; i < 48; i++) {
-        const phase = await page.evaluate(() => (window as unknown as { __phase: () => string | null }).__phase());
-        if (i % 4 === 0 || /roundOver|gameOver/.test(phase ?? '')) {
-          await cardsLanded(page);
-          let issues = await screenProblems(page);
-          // (a bot moving meanwhile isn't a layout problem: only what's still there once it settles counts)
-          if (issues.length) {
-            await page.waitForTimeout(600);
-            await cardsLanded(page);
-            const again = new Set(await screenProblems(page));
-            issues = issues.filter((x) => again.has(x));
-          }
-          // (what the cards must never do; how small a card or a tap target may get is the audit's to
-          // weigh, game by game, and the same with or without the layer)
-          issues = issues.filter((x) => FIRM.test(x));
-          checks++;
-          if (issues.length) found.set(`${i} ${phase}`, issues);
-        }
-        if (/gameOver/.test(phase ?? '')) break;
-        const moved = await page.evaluate(() => (window as unknown as { __botMove: () => unknown }).__botMove());
-        await page.waitForTimeout(moved ? 150 : 300);
-      }
-      expect(checks).toBeGreaterThan(5);
-      expect(Object.fromEntries(found)).toEqual({});
-      expect(errors).toEqual([]);
-    });
-
 test('a card pressed stays in its place in the fan: only one being dragged comes to the front', async ({ page }) => {
   await page.setViewportSize({ width: 844, height: 390 });
   await page.goto('/?net=local&seed=7&still');

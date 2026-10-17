@@ -175,7 +175,7 @@ with one job:
    function of the screen and the zones: it asks each zone's layout how tall it stands at a card
    size, packs them into rows as the page will, and picks the largest cards (never under 30px
    wide) that let the middle and your hand fit. `tests/tableSize.test.ts` checks it for every
-   game, and `e2e/tableSize.spec.ts` checks the page lays the middle out as tall as it predicted.
+   game, and `e2e/gallery.spec.ts` checks the page lays the middle out as tall as it predicted.
 2. **A layout** (`src/ui/layout/`) says where every card of one zone goes inside its frame: a pure
    function from the zone's cards and card size to the frame's size and a place (centre, width,
    turn, stacking) for each card. `fan.ts` is your hand, `trick.ts` a trick, `stack.ts` a pile,
@@ -235,7 +235,9 @@ Several suites pick up a new game by themselves:
 - `tests/privacy.test.ts` and `tests/dataPrivacy.test.ts`: no log line, action or `data` sent to
   a player names a card hidden from them. A family keeping private cards in `data` needs
   `redactData`.
-- `e2e/layout.spec.ts`: the game is dealt in a real browser at phone, laptop and TV sizes.
+- `e2e/gallery.spec.ts`: the game is dealt in a real browser from a fixed seed and stepped through a
+  hand, checked at every phone size, a laptop and a TV (with your phone in hand mode) for anything
+  overlapping, cut off or off the screen, and the middle as tall as the sizes reckoned.
 - `tests/howToPlay.test.ts`: every game has How to play lines, short enough to read on a phone.
 
 Two lists name every game and need the new one added: `tests/engine.test.ts` (all ids) and

@@ -51,7 +51,7 @@ describe('a table for looking at (development builds)', () => {
         return end;
       };
       const first = play(false);
-      expect(first.phase, game).not.toBe('play');
+      expect(['handOver', 'roundOver'], game).toContain(first.phase);
       expect(play(true), game).toEqual(first);
     }
   });

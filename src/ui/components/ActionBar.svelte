@@ -373,4 +373,10 @@
     color: #fff;
     box-shadow: 0 6px 18px rgba(212, 87, 58, 0.4);
   }
+  /* (a phone with the browser's bars showing: still the biggest, and the column's other button fits beside it) */
+  @media (max-height: 320px) {
+    .btn.slap {
+      min-height: 52px;
+    }
+  }
 </style>

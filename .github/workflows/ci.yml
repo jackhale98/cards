@@ -32,9 +32,14 @@ jobs:
       - run: pnpm test
       - run: pnpm build
 
-  # every game dealt in a real browser at phone, laptop and TV sizes (see e2e/layout.spec.ts)
+  # the browser tests (every game stepped through at phone, laptop and TV sizes: e2e/gallery.spec.ts;
+  # the flows people go through, in Chromium and WebKit), split three ways to run side by side
   e2e:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@v4
       # (the pnpm version comes from packageManager in package.json)
@@ -45,11 +50,11 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium webkit
-      - run: pnpm test:e2e
+      - run: pnpm test:e2e --shard=${{ matrix.shard }}/3
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.shard }}
           path: |
             playwright-report
             test-results

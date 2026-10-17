@@ -26,7 +26,7 @@ pnpm verify:all          # verify + e2e
 pnpm pictures            # a dozen games dealt from a fixed seed, held still (`?seed=7&still`, development only),
                          # photographed; `--update-snapshots` first, then again after a change: nothing may differ
                          # (e2e/gallery.spec.ts, in test:e2e: every game from a seed, stepped on with `__advance`,
-                         # screen-checked at the deal, mid-hand and the hand's end; a quick check before the audit)
+                         # screen-checked from the deal to the hand's end at every phone size, a laptop and a TV)
 AUDIT_GAMES=holdem,omaha pnpm audit:screens   # the screen audit (e2e/audit.spec.ts) for those games; `pnpm audit:screens`
                          # alone is every game (about an hour): run it when a change affects every table
 ```
@@ -148,7 +148,8 @@ browser layout tests cover a new game automatically.
   holds the table (no bot moves by itself), `__advance(n)` makes the next n moves the same way every
   time (`Host.step`: Easy bots thinking `steadily`), and the menu's "Copy debug snapshot" / the home
   screen's "Load debug snapshot" (`__snapshot()` / `__loadSnapshot(text)`) carry a table between
-  devices. `e2e/gallery.spec.ts` uses them to screen-check every game in a minute or two.
+  devices. `e2e/gallery.spec.ts` uses them to screen-check every game; a test that plays a game
+  through should step it from a seed too, not wait on live bots (only the real-time games need them).
 
 ## Style
 

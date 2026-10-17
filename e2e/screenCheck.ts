@@ -270,3 +270,48 @@ export async function screenProblems(page: Page): Promise<string[]> {
     return [...new Set(out)];
   });
 }
+
+/** Everything that matters is inside the window; nothing scrolled the page or the table sideways. */
+export function layoutProblems(page: Page, opts: { seatsMayScroll: boolean }): Promise<string[]> {
+  return page.evaluate(({ seatsMayScroll }) => {
+    const out: string[] = [];
+    const W = innerWidth;
+    const H = innerHeight;
+    const inside = (sel: string, el: Element) => {
+      const r = el.getBoundingClientRect();
+      if (!r.width || !r.height) return; // not shown
+      if (r.left < -1 || r.top < -1 || r.right > W + 1 || r.bottom > H + 1)
+        out.push(`${sel} off-screen: ${Math.round(r.left)},${Math.round(r.top)} → ${Math.round(r.right)},${Math.round(r.bottom)} in ${W}×${H}`);
+    };
+    if (document.documentElement.scrollWidth > W + 1) out.push(`page is ${document.documentElement.scrollWidth}px wide in a ${W}px window`);
+    const table = document.querySelector('.table');
+    if (table && table.scrollLeft) out.push(`table scrolled sideways by ${table.scrollLeft}px`);
+    // (what's inside the table may not be wider than it: it would be cut off, or shift it sideways)
+    if (table && table.scrollWidth > table.clientWidth + 1) out.push(`table content is ${table.scrollWidth}px wide in ${table.clientWidth}px`);
+    // the piles in the middle (deck, discard, pot…); a long row of melds may scroll in its strip
+    document.querySelectorAll('.zones > .zone-slot, .zones > .pot').forEach((el) => inside('pile', el));
+    for (const sel of ['.headline', '.zones', '.table:not(.display) .me', '.hand-wrap', 'aside', '.seats'])
+      document.querySelectorAll(sel).forEach((el) => inside(sel, el));
+    document.querySelectorAll('aside button').forEach((el) => inside('action button', el));
+    // the cards in the middle stay in the middle: clear of your hand below and the headline above
+    const footer = document.querySelector('.table:not(.display) footer')?.getBoundingClientRect();
+    const head = document.querySelector('.table:not(.display) main .headline')?.getBoundingClientRect();
+    // (the cards are drawn by the card layer, each where its zone's frame puts it)
+    const inMiddle = (el: Element) => {
+      const lc = el.closest<HTMLElement>('.layer-card');
+      if (!lc || lc.dataset.leaving || lc.dataset.frame === 'hand') return false;
+      return !!document.querySelector(`.zone[data-zone="${CSS.escape(lc.dataset.in ?? '')}"]`)?.closest('.table:not(.display) main');
+    };
+    [...document.querySelectorAll('.table:not(.display) .layer .card')].filter(inMiddle).forEach((el) => {
+      const r = el.getBoundingClientRect();
+      if (!r.width || !r.height) return;
+      if (footer && footer.height && r.bottom > footer.top + 2 && r.top < footer.bottom)
+        out.push(`a card in the middle reaches into the hand: its bottom ${Math.round(r.bottom)}, the hand's top ${Math.round(footer.top)}`);
+      if (head && head.height && r.top < head.bottom - 2 && r.bottom > head.top)
+        out.push(`a card in the middle reaches up over the headline: its top ${Math.round(r.top)}, the headline's bottom ${Math.round(head.bottom)}`);
+    });
+    // seats on a row that scrolls may sit out of view; on a table display every seat must show
+    if (!seatsMayScroll) document.querySelectorAll('.seat-slot').forEach((el) => inside('seat', el));
+    return out;
+  }, opts);
+}

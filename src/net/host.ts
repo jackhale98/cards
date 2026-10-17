@@ -649,7 +649,12 @@ export class Host {
       this.runSystem(sys, m);
       return this.state !== s || this.state?.v !== v;
     }
-    for (const p of s.players) {
+    // whose turn it is first, else round the table from after whoever moved last (all at once, as
+    // in a pass, everyone gets their go: the same seat again could take back what it just did)
+    const n = s.players.length;
+    const from = s.turn ?? this.#stepAfter + 1;
+    const order = s.players.map((_, i) => s.players[(((from + i) % n) + n) % n]);
+    for (const p of order) {
       const offered = m.actions(s, p.seat).filter((a) => !a.menu);
       if (!offered.length) continue;
       let a: Action | null;
@@ -664,11 +669,14 @@ export class Host {
           return pick ? resolveAction(s, p.seat, v.unfill(pick)) : null;
         });
       }
+      this.#stepAfter = p.seat;
       if (a && !this.applyAs(p.seat, a)) return true;
       for (const f of fallbackMoves(m.actions(s, p.seat))) if (!this.applyAs(p.seat, f)) return true;
     }
     return false;
   }
+  /** The seat that made the last step's move (see step). */
+  #stepAfter = -1;
 
   /**
    * The move a bot would make in `cid`'s seat right now (null: nothing to do). For driving a

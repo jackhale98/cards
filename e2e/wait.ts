@@ -68,3 +68,30 @@ export async function playOn(page: Page, { moves = 2, quietMs = 1000, land = tru
     if (!moved) break;
   }
 }
+
+/**
+ * Wait until the table has settled after a change the card layer may not have heard of yet (the
+ * window resized): its sizes (`__sizes`) and every card's place the same two frames running, with
+ * no card moving.
+ */
+export async function settled(page: Page) {
+  let last = '';
+  for (let i = 0; i < 30; i++) {
+    await cardsLanded(page);
+    const now = await page.evaluate(
+      () =>
+        new Promise<string>((done) =>
+          requestAnimationFrame(() =>
+            requestAnimationFrame(() =>
+              done(
+                `${innerWidth}x${innerHeight} ${JSON.stringify((window as unknown as { __sizes?: unknown }).__sizes ?? null)} ` +
+                  [...document.querySelectorAll<HTMLElement>('.layer-card')].map((el) => el.style.transform).join('|'),
+              ),
+            ),
+          ),
+        ),
+    );
+    if (now === last) return;
+    last = now;
+  }
+}
