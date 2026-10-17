@@ -240,10 +240,14 @@ export class Desk implements RemoteDesk {
   }
 
   private challenge(room: Room, peer: string, p: Peer, cid: string, want: Want) {
+    // (a hello again before the answer, as a phone says hello on finding us and again until it's
+    // in: the same question, so its answer to either one does. A new question would make its
+    // answer to the first look wrong)
+    const again = p.nonce && p.cid === cid && JSON.stringify(p.want) === JSON.stringify(want);
     p.cid = cid;
     p.want = want;
-    p.nonce = makeRoomCode() + makeRoomCode() + makeRoomCode();
-    this.send(room, peer, { t: 'evChallenge', n: p.nonce });
+    if (!again) p.nonce = makeRoomCode() + makeRoomCode() + makeRoomCode();
+    this.send(room, peer, { t: 'evChallenge', n: p.nonce! });
   }
 
   private proved(room: Room, peer: string, p: Peer, mac: unknown) {

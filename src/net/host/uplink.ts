@@ -82,9 +82,11 @@ export class Uplink {
     this.director = null;
     this.linked = false;
     this.transport = this.open(code);
-    // (our relay vouches for the director; elsewhere it says it's here)
+    // (our relay vouches for the director; elsewhere it says it's here: either way, one hello)
     this.transport.onPeerJoin = (peer) => {
-      if (this.transport.vouch?.(peer)) this.hello(peer);
+      if (!this.transport.vouch?.(peer)) return;
+      this.director = peer;
+      this.hello(peer);
     };
     this.transport.onPeerLeave = (peer) => {
       if (peer !== this.director) return;
@@ -190,7 +192,7 @@ export class Uplink {
 
   /** The table's progress (and, featured, its screen's view): at most every so often. */
   private progress(now = false) {
-    if (!this.director || this.closed) return;
+    if (!this.director || !this.linked || this.closed) return;
     const t = Date.now();
     if (now || t >= this.tileDue) {
       const tile = this.host.tile();
