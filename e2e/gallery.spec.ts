@@ -15,6 +15,7 @@ import { settled } from './wait';
  *  - the middle stands as tall as the table's sizes reckoned (layout/table.ts: `data-middle-h`),
  *    unless it couldn't fit even at the smallest cards and was scaled to fit;
  *  - nothing throws.
+ * (Tagged @gallery: CI runs these in parts of their own, the slowest tests here.)
  * Quick and repeatable, unlike the screen audit (pnpm audit:screens), which plays whole games
  * with live bots for an hour and keeps screenshots for a person to look over.
  */
@@ -130,7 +131,7 @@ async function problems(page: Page, o: { display: boolean }): Promise<string[]> 
 for (const [g, seats] of TABLES) {
   const what = seats === seatsFor(g) ? g.id : `${g.id} with ${seats}`;
 
-  test(`${what}: from the deal to the hand's end, at every phone size and a laptop`, async ({ page }) => {
+  test(`${what}: from the deal to the hand's end, at every phone size and a laptop`, { tag: '@gallery' }, async ({ page }) => {
     const errors: string[] = [];
     watch(page, errors);
     await page.setViewportSize(SCREENS[0]);
@@ -157,7 +158,7 @@ for (const [g, seats] of TABLES) {
     expect(errors).toEqual([]);
   });
 
-  test(`${what}: on a TV, with your phone in hand mode beside it`, async ({ page, context }) => {
+  test(`${what}: on a TV, with your phone in hand mode beside it`, { tag: '@gallery' }, async ({ page, context }) => {
     const errors: string[] = [];
     watch(page, errors);
     await page.setViewportSize(SCREENS[0]);

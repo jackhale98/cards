@@ -12,7 +12,8 @@ export default defineConfig({
   testDir: 'e2e',
   timeout: 60_000,
   fullyParallel: true,
-  workers: process.env.CI ? 2 : 4,
+  // (CI's runners have four cores: one is left for the dev server)
+  workers: process.env.CI ? 3 : 4,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
   use: {
@@ -22,7 +23,15 @@ export default defineConfig({
     launchOptions: process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHROMIUM } : undefined,
   },
   projects: [
-    { name: 'dev', testIgnore: /(csp|offline)\.spec/, use: { baseURL: `http://localhost:${PORT}` } },
+    // (the screen audit and the pictures only when asked for: left in, skipped, they'd still count when
+    // CI splits the tests into equal parts, and one part would be mostly tests that don't run)
+    {
+      name: 'dev',
+      testIgnore: new RegExp(
+        `(${['csp', 'offline', ...(process.env.AUDIT ? [] : ['audit']), ...(process.env.PICTURES ? [] : ['pictures'])].join('|')})\\.spec`,
+      ),
+      use: { baseURL: `http://localhost:${PORT}` },
+    },
     // the production build, served with the headers the real site sends (public/_headers)
     { name: 'production', testMatch: /(csp|offline)\.spec/, use: { baseURL: `http://localhost:${PORT + 1}` } },
     // Safari's engine (most of the phones at the table are iPhones): the flows people go through,
