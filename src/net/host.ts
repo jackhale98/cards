@@ -4,8 +4,8 @@ import { randomSeed } from '../engine/rng';
 import { RuleError, type Action, type GameModule, type GameState } from '../engine/types';
 import { checkAction } from '../engine/validate';
 import { getGame, GAMES, loadRules, rulesFor, startProblem } from '../games';
-import { inlineBrain, type Brain, type Pick, type Thought } from './brain';
-import { fallbackMoves } from '../engine/fallback';
+import { type Brain } from './brain';
+
 import {
   AVATAR_COLORS,
   AVATAR_EMOJI,
@@ -25,6 +25,7 @@ import {
 } from './protocol';
 import { seal } from './backup';
 import { Hands, noteScores, tally } from './host/history';
+import { Bots } from './host/bots';
 import type { ExportFormat } from './exports/formats';
 import { pingsMoved, VERSION_PATHS, wire } from './host/wire';
 import { cleanNightGame, standardFormats } from './host/records';
@@ -89,12 +90,10 @@ export class Host {
   lobby: Lobby;
   state: GameState | null = null;
   private module: GameModule | null = null;
-  private readonly brain: Brain;
-  /** Development and tests: every game dealt from this seed, and the table holding still (see opts). */
+  /** The bots and automatic steps (see host/bots.ts). */
+  private readonly bots: Bots;
+  /** Development and tests: every game dealt from this seed (see opts). */
   private readonly seed?: number;
-  private readonly still: boolean;
-  /** Counts requests to the brain: an answer to an older one (the table has moved on) is ignored. */
-  private thinking = 0;
   private history: GameState[] = [];
   /**
    * transport peer id → client id. Table screens are `screen:<cid>` and people the host won't seat
@@ -110,7 +109,6 @@ export class Host {
   private displays = new Set<string>();
   /** Identifies this host instance in views (see View.hid). */
   private readonly hid = Math.random().toString(36).slice(2, 10);
-  private timer: ReturnType<typeof setTimeout> | null = null;
   private heartbeat: ReturnType<typeof setInterval> | null = null;
   /** peer → last round-trip time and when we last heard from it */
   private health = new Map<string, { rtt: number | null; seen: number }>();
@@ -162,13 +160,27 @@ export class Host {
       still?: boolean;
     } = {},
   ) {
-    this.brain = opts.brain ?? inlineBrain();
     this.seed = opts.seed;
-    this.still = !!opts.still;
-    this.brain.onError = (e, game, phase) => {
-      console.error(e);
-      report('bot', e, { game, phase, action: 'think' });
-    };
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
+    const self = this;
+    this.bots = new Bots(
+      {
+        get state() {
+          return self.state;
+        },
+        get module() {
+          return self.module;
+        },
+        get closed() {
+          return self.closed;
+        },
+        grace: (s) => (this.takeBack?.after === s ? TAKE_BACK_MS : 0),
+        apply: (seat, a) => this.applyAs(seat, a),
+        system: (sys, module) => this.runSystem(sys, module),
+      },
+      opts.brain,
+      !!opts.still,
+    );
     this.backupKey = opts.backupKey;
     this.takeoverToken = opts.takeoverToken;
     this.keys = { ...(restore?.keys ?? {}) };
@@ -493,7 +505,7 @@ export class Host {
     // real-time games: when it arrived, and a believable reaction time (measured on the player's device)
     if (this.module.realtime)
       Object.assign(resolved, { at: Date.now(), rt: typeof a.rt === 'number' && isFinite(a.rt) ? Math.max(0, Math.min(10_000, a.rt)) : undefined });
-    this.rescued.clear();
+    this.bots.moved();
     return this.applyAs(seat, resolved);
   }
 
@@ -608,7 +620,7 @@ export class Host {
     this.tally();
     this.record();
     this.broadcast();
-    this.pump();
+    this.bots.pump();
   }
 
   // ---- replays ------------------------------------------------------------------------------
@@ -698,148 +710,6 @@ export class Host {
     this.broadcast();
   }
 
-  /** Run system steps (e.g. collecting a trick) and bot moves after a natural pause. */
-  private pump() {
-    if (this.timer) clearTimeout(this.timer);
-    this.timer = null;
-    const s = this.state;
-    const module = this.module;
-    if (!s || !module || this.still) return;
-    if (module.realtime) return this.pumpRealtime(s, module);
-    const sys = module.system?.(s);
-    // (a move that can still be taken back: give its player a moment before the table moves on)
-    const grace = this.takeBack?.after === s ? TAKE_BACK_MS : 0;
-    if (sys) {
-      this.timer = setTimeout(() => this.runSystem(sys, module), sys.delay + grace);
-      return;
-    }
-    if (!module.bot) return;
-    // (only bots with a move on offer: no sending the whole game off to think on a person's turn)
-    const seats = s.players.filter((p) => p.bot && module.actions(s, p.seat).some((a) => !a.menu)).map((p) => p.seat);
-    if (!seats.length) return;
-    // bots think (in the background, in the app), then move after a natural pause
-    const turn = ++this.thinking;
-    const asked = Date.now();
-    const pause = 650 + Math.random() * 600 + grace;
-    const then = (pick: Thought) => {
-      if (this.closed || turn !== this.thinking || this.state !== s || !pick) return; // (the table moved on)
-      const wait = Math.max(0, pause - (Date.now() - asked));
-      // a bot that failed still moves: something plain and legal (see rescue)
-      this.timer = setTimeout(() => (pick === 'failed' ? this.rescue(seats) : this.botMove(module, pick)), wait);
-    };
-    // each bot sees only its own seat's view (botView.ts); its answer comes back to the real deal
-    const views = new Map(seats.map((seat) => [seat, botView(module, s, seat)]));
-    const back = (pick: Thought): Thought => {
-      if (!pick || pick === 'failed') return pick;
-      const action = resolveAction(s, pick.seat, views.get(pick.seat)!.unfill(pick.action));
-      return action ? { seat: pick.seat, action } : 'failed';
-    };
-    let pick: ReturnType<Brain['think']>;
-    try {
-      pick = this.brain.think(module.config.id, Object.fromEntries([...views].map(([seat, v]) => [seat, v.view])), seats);
-    } catch (e) {
-      this.brain.onError(e, module.config.id, s.phase);
-      pick = 'failed';
-    }
-    if (pick instanceof Promise)
-      void pick.then(
-        (p) => then(back(p)),
-        (e) => {
-          this.brain.onError(e, module.config.id, s.phase);
-          then('failed');
-        },
-      );
-    else then(back(pick));
-  }
-
-  private botMove(module: GameModule, { seat, action: a }: Pick) {
-    const err = this.applyAs(seat, a);
-    if (!err) return this.rescued.clear();
-    console.warn(`Bot ${seat}: ${err}`, a);
-    // (a bot proposing a move the rules refuse is a bug in the bot)
-    report('bot', new Error(err), { game: module.config.id, phase: this.state?.phase ?? '', action: a.type });
-    this.rescue([seat]);
-  }
-
-  /**
-   * Never let a bot's mistake freeze the table: the first of these bots with anything to do makes
-   * the plainest legal move on offer (see fallbackMoves), trying each until the rules accept one.
-   */
-  private rescue(seats: number[]) {
-    const m = this.module;
-    if (!m || !this.state) return;
-    // (bots it has already moved for go last: some moves stay on offer once made, like a pass
-    // that can be changed until everyone has passed, and each stuck bot needs its turn)
-    const order = [...seats.filter((x) => !this.rescued.has(x)), ...seats.filter((x) => this.rescued.has(x))];
-    for (const seat of order)
-      for (const a of fallbackMoves(m.actions(this.state, seat)))
-        if (!this.applyAs(seat, a)) {
-          if (this.rescued.size >= seats.length) this.rescued.clear();
-          this.rescued.add(seat);
-          return;
-        }
-  }
-  /** Bots `rescue` has moved for since anyone else moved. */
-  private rescued = new Set<number>();
-
-  /** Real-time games: each bot's planned move, its key (to tell when the plan changes) and its timer. */
-  private botPlans = new Map<number, { key: string; timer: ReturnType<typeof setTimeout> }>();
-
-  /**
-   * Real-time games: the system step on its own timer, and every bot on its own, all at once. A
-   * bot keeps its timer while its plan stays the same (so a busy table doesn't keep pushing its
-   * reaction back), and starts a new one when the plan changes.
-   */
-  private pumpRealtime(s: GameState, module: GameModule) {
-    const sys = module.system?.(s);
-    if (sys)
-      this.timer = setTimeout(() => {
-        this.timer = null;
-        if (this.state && this.module === module) this.runSystem(sys, module);
-      }, sys.delay);
-    const keyOf = (a: Action) => JSON.stringify({ ...a, rt: undefined, at: undefined });
-    for (const p of s.players) {
-      if (!p.bot) continue;
-      const a = this.think(module, s, p.seat);
-      const plan = this.botPlans.get(p.seat);
-      if (!a) {
-        if (plan) clearTimeout(plan.timer);
-        this.botPlans.delete(p.seat);
-        continue;
-      }
-      const key = keyOf(a);
-      if (plan?.key === key) continue;
-      if (plan) clearTimeout(plan.timer);
-      const delay = Math.max(0, module.botDelay?.(s, p.seat, a) ?? 600);
-      const timer = setTimeout(() => {
-        this.botPlans.delete(p.seat);
-        if (!this.state || this.module !== module) return;
-        // still what it means to do?
-        const again = this.think(module, this.state, p.seat);
-        if (!again || keyOf(again) !== key) return this.pump();
-        const err = this.applyAs(p.seat, { ...a, rt: delay, at: Date.now() });
-        if (err) {
-          // (in a real-time game the table can move on under a bot: just think again)
-          this.pump();
-        }
-      }, delay);
-      this.botPlans.set(p.seat, { key, timer });
-    }
-  }
-
-  /** A bot's next move; a bot that throws is reported and sits this one out, not the whole table. */
-  private think(module: GameModule, s: GameState, seat: number): Action | null {
-    try {
-      const v = botView(module, s, seat);
-      const a = module.bot?.(v.view, seat);
-      return a ? resolveAction(s, seat, v.unfill(a)) : null;
-    } catch (e) {
-      console.error(e);
-      report('bot', e, { game: module.config.id, phase: s.phase, action: 'think' });
-      return null;
-    }
-  }
-
   /**
    * An automatic step (collect a trick, deal the next hand…). If the rules throw, the table would
    * freeze where it is: report it and leave the game as it was, so the host can still end it.
@@ -856,14 +726,6 @@ export class Host {
     }
     this.state = next;
     this.commit();
-  }
-
-  private clearTimers() {
-    if (this.timer) clearTimeout(this.timer);
-    this.timer = null;
-    this.thinking++;
-    for (const plan of this.botPlans.values()) clearTimeout(plan.timer);
-    this.botPlans.clear();
   }
 
   // ---- lobby controls (host device only) --------------------------------------------------
@@ -1211,7 +1073,7 @@ export class Host {
 
   /** Back to the lobby. */
   endGame() {
-    this.clearTimers();
+    this.bots.stop();
     this.lobby.started = false;
     this.state = null;
     this.module = null;
@@ -1233,12 +1095,12 @@ export class Host {
   /** Resume bots/system steps after restoring from a snapshot. */
   resume() {
     this.broadcast();
-    this.pump();
+    this.bots.pump();
   }
 
   close() {
     this.closed = true;
-    this.clearTimers();
+    this.bots.stop();
     for (const peer of [...this.helloPace.keys()]) this.forget(peer);
     if (this.backupTimer) clearTimeout(this.backupTimer);
     if (this.heartbeat) clearInterval(this.heartbeat);

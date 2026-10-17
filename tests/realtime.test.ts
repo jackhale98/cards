@@ -78,7 +78,8 @@ describe('real-time host', () => {
     const host = game('egyptian-rat-screw', 3);
     vi.advanceTimersByTime(3_000);
     host.endGame();
-    expect((host as unknown as { botPlans: Map<number, unknown> }).botPlans.size).toBe(0);
-    expect((host as unknown as { timer: unknown }).timer).toBeNull();
+    const bots = (host as unknown as { bots: { botPlans: Map<number, unknown>; waiting: unknown } }).bots;
+    expect(bots.botPlans.size).toBe(0);
+    expect(bots.waiting).toBeNull();
   });
 });
