@@ -42,6 +42,8 @@ export type Route =
   | { name: 'event'; code: string }
   /** The device directing a tournament. */
   | { name: 'direct'; code: string }
+  /** A device standing by to direct a tournament (`token`: from the director's standby link). */
+  | { name: 'standby'; code: string; token: string }
   /** A TV waiting to be paired with a table (`/tv`, or a Chromecast at `/?cast=1`). */
   | { name: 'tv' };
 
@@ -212,11 +214,12 @@ function takeInvite() {
 
 export function parseHash(hash = location.hash): Route {
   // (anything after a `?` in the hash is a setting someone added to the address, not the route)
-  const [, kind, code] = hash.replace(/\?.*$/, '').replace(/^#\/?/, '/').split('/');
+  const [, kind, code, token] = hash.replace(/\?.*$/, '').replace(/^#\/?/, '/').split('/');
   if (kind === 'room' && code) return { name: 'room', code: code.toUpperCase() };
   if (kind === 'display' && code) return { name: 'display', code: code.toUpperCase() };
   if (kind === 'event' && code) return { name: 'event', code: code.toUpperCase() };
   if (kind === 'direct' && code) return { name: 'direct', code: code.toUpperCase() };
+  if (kind === 'standby' && code && token) return { name: 'standby', code: code.toUpperCase(), token };
   if (kind === 'join' && code) return { name: 'home', code: code.toUpperCase() };
   if (kind === 'tv' || /\/tv\/?$/.test(location.pathname) || new URLSearchParams(location.search).has('cast')) return { name: 'tv' };
   return { name: 'home' };
@@ -398,11 +401,13 @@ class App {
   async sync() {
     const r = this.route;
     // (a tournament: its screens and phones talk to its director, not to a table)
-    const event = r.name === 'event' || r.name === 'direct' || (r.name === 'display' && isEventCode(r.code));
+    const event = r.name === 'event' || r.name === 'direct' || r.name === 'standby' || (r.name === 'display' && isEventCode(r.code));
     if (r.name !== 'event') this.events.closePhone();
+    if (r.name !== 'standby') this.events.closeStandby();
     if (!(r.name === 'display' && event)) this.events.closeScreen();
     if (r.name === 'home' || r.name === 'tv' || event) this.leave(false);
     if (r.name === 'event') return this.events.openPhone(r.code);
+    if (r.name === 'standby') return this.events.openStandby(r.code, r.token);
     if (r.name === 'direct') {
       if (!(await this.events.openDirector(r.code))) this.say('That tournament isn’t on this device');
       return;

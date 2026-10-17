@@ -8,6 +8,7 @@
   import EventStandings from '../components/EventStandings.svelte';
   import EventTiles from '../components/EventTiles.svelte';
   import Loader from '../components/Loader.svelte';
+  import StandbySheet from '../components/StandbySheet.svelte';
   import TvSheet from '../components/TvSheet.svelte';
   import { keepAwake } from '../wakeLock';
   import EventBoard from './EventBoard.svelte';
@@ -35,6 +36,7 @@
 
   let showBoard = $state(false);
   let tv = $state(false);
+  let standby = $state(false);
   let error = $state('');
 
   // the director's device keeps the whole tournament going: it doesn't sleep
@@ -58,6 +60,7 @@
 </script>
 
 {#if tv && d}<TvSheet table={d.code} onclose={() => (tv = false)} />{/if}
+{#if standby && d}<StandbySheet standby={d.standby} onclose={() => (standby = false)} />{/if}
 
 {#if showBoard && d}
   <EventBoard
@@ -99,6 +102,9 @@
         <div class="row">
           <button class="btn primary" onclick={() => (showBoard = true)}>Show the board</button>
           <button class="btn" onclick={() => (tv = true)}>TV</button>
+          <button class="btn" class:on={d.standby.linked > 0} onclick={() => (standby = true)} aria-label="Standby director"
+            >Standby{d.standby.linked ? ' ✓' : ''}</button
+          >
         </div>
       </header>
 

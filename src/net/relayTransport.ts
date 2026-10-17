@@ -102,6 +102,7 @@ export class RelayTransport implements Transport {
       this.retries = 0;
       if (this.backupKey) ws.send(this.depositText());
       for (const text of this.queue.splice(0)) ws.send(text);
+      for (const w of this.openWaiters.splice(0)) w();
       this.keepalive = setInterval(() => ws.readyState === WebSocket.OPEN && ws.send('ping'), KEEPALIVE_MS);
       this.startHeartbeat();
     };
@@ -345,6 +346,24 @@ export class RelayTransport implements Transport {
       this.ws.send(JSON.stringify({ k: 'takeover', host: newHostKey, ...(token ? { token } : {}) }));
     });
   }
+
+  /** Connected to the relay (false: not within `ms`). */
+  opened(ms = 8000): Promise<boolean> {
+    if (this.ws?.readyState === WebSocket.OPEN) return Promise.resolve(true);
+    if (this.closed) return Promise.resolve(false);
+    return new Promise((resolve) => {
+      const done = () => {
+        clearTimeout(timer);
+        resolve(true);
+      };
+      const timer = setTimeout(() => {
+        this.openWaiters = this.openWaiters.filter((w) => w !== done);
+        resolve(false);
+      }, ms);
+      this.openWaiters.push(done);
+    });
+  }
+  private openWaiters: (() => void)[] = [];
 
   /** The relay counts as one "relay"; `direct` is how many devices we reach without it. */
   relays(): { up: number; total: number; direct: number } {

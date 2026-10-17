@@ -3,9 +3,11 @@ import { getGame, loadRules, rulesFor } from './games';
 import { randomSeed } from './engine/rng';
 import { shareBrain, type Brain } from './net/brain';
 // (the director's code, and the host's it brings with it, load only on a device that directs: see openDirector)
-import type { Director, DirectorSnapshot } from './net/director';
-import type { Desk, DeskSaved } from './net/director/desk';
-import type { Registry, Member } from './net/director/registry';
+import type { Director } from './net/director';
+import type { Desk } from './net/director/desk';
+import type { Registry } from './net/director/registry';
+import { BACKUP_EVERY_MS, DIRECTOR_QUIET_MS, directorSave, roomEscrow, sealSave, takeOver, type DirectorSave } from './net/director/standby';
+import { newBackupKey } from './net/backup';
 import { newSecret, seatKeyFor, type SignedMove } from './net/eventCrypto';
 import type { BoardShow, EventPerson, TableTile } from './net/eventProtocol';
 import { EventLink, isOurMove, type EventIdentity } from './net/eventLink';
@@ -74,17 +76,23 @@ function saveEntry(e: Entry) {
   write(ENTRIES, [{ ...e, at: Date.now() }, ...rest].slice(0, 12));
 }
 
-/** What the director keeps on its device (to carry on after a reload). */
-interface DirectorSave {
-  v: 1;
-  code: string;
-  hostKey: string;
-  registry: Member[];
-  director: DirectorSnapshot;
-  desk: DeskSaved;
+const directorKey = (code: string) => `cards.director.${code}`;
+/** A standby's latest copy of a tournament (sealed), and its link's token. */
+const standbyKey = (code: string) => `cards.standby.${code}`;
+interface StandbyCopy {
+  token: string;
+  blob: string;
   at: number;
 }
-const directorKey = (code: string) => `cards.director.${code}`;
+/** Why a takeover didn't happen, as the standby is told. */
+const TAKEOVER_WHY: Record<string, string> = {
+  'host-here': 'The director’s device is still there — it may be back in a moment',
+  'too-soon': 'The director only just went quiet — try again in a few seconds',
+  'no-backup': 'Someone else has taken over already',
+  'not-a-player': 'That standby link isn’t this tournament’s',
+  offline: 'Couldn’t reach the Lamplight relay — check your connection',
+  'bad-copy': 'The copy of the tournament couldn’t be opened',
+};
 /** A table's host follows its own move after this long (its players' moves, passed on, go first). */
 const HOST_LEAVES_AFTER_MS = 1500;
 
@@ -104,6 +112,23 @@ export interface Directing {
   featured: number | null;
   live: View | null;
   show: BoardShow;
+  /** A standby director: the link to send its device, how many are standing by, and when the last copy went. */
+  standby: { link: string; linked: number; copiedAt: number | null; tooBig: boolean };
+}
+
+/** A standby director's view: the board, how old its copy is, whether the director has gone quiet. */
+export interface Standing {
+  code: string;
+  board: EventPublic | null;
+  people: EventPerson[];
+  tiles: { table: number; tile: TableTile | null }[];
+  live: { table: number; view: View } | null;
+  show: BoardShow;
+  /** How old its copy of the tournament is (null: none yet). */
+  copyAge: number | null;
+  quiet: boolean;
+  taking: boolean;
+  error: string | null;
 }
 
 export class Events {
@@ -120,11 +145,21 @@ export class Events {
   } | null>(null);
   /** The tournament this device directs. */
   directing = $state.raw<Directing | null>(null);
+  /** The tournament this device stands by to direct. */
+  standby = $state.raw<Standing | null>(null);
 
   private link: EventLink | null = null;
   private screenLink: EventLink | null = null;
   private uplink: Uplink | null = null;
-  private dir: { code: string; hostKey: string; director: Director; desk: Desk; registry: Registry; tables: ReturnType<typeof shareBrain> } | null = null;
+  private dir: {
+    code: string;
+    hostKey: string;
+    backup: DirectorSave['backup'];
+    director: Director;
+    desk: Desk;
+    registry: Registry;
+    tables: ReturnType<typeof shareBrain>;
+  } | null = null;
 
   constructor(private readonly app: EventHooks) {}
 
@@ -315,6 +350,8 @@ export class Events {
     ]);
     if (this.dir?.code === code) return true;
     const hostKey = save?.hostKey ?? crypto.randomUUID();
+    // (a standby's copies are sealed with `key`, left with the relay; its link carries `token`)
+    const backup = save?.backup ?? { key: newBackupKey(), token: newBackupKey() };
     let config: EventConfig | null = null;
     if (!save) {
       config = await this.configFor(fresh!.game, { name: `${this.app.name || 'Friday'}’s tournament`, format: 'swiss' });
@@ -349,13 +386,16 @@ export class Events {
         this.refresh();
         this.saveSoon();
       },
+      backup: { ...backup, escrow: roomEscrow((c) => open(c)) },
+      onStandby: () => this.backupSoon(true),
     }));
-    this.dir = { code, hostKey, director, desk, registry, tables };
+    this.dir = { code, hostKey, backup, director, desk, registry, tables };
     director.onChange = () => {
       desk.changed();
       this.refresh();
       this.saveSoon();
     };
+    director.resume();
     this.refresh();
     this.saveNow();
     return true;
@@ -470,6 +510,8 @@ export class Events {
     if (!d) return;
     if (forget) write(directorKey(d.code), null);
     else this.saveNow();
+    if (this.backupTimer) clearTimeout(this.backupTimer);
+    this.backupTimer = null;
     d.desk.close();
     d.director.close();
     d.tables.close();
@@ -499,6 +541,12 @@ export class Events {
       featured: d.desk.featured,
       live: d.desk.featured != null ? (d.director.link(d.desk.featured)?.view() ?? null) : null,
       show: d.desk.show,
+      standby: {
+        link: `${location.origin}${location.pathname}${location.search}#/standby/${d.code}/${d.backup.token}`,
+        linked: d.desk.standbys(),
+        copiedAt: d.desk.copiedAt,
+        tooBig: this.tooBig,
+      },
     };
   }
 
@@ -511,14 +559,105 @@ export class Events {
     this.saveTimer = null;
     const d = this.dir;
     if (!d) return;
-    write(directorKey(d.code), {
-      v: 1,
-      code: d.code,
-      hostKey: d.hostKey,
-      registry: d.registry.snapshot(),
-      director: d.director.snapshot(),
-      desk: d.desk.saved(),
-      at: Date.now(),
-    } satisfies DirectorSave);
+    write(directorKey(d.code), this.saveOf(d));
+    this.backupSoon();
+  }
+  private saveOf(d: NonNullable<typeof this.dir>): DirectorSave {
+    return directorSave({ code: d.code, hostKey: d.hostKey, registry: d.registry, director: d.director, desk: d.desk, backup: d.backup });
+  }
+
+  // ---- a standby director ---------------------------------------------------------------------
+
+  /** A fresh copy for the standbys (if any), at most every so often (`now`: one has just linked up). */
+  private backupSoon(now = false) {
+    const d = this.dir;
+    if (!d || !d.desk.standbys() || (this.backupTimer && !now)) return;
+    if (this.backupTimer) clearTimeout(this.backupTimer);
+    const wait = now ? 0 : Math.max(0, (d.desk.copiedAt ?? 0) + BACKUP_EVERY_MS - Date.now());
+    this.backupTimer = setTimeout(() => {
+      this.backupTimer = null;
+      if (this.dir !== d) return;
+      void sealSave(this.saveOf(d))
+        .then((blob) => {
+          if (this.dir !== d) return;
+          this.tooBig = !d.desk.sendBackup(blob);
+          this.refresh();
+        })
+        .catch((e) => console.warn('Couldn’t seal a copy for the standby', e));
+    }, wait);
+  }
+  private backupTimer: ReturnType<typeof setTimeout> | null = null;
+  private tooBig = false;
+
+  /** Stand by to direct tournament `code` (`token`: from the director's standby link). */
+  async openStandby(code: string, token: string) {
+    if (this.standingFor === code) return;
+    this.closeStandby();
+    this.standingFor = code;
+    const open = await eventRooms(this.app.net);
+    if (this.standingFor !== code) return;
+    const link = new EventLink((c) => open(c), { code, cid: `standby:${this.app.cid}`, name: 'Standby', secret: newSecret() }, { standby: token });
+    this.standbyLink = { link, token };
+    const kept = read<StandbyCopy | null>(standbyKey(code), null);
+    let copy = kept?.token === token ? kept : null;
+    const show = () => {
+      if (this.standbyLink?.link !== link) return;
+      if (link.backup && link.backup.at !== copy?.at) {
+        copy = { token, ...link.backup };
+        write(standbyKey(code), copy);
+      }
+      const was = this.standby;
+      this.standby = {
+        code,
+        board: link.board?.board ?? null,
+        people: link.board?.people ?? [],
+        tiles: link.board?.tiles ?? [],
+        live: link.board?.live ?? null,
+        show: link.board?.show ?? 'turn',
+        copyAge: copy ? Date.now() - copy.at : null,
+        quiet: Date.now() - link.heard > DIRECTOR_QUIET_MS || !!link.refused,
+        taking: was?.taking ?? false,
+        error: link.refused?.why ?? was?.error ?? null,
+      };
+    };
+    link.onChange = show;
+    show();
+    // (how old the copy is, and whether the director has gone quiet: looked at every so often, only while standing by)
+    this.standbyTimer = setInterval(show, 5000);
+  }
+  closeStandby() {
+    this.standbyLink?.link.close();
+    this.standbyLink = null;
+    if (this.standbyTimer) clearInterval(this.standbyTimer);
+    this.standbyTimer = null;
+    this.standby = null;
+    this.standingFor = null;
+  }
+  private standbyLink: { link: EventLink; token: string } | null = null;
+  private standbyTimer: ReturnType<typeof setInterval> | null = null;
+  private standingFor: string | null = null;
+
+  /**
+   * The director has gone quiet: take over. The relay hands over the key to the copy (and the
+   * director's rooms) only once the director's device has really gone; then this device directs,
+   * from the copy, and the tables on phones link up to it.
+   */
+  async takeOverDirecting() {
+    const s = this.standby;
+    const sb = this.standbyLink;
+    const copy = s ? read<StandbyCopy | null>(standbyKey(s.code), null) : null;
+    if (!s || !sb || s.taking || !copy || copy.token !== sb.token) return;
+    this.standby = { ...s, taking: true, error: null };
+    const open = await eventRooms(this.app.net);
+    const got = await takeOver({ code: s.code, blob: copy.blob, token: copy.token, escrow: roomEscrow((c) => open(c)), hostKey: crypto.randomUUID() });
+    if ('error' in got) {
+      if (this.standby) this.standby = { ...this.standby, taking: false, error: TAKEOVER_WHY[got.error] ?? 'Couldn’t take over the tournament' };
+      return;
+    }
+    write(directorKey(s.code), got);
+    write(standbyKey(s.code), null);
+    this.closeStandby();
+    this.app.go(`/direct/${s.code}`);
+    this.app.say('You’re directing the tournament now');
   }
 }

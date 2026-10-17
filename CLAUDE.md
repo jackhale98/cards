@@ -67,7 +67,8 @@ src/net/brain.ts       where bots think: botWorker.ts (a Web Worker) in the app,
                        shareBrain, one brain taking turns between several tables
 src/net/director.ts    a tournament's director: runs the event, seats each round's tables (TableLinks);
                        director/: desk (its rooms: signing up, moves to tables, the screens), registry,
-                       remote (a table a player hosts), tables (one hosted here: bots only)
+                       remote (a table a player hosts), tables (one hosted here: bots only), standby
+                       (a second device's sealed copy, and taking over through the relay's escrow)
 src/net/eventCrypto.ts each phone's secret: signed moves between tables, seat keys (sha256.ts: HMAC);
                        eventProtocol.ts the director's messages; eventLink.ts a phone's (or TV's) link
 src/event.svelte.ts    the app's side of tournaments: a phone signing up, a screen, directing
@@ -80,7 +81,7 @@ src/net/exports/       the standard records a game can also be saved as: PBN (br
                        (Hold'em, Omaha); formats.ts says which game gets which
                        (and PHH, poker for PokerKit: written only for checking, see tools/)
 src/ui/screens/        Home, Lobby, Table, TvScreen; EventDirector, EventBoard (a tournament on a big
-                       screen), EventPhone;  src/ui/components/  the pieces
+                       screen), EventPhone, EventStandby;  src/ui/components/  the pieces
 src/ui/table/          the table screen's parts: its sheets and columns (components), what shows where
                        (shown.ts), picking cards (selection), the sizes (sizing.svelte.ts over
                        layout/table.ts, the pure arithmetic); Table.svelte puts them together
@@ -116,7 +117,9 @@ docs/ADDING_A_GAME.md  how to add a game: read it before touching families or ga
 - **A tournament trusts its signatures.** Each phone's secret goes to the director once (only to the
   vouched director: `evHere`); after that it proves it holds it. A phone follows a move to another
   table only if it's signed with its own secret, and a table's host is given only its own table's seat
-  keys. Every network path is in `tests/eventNet.test.ts`.
+  keys. A standby director holds the tournament sealed, as players hold a table's backups: the key
+  is with the relay until the director has gone. Every network path is in `tests/eventNet.test.ts`
+  and `tests/eventTakeover.test.ts`.
 - **Rules load lazily.** UI and lobby code use `getGame(id)` (config and traits only). Only the
   host touches rules (`rulesFor`), after `loadRules`. Tests get every engine from `tests/games.ts`.
 - **The schema defines game.json.** Its types are generated (`pnpm gen:types`); a family reads

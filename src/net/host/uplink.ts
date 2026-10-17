@@ -107,6 +107,8 @@ export class Uplink {
       case 'evWelcome':
         this.director = from;
         this.linked = true;
+        // (its result again, game over: a director taking over may have missed it; a repeat is ignored)
+        this.host.resendResult();
         this.flush();
         this.progress(true);
         return;

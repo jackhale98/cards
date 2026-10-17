@@ -1,6 +1,6 @@
 import type { EventPersonal, EventPublic } from '../engine/events';
 import { checkMove, prove, type SignedMove } from './eventCrypto';
-import { BOARD_SHOWS, EVENT_PROTOCOL, type BoardShow, type EventOutMsg, type EventPerson, type TableTile } from './eventProtocol';
+import { BOARD_SHOWS, EVENT_PROTOCOL, MAX_COPY, type BoardShow, type EventOutMsg, type EventPerson, type TableTile } from './eventProtocol';
 import { cleanMove } from './director/clean';
 import { isValidCode, type Avatar, type Msg, type View } from './protocol';
 import type { Transport } from './transport';
@@ -41,6 +41,10 @@ export class EventLink {
     show: BoardShow;
   } | null = null;
   refused: { why: string; reload?: boolean } | null = null;
+  /** A standby: the director's latest copy of the tournament (sealed). */
+  backup: { blob: string; at: number } | null = null;
+  /** When the director was last heard from. */
+  heard = Date.now();
   onChange: () => void = () => {};
   onMove: (m: SignedMove) => void = () => {};
   private transport!: Transport;
@@ -51,8 +55,8 @@ export class EventLink {
   constructor(
     private readonly open: (code: string) => Transport,
     readonly id: EventIdentity,
-    /** A screen showing the event, rather than a player. */
-    private readonly screen = false,
+    /** A screen showing the event, rather than a player (`standby`: a standby director, with its link's token). */
+    private readonly screen: boolean | { standby: string } = false,
   ) {
     this.join(id.code);
     // (until the director answers: a lost hello, or the director not here yet)
@@ -90,7 +94,9 @@ export class EventLink {
     const peer = this.director;
     if (this.closed || !peer) return;
     const msg = this.screen
-      ? ({ t: 'evScreen', v: EVENT_PROTOCOL } as const)
+      ? typeof this.screen === 'object'
+        ? ({ t: 'evStandby', v: EVENT_PROTOCOL, token: this.screen.standby } as const)
+        : ({ t: 'evScreen', v: EVENT_PROTOCOL } as const)
       : this.id.joined
         ? ({ t: 'evBack', v: EVENT_PROTOCOL, cid: this.id.cid } as const)
         : ({ t: 'evJoin', v: EVENT_PROTOCOL, cid: this.id.cid, name: this.id.name, avatar: this.id.avatar, secret: this.id.secret } as const);
@@ -105,10 +111,17 @@ export class EventLink {
       return;
     }
     if (!this.isDirector(from)) return;
+    this.heard = Date.now();
     switch (msg.t) {
       case 'evChallenge':
         if (typeof msg.n !== 'string' || msg.n.length > 64) return;
         return this.transport.send({ t: 'evProve', mac: prove(this.id.secret, msg.n, 'me') }, from);
+      case 'evBackup':
+        if (typeof this.screen !== 'object' || typeof msg.blob !== 'string' || msg.blob.length > MAX_COPY || !Number.isFinite(msg.at)) return;
+        this.backup = { blob: msg.blob, at: msg.at };
+        return this.onChange();
+      case 'evAlive':
+        return;
       case 'evWelcome':
         this.welcomed = true;
         this.id.joined = true;

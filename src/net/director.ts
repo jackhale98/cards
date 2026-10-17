@@ -60,17 +60,28 @@ export class Director {
   constructor(private readonly o: DirectorOptions) {
     this.event = o.restore?.event ?? o.event;
     this.held = !!o.restore?.held;
-    // (back after a reload: the round's tables as they were)
+  }
+
+  /**
+   * Back after a reload (or a takeover): the round's tables as they were, and the next round in a
+   * while if this one's done. Once whatever makes the tables is ready (the desk, for those on
+   * phones), since they're made here.
+   */
+  resume() {
+    if (this.resumed) return;
+    this.resumed = true;
     const r = currentRound(this.event);
-    if (o.restore && r && this.event.phase !== 'registering')
+    const saved = this.o.restore;
+    if (saved && r && this.event.phase !== 'registering' && this.event.phase !== 'done')
       for (const t of r.tables) {
-        const link = o.makeTable(r.n, t, o.restore.tables[t.table]);
+        const link = this.o.makeTable(r.n, t, saved.tables[t.table]);
         this.listen(link, r, t);
         this.links.set(t.table, link);
-        if (!o.restore.tables[t.table]) link.seat(this.tableFor(r, t));
+        if (!saved.tables[t.table]) link.seat(this.tableFor(r, t));
       }
     if (this.event.phase === 'between') this.schedule();
   }
+  private resumed = false;
 
   /** What the screens and phones may see. */
   get view(): EventPublic {

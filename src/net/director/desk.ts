@@ -1,12 +1,13 @@
 import { addEntrant, currentRound, personalView, type Round, type TableRound } from '../../engine/events';
 import { isSecret, prove, same, signMove, type SignedMove } from '../eventCrypto';
-import { EVENT_PROTOCOL, type BoardShow, type EventInMsg, type EventOutMsg } from '../eventProtocol';
+import { EVENT_PROTOCOL, MAX_COPY, type BoardShow, type EventInMsg, type EventOutMsg } from '../eventProtocol';
 import type { Director } from '../director';
 import type { EventSeat } from '../host/event';
 import { cleanAvatar, makeRoomCode, type Msg } from '../protocol';
 import type { Transport } from '../transport';
 import type { Registry } from './registry';
 import { RemoteTable, type RemoteDesk } from './remote';
+import { ALIVE_EVERY_MS, type Escrow } from './standby';
 
 /**
  * The director's desk: its rooms, where phones sign up (and come back to find their table),
@@ -29,7 +30,7 @@ export const LIVE_TURN_MS = 15_000;
 
 type Want = { kind: 'back' } | { kind: 'link'; round: number; table: number };
 interface Peer {
-  kind: 'new' | 'player' | 'screen' | 'table';
+  kind: 'new' | 'player' | 'screen' | 'standby' | 'table';
   cid?: string;
   nonce?: string;
   want?: Want;
@@ -45,7 +46,8 @@ interface Room {
 
 export interface DeskSaved {
   rooms: string[];
-  tables: Record<number, { room: string; hostCid: string; tried: string[] }>;
+  /** Each table on a phone: its round, its room and who hosts it (who was asked before). */
+  tables: Record<number, { round: number; room: string; hostCid: string; tried: string[] }>;
   show?: BoardShow;
 }
 
@@ -74,6 +76,10 @@ export class Desk implements RemoteDesk {
       saved?: DeskSaved;
       /** Something changed at the desk (someone signed up, a table's progress). */
       onChange?: () => void;
+      /** A standby's copies: sealed with `key`, which goes to the relay in each room; its link carries `token`. */
+      backup?: { key: string; token: string; escrow: Escrow };
+      /** A standby has linked up (and wants a copy). */
+      onStandby?: () => void;
     },
   ) {
     this.openRoom(o.code);
@@ -90,6 +96,7 @@ export class Desk implements RemoteDesk {
   private openRoom(code: string): Room {
     const room: Room = { code, transport: this.o.open(code), peers: new Map() };
     this.rooms.set(code, room);
+    if (this.o.backup) this.o.backup.escrow.deposit(code, room.transport, this.o.backup.key, this.o.backup.token);
     room.transport.onPeerJoin = (peer) => {
       room.peers.set(peer, room.peers.get(peer) ?? { kind: 'new' });
       this.send(room, peer, { t: 'evHere' });
@@ -120,7 +127,7 @@ export class Desk implements RemoteDesk {
     if (!msg || typeof msg !== 'object' || typeof msg.t !== 'string') return;
     const p = room.peers.get(peer) ?? { kind: 'new' as const };
     room.peers.set(peer, p);
-    const hello = msg.t === 'evJoin' || msg.t === 'evBack' || msg.t === 'evLink' || msg.t === 'evScreen';
+    const hello = msg.t === 'evJoin' || msg.t === 'evBack' || msg.t === 'evLink' || msg.t === 'evScreen' || msg.t === 'evStandby';
     if (hello) {
       if (msg.v !== EVENT_PROTOCOL)
         return this.send(room, peer, { t: 'evRefused', why: 'This tournament runs on another version of Lamplight: reload the page', reload: true });
@@ -148,6 +155,15 @@ export class Desk implements RemoteDesk {
       case 'evScreen':
         p.kind = 'screen';
         return this.sendBoard(room, peer);
+      case 'evStandby':
+        if (!this.o.backup || typeof msg.token !== 'string' || !same(msg.token, this.o.backup.token))
+          return this.send(room, peer, { t: 'evRefused', why: 'That standby link isn’t this tournament’s' });
+        p.kind = 'standby';
+        this.sendBoard(room, peer);
+        if (this.copy) this.send(room, peer, { t: 'evBackup', ...this.copy });
+        this.alive();
+        this.o.onStandby?.();
+        return;
       case 'evPartner':
         if (p.kind !== 'player' || !p.cid || this.event.phase !== 'registering') return;
         this.o.registry.setPartner(p.cid, typeof msg.with === 'string' ? msg.with : null);
@@ -248,7 +264,9 @@ export class Desk implements RemoteDesk {
 
   /** A link to a table hosted by one of its players (`saved`: as it was, the director coming back). */
   remote(round: number, t: TableRound): RemoteTable {
-    const r = new RemoteTable(this, round, t.seats, t.table, round === currentRound(this.event)?.n ? this.o.saved?.tables[t.table] : undefined);
+    // (back after a reload or a takeover: the round's table where it was; a later round's is placed afresh)
+    const saved = this.o.saved?.tables[t.table];
+    const r = new RemoteTable(this, round, t.seats, t.table, saved?.round === round ? saved : undefined);
     // (last round's table of this number stays reachable: moves reach its players through it)
     const last = this.remotes.get(t.table);
     if (last) this.retired.add(last);
@@ -418,7 +436,7 @@ export class Desk implements RemoteDesk {
       this.o.onChange?.();
       for (const room of this.rooms.values())
         // (the screens, and the phones waiting here: signing up, a bye, knocked out, or the event over)
-        for (const [peer, p] of room.peers) if (p.kind === 'screen' || p.kind === 'player') this.sendBoard(room, peer);
+        for (const [peer, p] of room.peers) if (p.kind === 'screen' || p.kind === 'standby' || p.kind === 'player') this.sendBoard(room, peer);
     }, BOARD_EVERY_MS);
   }
 
@@ -433,6 +451,44 @@ export class Desk implements RemoteDesk {
       live: live ? { table: this.featured!, view: live } : null,
       show: this.show,
     });
+  }
+
+  // ---- a standby director ------------------------------------------------------------------
+
+  /** The latest copy for the standby (sealed: see standby.ts). */
+  private copy: { blob: string; at: number } | null = null;
+  private aliveTimer: ReturnType<typeof setInterval> | null = null;
+
+  /** How many standbys are linked up. */
+  standbys(): number {
+    let n = 0;
+    for (const room of this.rooms.values()) for (const p of room.peers.values()) if (p.kind === 'standby') n++;
+    return n;
+  }
+
+  /** A fresh copy for the standbys (false: too big to send). */
+  sendBackup(blob: string): boolean {
+    if (blob.length > MAX_COPY) return false;
+    this.copy = { blob, at: Date.now() };
+    for (const room of this.rooms.values())
+      for (const [peer, p] of room.peers) if (p.kind === 'standby') this.send(room, peer, { t: 'evBackup', ...this.copy });
+    return true;
+  }
+  get copiedAt(): number | null {
+    return this.copy?.at ?? null;
+  }
+
+  /** While a standby is linked: a word every so often, so it can tell the director's still here (a timer only then). */
+  private alive() {
+    if (this.aliveTimer || this.closed) return;
+    this.aliveTimer = setInterval(() => {
+      if (!this.standbys()) {
+        clearInterval(this.aliveTimer!);
+        this.aliveTimer = null;
+        return;
+      }
+      for (const room of this.rooms.values()) for (const [peer, p] of room.peers) if (p.kind === 'standby') this.send(room, peer, { t: 'evAlive' });
+    }, ALIVE_EVERY_MS);
   }
 
   /** The progress of each table this round (for the tiles), wherever it's hosted. */
@@ -451,7 +507,9 @@ export class Desk implements RemoteDesk {
     return {
       rooms: [...this.rooms.keys()],
       tables: Object.fromEntries(
-        [...this.remotes].filter(([, t]) => t.room && t.hostCid).map(([n, t]) => [n, { room: t.room!, hostCid: t.hostCid!, tried: [...t.tried] }]),
+        [...this.remotes]
+          .filter(([, t]) => t.room && t.hostCid)
+          .map(([n, t]) => [n, { round: t.round, room: t.room!, hostCid: t.hostCid!, tried: [...t.tried] }]),
       ),
       show: this.show,
     };
@@ -461,6 +519,7 @@ export class Desk implements RemoteDesk {
     this.closed = true;
     if (this.boardTimer) clearTimeout(this.boardTimer);
     if (this.liveTimer) clearInterval(this.liveTimer);
+    if (this.aliveTimer) clearInterval(this.aliveTimer);
     for (const t of this.timers) clearTimeout(t);
     for (const r of this.rooms.values()) r.transport.leave();
   }

@@ -41,6 +41,9 @@ export interface EventPerson {
 export type BoardShow = 'turn' | 'tables' | 'standings' | 'bracket' | 'live';
 export const BOARD_SHOWS: readonly BoardShow[] = ['turn', 'tables', 'standings', 'bracket', 'live'];
 
+/** A standby's copy, at most (the relay passes on up to 512 KB a message). */
+export const MAX_COPY = 480_000;
+
 /** To the director. */
 export type EventInMsg =
   /** Signing up: who they are and their secret (sent this once). */
@@ -53,6 +56,8 @@ export type EventInMsg =
   | { t: 'evProve'; mac: string }
   /** A screen showing the event. */
   | { t: 'evScreen'; v: number }
+  /** A standby director (a screen too), with the token from its link. */
+  | { t: 'evStandby'; v: number; token: string }
   /** Partnership games: who they'd like to partner (null: nobody yet). */
   | { t: 'evPartner'; with: string | null }
   /** From a table's host: its news (sent again until acknowledged), its progress, its screen's view while featured. */
@@ -91,6 +96,10 @@ export type EventOutMsg =
   | { t: 'evFeature'; on: boolean }
   /** Pass these moves on to the players at the table (each signed for its player: see eventCrypto). */
   | { t: 'evForward'; moves: { cid: string; move: SignedMove }[] }
-  | { t: 'evAck'; id: number };
+  | { t: 'evAck'; id: number }
+  /** To a standby: the latest copy of the tournament, sealed (see director/standby.ts), and when it was made. */
+  | { t: 'evBackup'; blob: string; at: number }
+  /** To a standby: the director is still here. */
+  | { t: 'evAlive' };
 
 export type EventMsg = EventInMsg | EventOutMsg;

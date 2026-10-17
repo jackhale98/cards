@@ -10,7 +10,7 @@ import { settled } from './wait';
  * (`?seed=7&still`, `__eventStep`: development builds) so each moment is the same every run.
  * Nothing may overlap, run off the screen or be cut off (the screen audit's firm findings).
  */
-test.setTimeout(180_000);
+test.setTimeout(300_000);
 test.use({ reducedMotion: 'reduce' });
 
 const URL = '/?net=local&seed=7&still';
@@ -67,9 +67,20 @@ test('a Swiss: the desk and the board fit every screen, from signing up to the f
   await expect(tv.locator('.board .join-code')).toContainText(code);
   await expect(tv.locator('.people li')).toHaveCount(17);
 
+  // a standby director: the board, with its bar
+  await desk.getByRole('button', { name: 'Standby director' }).click();
+  const link = await desk.getByLabel('Standby link').inputValue();
+  const standby = await context.newPage();
+  standby.on('pageerror', (e) => errors.push(e.message));
+  await standby.goto(link);
+  await expect(standby.getByText('Copy of the tournament from')).toBeVisible({ timeout: 20_000 });
+
   const found: string[] = [];
+  found.push(...(await problems(desk, DESK_SIZES, 'the desk, the standby sheet')));
+  await desk.getByRole('dialog').getByRole('button', { name: 'Close' }).click();
   found.push(...(await problems(desk, DESK_SIZES, 'the desk, signing up')));
   found.push(...(await problems(tv, BOARD_SIZES, 'the board, signing up')));
+  found.push(...(await problems(standby, BOARD_SIZES, 'the standby, signing up')));
 
   await desk.setViewportSize({ width: 1280, height: 800 });
   await desk.getByRole('button', { name: 'Start the tournament' }).click();
@@ -106,6 +117,7 @@ test('a Swiss: the desk and the board fit every screen, from signing up to the f
   await expect(desk.getByText('Final standings')).toBeVisible();
   await expect(tv.locator('.standings')).toBeVisible();
   found.push(...(await problems(desk, DESK_SIZES, 'the desk, done')));
+  found.push(...(await problems(standby, BOARD_SIZES, 'the standby, done')));
   found.push(...(await problems(tv, BOARD_SIZES, 'the board, done')));
   expect(found).toEqual([]);
   expect(errors).toEqual([]);

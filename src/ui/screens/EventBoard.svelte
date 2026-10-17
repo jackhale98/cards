@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { Snippet } from 'svelte';
   import { inviteUrl } from '../../app.svelte';
   import type { EventPublic } from '../../engine/events';
   import { getGame } from '../../games';
@@ -26,8 +27,10 @@
     show: BoardShow;
     /** The director's own screen: a way back to the desk. */
     onclose?: () => void;
+    /** A bar along the bottom (a standby director's), kept clear of what the board shows. */
+    bar?: Snippet;
   }
-  let { code, board, people, tiles, live, show, onclose }: Props = $props();
+  let { code, board, people, tiles, live, show, onclose, bar }: Props = $props();
 
   let w = $state(innerWidth);
   let h = $state(innerHeight);
@@ -87,6 +90,7 @@
       <span><b>Table {live.table}</b> · {board?.name}</span>
       {#if onclose}<button class="btn quiet" onclick={onclose}>Back to the desk</button>{/if}
     </div>
+    {#if bar}<div class="live-bar">{@render bar()}</div>{/if}
   </div>
 {:else}
   <main class="board">
@@ -142,6 +146,7 @@
     {:else if showing === 'bracket' && board.bracket}
       <EventBracket bracket={board.bracket} {names} />
     {/if}
+    {#if bar}<div class="bar">{@render bar()}</div>{/if}
   </main>
 {/if}
 
@@ -259,6 +264,22 @@
     align-items: center;
     gap: 0.8rem;
     white-space: nowrap;
+  }
+  /* (at the end of the board, and at the bottom of the screen as it scrolls: never over what it shows at the end) */
+  .bar {
+    margin-top: auto;
+    position: sticky;
+    bottom: 0;
+    align-self: flex-end;
+    max-width: 100%;
+    z-index: 2;
+  }
+  .live-bar {
+    position: absolute;
+    right: 0.8rem;
+    bottom: 0.8rem;
+    z-index: 30;
+    max-width: calc(100% - 1.6rem);
   }
   @media (orientation: portrait), (max-width: 620px) {
     header {

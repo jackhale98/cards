@@ -20,7 +20,9 @@ function botEvent(game: string, seats: number, entrants: number, more: Partial<E
 const makeTable = (round: number, t: TableRound, restore?: HostSnapshot) => new LocalTable(round, t.table, { code: `R${round}T${t.table}`, restore });
 
 function director(event: EventState, restore?: DirectorSnapshot) {
-  return new Director({ event, code: 'BCDFGH', makeTable, keyFor: (m) => `key-${m}`, pause: null, restore });
+  const d = new Director({ event, code: 'BCDFGH', makeTable, keyFor: (m) => `key-${m}`, pause: null, restore });
+  d.resume();
+  return d;
 }
 
 /** Step the whole event (or `limit` steps). */

@@ -16,7 +16,7 @@ export class LocalTransport implements Transport {
   private ch: BroadcastChannel;
   private peers = new Set<string>();
 
-  constructor(code: string) {
+  constructor(private readonly code: string) {
     this.ch = new BroadcastChannel(`cards-room-${code}`);
     this.ch.onmessage = (e: MessageEvent<Envelope>) => this.receive(e.data);
     addEventListener('pagehide', () => this.leave());
@@ -54,5 +54,52 @@ export class LocalTransport implements Transport {
     this.post({ k: 'gone', from: this.selfId });
     this.closed = true;
     this.ch.close();
+    if (this.heartbeat) clearInterval(this.heartbeat);
+    this.heartbeat = null;
+  }
+
+  // ---- the relay's escrow, stood in for in this browser (a tournament's standby director: see director/standby.ts)
+
+  private heartbeat: ReturnType<typeof setInterval> | null = null;
+  private get escrowKey() {
+    return `cards.escrow.${this.code}`;
+  }
+
+  /** Hosting: leave the key with "the relay" (this browser's storage), and say we're here every so often. */
+  deposit(key: string, token: string) {
+    const write = () => {
+      try {
+        localStorage.setItem(this.escrowKey, JSON.stringify({ key, token, alive: Date.now() }));
+      } catch {
+        /* private mode */
+      }
+    };
+    write();
+    if (this.heartbeat) clearInterval(this.heartbeat);
+    this.heartbeat = setInterval(() => !this.closed && write(), LOCAL_ALIVE_MS);
+  }
+
+  /** Take over a room whose host has gone (as the relay does: once, with the token, after a while). */
+  async takeover(_newHostKey: string, token: string): Promise<{ key?: string; error?: string }> {
+    let e: { key: string; token: string; alive: number } | null = null;
+    try {
+      e = JSON.parse(localStorage.getItem(this.escrowKey) ?? 'null');
+    } catch {
+      /* none */
+    }
+    if (!e) return { error: 'no-backup' };
+    if (Date.now() - e.alive < LOCAL_GONE_MS) return { error: 'host-here' };
+    if (e.token !== token) return { error: 'not-a-player' };
+    localStorage.removeItem(this.escrowKey);
+    return { key: e.key };
+  }
+
+  opened() {
+    return Promise.resolve(true);
   }
 }
+
+/** A host leaving its key here says it's still around this often… */
+const LOCAL_ALIVE_MS = 4000;
+/** …and has gone once it hasn't for this long. */
+const LOCAL_GONE_MS = 10_000;

@@ -22,6 +22,7 @@
   // (a tournament's screens: only for those in one)
   const eventPhone = () => import('./ui/screens/EventPhone.svelte');
   const eventDirector = () => import('./ui/screens/EventDirector.svelte');
+  const eventStandby = () => import('./ui/screens/EventStandby.svelte');
   const eventBoard = () => import('./ui/screens/EventBoard.svelte');
   const screen = $derived(app.events.screen);
   $effect(() => {
@@ -81,6 +82,8 @@
   {#await eventPhone()}{@render waiting()}{:then m}<m.default />{/await}
 {:else if route.name === 'direct'}
   {#await eventDirector()}{@render waiting()}{:then m}<m.default />{/await}
+{:else if route.name === 'standby'}
+  {#await eventStandby()}{@render waiting()}{:then m}<m.default />{/await}
 {:else if route.name === 'display' && isEventCode(route.code)}
   {#await eventBoard()}{@render waiting()}{:then m}
     <m.default

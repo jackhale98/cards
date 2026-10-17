@@ -4,6 +4,7 @@ import { Client } from '../src/net/client';
 import { Director } from '../src/net/director';
 import { Desk } from '../src/net/director/desk';
 import { Registry } from '../src/net/director/registry';
+import { directorSave, type DirectorSave, type Escrow } from '../src/net/director/standby';
 import { LocalTable } from '../src/net/director/tables';
 import { newSecret, seatKeyFor, type SignedMove } from '../src/net/eventCrypto';
 import { EventLink, isOurMove, type EventIdentity } from '../src/net/eventLink';
@@ -96,12 +97,24 @@ export class Phone {
   }
 }
 
-export function director(net: Net, cfg: Partial<EventConfig> = {}, o: { still?: boolean } = {}) {
-  const registry = new Registry();
-  const event = createEvent(
-    { name: 'Swiss', format: 'swiss', game: { id: 'gin-rummy', options: { target: 25 } }, seats: 2, sides: [[0], [1]], host: 'player', rounds: 2, ...cfg },
-    11,
-  );
+/**
+ * A director and its desk, as the app makes them (see src/event.svelte.ts): a new tournament, or
+ * one carried on from a save (`restore`: a standby taking over). `backup`: it keeps a standby's
+ * copy (`save()` is what goes in it).
+ */
+export function director(
+  net: Net,
+  cfg: Partial<EventConfig> = {},
+  o: { still?: boolean; backup?: { key: string; token: string; escrow: Escrow }; restore?: DirectorSave } = {},
+) {
+  const registry = new Registry(o.restore?.registry);
+  const event =
+    o.restore?.director.event ??
+    createEvent(
+      { name: 'Swiss', format: 'swiss', game: { id: 'gin-rummy', options: { target: 25 } }, seats: 2, sides: [[0], [1]], host: 'player', rounds: 2, ...cfg },
+      11,
+    );
+  const backup = o.backup ?? o.restore?.backup ?? { key: '', token: '' };
   // (the director's tables are the desk's, and the desk works for the director: each made knowing the other)
   const ref: { desk?: Desk } = {};
   const d = new Director({
@@ -110,16 +123,27 @@ export function director(net: Net, cfg: Partial<EventConfig> = {}, o: { still?: 
     pause: null,
     onRound: (r) => ref.desk!.round(r),
     keyFor: (m, round, table) => seatKeyFor(registry.secretOf(m)!, CODE, round, table),
-    makeTable: (round, t) => {
+    makeTable: (round, t, restore) => {
       if (t.seats.some((s) => s.member)) return ref.desk!.remote(round, t);
-      const local = new LocalTable(round, t.table, { code: `B${round}${t.table}`, still: o.still });
+      const local = new LocalTable(round, t.table, { code: `B${round}${t.table}`, still: o.still, restore });
       local.onView = () => ref.desk?.viewed(t.table);
       return local;
     },
+    restore: o.restore?.director,
   });
-  const desk = (ref.desk = new Desk({ code: CODE, registry, director: () => d, open: (code) => net.open(code, true) }));
+  const desk = (ref.desk = new Desk({
+    code: CODE,
+    registry,
+    director: () => d,
+    open: (code) => net.open(code, true),
+    saved: o.restore?.desk,
+    ...(o.backup ? { backup: o.backup } : {}),
+  }));
   d.onChange = () => desk.changed();
-  return { d, desk, registry };
+  d.resume();
+  const save = () =>
+    directorSave({ code: CODE, hostKey: o.restore?.hostKey ?? 'host-key', registry, director: d, desk, backup: { key: backup.key, token: backup.token } });
+  return { d, desk, registry, save };
 }
 
 /** Let the network settle: connections join, hellos are answered (paced), moves followed. */

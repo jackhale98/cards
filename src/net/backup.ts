@@ -32,7 +32,7 @@ async function squeeze(data: Uint8Array, how: 'compress' | 'decompress'): Promis
  * repetitive JSON: about a fifth the size, which players on a phone's data notice over a long
  * game night.)
  */
-export async function seal(snap: HostSnapshot, key: string): Promise<string> {
+export async function seal(snap: HostSnapshot | object, key: string): Promise<string> {
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const plain = new TextEncoder().encode(JSON.stringify(snap));
   const data = await squeeze(plain, 'compress');
@@ -44,10 +44,10 @@ export async function seal(snap: HostSnapshot, key: string): Promise<string> {
 }
 
 /** Open a sealed snapshot (throws if the key is wrong or the backup was tampered with). An uncompressed one, without the `z.`, is from before backups were compressed (one saved on this phone). */
-export async function open(blob: string, key: string): Promise<HostSnapshot> {
+export async function open<T = HostSnapshot>(blob: string, key: string): Promise<T> {
   const zip = blob.startsWith('z.');
   const [iv, data] = (zip ? blob.slice(2) : blob).split('.');
   const sealed = new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(iv) }, await importKey(key), unb64(data)));
   const plain = zip ? await squeeze(sealed, 'decompress') : sealed;
-  return JSON.parse(new TextDecoder().decode(plain)) as HostSnapshot;
+  return JSON.parse(new TextDecoder().decode(plain)) as T;
 }
