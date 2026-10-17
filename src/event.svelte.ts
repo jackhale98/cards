@@ -351,11 +351,14 @@ export class Events {
       pause: this.app.still ? null : ROUND_PAUSE_MS,
       keyFor: (m, round, table) => seatKeyFor(registry.secretOf(m) ?? '', code, round, table),
       makeTable: (round, t, { restore, room } = {}) => {
-        if (!room && t.seats.some((s) => s.member)) return ref.desk!.remote(round, t);
-        // (hosted here: in the room its people play in, or, bots in every seat, with no network)
+        // (on one of its players' phones, unless the director hosts the tables, or this one now)
+        const people = t.seats.some((s) => s.member);
+        if (people && !room && director.event.config.host !== 'director') return ref.desk!.remote(round, t);
+        // (hosted here: in a room for the people who play there, or, bots in every seat, with no network)
+        const at = room ?? (people ? makeRoomCode() : null);
         const local = new LocalTable(round, t.table, {
-          code: room ?? makeRoomCode(),
-          transport: room ? ref.desk!.tableRoom(room) : null,
+          code: at ?? makeRoomCode(),
+          transport: at ? ref.desk!.tableRoom(at) : null,
           brain: tables.table(`${round}:${t.table}`),
           restore,
           still: this.app.still,
@@ -422,11 +425,11 @@ export class Events {
     if (!d || d.director.event.phase !== 'registering') return;
     const c = await this.configFor(game, d.director.event.config);
     if (!c || !this.dir) return;
-    Object.assign(d.director.event.config, { ...c, rounds: d.director.event.config.rounds });
+    Object.assign(d.director.event.config, { ...c, rounds: d.director.event.config.rounds, host: d.director.event.config.host });
     d.director.onChange();
   }
-  /** Before the start: the format, a setting of the game, the event's name, Swiss's rounds, a knockout's advancing. */
-  setConfig(change: Partial<Pick<EventConfig, 'format' | 'name' | 'rounds' | 'advance'>> & { option?: { id: string; value: number | boolean } }) {
+  /** Before the start: the format, a setting of the game, the event's name, Swiss's rounds, a knockout's advancing, who hosts the tables. */
+  setConfig(change: Partial<Pick<EventConfig, 'format' | 'name' | 'rounds' | 'advance' | 'host'>> & { option?: { id: string; value: number | boolean } }) {
     const d = this.dir;
     if (!d || d.director.event.phase !== 'registering') return;
     const c = d.director.event.config;
@@ -434,6 +437,7 @@ export class Events {
     if (typeof change.name === 'string') c.name = change.name.trim().slice(0, 40) || c.name;
     if (change.rounds !== undefined) c.rounds = change.rounds > 0 ? Math.min(20, Math.round(change.rounds)) : undefined;
     if (change.advance !== undefined) c.advance = Math.max(1, Math.min(2, Math.round(change.advance)));
+    if (change.host === 'player' || change.host === 'director') c.host = change.host;
     if (change.option) c.game.options = { ...c.game.options, [change.option.id]: change.option.value };
     d.director.onChange();
   }

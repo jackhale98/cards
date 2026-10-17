@@ -61,9 +61,11 @@ src/net/host.ts        the authoritative host: seats and keys, checking and appl
 src/net/brain.ts       where bots think: botWorker.ts (a Web Worker) in the app, inline in tests;
                        shareBrain, one brain taking turns between several tables
 src/net/director.ts    a tournament's director: runs the event, seats each round's tables (TableLinks);
-                       director/: desk (its rooms: signing up, moves to tables, the screens), registry,
-                       remote (a table a player hosts), tables (one hosted here: bots only), standby
-                       (a second device's sealed copy, and taking over through the relay's escrow)
+                       director/: desk (its rooms: signing up, moves to tables, the screens, taking over
+                       a table whose host's phone goes quiet), registry, remote (a table a player hosts),
+                       tables (one hosted here: bots only, every table when the director chooses, or one
+                       taken over), standby (a second device's sealed copy, and taking over through the
+                       relay's escrow)
 src/net/eventCrypto.ts each phone's secret: signed moves between tables, seat keys (sha256.ts: HMAC);
                        eventProtocol.ts the director's messages; eventLink.ts a phone's (or TV's) link
 src/event.svelte.ts    the app's side of tournaments: a phone signing up, a screen, directing
@@ -113,8 +115,9 @@ docs/ADDING_A_GAME.md  how to add a game: read it before touching families or ga
   vouched director: `evHere`); after that it proves it holds it. A phone follows a move to another
   table only if it's signed with its own secret, and a table's host is given only its own table's seat
   keys. A standby director holds the tournament sealed, as players hold a table's backups: the key
-  is with the relay until the director has gone. Every network path is in `tests/eventNet.test.ts`
-  and `tests/eventTakeover.test.ts`.
+  is with the relay until the director has gone; likewise the director holds each player-hosted
+  table's backup, sealed, until that table's host has gone quiet. Every network path is in
+  `tests/eventNet.test.ts`, `tests/eventTakeover.test.ts` and `tests/eventRobust.test.ts`.
 - **Rules load lazily.** UI and lobby code use `getGame(id)` (config and traits only). Only the
   host touches rules (`rulesFor`), after `loadRules`. Tests get every engine from `tests/games.ts`.
 - **The schema defines game.json.** Its types are generated (`pnpm gen:types`); a family reads

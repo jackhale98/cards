@@ -49,6 +49,8 @@ interface Peer {
   table?: RemoteTable;
   /** The last personal view sent (sent again only when it changes). */
   you?: string;
+  /** A phone waiting here: the last board sent it (likewise). */
+  board?: string;
   /** A phone at a table: it hears where to go next, but not the board. */
   quiet?: boolean;
 }
@@ -189,7 +191,8 @@ export class Desk implements RemoteDesk {
       case 'evQuiet':
         if (p.kind !== 'player') return;
         p.quiet = msg.on === true;
-        if (!p.quiet) this.sendBoard(room, peer);
+        delete p.board;
+        if (!p.quiet) this.sendPhoneBoard(room, peer, p, this.phoneBoard());
         return;
       case 'evStandby':
         if (!this.o.backup || typeof msg.token !== 'string' || !same(msg.token, this.o.backup.token))
@@ -276,7 +279,8 @@ export class Desk implements RemoteDesk {
     p.you = JSON.stringify(you);
     this.send(room, peer, { t: 'evWelcome', you });
     this.o.onChange?.();
-    if (!p.quiet) this.sendBoard(room, peer);
+    delete p.board;
+    if (!p.quiet) this.sendPhoneBoard(room, peer, p, this.phoneBoard());
     const move = this.moveFor(cid);
     if (move) this.send(room, peer, { t: 'evMove', move });
   }
@@ -455,6 +459,15 @@ export class Desk implements RemoteDesk {
     this.featureNext();
     const seated = new Set(r?.tables.flatMap((t) => t.seats.map((s) => s.member)) ?? []);
     const n = r?.n ?? currentRound(this.event)?.n ?? 1;
+    // (the people at a table hosted here go to its room; a table on a phone sends its own when it's placed)
+    for (const t of r?.tables ?? []) {
+      const link = this.o.director().link(t.table);
+      if (!link?.room || link instanceof RemoteTable) continue;
+      for (const s of t.seats) {
+        const secret = s.member ? this.o.registry.secretOf(s.member) : undefined;
+        if (secret) this.deliver(s.member!, signMove(secret, { event: this.o.code, round: n, table: t.table, room: link.room, host: false }));
+      }
+    }
     for (const m of this.o.registry.members.values())
       if (!m.bot && !seated.has(m.id)) this.deliver(m.id, signMove(m.secret, { event: this.o.code, round: n, table: 0, room: this.o.code, host: false }));
   }
@@ -528,10 +541,26 @@ export class Desk implements RemoteDesk {
     this.boardTimer = setTimeout(() => {
       this.boardTimer = null;
       this.o.onChange?.();
+      const phones = this.phoneBoard();
       for (const room of this.rooms.values())
-        // (the screens, and the phones waiting here: signing up, a bye, knocked out, or the event over)
-        for (const [peer, p] of room.peers) if (p.kind === 'screen' || p.kind === 'standby' || (p.kind === 'player' && !p.quiet)) this.sendBoard(room, peer);
+        for (const [peer, p] of room.peers) {
+          if (p.kind === 'screen' || p.kind === 'standby') this.sendBoard(room, peer);
+          // (the phones waiting here: signing up, a bye, knocked out, or the event over)
+          else if (p.kind === 'player' && !p.quiet) this.sendPhoneBoard(room, peer, p, phones);
+        }
     }, BOARD_EVERY_MS);
+  }
+
+  /** What a phone waiting here shows: the event and who's in it (not the tables' progress, nor a table live). */
+  private phoneBoard() {
+    const msg: EventOutMsg = { t: 'evBoard', board: this.o.director().view, people: this.o.registry.people() };
+    return { msg, json: JSON.stringify(msg) };
+  }
+  /** …sent to a phone when it has changed. */
+  private sendPhoneBoard(room: Room, peer: string, p: Peer, b: { msg: EventOutMsg; json: string }) {
+    if (p.board === b.json) return;
+    p.board = b.json;
+    this.send(room, peer, b.msg);
   }
 
   private sendBoard(room: Room, peer: string) {

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { newBackupKey } from '../src/net/backup';
 import { RemoteTable } from '../src/net/director/remote';
+import type { EventOutMsg } from '../src/net/eventProtocol';
 import { LocalTable } from '../src/net/director/tables';
 import { sealSave, takeOver, type DirectorSave } from '../src/net/director/standby';
 import { CODE, director, FakeEscrow, Net, Phone, playOut, settle } from './eventHarness';
@@ -38,6 +39,35 @@ describe('a tournament that keeps going when phones don’t', () => {
     d.advance();
     await settle();
     for (const p of phones.filter((x) => !hosts.includes(x))) expect(p.at?.round).toBe(2);
+    phones.forEach((p) => p.leaveTable());
+    desk.close();
+  });
+
+  it('a phone waiting out a round hears only what it shows (the event, not the tables’ progress), and only when that changes', async () => {
+    const net = new Net();
+    const { d, desk } = director(net, { rounds: 1 });
+    const phones = ['Ann', 'Bo', 'Cy'].map((n) => new Phone(net, n));
+    await settle();
+    expect(desk.start()).toBeNull();
+    await settle();
+    const bye = phones.find((p) => p.at?.table === 0)!;
+    const host = phones.find((p) => p.host)!;
+    // (a table shown live on the screens)
+    desk.feature(1);
+    const boards = () => net.log.filter((x) => x.msg.t === 'evBoard' && x.to === bye.link?.selfId).map((x) => x.msg as Extract<EventOutMsg, { t: 'evBoard' }>);
+    const before = boards().length;
+    expect(before).toBeGreaterThan(0);
+    // the table plays on (its tile changes, and the screens' live view): nothing the waiting phone shows
+    for (let i = 0; i < 12; i++) {
+      host.host!.step();
+      await settle(600);
+    }
+    expect(d.link(1)!.progress()?.started).toBe(true);
+    expect(boards()).toHaveLength(before);
+    // its result: the standings change, and the phone hears it
+    await playOut(phones);
+    expect(boards().length).toBeGreaterThan(before);
+    expect(boards().every((b) => !b.live && !b.tiles)).toBe(true);
     phones.forEach((p) => p.leaveTable());
     desk.close();
   });
@@ -98,6 +128,29 @@ describe('a tournament that keeps going when phones don’t', () => {
     expect(d.link(1)).toBeInstanceOf(RemoteTable);
     expect(other.moves).toHaveLength(1);
     expect(other.client?.connected).toBe(true);
+    phones.forEach((p) => p.leaveTable());
+    desk.close();
+  });
+
+  it('the director can host every table itself: everyone is sent to its tables’ rooms, plays there, and the round is done', async () => {
+    const net = new Net();
+    const { d, desk } = director(net, { rounds: 1, host: 'director' });
+    const phones = ['Ann', 'Bo', 'Cy', 'Di'].map((n) => new Phone(net, n));
+    await settle();
+    expect(desk.start()).toBeNull();
+    await settle();
+    const tables = d.event.rounds[0].tables.map((t) => d.link(t.table)!);
+    expect(tables.every((t) => t instanceof LocalTable && t.room)).toBe(true);
+    // nobody hosts: each phone sits at its table, in the room hosted here
+    for (const p of phones) {
+      const at = d.event.rounds[0].tables.find((t) => t.seats.some((s) => s.member === p.id.cid))!;
+      expect(p.at).toMatchObject({ table: at.table, room: d.link(at.table)!.room, host: false });
+      expect(p.host).toBeNull();
+      expect(p.client?.connected).toBe(true);
+    }
+    for (const t of tables) for (let i = 0; i < 3000 && (t as LocalTable).host.step(); i++);
+    await settle(1000);
+    expect(d.event.phase).toBe('between');
     phones.forEach((p) => p.leaveTable());
     desk.close();
   });

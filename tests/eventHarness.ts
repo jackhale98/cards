@@ -10,7 +10,7 @@ import { newSecret, seatKeyFor, type SignedMove } from '../src/net/eventCrypto';
 import { EventLink, isOurMove, type EventIdentity } from '../src/net/eventLink';
 import { Host } from '../src/net/host';
 import { Uplink } from '../src/net/host/uplink';
-import type { Msg } from '../src/net/protocol';
+import { makeRoomCode, type Msg } from '../src/net/protocol';
 import type { Transport } from '../src/net/transport';
 import { newBackupKey } from '../src/net/backup';
 import { Bus, MemTransport } from './netHarness';
@@ -152,10 +152,13 @@ export function director(
     onRound: (r) => ref.desk!.round(r),
     keyFor: (m, round, table) => seatKeyFor(registry.secretOf(m)!, CODE, round, table),
     makeTable: (round, t, { restore, room } = {}) => {
-      if (!room && t.seats.some((s) => s.member)) return ref.desk!.remote(round, t);
+      // (on one of its players' phones, unless the director hosts the tables, or this one now)
+      const people = t.seats.some((s) => s.member);
+      if (people && !room && d.event.config.host !== 'director') return ref.desk!.remote(round, t);
+      const at = room ?? (people ? makeRoomCode() : null);
       const local = new LocalTable(round, t.table, {
-        code: room ?? `B${round}${t.table}`,
-        transport: room ? ref.desk!.tableRoom(room) : null,
+        code: at ?? `B${round}${t.table}`,
+        transport: at ? ref.desk!.tableRoom(at) : null,
         still: o.still,
         restore,
       });

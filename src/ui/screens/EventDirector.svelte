@@ -33,6 +33,8 @@
     { id: 'live', label: 'Tables live' },
   ];
   const games = GAME_LIST.filter((g) => g.config.id !== 'freetable');
+  /** Directing from a phone (a touch screen, small): hosting every table here is a lot to ask of it. */
+  const onPhone = typeof matchMedia === 'function' && matchMedia('(pointer: coarse) and (max-width: 900px)').matches;
 
   let showBoard = $state(false);
   let tv = $state(false);
@@ -175,8 +177,22 @@
                 {/if}
               </div>
             {/each}
+            <div class="opt">
+              <span>Tables hosted on</span>
+              <span class="seg">
+                <button class:on={c.host !== 'director'} onclick={() => app.events.setConfig({ host: 'player' })}>Players’ phones</button>
+                <button class:on={c.host === 'director'} onclick={() => app.events.setConfig({ host: 'director' })}>This device</button>
+              </span>
+            </div>
             <p class="small">
-              {c.seats} at a table{pairs ? ', in pairs' : ''}. Each table is hosted by one of its players' phones; a table of bots, by this device.
+              {c.seats} at a table{pairs ? ', in pairs' : ''}.
+              {#if c.host === 'director'}
+                Every table is hosted here: keep this device awake and plugged in.{onPhone
+                  ? ' A laptop is better: a phone that sleeps stops every table at once.'
+                  : ''}
+              {:else}
+                Each table is hosted by one of its players' phones (here, if that phone goes quiet); a table of bots, by this device.
+              {/if}
             </p>
           </section>
 
