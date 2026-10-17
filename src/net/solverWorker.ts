@@ -4,7 +4,7 @@
  * with each one's par. DDS loads here, never in the page.
  */
 import type { Board } from '../engine/types';
-import { parsHere } from './solver';
+import { parsHere } from './pars';
 
 self.onmessage = async (e: MessageEvent<{ id: number; boards: Board[] }>) => {
   const { id, boards } = e.data;

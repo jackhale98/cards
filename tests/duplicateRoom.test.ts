@@ -4,7 +4,7 @@ import type { GameState } from '../src/engine/types';
 import { Client } from '../src/net/client';
 import { Host, type HostSnapshot } from '../src/net/host';
 import type { HostMsg } from '../src/net/protocol';
-import { parsHere } from '../src/net/solver';
+import { parsHere } from '../src/net/pars';
 import { Bus, MemTransport } from './netHarness';
 import './games';
 
