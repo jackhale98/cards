@@ -427,7 +427,8 @@
     if (seat >= 0) untrack(() => reactions.show(seat, r.e, r.at));
   });
   let reacting = $state(false);
-  const saidBy = (seat: number) => reacts[seat] ?? (lastEntry?.seat === seat && lastEntry.short ? { text: lastEntry.short, key: lastEntry.t } : null);
+  const saidBy = (seat: number) =>
+    reacts[seat] ?? ((lastEntry?.at ?? lastEntry?.seat) === seat && lastEntry?.short ? { text: lastEntry.short, key: lastEntry.t } : null);
 
   // Before the DOM updates, note where everything that slides is (labels, the pot: see motion.ts).
   let tableEl: HTMLElement;

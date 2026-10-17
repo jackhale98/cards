@@ -97,6 +97,8 @@ export interface LogEntry {
   seat?: number;
   /** Bubble text, e.g. "Raise 60" or "7♥". */
   short?: string;
+  /** Where it happened, if not at the seat of whoever did it: a card the declarer plays from dummy is the dummy's (its bubble shows there). */
+  at?: number;
   /** Seat the cards went to, if any (cards are animated toward them). */
   to?: number;
   /** Pile the cards came from / went to (e.g. "deck"), so hidden cards fly from/to it. */

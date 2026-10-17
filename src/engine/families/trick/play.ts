@@ -125,7 +125,15 @@ export function playCard(g: TrickGame, s: S, seat: number, a: Action) {
     d.trumpCard = null;
   }
   d.received[turn] = [];
-  log(s, `${name(s, seat)} plays the ${cardName(card)}${turn !== seat ? ' from dummy' : ''}`, seat, cardLabel(card));
+  // (played from dummy: the declarer's choice, the dummy's card, shown at the dummy's seat)
+  log(
+    s,
+    `${name(s, seat)} plays the ${cardName(card)}${turn !== seat ? ' from dummy' : ''}`,
+    seat,
+    cardLabel(card),
+    undefined,
+    turn !== seat ? { at: turn } : undefined,
+  );
   // Pitch: the first card led names trumps
   if (R.trump === 'pitched' && !d.trump) pitchTrumps(s, card);
   // the called card shows who the contractor's partner is

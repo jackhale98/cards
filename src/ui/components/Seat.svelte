@@ -107,7 +107,8 @@
       {#if !connected}<span class="badge warn">offline</span>{/if}
     </div>
   </div>
-  {#if cards.length}
+  <!-- (their card in the trick shows here too when their hand has gone: the dummy's, laid on the table, or anyone's last) -->
+  {#if cards.length || played}
     <div class="cards">
       <div class="spots" bind:this={frameEl} style:width="{placed.w}px" style:height="{placed.h}px"></div>
       {#if hidden > 1}<span class="count">{hidden}</span>{/if}

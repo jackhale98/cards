@@ -82,3 +82,20 @@ test('an open misère hand stays in your hand’s place between your turns', asy
   await expect(page.locator('.hand .slot')).not.toHaveCount(0);
   await expect(page.locator('main [data-zone="dummy"] .scard')).toHaveCount(0);
 });
+
+test('an opponent playing from the dummy: the card shows at the dummy’s seat, not as a word from the declarer', async ({ page }) => {
+  // (seed 2: the player on your right declares, and the dummy is on your left)
+  await deal(page, 'bridge', 2);
+  const fromDummy = page.getByText(/ plays the .+ from dummy/).first();
+  await playUntil(page, () => fromDummy.isVisible());
+  const card = /plays the (.+) from dummy/.exec((await fromDummy.textContent())!)![1];
+  await cardsLanded(page);
+  const dummy = page.locator('.seat[data-seat="1"]');
+  const declarer = page.locator('.seat[data-seat="3"]');
+  await expect(dummy).toContainText('your left');
+  // the dummy's seat shows the card it gave, as any player's does (its hand is on the table, not in its seat)
+  await expect(page.locator('.layer .layer-card[data-frame="seat:1"] .card')).toHaveAttribute('aria-label', new RegExp(card, 'i'));
+  // and the bubble with the card is the dummy's, not the declarer's
+  await expect(dummy.locator('.said')).toBeVisible();
+  await expect(declarer.locator('.said')).toHaveCount(0);
+});

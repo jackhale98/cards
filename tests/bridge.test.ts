@@ -100,8 +100,11 @@ describe('bridge', () => {
     expect(spec.label).toBe('Play from dummy');
     expect(spec.select!.cards.every((c) => ids(s, 'dummy').includes(c))).toBe(true);
     expect(() => g.apply(s, dummy, { type: 'play', cards: [spec.select!.cards[0]] })).toThrow();
+    expect(s.log.at(-1)!.at).toBeUndefined();
     g.apply(s, declarer, { type: 'play', cards: [spec.select!.cards[0]] });
     expect(s.zones.trick.cards[1].by).toBe(dummy);
+    // (the declarer's play, the dummy's card: it shows at the dummy's seat)
+    expect(s.log.at(-1)).toMatchObject({ seat: declarer, at: dummy });
     expect(g.status(s, declarer).actor).toBe((dummy + 1) % 4);
     // the bot playing for a human declarer's dummy does nothing
     expect(g.bot!(s, dummy)).toBeNull();
