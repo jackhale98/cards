@@ -63,7 +63,17 @@
 <div class="seats" class:display class:more-left={moreLeft} class:more-right={moreRight} bind:this={row} onscroll={edges}>
   {#each seats as s (s)}
     {@const pos = display ? ovalSeat(s, players, slotW[s], slotH[s]) : null}
-    <div class="seat-slot" class:display style:left={pos?.left} style:top={pos?.top} bind:clientWidth={slotW[s]} bind:clientHeight={slotH[s]}>
+    <!-- (centred on its place by margins, not a transform: see .seat-slot.display) -->
+    <div
+      class="seat-slot"
+      class:display
+      style:left={pos?.left}
+      style:top={pos?.top}
+      style:margin-left={pos ? `${-(slotW[s] ?? 0) / 2}px` : undefined}
+      style:margin-top={pos ? `${-(slotH[s] ?? 0) / 2}px` : undefined}
+      bind:clientWidth={slotW[s]}
+      bind:clientHeight={slotH[s]}
+    >
       <Seat {...seat(s)} />
     </div>
   {/each}
@@ -122,8 +132,9 @@
     margin: 0;
     overflow: visible;
   }
+  /* (centred by margins, above: a transform would make each seat a layer of its own, and its
+     speech bubble couldn't come up over the card layer, which draws the seat's cards) */
   .seat-slot.display {
     position: absolute;
-    transform: translate(-50%, -50%);
   }
 </style>

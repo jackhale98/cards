@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CardRef, ZoneState } from '../src/engine/types';
-import { fan, FULL_HAND, landing, layoutZone, type Where } from '../src/ui/layout';
+import { fan, FULL_HAND, landing, layoutZone, seatRow, type Where } from '../src/ui/layout';
 import { overlap, spread } from '../src/ui/layout/spread';
 import { stack } from '../src/ui/layout/stack';
 import { trick } from '../src/ui/layout/trick';
@@ -239,5 +239,25 @@ describe('cards you can pick', () => {
     const shows = (p: typeof tight) => Math.min(...p.spots.slice(1).map((s, i) => s.x - p.spots[i].x));
     expect(shows(tight)).toBeLessThan(30);
     expect(shows(picking)).toBeGreaterThanOrEqual(30);
+  });
+});
+
+describe('a seat’s cards', () => {
+  const at = (cards: CardRef[], crowded = false) => seatRow(cards, { seat: 2, up: 30, back: 22, crowded });
+  const hidden = (n: number): CardRef[] => Array.from({ length: n }, (_, i) => ({ id: `?hand:2.${i}` }));
+
+  it('face up first, then up to four backs named by the seat (one in a crowded row), in one overlapped row', () => {
+    const p = at([{ id: 'AS' }, { id: 'KH' }, ...hidden(9)]);
+    expect(p.spots.map((s) => s.key)).toEqual(['AS', 'KH', 'seat:2:0', 'seat:2:1', 'seat:2:2', 'seat:2:3']);
+    expect(p.spots.map((s) => s.down ?? false)).toEqual([false, false, true, true, true, true]);
+    expect(p.spots.map((s) => s.w)).toEqual([30, 30, 22, 22, 22, 22]);
+    // (face up cards show more of each, so their corners can be read)
+    expect(p.spots[1].x - p.spots[0].x).toBeCloseTo(30 * 0.45);
+    expect(p.spots[3].x - p.spots[2].x).toBeCloseTo(22 * 0.3);
+    expect(p.h).toBeCloseTo(42);
+    expect(p.spots.every((s) => s.y === p.h / 2)).toBe(true);
+    expect(at(hidden(9), true).spots.map((s) => s.key)).toEqual(['seat:2:0']);
+    expect(at(hidden(2)).spots).toHaveLength(2);
+    expect(at([])).toEqual({ w: 0, h: 0, spots: [] });
   });
 });

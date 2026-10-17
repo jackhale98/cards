@@ -14,7 +14,7 @@
   import Track from '../components/Track.svelte';
   import { nightTotals } from '../../net/night';
   import { seatRelation } from '../../engine/state';
-  import { flight, haptic, play, snapshot } from '../motion';
+  import { haptic, play, snapshot } from '../motion';
   import { play as playSound, type Sound } from '../sound';
   import { arrangeHand } from '../handOrder';
   import { fade } from 'svelte/transition';
@@ -422,36 +422,16 @@
   let reacting = $state(false);
   const saidBy = (seat: number) => reacts[seat] ?? (lastEntry?.seat === seat && lastEntry.short ? { text: lastEntry.short, key: lastEntry.t } : null);
 
-  // Before the DOM updates, note where the acting player sits so cards fly to/from them.
+  // Before the DOM updates, note where everything that slides is (labels, the pot: see motion.ts).
   let tableEl: HTMLElement;
   let shownPlayFrom: string | null = null;
   $effect.pre(() => {
-    const entry = s.log.at(-1);
+    void s.v;
     if (!tableEl) return;
-    const rect = (seat: number | undefined) => {
-      if (seat == null) return null;
-      const el = seat === you ? tableEl.querySelector('.hand-wrap') : tableEl.querySelector(`[data-seat="${seat}"]`);
-      return el?.getBoundingClientRect() ?? null;
-    };
-    // in hand mode the table is on the big screen: your own moves fly up toward it
-    const anchor = () => {
-      const h = tableEl.querySelector('.headline')?.getBoundingClientRect();
-      return h ? new DOMRect(h.left + h.width / 2 - 24, h.top, 48, 67) : null;
-    };
-    flight.actor = handMode && entry?.seat === you ? anchor() : rect(entry?.seat);
-    flight.to = rect(entry?.to);
-    const pile = (id: string | undefined) => {
-      if (!id) return null;
-      const el = tableEl.querySelector(`[data-zone="${id}"] .stack`) ?? tableEl.querySelector(`[data-zone="${id}"]`);
-      return el?.getBoundingClientRect() ?? (handMode ? anchor() : null);
-    };
-    flight.fromZone = pile(entry?.fromZone);
-    flight.toZone = pile(entry?.toZone);
-    // (the dummy and your hand about to trade places: the hands move as wholes, see the fan)
+    // (the dummy and your hand about to trade places: the hands move as wholes, nothing slides)
     const swapping = (playFrom?.id ?? null) !== shownPlayFrom;
-    flight.quiet = swapping;
     shownPlayFrom = playFrom?.id ?? null;
-    snapshot(tableEl);
+    snapshot(tableEl, swapping);
   });
   // …and after it, slide whatever merely shifted into its new place: at once, before the screen
   // is next drawn (waiting for the next animation frame let a frame show the new places with no
@@ -923,10 +903,11 @@
     justify-content: flex-start;
     padding-top: 1rem;
   }
+  /* (no z-index: the card layer draws the seats' cards over their pills, and what pops up from here,
+     the reactions and the seats' speech bubbles, has a z-index of its own to come over the layer) */
   header {
     grid-area: top;
     position: relative;
-    z-index: 4;
     display: flex;
     align-items: center;
     gap: 8px;

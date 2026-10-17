@@ -2,7 +2,7 @@ import { getContext, setContext } from 'svelte';
 import type { Spot } from './types';
 
 /**
- * The frames on the table: each zone (and your hand) lays out its cards in a frame of its own,
+ * The frames on the table: each zone (and your hand, and each seat) lays out its cards in a frame of its own,
  * the box the page gives it, and registers it here; the card layer draws every frame's cards.
  */
 export interface Frame {
@@ -20,6 +20,11 @@ export interface Frame {
    * the top of a pile) is buried, not gone.
    */
   ids: string[];
+  /**
+   * Its face-down cards only show how many there are (a seat's backs): one that goes fades where
+   * it is, and the card itself turns up wherever it went, coming from here.
+   */
+  tally?: boolean;
 }
 
 export class Frames {

@@ -252,10 +252,11 @@
         out.push(c);
         continue;
       }
-      // gone from every frame: under a pile's top, onto a pile, or to someone's hand
+      // gone from every frame: under a pile's top (or one of a seat's backs, fewer now), onto a
+      // pile, or to someone's hand
       let away: Placement;
       let ms: number;
-      if (buried.has(c.at.id)) {
+      if (buried.has(c.at.id) || (isHidden(c.at.id) && all[c.frame]?.tally)) {
         away = { ...c.at, z: 1, opacity: 0 };
         ms = 200;
       } else if (drawnHere && c.frame === drawnFrom && isHidden(c.at.id)) {

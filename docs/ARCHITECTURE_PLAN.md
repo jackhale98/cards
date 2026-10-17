@@ -175,7 +175,7 @@ Goal: one module per job behind the same `Host` API (no protocol change).
 
 ## Phase 5: one motion system
 
-- [ ] 5a. The seats' small cards drawn by the card layer (a seat frame), so `motion.ts` keeps only
+- [x] 5a. The seats' small cards drawn by the card layer (a seat frame), so `motion.ts` keeps only
       the labels' slide (FLIP); remove `send`/`receive`/`flight`.
 - [ ] 5b. The table screen's strip width and similar CSS-mirrored numbers become parameters of
       `layout/table.ts`, applied as inline sizes.
@@ -246,3 +246,12 @@ Goal: one module per job behind the same `Host` API (no protocol change).
   whatever else on the page draws on `Math.random`. (Two full runs gave identical states at every
   hand's end; `tests/devTable.test.ts` checks it for Hearts and President.) `__advance(n)` steps
   from a test. 60 tests, about 1.3 minutes; nothing firm found in any game at either size.
+- 5a: each seat registers a frame (`seat:<n>`, its zone `hand:<n>`) laid out by `layout/seat.ts`
+  (face up cards, then up to four backs named by the seat, one in a crowded row); the frame is a
+  `tally`, so a back that goes fades where it is, and the card itself comes from the seat's cards
+  to wherever it went. Stacking: the header has no z-index now (it was 4, over the layer's 3), so
+  the layer draws over the seats' pills, and what pops up from the header (reactions, 30; the
+  seats' speech bubbles, now 4) has a z-index of its own to come over the layer; the turn seat's
+  nudge and the table screen's seat centring use `top` and margins, not transforms, which would
+  trap a bubble under the layer. `motion.ts` is down to the labels' slide (221 → 57 lines), the
+  table's flight anchors gone. `e2e/seatCards.spec.ts`; `seatRow` in `tests/layout.test.ts`.

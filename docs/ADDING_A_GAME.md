@@ -181,12 +181,15 @@ with one job:
    turn, stacking) for each card. `fan.ts` is your hand, `trick.ts` a trick, `stack.ts` a pile,
    `spread.ts` a row (how it overlaps and wraps depends on where it is: the middle, the strip,
    the full-screen melds, a dummy), `piles.ts` melds squared into piles; `index.ts` picks one by
-   the zone's `layout`. They're tested on their own in `tests/layout.test.ts`.
+   the zone's `layout`. `seat.ts` is the small cards beside each other player's name (their hand:
+   what you can see face up, and a few backs for the rest). They're tested on their own in
+   `tests/layout.test.ts`.
 3. **The card layer** (`src/ui/components/CardLayer.svelte`) draws every card on the table, each
    one element for as long as it's on the table, wherever its zone's frame is on screen. When a
    card's place changes (played, drawn, re-sorted, a pile moved over by the page), the same
    element eases there; a card new to the table comes from the pile or seat the move came from
    (the log entry's `fromZone`, `seat`), and one leaving goes to where it went (`toZone`, `to`).
+   (Only what isn't a card, a label beside a pile or the pot, slides by itself: `src/ui/motion.ts`.)
 
 What you tap stays in the frames (`Zone.svelte`, `Hand.svelte`): each card's place is a button
 there, in order, named for its card, so the keyboard and screen readers work as before; the

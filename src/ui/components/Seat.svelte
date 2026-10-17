@@ -7,8 +7,8 @@
   import { seatColor } from '../seatColors';
   import AvatarBadge from './AvatarBadge.svelte';
   import PingDot from './PingDot.svelte';
-  import Card from './Card.svelte';
-  import { receive, send } from '../motion';
+  import { LAYER, useFrames } from '../layout/frames.svelte';
+  import { seatRow } from '../layout';
 
   interface Props {
     player: PlayerState;
@@ -45,9 +45,29 @@
     turnLabel = false,
   }: Props = $props();
   const RELATION_LABEL: Record<Relation, string> = { left: '◂ your left', right: 'your right ▸', across: 'across' };
-  const shown = $derived(cards.filter((c) => !isHidden(c.id)));
-  // a crowded row shows face-down cards as one card and a count, leaving room for names
-  const backs = $derived(Math.min(cards.length - shown.length, compact ? 1 : 4));
+  const hidden = $derived(cards.filter((c) => isHidden(c.id)).length);
+  // (a crowded row shows face-down cards as one card and a count, leaving room for names)
+  const placed = $derived(seatRow(cards, { seat: player.seat, up: 30 * scale, back: (compact ? 18 : 22) * scale, crowded: compact }));
+
+  // the card layer draws them (see layout/frames.svelte.ts): a card leaving this seat for the
+  // table is the same card that lands there
+  const frames = useFrames();
+  let frameEl = $state<HTMLElement>();
+  $effect(() => {
+    const el = frameEl;
+    if (!frames || !el) return;
+    const key = `seat:${player.seat}`;
+    frames.set(key, {
+      el,
+      zone: `hand:${player.seat}`,
+      owner: player.seat,
+      layer: LAYER.piles,
+      spots: placed.spots,
+      ids: cards.map((c) => c.id),
+      tally: true,
+    });
+    return () => frames.drop(key, el);
+  });
 </script>
 
 <div
@@ -83,17 +103,9 @@
     </div>
   </div>
   {#if cards.length}
-    <div class="cards" style:--cw="{(compact ? 18 : 22) * scale}px">
-      {#each shown as c (c.id)}
-        <!-- (face up: big enough that each corner's rank and suit can be read) -->
-        <div class="mini up" style:--cw="{30 * scale}px" in:receive={{ key: c.id }} out:send={{ key: c.id }}>
-          <Card id={c.id} />
-        </div>
-      {/each}
-      {#each { length: backs } as _, i (i)}
-        <div class="mini"><Card id={`?${player.seat}.${i}`} /></div>
-      {/each}
-      {#if cards.length - shown.length > 1}<span class="count">{cards.length - shown.length}</span>{/if}
+    <div class="cards">
+      <div class="spots" bind:this={frameEl} style:width="{placed.w}px" style:height="{placed.h}px"></div>
+      {#if hidden > 1}<span class="count">{hidden}</span>{/if}
     </div>
   {/if}
 </div>
@@ -111,15 +123,18 @@
     transition:
       box-shadow 0.3s,
       opacity 0.3s,
-      transform 0.3s var(--ease-out);
+      top 0.3s var(--ease-out);
     position: relative;
+    top: 0;
   }
   .turn {
     box-shadow: 0 0 0 2px var(--c);
     box-shadow:
       0 0 0 2px var(--c),
       0 0 22px color-mix(in srgb, var(--c) 55%, transparent);
-    transform: translateY(2px);
+    /* (nudged down by its place, not a transform: a transform would make the seat a layer of its
+       own, and its bubble couldn't come up over the card layer, which draws the seat's cards) */
+    top: 2px;
   }
   .out {
     opacity: 0.45;
@@ -134,9 +149,10 @@
     border-radius: 50%;
   }
   /* pops over the right end of the seat pill so it never covers the table */
+  /* (over the card layer, which draws the seat's cards: see Table's header) */
   .said {
     position: absolute;
-    z-index: 3;
+    z-index: 4;
     top: 50%;
     right: -4px;
     padding: 0.25rem 0.65rem;
@@ -283,15 +299,6 @@
     display: flex;
     align-items: center;
     padding-left: 4px;
-  }
-  .mini {
-    margin-left: calc(var(--cw) * -0.7);
-  }
-  .mini.up + .mini.up {
-    margin-left: calc(var(--cw) * -0.55);
-  }
-  .mini:first-child {
-    margin-left: 0;
   }
   .count {
     margin-left: 0.3rem;
