@@ -66,9 +66,15 @@ export class Registry {
   /** Partnership games: `id` would like to partner `other` (null: nobody). The director may set it either way. */
   setPartner(id: string, other: string | null) {
     const m = this.members.get(id);
-    if (!m || m.bot || other === id || (other && (this.members.get(other)?.bot ?? true))) return;
+    if (!m || m.bot || other === id || (other && !this.person(other))) return;
     if (other) m.partner = other;
     else delete m.partner;
+  }
+
+  /** Someone signed up who isn't a bot. */
+  private person(id: string): boolean {
+    const m = this.members.get(id);
+    return !!m && !m.bot;
   }
 
   /** Everyone, as everyone may see them. */

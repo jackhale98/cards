@@ -49,6 +49,15 @@ describe('the sign-up list', () => {
     expect(names).not.toContain('Ann');
     expect(r.secretOf(a.id)).toBe('');
   });
+
+  it('two people who ask for each other are partners', () => {
+    const r = new Registry();
+    for (const n of ['Ann', 'Bo', 'Cy', 'Di']) r.add({ id: n.toLowerCase(), name: n, secret: newSecret() });
+    r.setPartner('ann', 'di');
+    r.setPartner('di', 'ann');
+    expect(r.people().find((p) => p.id === 'ann')!.partner).toBe('di');
+    for (let seed = 1; seed <= 5; seed++) expect(r.entrants(2, { rng: seedState(seed) }).map((x) => x.id)).toContain('ann+di');
+  });
 });
 
 describe('a tournament over the network', () => {
