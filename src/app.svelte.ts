@@ -201,11 +201,23 @@ export function parseHash(hash = location.hash): Route {
 }
 
 /** Development builds: a table dealt from a fixed seed and/or held still (see Host's options). */
-function devTable(): { seed?: number; still?: boolean } {
+function devTable(still = false): { seed?: number; still?: boolean } {
   if (!import.meta.env.DEV) return {};
   const q = new URLSearchParams(location.search);
   const seed = Number(q.get('seed'));
-  return { seed: q.has('seed') && Number.isFinite(seed) ? seed : undefined, still: q.has('still') };
+  return { seed: q.has('seed') && Number.isFinite(seed) ? seed : undefined, still: still || q.has('still') };
+}
+
+/** A debug snapshot: the table as it stood on one device (see App.debugSnapshot). */
+export interface DebugSnapshot {
+  kind: 'lamplight-snapshot';
+  at: string;
+  /** The screen it was on, and what the table's sizes were worked out from (see TableSizing.debug). */
+  screen: { w: number; h: number; dpr: number };
+  sizes: unknown;
+  /** The host's whole table (seat keys left out), or, from a player's phone, just what they saw. */
+  snap?: HostSnapshot;
+  view?: View | null;
 }
 
 function loadAvatar(): Avatar {
@@ -426,6 +438,46 @@ class App {
     if (code) this.say(`${ids.length} ${ids.length === 1 ? 'player is' : 'players are'} off to table ${code}`);
   }
 
+  /** A loaded debug snapshot is held still (see loadSnapshot). */
+  private debugStill = false;
+
+  /**
+   * Development builds: the table as it stands here, for a bug report or to put back on screen
+   * with loadSnapshot. The host's is the whole table (everyone's cards: never in a real build);
+   * a player's phone has only what they see.
+   */
+  debugSnapshot(): string {
+    const h = this.host;
+    const snap: DebugSnapshot = {
+      kind: 'lamplight-snapshot',
+      at: new Date().toISOString(),
+      screen: { w: innerWidth, h: innerHeight, dpr: devicePixelRatio },
+      sizes: (window as unknown as { __sizes?: unknown }).__sizes ?? null,
+      ...(h ? { snap: structuredClone({ lobby: h.lobby, state: h.state, keys: {} }) } : { view: this.view }),
+    };
+    return JSON.stringify(snap);
+  }
+
+  /**
+   * Development builds: host the table a debug snapshot holds, held still (no bots, nothing moves
+   * by itself), at a fresh code, in the seat of whoever hosted it. Null when it worked, else why not.
+   */
+  loadSnapshot(text: string): string | null {
+    let d: DebugSnapshot;
+    try {
+      d = JSON.parse(text) as DebugSnapshot;
+    } catch {
+      return 'That isn’t a snapshot';
+    }
+    if (d?.kind !== 'lamplight-snapshot') return 'That isn’t a snapshot';
+    if (!d.snap?.lobby || !Array.isArray(d.snap.lobby.seats)) return 'That snapshot was taken on a player’s phone: only the host’s has the whole table';
+    const code = makeRoomCode();
+    this.debugStill = true;
+    store.set('cards.host', JSON.stringify({ code, cid: this.cid, key: seatKey(), hostKey: hostKey(), snap: d.snap, at: Date.now() } satisfies SavedHost));
+    this.resumeRoom(code);
+    return null;
+  }
+
   createRoom() {
     this.forgetSaved();
     const code = makeRoomCode();
@@ -510,7 +562,7 @@ class App {
       game: split?.game,
       // (development builds: `?seed=7` deals the same cards every time, `&still` keeps the bots
       // and the table from moving, to put a moment on screen exactly)
-      ...devTable(),
+      ...devTable(this.debugStill),
     });
     host.onPings = (p) => (this.pings = p);
     host.onReact = (id, e) => (this.reaction = { id, e, at: Date.now() });
@@ -873,3 +925,5 @@ class App {
 }
 
 export const app = new App();
+// (development builds: the debug snapshot, for tests and by hand from the console)
+if (import.meta.env.DEV) Object.assign(window, { __snapshot: () => app.debugSnapshot(), __loadSnapshot: (text: string) => app.loadSnapshot(text) });

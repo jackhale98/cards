@@ -49,6 +49,10 @@
     commitName();
     app.go(`/${display ? 'display' : 'room'}/${code}`);
   }
+  // (development builds: loading a debug snapshot)
+  let snapshotOpen = $state(false);
+  let snapshotText = $state('');
+  let snapshotError = $state('');
 </script>
 
 {#if picking}
@@ -223,6 +227,10 @@
     </div>
     <button class="link" disabled={!isValidCode(code)} onclick={() => join(true)}>Use this device as the table display</button>
 
+    {#if import.meta.env.DEV}
+      <!-- (development builds: put a table copied with the menu's "Copy debug snapshot" back on screen) -->
+      <button class="link" onclick={() => (snapshotOpen = true)}>Load debug snapshot</button>
+    {/if}
     {#if saved}
       <button class="resume" onclick={() => app.resumeRoom(saved.code)}>
         ↻ Resume your table <b>{saved.code}</b>
@@ -250,6 +258,14 @@
     · <a href={SUPPORT_URL} target="_blank" rel="noreferrer">🍺 Support Lamplight</a>
   </footer>
 </main>
+
+{#if snapshotOpen}
+  <Sheet title="Load debug snapshot" onclose={() => (snapshotOpen = false)}>
+    <textarea class="snapshot" bind:value={snapshotText} placeholder="Paste a snapshot here" aria-label="Snapshot"></textarea>
+    {#if snapshotError}<p class="snapshot-error">{snapshotError}</p>{/if}
+    <button class="btn primary" disabled={!snapshotText.trim()} onclick={() => (snapshotError = app.loadSnapshot(snapshotText) ?? '')}>Load it</button>
+  </Sheet>
+{/if}
 
 <style>
   .info {
@@ -545,5 +561,17 @@
     border: 1px solid rgba(233, 196, 106, 0.3);
     font-size: 0.85rem;
     text-align: center;
+  }
+  .snapshot {
+    width: 100%;
+    min-height: 8rem;
+    margin-bottom: 0.6rem;
+    font:
+      0.75rem/1.3 ui-monospace,
+      monospace;
+  }
+  .snapshot-error {
+    color: var(--danger);
+    font-size: 0.85rem;
   }
 </style>

@@ -119,6 +119,16 @@
       >
     {/if}
     <a class="btn" href={bugReportLink({ game: game.config.name, table: view.lobby.code })}>Report a problem</a>
+    {#if import.meta.env.DEV}
+      <!-- (development builds: the table as it stands, to load back with the home screen's "Load debug snapshot") -->
+      <button
+        class="btn"
+        onclick={() => {
+          navigator.clipboard?.writeText(app.debugSnapshot());
+          app.say('Debug snapshot copied');
+        }}>Copy debug snapshot</button
+      >
+    {/if}
     <button
       class="btn danger"
       onclick={() => {

@@ -164,7 +164,7 @@ Goal: one module per job behind the same `Host` API (no protocol change).
 
 ## Phase 4: reproducible bugs
 
-- [ ] 4a. Development builds: `?seed=…` deals from a fixed seed; the menu's "Copy debug snapshot"
+- [x] 4a. Development builds: `?seed=…` deals from a fixed seed; the menu's "Copy debug snapshot"
       (state, view, seat, sizes) and `?snapshot=` (or a paste box) loads one as host, so a report
       of "it looked wrong here" can be put on screen exactly.
 - [ ] 4b. A layout gallery: fixtures (saved moments of every game, made by a script with fixed
@@ -231,3 +231,8 @@ Goal: one module per job behind the same `Host` API (no protocol change).
 - 1e (phase 1 done): the full audit on the finished sizing (21cbbc0): 160 runs, no errors; cards
   too small to read 548 → 41, hard to touch 42 → 13, too small to touch 129 → 53. The new numbers
   are `docs/audit-baseline.md`, with what's left and why.
+- 4a: development builds' table menu has "Copy debug snapshot" (`app.debugSnapshot()`: the host's
+  whole table with the seat keys left out, the screen and the sizing inputs; a player's phone
+  copies only its view), and the home screen "Load debug snapshot" (`app.loadSnapshot()`: hosts
+  it, held still, at a fresh code, in the seat of whoever hosted it; held still, everyone shows as
+  connected). Both as `__snapshot()` / `__loadSnapshot(text)` for tests (`e2e/snapshot.spec.ts`).

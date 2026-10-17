@@ -198,7 +198,9 @@ export class Host {
           if (host.key) this.keys[host.cid] = host.key;
         }
       }
-      this.lobby.seats.forEach((s) => (s.connected = !!s.bot || !!s.host));
+      // (nobody else is here yet: they show as gone until they're back. Held still, a table put
+      // back on screen to look at, everyone stays as they were)
+      if (!opts.still) this.lobby.seats.forEach((s) => (s.connected = !!s.bot || !!s.host));
       this.state = restore.state;
       // (the app loads a saved game's rules before reopening it: see loadRules)
       if (this.state) this.module = rulesFor(this.state.game) ?? missing(this.state.game);
