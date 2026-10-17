@@ -23,22 +23,35 @@ import { Bus, MemTransport } from './netHarness';
 
 export const CODE = 'BCDFGH';
 
-/** Rooms by code. A connection joins its room a moment after it's made (as a real one would). */
+/**
+ * Rooms by code. A connection joins its room a moment after it's made (as a real one would). As
+ * our relay does, a room the director hosts vouches for it: everyone there can tell the director's
+ * messages (and a phone says hello on finding it, before the director says it's here).
+ */
 export class Net {
   buses = new Map<string, Bus>();
   n = 0;
   /** Every message sent: who from, who to (none: everyone in the room), and what. */
   log: { from: string; to?: string; msg: Msg }[] = [];
   directors = new Set<string>();
+  /** Each director's room's host (its peer). */
+  hosts = new Map<string, string>();
   open = (code: string, director = false) => {
     const bus = this.buses.get(code) ?? new Bus();
     this.buses.set(code, bus);
     const t = new MemTransport(bus, `${director ? 'd' : 'p'}${++this.n}`);
-    if (director) this.directors.add(t.selfId);
+    if (director) {
+      this.directors.add(t.selfId);
+      this.hosts.set(code, t.selfId);
+    }
+    // (rooms nobody directs, a table's, can't vouch, as on networks other than our relay)
+    (t as Transport).vouch = (peer: string) => (this.hosts.has(code) ? this.hosts.get(code) === peer : undefined);
+    // (each message arrives a moment after it's sent, in order, as over a real network: a phone
+    // can say hello twice before the first answer comes back)
     const send = t.send.bind(t);
     t.send = (msg, to) => {
       this.log.push({ from: t.selfId, to, msg });
-      send(msg, to);
+      setTimeout(() => send(msg, to), 0);
     };
     setTimeout(() => bus.join(t), 0);
     return t;
