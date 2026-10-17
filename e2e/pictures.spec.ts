@@ -2,8 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { cardsLanded } from './wait';
 
 /**
- * Pictures of the table, to show a change to the page changed nothing (docs/ARCHITECTURE_PLAN.md,
- * phase 2): a dozen games, one for each way cards are laid out, each dealt from a fixed seed with
+ * Pictures of the table, to show a change to the page changed nothing: a dozen games, one for each way cards are laid out, each dealt from a fixed seed with
  * nothing moving by itself (`?seed=7&still`: development builds only), on a phone on its side, a
  * tablet, and a phone in hand mode with the TV beside it; then the menu, scores and save sheets.
  *

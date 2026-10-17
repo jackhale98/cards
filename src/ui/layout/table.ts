@@ -6,8 +6,8 @@ import { FULL_HAND } from './spread';
 /**
  * How big the table's cards are: the middle's, your hand's, the strip's (everyone's melds), the
  * full-screen melds'. Pure: the screen, what's measured once (the seats' bar, the headline, your
- * column) and the zones in, sizes out. (See docs/ARCHITECTURE_PLAN.md, phase 1: this is where the
- * table's sizing lives; the zones' own layouts, in this folder, say how big a zone is at a size.)
+ * column) and the zones in, sizes out. This is where the table's sizing lives; the zones' own
+ * layouts, in this folder, say how big a zone is at a size.
  */
 
 /** No card on the table narrower than this: below it the corner's rank and suit can't be read. */

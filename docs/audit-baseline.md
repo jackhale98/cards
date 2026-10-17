@@ -1,7 +1,7 @@
 # Screen audit baseline
 
-The full screen audit (`pnpm audit:screens`) of every game, after phase 1 of
-docs/ARCHITECTURE_PLAN.md (the table sized by one function: commit 21cbbc0). 160 runs, no errors,
+The full screen audit (`pnpm audit:screens`) of every game, once the table was
+sized by one function, `src/ui/layout/table.ts` (commit 21cbbc0). 160 runs, no errors,
 nothing overlapping, off screen or cut off. What's left are the audit's softer findings, counted
 once per distinct finding across a game's runs (small and large screens, more and fewer players,
 with a TV):
