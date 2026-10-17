@@ -38,6 +38,12 @@
   import ResultBanner from '../table/ResultBanner.svelte';
   import RotatePrompt from '../table/RotatePrompt.svelte';
   import { TableSettings } from '../table/settings.svelte';
+  import * as shown from '../table/shown';
+  import { afterSwipe, afterTap, Selection } from '../table/selection.svelte';
+  import { RaceClock } from '../table/race';
+  import { freshAfter } from '../table/fresh';
+  import { announceText, lastMoveOf, recapOf, soundFor } from '../table/events';
+  import { REACTION_NAMES, Reactions } from '../table/reactions.svelte';
   import CardLayer from '../components/CardLayer.svelte';
 
   /** `replay`: a moment of a finished hand is on screen (the table shows it, quietly). */
@@ -397,60 +403,26 @@
   const settings = new TableSettings();
   let handOrder = $state<string[]>([]);
   const myHand = $derived(arrangeHand(dealtHand, settings.handSort, handOrder));
-  /**
-   * Hands turned over at a showdown (poker), laid out in the middle beside the board, labelled with
-   * who and what they hold: the cards move there from the seat (which shows none meanwhile).
-   */
-  const showdownZones = $derived(
-    (status.showdown ?? [])
-      .map(({ seat, label, zones }): ZoneState => ({
-        id: `showdown:${seat}`,
-        base: 'showdown',
-        owner: seat,
-        label,
-        visibility: 'all',
-        layout: 'spread',
-        area: 'center',
-        cards: zones.flatMap((id) => s.zones[id]?.cards ?? []),
-      }))
-      .filter((z) => z.cards.length),
-  );
+  /** The hands turned over at a showdown, in the middle (see shown.ts), and the zones they came from. */
+  const showdownZones = $derived(shown.showdownZones(status.showdown, s.zones));
   const shownDownSeats = $derived(new Set(showdownZones.map((z) => z.owner)));
-  /** The zones whose cards are on show in the middle: not shown elsewhere meanwhile. */
   const shownDownZones = $derived(new Set((status.showdown ?? []).flatMap((x) => x.zones)));
-  /**
-   * A hand laid face up on the table (bridge's dummy) that has emptied keeps its room until the
-   * middle is clear: its last card goes to the last trick, which would otherwise jump up into its
-   * place and grow, for that one trick.
-   */
+  /** A dummy that has emptied keeps its room until the middle is clear (see keptRoomAfter). */
   let keptRoom = $state<string[]>([]);
   $effect(() => {
-    const centre = Object.values(s.zones).filter((z) => z.area === 'center');
-    const down = centre.filter((z) => z.faceUpHand && z.cards.length && !keptRoom.includes(z.id)).map((z) => z.id);
-    if (down.length) keptRoom = [...keptRoom, ...down];
-    else if (keptRoom.length && centre.every((z) => !z.cards.length)) keptRoom = [];
+    const next = shown.keptRoomAfter(keptRoom, s.zones);
+    if (next !== keptRoom) keptRoom = next;
   });
-  const allCenterZones = $derived([
-    ...Object.values(s.zones).filter((z) => z.area === 'center' && !(z.hideEmpty && !z.cards.length && !keptRoom.includes(z.id))),
-    ...showdownZones,
-  ]);
+  const allCenterZones = $derived(shown.middleZones(s.zones, keptRoom, showdownZones));
   /** Zones on the compact strip along the bottom of the table (e.g. everyone's melds). */
-  const allStripZones = $derived(Object.values(s.zones).filter((z) => z.area === 'strip' && !(z.hideEmpty && !z.cards.length) && !shownDownZones.has(z.id)));
+  const allStripZones = $derived(shown.stripZonesOf(s.zones, shownDownZones));
   const seatZone = (seat: number) => (shownDownSeats.has(seat) ? [] : (s.zones[`hand:${seat}`]?.cards ?? []));
 
   // ---- selection --------------------------------------------------------------------------
-  let selected = $state<string[]>([]);
-  const selecting = $derived(view.actions.filter((a) => a.select));
-  const selectable = $derived(selecting.length ? new Set(selecting.flatMap((a) => a.select!.cards)) : null);
-  const quick = $derived(view.actions.find((a) => a.quick && a.select));
-  const maxSelect = $derived(Math.max(0, ...selecting.map((a) => a.select!.max)));
-
-  // drop selections that are no longer valid after each update
-  $effect(() => {
-    const valid = selectable;
-    const keep = selected.filter((id) => valid?.has(id));
-    if (keep.length !== selected.length) selected = keep;
-  });
+  /** The cards you've picked (see selection.svelte.ts), pruned to what's still on offer after each update. */
+  const sel = new Selection(() => view.actions);
+  const selectable = $derived(sel.selectable);
+  $effect(() => sel.prune());
 
   /** Whose move it is (the declarer moves for the dummy in bridge). */
   const actor = $derived(status.actor ?? s.turn);
@@ -468,42 +440,27 @@
   });
 
   function tap(id: string) {
-    if (!selectable?.has(id)) {
+    const next = afterTap(sel.selected, id, sel.picking);
+    if (!next) {
       // (with the hints off nothing looks unplayable, so a tap on such a card says why nothing happens)
       if (!settings.hints && selectable && fanCards.some((c) => c.id === id)) app.say('That card can’t be played right now');
       return;
     }
-    if (selected.includes(id)) {
-      // tapping a lone selected card plays it, unless the action is swipe-only
-      if (quick?.quick === true && selected.length === 1 && quick.select!.cards.includes(id)) return run(quick);
-      selected = selected.filter((x) => x !== id);
-    } else if (maxSelect === 1) {
-      selected = [id];
-    } else if (selected.length < maxSelect) {
-      selected = [...selected, id];
-    }
+    // (tapping a lone picked card again plays it, unless the action is swipe-only)
+    if ('play' in next) return run(next.play);
+    sel.selected = next.selected;
     haptic(5);
   }
 
   function swipe(id: string) {
-    if (!quick || !quick.select!.cards.includes(id)) return tap(id);
-    const sel = selected.includes(id) && selected.length <= quick.select!.max ? selected : [id];
-    run(quick, undefined, sel);
+    const next = afterSwipe(sel.selected, id, sel.picking);
+    if (next === 'tap') return tap(id);
+    run(next.play, undefined, next.cards);
   }
 
   // ---- real-time games: how quickly you reacted, timed on this device ----------------------
-  /** When the current `status.race` first showed on this screen (after it was drawn). */
-  let raceSeen = { race: -1, at: 0 };
-  $effect(() => {
-    const race = status.race;
-    if (race === undefined || race === raceSeen.race) return;
-    const at = performance.now();
-    raceSeen = { race, at };
-    // count from when it was painted, not from when the message arrived
-    requestAnimationFrame(() => {
-      if (raceSeen.race === race) raceSeen.at = Math.max(at, performance.now());
-    });
-  });
+  const race = new RaceClock();
+  $effect(() => race.saw(status.race));
 
   /** The space bar slaps (on a laptop at the table). */
   const slapSpec = $derived(view.actions.find((a) => a.react && !a.select && !a.target && !a.choose));
@@ -526,51 +483,32 @@
     const now = myHand.map((c) => c.id);
     const before = handBefore;
     handBefore = now;
-    if (replay || !before) return;
-    const had = new Set(before);
-    const gained = now.filter((id) => !had.has(id) && !isHidden(id));
-    // (a new deal: none of the old hand is left, or a few cards at most beside a lot of new ones)
-    const kept = now.length - gained.length;
-    if (gained.length && (kept === 0 || (gained.length >= 5 && kept <= 2))) {
-      freshIds = [];
-      return;
-    }
-    const still = freshIds.filter((id) => now.includes(id));
-    if (gained.length) freshIds = [...still, ...gained];
-    else if (still.length !== freshIds.length) freshIds = still;
+    if (replay) return;
+    const next = freshAfter(before, now, freshIds, isHidden);
+    if (next !== freshIds) freshIds = next;
   });
-  function run(spec: ActionSpec, amount?: number, cards = selected, seat?: number) {
+  function run(spec: ActionSpec, amount?: number, cards = sel.selected, seat?: number) {
     freshIds = [];
-    const timing = spec.react && status.race !== undefined ? { race: status.race, rt: Math.round(Math.max(0, performance.now() - raceSeen.at)) } : {};
+    const timing = spec.react ? race.timing(status.race) : {};
     app.act({ type: spec.type, cards: spec.select ? [...cards] : undefined, amount, seat, ...timing });
-    if (spec.select) selected = [];
+    if (spec.select) sel.clear();
     haptic(spec.react ? 25 : 10);
   }
 
   /** Tapping a pile: its action (draw, take…), or, with cards selected, putting them there (Kings Corners). */
-  const zoneAction = (zoneId: string) =>
-    view.actions.find(
-      (a) =>
-        a.zone === zoneId &&
-        (!a.select || (selected.length >= a.select.min && selected.length <= a.select.max && selected.every((c) => a.select!.cards.includes(c)))),
-    );
+  const zoneAction = (zoneId: string) => sel.zoneAction(zoneId);
   /** In hand mode only piles you can use right now stay on the phone (e.g. the deck to draw from, a bridge dummy). */
   const usable = (z: (typeof allCenterZones)[number]) => !!zoneAction(z.id) || z.cards.some((c) => selectable?.has(c.id));
   // (in a real-time game you react to the piles, so they stay put on the phone: watching the TV
   // instead would also time your reaction from the wrong screen)
   const centerZones = $derived(handMode && !game.realtime ? allCenterZones.filter(usable) : allCenterZones);
   /**
-   * The strip scrolls sideways, so what's yours to play from comes first, then your own, then
-   * everyone else's around from your left: in Palace your face-up and face-down cards (all you
-   * have left to play) never sit past the edge.
-   */
-  /**
    * Piles with places on the table (Kings Corners' cross): a big screen lays them out so; a phone on
    * its side, short of height, puts them in one row in reading order, as wide as fits.
    */
   const gridded = $derived(size.isGridded(centerZones));
   const cross = $derived(gridded && !side);
-  const shownCenter = $derived(gridded ? [...centerZones].sort((a, b) => a.grid![0] - b.grid![0] || a.grid![1] - b.grid![1]) : centerZones);
+  const shownCenter = $derived(gridded ? shown.gridOrder(centerZones) : centerZones);
   /** One row of placed piles on a phone: the widest card that lets them all fit across (with a little over for a wider label). */
   const rowFit = $derived(size.rowFit(centerZones, mainW, side));
   /**
@@ -578,7 +516,7 @@
    * declarer): it takes your hand's place at the bottom, full size, and your own hand sits small in
    * its place in the middle until it's your own turn again.
    */
-  const playFrom = $derived(display || you < 0 ? null : (centerZones.find((z) => z.faceUpHand && z.cards.some((c) => selectable?.has(c.id))) ?? null));
+  const playFrom = $derived(display || you < 0 ? null : shown.playFromOf(centerZones, selectable));
   const fanCards = $derived(playFrom ? playFrom.cards : myHand);
   /**
    * Every card on the table is drawn by one layer (CardLayer.svelte): each zone and your hand lay
@@ -627,14 +565,7 @@
    * trick would grow for that one trick. Someone watching has no hand: the middle is theirs all along.)
    */
   const handEmpty = $derived(!display && myHandZone?.layout !== 'stack' && !fanCards.length && (!myHandZone || !!view.handDone));
-  const stripZones = $derived.by(() => {
-    const list = handMode ? allStripZones.filter(usable) : allStripZones;
-    const rank = (z: (typeof list)[number]) => (usable(z) ? -2 : z.owner === you && you >= 0 ? -1 : z.owner == null ? n : (z.owner - Math.max(0, you) + n) % n);
-    return list
-      .map((z, i) => ({ z, i, r: rank(z) }))
-      .sort((a, b) => a.r - b.r || a.i - b.i)
-      .map((x) => x.z);
-  });
+  const stripZones = $derived(shown.stripOrder(handMode ? allStripZones.filter(usable) : allStripZones, usable, you, n));
   /**
    * A table screen can't be scrolled, so there the strip (everyone's melds) wraps into rows across
    * the middle, with cards small enough that the longest set of melds fits a row. Through a hand
@@ -685,11 +616,7 @@
   // each seat's measured size, so a wide one is kept fully on screen instead of centred off the edge
   let slotW = $state<Record<number, number>>({});
   let slotH = $state<Record<number, number>>({});
-  function tvSeatPos(seat: number) {
-    const a = Math.PI / 2 + (seat * 2 * Math.PI) / n;
-    const keep = (pct: number, size = 0) => `clamp(${size / 2 + 8}px, ${pct}%, calc(100% - ${size / 2 + 8}px))`;
-    return { left: keep(50 + Math.cos(a) * 40, slotW[seat]), top: keep(50 + Math.sin(a) * 39, slotH[seat]) };
-  }
+  const tvSeatPos = (seat: number) => size.ovalSeat(seat, n, slotW[seat], slotH[seat]);
   const handCw = $derived(size.handCw({ hand: cardSizes.hand, handMode, stripShown: stripZones.length > 0, pileOnly }));
   /**
    * Everyone's melds on the table (rummy games, stud's face-up cards): the middle runs to the
@@ -745,41 +672,20 @@
   // ---- what just happened ------------------------------------------------------------------
   const lastEntry = $derived(s.log.at(-1));
   /** Latest player move, shown under the headline (unless the headline already says it). */
-  // (not when the headline already says it, or the start of it: "Dash wins the pot (1213)" over
-  // "Dash wins the pot (1213) with two pair")
-  const lastMove = $derived(
-    lastEntry &&
-      !(status.headline ?? '').includes(lastEntry.text) &&
-      !(status.headline ?? '').split(' · ').some((part) => part && lastEntry.text.startsWith(part))
-      ? lastEntry
-      : null,
-  );
+  const lastMove = $derived(lastMoveOf(lastEntry, status.headline));
 
   /**
    * What a screen reader hears as the game goes on: each move, and when it's your turn. One region
    * that stays put (a region that's replaced each time is often not read at all).
    */
-  const SUIT_WORDS: Record<string, string> = { '♠': ' spades', '♥': ' hearts', '♦': ' diamonds', '♣': ' clubs' };
   const announce = $derived(
-    replay || display
-      ? ''
-      : [lastEntry?.text, you >= 0 && (actor === you || (actor == null && !game.realtime && view.actions.some((a) => !a.menu))) ? 'Your turn.' : '']
-          .filter(Boolean)
-          .join('. ')
-          .replace(/[♠♥♦♣]/g, (x) => SUIT_WORDS[x]),
+    replay || display ? '' : announceText(lastEntry, you >= 0 && (actor === you || (actor == null && !game.realtime && view.actions.some((a) => !a.menu)))),
   );
 
   // ---- sounds: each new move on the table (on the big screen, when there is one), and the end
   // a table screen stays quiet when someone at the table has muted it (a Chromecast has no menu)
   const sound = (x: Sound) => (replay || (display && view.lobby.screenSound === false) ? undefined : playSound(x));
   let heard = -1;
-  function soundFor(e: { text: string; fromZone?: string; toZone?: string }): Sound | null {
-    const t = e.text.toLowerCase();
-    if (/\b(deals?|shuffles?)\b/.test(t)) return 'deal';
-    if (showChips && /\b(bets?|raises?|calls?|all in|antes?|blinds?|wins?|splits?|doubles?|insures?|pays?)\b/.test(t)) return 'chips';
-    if (e.toZone || e.fromZone || /\b(plays?|leads?|discards?|draws?|lays?|melds?|turns? (?:over|up)|slaps?|passes \d)\b/.test(t)) return 'card';
-    return null;
-  }
   $effect(() => {
     const e = lastEntry;
     if (!e || e.t === heard) return;
@@ -787,7 +693,7 @@
     heard = e.t;
     // (not for what was already on the table when we arrived; in hand mode the big screen plays them)
     if (first || handMode) return;
-    const snd = soundFor(e);
+    const snd = soundFor(e, showChips);
     if (snd) sound(snd);
   });
   let lastPhase: string | null = null;
@@ -796,22 +702,15 @@
     lastPhase = s.phase;
   });
   /** Reactions showing on seats just now, by game seat (see REACTIONS). */
-  let reacts = $state<Record<number, { text: string; key: number }>>({});
+  const reactions = new Reactions();
+  const reacts = $derived(reactions.shown);
   $effect(() => {
     const r = app.reaction;
     if (!r || replay) return;
     const seat = (view.lobby.playing ?? []).indexOf(r.id);
-    if (seat < 0) return;
-    untrack(() => (reacts = { ...reacts, [seat]: { text: REACTIONS[r.e], key: r.at } }));
-    setTimeout(() => {
-      if (reacts[seat]?.key !== r.at) return;
-      const rest = { ...reacts };
-      delete rest[seat];
-      reacts = rest;
-    }, 3600);
+    if (seat >= 0) untrack(() => reactions.show(seat, r.e, r.at));
   });
   let reacting = $state(false);
-  const REACTION_NAMES = ['Thumbs up', 'Applause', 'Laughing', 'Wow', 'Yikes', 'On fire'];
   const saidBy = (seat: number) => reacts[seat] ?? (lastEntry?.seat === seat && lastEntry.short ? { text: lastEntry.short, key: lastEntry.t } : null);
 
   // Before the DOM updates, note where the acting player sits so cards fly to/from them.
@@ -913,16 +812,7 @@
    * What each player (or team) made or lost in the hand just finished, from the score history:
    * shown when the game's own result doesn't already say (poker's chips, mostly).
    */
-  const recap = $derived.by(() => {
-    if (!history || !view.handDone || replay) return null;
-    if (status.banner?.lines.some((l) => l.includes('→'))) return null;
-    const [prev, now] = history.totals.slice(-2);
-    const parts = history.names.flatMap((name, j) => {
-      const d = now[j] - prev[j];
-      return d ? [`${name} ${d > 0 ? '+' : '−'}${Math.abs(d).toLocaleString()}`] : [];
-    });
-    return parts.length ? parts.join(' · ') : null;
-  });
+  const recap = $derived(view.handDone && !replay ? recapOf(history, status.banner?.lines) : null);
   /** The hand's summary under the middle's piles (on a phone on its side it's in the column instead). */
   const recapShown = $derived(!!recap && !side && !(showBanner && status.banner));
   /** Game night standings, shown when a game ends. */
@@ -1036,7 +926,7 @@
   <!-- centre: shared zones, pot, headline -->
   <!-- tapping empty felt clears the selection (a touch shortcut; the Clear button is the accessible path) -->
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
-  <main bind:clientWidth={mainW} bind:clientHeight={mainH} onclick={(e) => !(e.target as Element).closest('button, .card') && (selected = [])}>
+  <main bind:clientWidth={mainW} bind:clientHeight={mainH} onclick={(e) => !(e.target as Element).closest('button, .card') && sel.clear()}>
     {#if status.track && display}<div class="track-wrap">
         <Track track={status.track} avatars={s.players.map((_, i) => lobbySeat(i)?.avatar)} />
       </div>{/if}
@@ -1071,7 +961,7 @@
             cw={slotCw(z)}
             {you}
             players={n}
-            {selected}
+            selected={sel.selected}
             {selectable}
             ontap={tap}
             zoneActive={!!zoneAction(z.id)}
@@ -1116,7 +1006,7 @@
               rowGap={display ? 0.3 * tvRem : undefined}
               {you}
               players={n}
-              {selected}
+              selected={sel.selected}
               {selectable}
               ontap={tap}
               zoneActive={!!zoneAction(z.id)}
@@ -1193,7 +1083,7 @@
             cw={handCw}
             {you}
             players={n}
-            {selected}
+            selected={sel.selected}
             {selectable}
             ontap={tap}
             zoneActive={!!zoneAction(myHandZone.id)}
@@ -1208,7 +1098,7 @@
               cards={fanCards}
               cw={handCw}
               zone={playFrom?.id ?? `hand:${you}`}
-              {selected}
+              selected={sel.selected}
               {selectable}
               fresh={playFrom ? [] : freshIds}
               hints={settings.hints}
@@ -1240,10 +1130,10 @@
       <!-- (in a replay there's nothing to do but watch: the replay's controls get the whole column) -->
       {#if replay}<ReplayBar frame={replay} />{:else}<ActionBar
           actions={view.actions}
-          {selected}
+          selected={sel.selected}
           pot={status.pot}
-          onact={(spec, amount, seat) => run(spec, amount, selected, seat)}
-          onclear={() => (selected = [])}
+          onact={(spec, amount, seat) => run(spec, amount, sel.selected, seat)}
+          onclear={() => sel.clear()}
           seatInfo={(seat) => ({
             name: s.players[seat]?.name ?? '',
             avatar: lobbySeat(seat)?.avatar,
@@ -1270,7 +1160,7 @@
           rowGap={4.8}
           {you}
           players={n}
-          {selected}
+          selected={sel.selected}
           {selectable}
           ontap={tap}
           zoneActive={!!zoneAction(z.id)}
@@ -1287,7 +1177,7 @@
           cards={myHand}
           cw={spreadHandCw}
           inline
-          {selected}
+          selected={sel.selected}
           {selectable}
           hints={settings.hints}
           ontap={tap}
@@ -1298,10 +1188,10 @@
       <div class="spread-acts">
         <ActionBar
           actions={view.actions}
-          {selected}
+          selected={sel.selected}
           pot={status.pot}
-          onact={(spec, amount, seat) => run(spec, amount, selected, seat)}
-          onclear={() => (selected = [])}
+          onact={(spec, amount, seat) => run(spec, amount, sel.selected, seat)}
+          onclear={() => sel.clear()}
           seatInfo={(seat) => ({
             name: s.players[seat]?.name ?? '',
             avatar: lobbySeat(seat)?.avatar,

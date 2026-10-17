@@ -114,7 +114,7 @@ components that each own their CSS. Rules for the components:
       full screen, with its own `spreadCw` sizing and measuring), the `Look` sheet stays a
       three-line inline; `ResultBanner` (title, lines, recap, replay and how-it-went buttons,
       tonight's standings, the support line); `RotatePrompt`. ~−400 lines from the table.
-- [ ] 2b. **Logic into modules** (`src/ui/table/`, each with `tests/table*.test.ts`):
+- [x] 2b. **Logic into modules** (`src/ui/table/`, each with `tests/table*.test.ts`):
   - `shown.ts`: which zones show where, pure: the showdown's zones, the middle (with `keptRoom`
     as an input, its update a pure `keptRoomAfter`), hand mode's usable piles, the strip in
     order (`stripZones`' ranking), `playFrom`, gridded/cross order, the seats' cards.
@@ -196,3 +196,7 @@ Goal: one module per job behind the same `Host` API (no protocol change).
   pictures identical. `MeldsSheet` moves in 2c, once the selection is one object (2b): today it
   would need fifteen props. Unused CSS left behind is found by svelte-check's "unused selector"
   warnings (a script in the scratchpad removed exactly those rules).
+- 2b: `shown.ts`, `selection.svelte.ts` (pure rules plus a `Selection` holding the picked cards),
+  `fresh.ts`, `race.ts` (`RaceClock`, the clock injectable for tests), `events.ts`,
+  `reactions.svelte.ts`, `ovalSeat` in `layout/table.ts`; `tests/tableLogic.test.ts` (16 tests).
+  2185 → 2075 lines (the logic was compact; the gain is that it's tested). Pictures identical.

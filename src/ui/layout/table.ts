@@ -444,3 +444,14 @@ export function fitSizes(i: FitInput): { center: number; hand: number; lastFits:
   // (`fits`: false when even the smallest cards don't, and the middle will be scaled to fit)
   return { center, hand, lastFits, spare: Math.max(0, left), fits: left >= -0.5 };
 }
+
+/**
+ * A table screen's seats round an oval in turn order, seat 0 at the bottom (where its trick cards
+ * land), each kept wholly on screen by its measured size (`w`, `h`) rather than centred off the edge.
+ * CSS positions, as percentages of the table.
+ */
+export function ovalSeat(seat: number, players: number, w = 0, h = 0): { left: string; top: string } {
+  const a = Math.PI / 2 + (seat * 2 * Math.PI) / players;
+  const keep = (pct: number, size: number) => `clamp(${size / 2 + 8}px, ${pct}%, calc(100% - ${size / 2 + 8}px))`;
+  return { left: keep(50 + Math.cos(a) * 40, w), top: keep(50 + Math.sin(a) * 39, h) };
+}
