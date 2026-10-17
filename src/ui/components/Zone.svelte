@@ -2,7 +2,7 @@
   import SuitText from './SuitText.svelte';
   import type { ZoneState } from '../../engine/types';
   import { cardName } from '../cardName';
-  import { FULL_HAND, handWidth, layoutZone, TAP, type Spot } from '../layout';
+  import { dummyCw as grownCw, FULL_HAND, layoutZone, TAP, type Spot } from '../layout';
   import { LAYER, useFrames } from '../layout/frames.svelte';
   import type { SpreadStyle } from '../layout/spread';
   import { CASCADE } from '../layout/stack';
@@ -102,8 +102,7 @@
    */
   const fitCw = $derived.by(() => {
     if (!zone.faceUpHand) return cw;
-    const groups = zone.cards.filter((c, i) => i > 0 && c.group != null && c.group !== zone.cards[i - 1].group).length;
-    return Math.round(Math.min(cw * 1.45, Math.max(cw, growTo), (cw * FULL_HAND) / handWidth(zone.cards.length, groups)));
+    return grownCw(cw, growTo, zone.cards);
   });
   /**
    * Through a hand the dummy only grows: the room beside the trick wobbles by a few pixels as cards

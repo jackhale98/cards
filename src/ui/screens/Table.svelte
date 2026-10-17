@@ -103,7 +103,7 @@
       return s.zones;
     },
     get center() {
-      return centerZones;
+      return middleShown;
     },
     get strip() {
       return stripZones;
@@ -286,7 +286,7 @@
    * Piles with places on the table (Kings Corners' cross): a big screen lays them out so; a phone on
    * its side, short of height, puts them in one row in reading order, as wide as fits.
    */
-  const shownCenter = $derived(sz.gridded ? shown.gridOrder(centerZones) : centerZones);
+  const shownCenter = $derived.by(() => (sz.gridded ? shown.gridOrder(middleShown) : middleShown));
   /**
    * A whole hand face up on the table that you're playing from now (bridge's dummy, for its
    * declarer): it takes your hand's place at the bottom, full size, and your own hand sits small in
@@ -300,6 +300,10 @@
   });
   const playFrom = $derived(display || you < 0 ? null : (shown.playFromOf(centerZones, selectable) ?? centerZones.find((z) => z.id === keptFrom) ?? null));
   const fanCards = $derived(playFrom ? playFrom.cards : myHand);
+  /** The middle as it shows: the face-up hand you play from is in your hand's place, and your own hand in its place here (none, if it's empty). */
+  const middleShown = $derived(
+    centerZones.flatMap((z) => (playFrom?.id !== z.id ? [z] : myHand.length ? [{ ...z, id: `hand:${you}`, label: 'Your hand', cards: myHand }] : [])),
+  );
   /**
    * Every card on the table is drawn by one layer (CardLayer.svelte): each zone and your hand lay
    * their cards out in frames, which register here. When your hand and the dummy trade places,
@@ -615,10 +619,9 @@
       class:cross={sz.cross}
       class:row-fit={sz.rowFit < Infinity}
       use:fitHeight={{ display, onroom: (room) => sz.noteRoom(room) }}
-      data-middle-h={sz.mainW ? Math.round(sz.middleAt(sz.centerCw)) : undefined}
+      data-middle-h={sz.mainW ? Math.round(sz.standsAt) : undefined}
     >
-      <!-- (the face-up hand you play from sits in your hand's place, and your own hand in its place here: none, if it's empty) -->
-      {#each shownCenter.filter((z) => playFrom?.id !== z.id || myHand.length) as z (playFrom?.id === z.id ? `mine:${z.id}` : z.id)}
+      {#each shownCenter as z (z.id)}
         <div
           class="zone-slot"
           in:fade={{ duration: z.faceUpHand || z.id === `hand:${you}` ? swapMs : 0, delay: z.faceUpHand || z.id === `hand:${you}` ? swapMs * 0.6 : 0 }}
@@ -626,15 +629,7 @@
           style:grid-column={sz.cross ? z.grid![1] + 1 : undefined}
           style:min-width={z.faceUpHand ? `${Math.round(sz.slotCw(z) * FULL_HAND)}px` : undefined}
         >
-          <Zone
-            zone={playFrom?.id === z.id ? { ...z, id: `hand:${you}`, label: 'Your hand', cards: myHand } : z}
-            cw={sz.slotCw(z)}
-            {...zoneHooks(z)}
-            roomy={sz.roomy}
-            growTo={sz.growTo}
-            steady={display}
-            room={sz.mainW ? sz.mainW - 4 : Infinity}
-          />
+          <Zone zone={z} cw={sz.slotCw(z)} {...zoneHooks(z)} roomy={sz.roomy} growTo={sz.growTo} steady={display} room={sz.mainW ? sz.mainW - 4 : Infinity} />
         </div>
       {/each}
       {#if status.pot && !handMode}

@@ -7,7 +7,7 @@ import type { Placed } from './types';
 
 export type { Box, Placed, Spot } from './types';
 export { fan, fanHeight, landing } from './fan';
-export { FULL_HAND, handWidth } from './spread';
+export { dummyCw, FULL_HAND, handWidth } from './spread';
 
 /** The least of a card that shows when it's one you can pick (px): enough to tap. */
 export const TAP = 30;

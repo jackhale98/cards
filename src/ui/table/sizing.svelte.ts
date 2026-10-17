@@ -1,5 +1,5 @@
 import type { ZoneState } from '../../engine/types';
-import { FULL_HAND, TAP, type Where } from '../layout';
+import { dummyCw, FULL_HAND, TAP, type Where } from '../layout';
 import * as size from '../layout/table';
 import { labelMeasure } from '../labelMeasure';
 
@@ -128,7 +128,7 @@ export class TableSizing {
    * the zones in rows as the page puts them, everyone's melds under them (`withStrip`), or the
    * room kept for them (`reserve`).
    */
-  middleAt = (cw: number, reserve: boolean = this.stripRoomShown, withStrip = true): number => {
+  middleAt = (cw: number, reserve: boolean = this.stripRoomShown, withStrip = true, grown = false): number => {
     const i = this.#in;
     const roomyNow = size.roomy(i.center, cw, this.mainW, i.vw, i.strip.length > 0);
     const kept = this.#stripKeep.cw;
@@ -140,7 +140,8 @@ export class TableSizing {
       maxW: this.mainW ? this.mainW - 4 : Infinity,
       roomy: roomyNow,
       tap: i.tappable(z) ? TAP : undefined,
-      dummy: z.faceUpHand ? { cw: zcw, minW: Math.round(zcw * FULL_HAND) } : undefined,
+      // (`grown`: a dummy's cards as big as they've grown into the spare height, see dummyCw)
+      dummy: z.faceUpHand ? { cw: grown ? dummyCw(zcw, this.growTo, z.cards) : zcw, minW: Math.round(zcw * FULL_HAND) } : undefined,
     });
     const stripCwAt = (z: { scale?: number }) => size.stripCw(z, { centerCw: cw, display: i.display, kept });
     return size.middleHeight({
@@ -255,6 +256,10 @@ export class TableSizing {
     if (this.#in.display || !dummy) return 0;
     return this.slotCw(dummy) + Math.floor(this.fit.spare / 1.4);
   });
+  /** How tall the middle stands as drawn (the dummy grown): for tests and debugging (`data-middle-h`). */
+  get standsAt() {
+    return this.middleAt(this.centerCw, this.stripRoomShown, true, true);
+  }
   /** Your hand's card width. */
   readonly handCw = $derived.by(() =>
     size.handCw({ hand: this.fit.hand, handMode: this.#in.handMode, stripShown: this.#in.strip.length > 0, pileOnly: this.#in.pileOnly }),

@@ -42,6 +42,16 @@ const SUIT_GAP = 0.32;
 export const FULL_HAND = 1 + 12 * (STEP + GAP) + 3 * SUIT_GAP;
 /** A face-up hand of `n` cards in `groups + 1` suits, in card widths. */
 export const handWidth = (n: number, groups: number) => 1 + (Math.max(1, n) - 1) * (STEP + GAP) + groups * SUIT_GAP;
+
+/**
+ * A whole hand face up (bridge's dummy) as it empties: its cards grow into the width its thirteen
+ * took (`cw` is a thirteen-card dummy's card), up to half as big again, and no taller than the
+ * middle has height for (`growTo`).
+ */
+export function dummyCw(cw: number, growTo: number, cards: { group?: number }[]): number {
+  const groups = cards.filter((c, i) => i > 0 && c.group != null && c.group !== cards[i - 1].group).length;
+  return Math.round(Math.min(cw * 1.45, Math.max(cw, growTo), (cw * FULL_HAND) / handWidth(cards.length, groups)));
+}
 /** Room kept per card after the first, for a pile with a `reserve` (in card widths). */
 const RESERVE_STEP = 0.65;
 
