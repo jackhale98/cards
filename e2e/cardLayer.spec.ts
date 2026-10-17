@@ -135,3 +135,30 @@ for (const [game, what, seats] of GAMES)
       expect(Object.fromEntries(found)).toEqual({});
       expect(errors).toEqual([]);
     });
+
+test('a card pressed stays in its place in the fan: only one being dragged comes to the front', async ({ page }) => {
+  await page.setViewportSize({ width: 844, height: 390 });
+  await page.goto('/?net=local&seed=7&still');
+  await page.fill('input[aria-label="Your name"]', 'Hana');
+  await page.click('text=Start a table');
+  await page.waitForURL(/#\/room\//);
+  await page.locator('[data-game="hearts"]').first().click();
+  for (let i = 1; i < 4; i++) await page.click('text=+ Add bot');
+  await page.locator('button:has-text("Deal")').first().click();
+  await expect(handCards(page)).toHaveCount(13);
+  await cardsLanded(page);
+  const slot = slots(page).nth(5);
+  const name = (await slot.getAttribute('aria-label'))!;
+  const drawn = page.locator('.layer .layer-card', { has: page.locator(`.card[aria-label="${name}"]`) });
+  const look = () => drawn.evaluate((el) => ({ held: el.classList.contains('held'), z: Number(getComputedStyle(el).zIndex) }));
+  const before = await look();
+  const box = (await slot.boundingBox())!;
+  const at = await showing(slot);
+  await page.mouse.move(box.x + at.x, box.y + at.y);
+  await page.mouse.down();
+  // (pressed, not yet moved: a tap in the making)
+  expect(await look()).toEqual(before);
+  await page.mouse.move(box.x + at.x, box.y + at.y - 40, { steps: 4 });
+  expect((await look()).held).toBe(true);
+  await page.mouse.up();
+});

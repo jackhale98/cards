@@ -49,7 +49,9 @@
   const spots = $derived(
     placed.spots.map((p): Spot => {
       const can = !selectable || selectable.has(p.id);
-      const held = drag?.id === p.id;
+      // (held only once it's being dragged: a card just pressed stays in its place in the fan, and
+      // a tap picks it, easing up from there, rather than jumping to the front first)
+      const held = drag?.id === p.id && drag.moved;
       return {
         ...p,
         x: p.x + (held ? drag!.dx : 0),
