@@ -112,14 +112,22 @@ export class TableSizing {
   /** That one row: the widest card that lets them all fit across. */
   readonly rowFit = $derived.by(() => size.rowFit(this.#in.center, this.mainW, this.#in.side));
 
+  /** How wide a panel's cards on the strip may spread: a table screen's strip wraps (a phone's scrolls). */
+  get panelRoom() {
+    return this.#in.display && this.mainW ? size.stripPanelRoom(this.mainW, this.tvRem) : Infinity;
+  }
+  /** Between a strip panel's rows of cards (a table screen's: a phone's are one row). */
+  get panelRowGap() {
+    return this.#in.display ? size.PANELS.cardRowGap * this.tvRem : undefined;
+  }
   /** How a zone on the strip (everyone's melds) is laid out at a card width (as the strip's Zones are). */
   whereStrip = (z: ZoneState, zcw: number): Where => ({
     cw: zcw,
     you: this.#in.you,
     players: this.#in.players,
     style: 'strip',
-    maxW: this.#in.display && this.mainW ? this.mainW * 1.2 - 1.6 * this.tvRem : Infinity,
-    rowGap: this.#in.display ? 0.3 * this.tvRem : undefined,
+    maxW: this.panelRoom,
+    rowGap: this.panelRowGap,
     tap: this.#in.tappable(z) ? TAP : undefined,
   });
 
@@ -137,7 +145,7 @@ export class TableSizing {
       you: i.you,
       players: i.players,
       style: 'middle',
-      maxW: this.mainW ? this.mainW - 4 : Infinity,
+      maxW: size.middleRoom(this.mainW),
       roomy: roomyNow,
       tap: i.tappable(z) ? TAP : undefined,
       // (`grown`: a dummy's cards as big as they've grown into the spare height, see dummyCw)
@@ -154,14 +162,14 @@ export class TableSizing {
       labels: this.labels,
       cross: this.cross,
       rowFit: this.rowFit < Infinity,
-      steadyLabel: i.display ? (zcw) => zcw * 1.8 : undefined,
+      steadyLabel: i.display ? (zcw) => zcw * size.STEADY_LABEL : undefined,
       extras: i.pot && !i.handMode ? [{ w: this.potW, h: this.potH }] : [],
       strip: !withStrip
         ? undefined
         : i.strip.length
           ? { zones: i.strip, cwOf: stripCwAt, whereOf: this.whereStrip, wrap: i.display }
           : reserve && !i.display
-            ? { room: Math.round(1.4 * stripCwAt({ scale: this.stripScale }) + 30) }
+            ? { room: size.stripRoomH(stripCwAt({ scale: this.stripScale })) }
             : undefined,
     });
   };

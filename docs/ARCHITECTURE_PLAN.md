@@ -177,7 +177,7 @@ Goal: one module per job behind the same `Host` API (no protocol change).
 
 - [x] 5a. The seats' small cards drawn by the card layer (a seat frame), so `motion.ts` keeps only
       the labels' slide (FLIP); remove `send`/`receive`/`flight`.
-- [ ] 5b. The table screen's strip width and similar CSS-mirrored numbers become parameters of
+- [x] 5b. The table screen's strip width and similar CSS-mirrored numbers become parameters of
       `layout/table.ts`, applied as inline sizes.
 
 ## Log
@@ -255,3 +255,11 @@ Goal: one module per job behind the same `Host` API (no protocol change).
   nudge and the table screen's seat centring use `top` and margins, not transforms, which would
   trap a bubble under the layer. `motion.ts` is down to the labels' slide (221 → 57 lines), the
   table's flight anchors gone. `e2e/seatCards.spec.ts`; `seatRow` in `tests/layout.test.ts`.
+- 5b: `layout/table.ts` has the numbers the page and the sizing shared by copy: `PANELS` (a
+  panel's padding, the rows of cards in it, the table screen's strip 120% wide and its rows' gap,
+  the melds sheet's gap and padding), `stripGap`, `stripPanelRoom` / `sheetRoom` (how wide a
+  panel's cards may spread), `stripRoomH` (the room kept before the first meld), `middleRoom`,
+  `STEADY_LABEL`. The strip, the melds sheet and the middle's labels take them as inline styles
+  (`--panel`, `--steady`, gap, flex-basis, margins); the CSS keeps only what isn't measured
+  (colours, corners, wrapping). Nothing on screen changed: `pnpm pictures` before and after,
+  all 36 the same.

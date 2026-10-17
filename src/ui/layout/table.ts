@@ -17,6 +17,38 @@ export const TOUCH = 28;
 /** The last move's line under the headline (px, with the gap over it), until it's been measured. */
 export const LAST_H = 26;
 
+// ---- sizes the page sets from here ------------------------------------------------------------
+// (as inline styles: one set of numbers for the page and the sizing, so the two can't drift apart)
+
+/** The middle's piles may spread this wide (a hair under the middle's width). */
+export const middleRoom = (mainW: number) => (mainW ? mainW - 4 : Infinity);
+/** A table screen keeps each pile's label at least this many card widths wide (its count changes all game). */
+export const STEADY_LABEL = 1.8;
+
+/** Everyone's melds, each player's on a panel: on the strip under the middle, and full screen (the melds sheet). */
+export const PANELS = {
+  /** A panel's padding (rem). */
+  pad: { top: 0.25, x: 0.5, bottom: 0.4 },
+  /** Between a panel's rows of cards (rem). */
+  cardRowGap: 0.3,
+  /** A table screen's strip is this much wider than the middle, either side alike (the oval is wider lower down)… */
+  across: 1.2,
+  /** …and its panels wrap into rows this far apart (rem). */
+  rowGap: 0.6,
+  /** Full screen: panels this far apart (px), the page padded so. */
+  sheet: { gap: 10, pad: { top: 4, x: 2, bottom: 8 } },
+} as const;
+/** A panel's padding, as CSS. */
+export const panelPad = `${PANELS.pad.top}rem ${PANELS.pad.x}rem ${PANELS.pad.bottom}rem`;
+/** Between the strip's panels (px): a little more on a wider screen. */
+export const stripGap = (vw: number) => Math.min(24, Math.max(10, vw * 0.025));
+/** How wide a panel's cards may spread on a table screen's strip (its padding off, and a little to spare). */
+export const stripPanelRoom = (mainW: number, rem: number) => mainW * PANELS.across - (2 * PANELS.pad.x + 0.6) * rem;
+/** How wide a panel's cards may spread full screen, `w` the sheet's width. */
+export const sheetRoom = (w: number, rem: number) => w - 2 * PANELS.sheet.pad.x - 2 * PANELS.pad.x * rem;
+/** The room kept for the strip before the first meld: a row of cards and a label over it. */
+export const stripRoomH = (cw: number) => Math.round(1.4 * cw + 30);
+
 /** Piles with places on the table (Kings Corners' cross). */
 export const isGridded = (zones: ZoneState[]) => zones.length > 1 && zones.every((z) => z.grid);
 
@@ -110,13 +142,14 @@ export function stripFit(i: {
 /**
  * Everyone's melds full screen: the biggest cards that let them all fit the room, so a few melds
  * fill the screen; only past a readable smallest size does the page scroll. (`.spread-all`: panels
- * wrapping with 10px between, each laid out by its own layout.)
+ * wrapping (PANELS.sheet), each laid out by its own layout.)
  */
 export function spreadCw(i: { zones: ZoneState[]; w: number; h: number; labels: Labels; whereOf: (z: ZoneState, cw: number) => Where }): number {
   if (!i.w || !i.h || !i.zones.length) return 44;
-  const room = i.h - 12;
+  const { gap, pad } = PANELS.sheet;
+  const room = i.h - pad.top - pad.bottom;
   for (let cw = Math.min(140, Math.round(room / 1.4 - 30)); cw > 40; cw -= 2)
-    if (panelsHeight(i.zones, () => cw, i.whereOf, { labels: i.labels, rem: 16, across: i.w - 4, gap: 10, rowGap: 10 }) <= room) return cw;
+    if (panelsHeight(i.zones, () => cw, i.whereOf, { labels: i.labels, rem: 16, across: i.w - 2 * pad.x, gap, rowGap: gap }) <= room) return cw;
   return 40;
 }
 
@@ -296,9 +329,9 @@ export function stripHeight(
   return panelsHeight(s.zones, s.cwOf, s.whereOf, {
     labels: m.labels,
     rem: m.rem,
-    across: s.wrap ? m.mainW * 1.2 : Infinity,
-    gap: Math.min(24, Math.max(10, m.vw * 0.025)),
-    rowGap: 0.6 * m.rem,
+    across: s.wrap ? m.mainW * PANELS.across : Infinity,
+    gap: stripGap(m.vw),
+    rowGap: PANELS.rowGap * m.rem,
   });
 }
 
@@ -314,8 +347,7 @@ export function panelsHeight(
 ): number {
   const panels = zones.map((z) => {
     const b = zoneBox(z, whereOf(z, cwOf(z)), o.labels, o.rem);
-    // (padding 0.25rem 0.5rem 0.4rem)
-    return { w: b.w + o.rem, h: b.h + 0.65 * o.rem };
+    return { w: b.w + 2 * PANELS.pad.x * o.rem, h: b.h + (PANELS.pad.top + PANELS.pad.bottom) * o.rem };
   });
   let h = 0;
   let rowW = 0;

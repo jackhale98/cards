@@ -6,7 +6,7 @@
   import Sheet from '../components/Sheet.svelte';
   import Zone from '../components/Zone.svelte';
   import { TAP } from '../layout';
-  import { MIN_CW, spreadCw, type Labels } from '../layout/table';
+  import { MIN_CW, PANELS, panelPad, sheetRoom, spreadCw, type Labels } from '../layout/table';
 
   /** What a pile needs to be tapped and played onto (the table's zoneHooks). */
   type Hooks = Omit<ComponentProps<typeof Zone>, 'zone' | 'cw'>;
@@ -50,6 +50,9 @@
   let w = $state(0);
   let h = $state(0);
   let vh = $state(innerHeight);
+  /** How wide a panel's cards may spread, and how far apart their rows are (1rem: the sheet isn't scaled up). */
+  const room = $derived(w ? sheetRoom(w, 16) : Infinity);
+  const rowGap = PANELS.cardRowGap * 16;
   /** The biggest cards that let them all fit the room, so a few melds fill the screen; only past a readable smallest size does the page scroll. */
   const cw = $derived(
     spreadCw({
@@ -62,8 +65,8 @@
         you,
         players,
         style: 'sheet',
-        maxW: w ? w - 20 : Infinity,
-        rowGap: 4.8,
+        maxW: room,
+        rowGap,
         tap: z.cards.some((c) => selectable?.has(c.id)) ? TAP : undefined,
       }),
     }),
@@ -75,9 +78,17 @@
 <svelte:window bind:innerHeight={vh} />
 
 <Sheet title="On the table" full {onclose}>
-  <div class="spread-all" bind:clientWidth={w} bind:clientHeight={h}>
+  <!-- (its sizes from layout/table.ts, PANELS: spreadCw reckons with the same numbers) -->
+  <div
+    class="spread-all"
+    style:gap="{PANELS.sheet.gap}px"
+    style:padding="{PANELS.sheet.pad.top}px {PANELS.sheet.pad.x}px {PANELS.sheet.pad.bottom}px"
+    style:--panel={panelPad}
+    bind:clientWidth={w}
+    bind:clientHeight={h}
+  >
     {#each zones as z (z.id)}
-      <Zone zone={z} {cw} inline style="sheet" room={w ? w - 20 : Infinity} rowGap={4.8} {...zone(z)} />
+      <Zone zone={z} {cw} inline style="sheet" {room} {rowGap} {...zone(z)} />
     {/each}
   </div>
   <div class="spread-dock">
@@ -99,12 +110,10 @@
     display: flex;
     flex-wrap: wrap;
     align-content: flex-start;
-    gap: 10px;
-    padding: 4px 2px 8px;
   }
   .spread-all > :global(.zone) {
     max-width: 100%;
-    padding: 0.25rem 0.5rem 0.4rem;
+    padding: var(--panel);
     border-radius: 12px;
     background: rgba(0, 0, 0, 0.16);
     box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);

@@ -598,6 +598,7 @@
       class:has-strip={stripZones.length > 0 || sz.stripRoomShown}
       class:cross={sz.cross}
       class:row-fit={sz.rowFit < Infinity}
+      style:--steady={display ? size.STEADY_LABEL : undefined}
       use:fitHeight={{ display, onroom: (room) => sz.noteRoom(room) }}
       data-middle-h={sz.mainW ? Math.round(sz.standsAt) : undefined}
     >
@@ -609,7 +610,7 @@
           style:grid-column={sz.cross ? z.grid![1] + 1 : undefined}
           style:min-width={z.faceUpHand ? `${Math.round(sz.slotCw(z) * FULL_HAND)}px` : undefined}
         >
-          <Zone zone={z} cw={sz.slotCw(z)} {...zoneHooks(z)} roomy={sz.roomy} growTo={sz.growTo} steady={display} room={sz.mainW ? sz.mainW - 4 : Infinity} />
+          <Zone zone={z} cw={sz.slotCw(z)} {...zoneHooks(z)} roomy={sz.roomy} growTo={sz.growTo} steady={display} room={size.middleRoom(sz.mainW)} />
         </div>
       {/each}
       {#if status.pot && !handMode}
@@ -627,26 +628,25 @@
       {/if}
       {#if sz.stripRoomShown}
         <!-- (where everyone's melds will go, kept from the deal) -->
-        <div
-          class="strip-room"
-          aria-hidden="true"
-          style:height={display ? undefined : `${Math.round(1.4 * sz.stripCw({ scale: sz.stripScale }) + 30)}px`}
-        ></div>
+        <div class="strip-room" aria-hidden="true" style:height={display ? undefined : `${size.stripRoomH(sz.stripCw({ scale: sz.stripScale }))}px`}></div>
       {:else if stripZones.length}
-        <div class="strip" data-wide={display || undefined} use:edgeFade>
+        <!-- (its sizes from layout/table.ts, PANELS: the sizing reckons with the same numbers) -->
+        <div
+          class="strip"
+          data-wide={display || undefined}
+          style:gap="{size.stripGap(vw)}px"
+          style:--panel={size.panelPad}
+          style:flex-basis={display ? `${Math.round(size.PANELS.across * 100)}%` : undefined}
+          style:margin-inline={display ? `${Math.round((1 - size.PANELS.across) * 50)}%` : undefined}
+          style:row-gap={display ? `${size.PANELS.rowGap}rem` : undefined}
+          use:edgeFade
+        >
           {#if !display && !replay}
             <!-- (a phone's strip is a sliver: everyone's melds full screen, to browse and play onto) -->
             <button class="spread-open" onclick={() => (sheet = 'spread')} aria-label="See it all, full screen" title="See it all, full screen">⤢</button>
           {/if}
           {#each stripZones as z (z.id)}
-            <Zone
-              zone={z}
-              cw={sz.stripCw(z)}
-              style="strip"
-              room={display && sz.mainW ? sz.mainW * 1.2 - 1.6 * sz.tvRem : Infinity}
-              rowGap={display ? 0.3 * sz.tvRem : undefined}
-              {...zoneHooks(z)}
-            />
+            <Zone zone={z} cw={sz.stripCw(z)} style="strip" room={sz.panelRoom} rowGap={sz.panelRowGap} {...zoneHooks(z)} />
           {/each}
         </div>
       {/if}
@@ -1072,7 +1072,6 @@
     min-width: 0;
     display: flex;
     align-items: flex-end;
-    gap: clamp(10px, 2.5vw, 24px);
     overflow-x: auto;
     scrollbar-width: none;
     padding: 0 4px;
@@ -1095,7 +1094,7 @@
   }
   /* each player's melds (or face-up cards) on a panel of their own, so it's plain whose are whose */
   .strip > :global(.zone) {
-    padding: 0.25rem 0.5rem 0.4rem;
+    padding: var(--panel);
     border-radius: 12px;
     background: rgba(0, 0, 0, 0.16);
     box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
@@ -1124,7 +1123,7 @@
   /* the labels over the piles in the middle (their counts and hints change all game) keep a
      steady width, so the row doesn't re-centre each time one gets longer or shorter */
   .table.display .zones > .zone-slot :global(.zone > .label) {
-    min-width: calc(var(--cw) * 1.8);
+    min-width: calc(var(--cw) * var(--steady));
     text-align: center;
   }
   .table.display .pot {
@@ -1132,12 +1131,10 @@
     justify-content: center;
   }
   /* a table screen can't be scrolled: the melds wrap into rows instead (sized to fit: see stripFit) */
+  /* (wider than the middle, the panels wrapping into rows: the sizes are set inline) */
   .table.display .strip {
-    flex: 1 0 120%;
     flex-wrap: wrap;
     overflow: visible;
-    margin-inline: -10%;
-    row-gap: 0.6rem;
     -webkit-mask-image: none;
     mask-image: none;
   }

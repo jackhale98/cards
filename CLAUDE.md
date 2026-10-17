@@ -69,7 +69,9 @@ src/ui/table/          the table screen's parts: its sheets and columns (compone
                        (shown.ts), picking cards (selection), the sizes (sizing.svelte.ts over
                        layout/table.ts, the pure arithmetic); Table.svelte puts them together
 src/ui/layout/         where each zone's cards go in its frame: pure functions, one per `layout` (fan, trick,
-                       stack, spread, piles; index.ts picks); frames.svelte.ts, the frames zones register
+                       stack, spread, piles; index.ts picks; seat.ts, the seats' small cards); frames.svelte.ts,
+                       the frames zones register; table.ts, how big everything is (and the sizes the page sets)
+src/ui/motion.ts       the slide of what isn't a card (labels, the pot) as the table changes
 src/ui/components/CardLayer.svelte  draws every card on the table, one element each, eased from place to
                        place; Zone.svelte / Hand.svelte are the frames (what you tap, in order)
 src/app.svelte.ts      app state, routing, starting a host or client
@@ -111,6 +113,9 @@ docs/ADDING_A_GAME.md  how to add a game: read it before touching families or ga
   (`src/ui/layout/`) and registers its frame; it never draws them itself at a table (only on a
   sheet over it). A new arrangement of cards is a new layout function, not new CSS around cards.
   Tests find drawn cards with `e2e/cards.ts` and wait for them with `cardsLanded`.
+- **Sizes come from `src/ui/layout/table.ts`**, a pure function of the screen and the zones. A size
+  both the page and the sizing need (a gap, a panel's padding, how wide the strip is) is a number
+  there that the page sets inline, never a CSS value with a copy of it in the script.
 - **The relay is a dumb pipe** that never sees a card. Protocol changes go in `relay/src/index.ts`,
   `src/net/relayTransport.ts` and the `FakeRelay` in `tests/relay.test.ts` together, and must keep
   working with the other side one version behind (the relay deploys separately from the site).
@@ -139,6 +144,11 @@ browser layout tests cover a new game automatically.
 - A bug fix gets a test that fails without the fix.
 - Keep full-game bot playouts short (a few seeds, Easy bots) unless the test is about bot strength.
 - e2e: use `?net=local`; wait on locators or `expect.poll` rather than fixed timeouts.
+- To put a moment on screen exactly (development builds): `?seed=7` deals the same cards, `&still`
+  holds the table (no bot moves by itself), `__advance(n)` makes the next n moves the same way every
+  time (`Host.step`: Easy bots thinking `steadily`), and the menu's "Copy debug snapshot" / the home
+  screen's "Load debug snapshot" (`__snapshot()` / `__loadSnapshot(text)`) carry a table between
+  devices. `e2e/gallery.spec.ts` uses them to screen-check every game in a minute or two.
 
 ## Style
 
