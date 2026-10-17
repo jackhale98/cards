@@ -27,15 +27,15 @@ import {
 import { Hands, noteScores, tally } from './host/history';
 import { Bots } from './host/bots';
 import { Backups } from './host/backups';
+import { Conns } from './host/conns';
 import type { ExportFormat } from './exports/formats';
-import { pingsMoved, VERSION_PATHS, wire } from './host/wire';
+import { wire } from './host/wire';
 import { cleanNightGame, standardFormats } from './host/records';
 import { carriedGame, defaultOptions } from './host/lobby';
 export { SCORE_HANDS, totalsOf } from './host/records';
 export { defaultOptions } from './host/lobby';
 import { report } from './reports';
 import type { Transport } from './transport';
-import { diff } from './patch';
 
 export {
   HEARTBEAT_MS,
@@ -54,21 +54,7 @@ export {
   REPLAY_TOTAL,
   TABLE_MAX,
 } from './host/limits';
-import {
-  HEARTBEAT_MS,
-  PING_AFTER_MS,
-  DEAD_AFTER_MS,
-  TAKE_BACK_MS,
-  SCREEN_SOUND,
-  STAND_IN,
-  HELLO_GAP_MS,
-  IDENTITIES_PER_MINUTE,
-  TABLE_MAX,
-  RTT_EVERY_MS,
-  UNDO,
-  BOT_NAMES,
-  FRAMES_PER_SECOND,
-} from './host/limits';
+import { HEARTBEAT_MS, TAKE_BACK_MS, SCREEN_SOUND, STAND_IN, TABLE_MAX, UNDO, BOT_NAMES } from './host/limits';
 
 /** The most players a game seats. */
 const seatsIn = (g: { config: GameModule['config'] }) => (g.config.players.counts ? Math.max(...g.config.players.counts) : g.config.players.max);
@@ -93,23 +79,22 @@ export class Host {
   /** Development and tests: every game dealt from this seed (see opts). */
   private readonly seed?: number;
   private history: GameState[] = [];
-  /**
-   * transport peer id → client id. Table screens are `screen:<cid>` and people the host won't seat
-   * under the id they asked for (no key, or the wrong one) watch as `watch:<peer>`, so neither can
-   * act for a seat.
-   */
-  private peers = new Map<string, string>();
+  /** The connections: who each is, its health, what it was last sent (see host/conns.ts). */
+  private readonly conns = new Conns((msg, peer) => this.transport?.send(msg, peer));
+  private get peers() {
+    return this.conns.peers;
+  }
+  private get displays() {
+    return this.conns.displays;
+  }
   /**
    * The secret holding each seat, by client id. Client ids are public (they're in every view), so
    * a seat goes back to a connection only when it brings that seat's key (sent only to the host).
    */
   private keys: Record<string, string>;
-  private displays = new Set<string>();
   /** Identifies this host instance in views (see View.hid). */
   private readonly hid = Math.random().toString(36).slice(2, 10);
   private heartbeat: ReturnType<typeof setInterval> | null = null;
-  /** peer → last round-trip time and when we last heard from it */
-  private health = new Map<string, { rtt: number | null; seen: number }>();
   /** Round-trip times by seat, for the local UI. */
   onPings: (pings: (number | null)[]) => void = () => {};
   private v = 0;
@@ -260,7 +245,7 @@ export class Host {
   private wire(transport: Transport) {
     transport.onMessage = (msg, from) => this.receive(from, msg);
     transport.onPeerLeave = (peer) => {
-      this.forget(peer);
+      this.conns.forget(peer);
       this.peerLeft(peer);
     };
     transport.onPeerJoin = () => {};
@@ -273,23 +258,15 @@ export class Host {
 
   // ---- incoming -------------------------------------------------------------------------
 
-  /** The last view each connection was sent, and when each last asked for a whole one. */
-  private sentViews = new Map<string, View>();
-  private syncedAt = new Map<string, number>();
-
   private receive(peer: string, raw: Msg) {
     const msg = raw as ClientMsg;
-    const h = this.health.get(peer);
-    if (h) h.seen = Date.now();
-    if (msg.t === 'pong') {
-      if (h && typeof msg.ts === 'number') h.rtt = Math.max(0, Math.round(performance.now() - msg.ts));
-      return;
-    }
+    this.conns.heard(peer);
+    if (msg.t === 'pong') return this.conns.pong(peer, msg.ts);
     if (msg.t === 'hello') {
       if (typeof msg.cid !== 'string' || !msg.cid || msg.cid.length > 64) return;
       // (a hello asks for the table afresh: the next view goes whole)
-      this.sentViews.delete(peer);
-      return this.paced(peer, msg);
+      this.conns.afresh(peer);
+      return this.conns.pace(peer, msg, (m) => this.greet(peer, m));
     }
     if (msg.t === 'sync') return this.resync(peer);
     if (msg.t === 'replay') return this.sendFrame(peer, msg.hand, msg.step);
@@ -304,62 +281,12 @@ export class Host {
     }
   }
 
-  /**
-   * Hellos, rate-limited per connection: every hello re-sends the whole table, so a connection
-   * saying hello over and over (a bug, or on purpose) could swamp the host. One is handled at
-   * once; any more within HELLO_GAP_MS wait, and only the latest of them is handled. A connection
-   * hopping between client ids is cut off after a few.
-   */
-  private helloPace = new Map<
-    string,
-    { last: number; pending: Extract<ClientMsg, { t: 'hello' }> | null; timer: ReturnType<typeof setTimeout> | null; ids: number[] }
-  >();
-
-  private paced(peer: string, msg: Extract<ClientMsg, { t: 'hello' }>) {
-    const now = Date.now();
-    let p = this.helloPace.get(peer);
-    if (!p) this.helloPace.set(peer, (p = { last: 0, pending: null, timer: null, ids: [] }));
-    const prev = this.peers.get(peer);
-    if (prev !== undefined && prev !== msg.cid && prev !== `screen:${msg.cid}` && !prev.startsWith('watch:')) {
-      p.ids = p.ids.filter((t) => now - t < 60_000);
-      if (p.ids.length >= IDENTITIES_PER_MINUTE) return;
-      p.ids.push(now);
-    }
-    if (now - p.last >= HELLO_GAP_MS && !p.timer) {
-      p.last = now;
-      return this.greet(peer, msg);
-    }
-    p.pending = msg;
-    p.timer ??= setTimeout(
-      () => {
-        const q = this.helloPace.get(peer);
-        if (!q) return;
-        q.timer = null;
-        const latest = q.pending;
-        q.pending = null;
-        q.last = Date.now();
-        if (latest) this.greet(peer, latest);
-      },
-      HELLO_GAP_MS - (now - p.last),
-    );
-  }
-
   private greet(peer: string, msg: Extract<ClientMsg, { t: 'hello' }>) {
     const key = typeof msg.key === 'string' && msg.key.length <= 128 ? msg.key : undefined;
     this.hello(peer, msg.cid, String(msg.name ?? 'Player'), cleanAvatar(msg.avatar), !!msg.display, key);
     // back from a split-off table: only someone now seated here brings its games back
     if (typeof msg.from === 'string' && Array.isArray(msg.merge) && this.peers.get(peer) === msg.cid && this.lobby.seats.some((s) => s.id === msg.cid))
       this.mergeBack(msg.from, msg.merge);
-  }
-
-  /** A connection has gone for good: drop its pacing (and any hello still waiting). */
-  private forget(peer: string) {
-    this.framesAsked.delete(peer);
-    this.sentViews.delete(peer);
-    this.syncedAt.delete(peer);
-    const p = this.helloPace.get(peer);
-    if (p?.timer) clearTimeout(p.timer);
-    this.helloPace.delete(peer);
   }
 
   private hello(peer: string, cid: string, name: string, avatar: Avatar | undefined, display: boolean, key?: string) {
@@ -369,12 +296,12 @@ export class Host {
     if (display) {
       this.displays.add(peer);
       this.peers.set(peer, `screen:${cid}`);
-      this.health.set(peer, { rtt: null, seen: Date.now() });
+      this.conns.watch(peer);
       return this.broadcast();
     }
     const seat = this.lobby.seats.find((s) => s.id === cid);
     if (seat && !this.mayHold(peer, cid, seat, key)) {
-      this.health.set(peer, { rtt: this.health.get(peer)?.rtt ?? null, seen: Date.now() });
+      this.conns.watch(peer);
       // no key yet (a client says hello to everyone before it knows who the host is): ask for it
       if (!key) return this.transport?.send({ t: 'view', view: { ...this.viewFor(null), who: true } }, peer);
       // the wrong key: they can watch, but not as that seat
@@ -384,7 +311,7 @@ export class Host {
     if (seat && key && !this.keys[cid]) this.keys[cid] = key;
     // a client may reach us on more than one network; keep them all, they're the same seat
     this.peers.set(peer, cid);
-    this.health.set(peer, { rtt: this.health.get(peer)?.rtt ?? null, seen: Date.now() });
+    this.conns.watch(peer);
     if (seat) {
       seat.connected = true;
       seat.avatar = avatar ?? seat.avatar;
@@ -414,72 +341,28 @@ export class Host {
     return this.peers.get(peer) === cid || ![...this.peers.values()].includes(cid);
   }
 
-  /** Ping whoever has been quiet; drop peers we haven't heard from in a while (faster than WebRTC notices). */
+  /** The heartbeat: ping whoever has been quiet; drop peers we haven't heard from in a while. */
   private beat() {
-    const now = Date.now();
-    // our own page was asleep (a phone locked, a tab in the background): nobody could be heard
-    // meanwhile, so everyone gets a fresh chance to answer rather than all being dropped at once
-    if (now - this.lastBeat > HEARTBEAT_MS * 3) for (const h of this.health.values()) h.seen = Math.max(h.seen, now);
-    this.lastBeat = now;
-    const pings = this.pings();
-    for (const [peer, h] of this.health) {
-      if (now - h.seen > DEAD_AFTER_MS) {
-        this.forget(peer);
+    this.conns.beat(
+      this.lobby.seats,
+      !this.lobby.started,
+      (peer) => {
+        this.conns.forget(peer);
         this.peerLeft(peer);
-        continue;
-      }
-      // someone who has been talking (moves, answers) and been sent something lately needs no ping
-      const sent = this.sentAt.get(peer) ?? 0;
-      const pinged = this.pingedAt.get(peer) ?? 0;
-      if (h.rtt != null && now - h.seen < PING_AFTER_MS && now - sent < PING_AFTER_MS && now - pinged < RTT_EVERY_MS) continue;
-      // the latency lights ride along when they've changed for this connection (in the lobby, which
-      // shows the numbers, by 25 ms; at the table, which shows only a light, when a light changes)
-      const told = this.toldPings.get(peer);
-      const fresh = !told || pingsMoved(told, pings, !this.lobby.started);
-      if (fresh) this.toldPings.set(peer, pings);
-      this.pingedAt.set(peer, now);
-      this.sentAt.set(peer, now);
-      this.transport?.send({ t: 'ping', ts: performance.now(), ...(fresh ? { pings } : {}) }, peer);
-    }
-    // (the host's own screen hears of every change: that costs nothing)
-    const now2 = this.pings();
-    if (pingsMoved(this.sentPings, now2, true)) {
-      this.sentPings = now2;
-      this.onPings(now2);
-    }
+      },
+      (p) => this.onPings(p),
+    );
   }
-  private sentPings: (number | null)[] = [];
-  /** When each connection was last sent anything, last pinged, and the latency lights it was last told. */
-  private sentAt = new Map<string, number>();
-  private pingedAt = new Map<string, number>();
-  private toldPings = new Map<string, (number | null)[]>();
-  private lastBeat = Date.now();
 
   /** Best round-trip time for each seat over any of its connections (host itself = 0). */
   pings(): (number | null)[] {
-    return this.lobby.seats.map((seat) => {
-      if (seat.host) return 0;
-      if (seat.bot) return null;
-      let best: number | null = null;
-      for (const [peer, cid] of this.peers) {
-        const rtt = cid === seat.id ? this.health.get(peer)?.rtt : null;
-        if (rtt != null && (best == null || rtt < best)) best = rtt;
-      }
-      return best;
-    });
+    return this.conns.pings(this.lobby.seats);
   }
 
   private peerLeft(peer: string) {
-    const cid = this.peers.get(peer);
-    this.peers.delete(peer);
-    this.health.delete(peer);
-    this.displays.delete(peer);
-    this.sentAt.delete(peer);
-    this.pingedAt.delete(peer);
-    this.toldPings.delete(peer);
-    if (cid !== undefined && ![...this.peers.values()].includes(cid)) this.routes.delete(cid);
+    const cid = this.conns.drop(peer);
     const seat = this.lobby.seats.find((s) => s.id === cid);
-    if (seat && ![...this.peers.values()].includes(seat.id)) {
+    if (seat && !this.conns.reaches(seat.id)) {
       seat.connected = false;
       // before the game starts, leaving frees the seat (and maybe a place for someone sitting out)
       if (!this.lobby.started) {
@@ -671,23 +554,16 @@ export class Host {
     return this.module ? this.hands.frame(this.module, this.gameSeat(cid), hand, step) : null;
   }
 
-  /** Replay requests, a few a second per connection at most. */
-  private framesAsked = new Map<string, { second: number; n: number }>();
+  /** A replay frame asked for (a few a second per connection at most). */
   private sendFrame(peer: string, hand: unknown, step: unknown) {
-    const second = Math.floor(Date.now() / 1000);
-    const c = this.framesAsked.get(peer);
-    if (c?.second === second && ++c.n > FRAMES_PER_SECOND) return;
-    if (c?.second !== second) this.framesAsked.set(peer, { second, n: 1 });
+    if (!this.conns.mayAsk(peer)) return;
     const cid = this.displays.has(peer) ? null : (this.peers.get(peer) ?? null);
     this.transport?.send({ t: 'frame', frame: this.frame(cid, Number(hand), Number(step)) }, peer);
   }
 
   /** A player's spreadsheet of the game (counted with replay frames: a few a second at most). */
   private sendExport(peer: string, format: unknown) {
-    const second = Math.floor(Date.now() / 1000);
-    const c = this.framesAsked.get(peer);
-    if (c?.second === second && ++c.n > FRAMES_PER_SECOND) return;
-    if (c?.second !== second) this.framesAsked.set(peer, { second, n: 1 });
+    if (!this.conns.mayAsk(peer)) return;
     const cid = this.displays.has(peer) ? null : (this.peers.get(peer) ?? null);
     const f: ExportFormat = format === 'pbn' || format === 'ohh' ? format : 'csv';
     this.transport?.send({ t: 'export', format: f, text: this.exportFile(cid, f) }, peer);
@@ -1109,7 +985,7 @@ export class Host {
   close() {
     this.closed = true;
     this.bots.stop();
-    for (const peer of [...this.helloPace.keys()]) this.forget(peer);
+    for (const peer of this.conns.known) this.conns.forget(peer);
     this.backups.stop();
     if (this.heartbeat) clearInterval(this.heartbeat);
     this.transport?.leave();
@@ -1156,75 +1032,23 @@ export class Host {
     if (this.transport) {
       // one view per person (or table screen), sent on one of the networks that reach them
       const views = new Map<string | null, View>();
-      const now = Date.now();
       for (const cid of new Set(this.peers.values())) {
-        const peer = this.routeTo(cid);
+        const peer = this.conns.route(cid);
         if (!peer) continue;
         const who = this.displays.has(peer) ? null : cid;
         let view = views.get(who);
         if (!view) views.set(who, (view = wire(this.viewFor(who))));
-        if (this.sendView(peer, view)) this.sentAt.set(peer, now);
+        this.conns.sendView(peer, view);
       }
     }
     this.onPersist({ lobby: this.lobby, state: this.state, keys: this.keys });
     this.backups.queue();
   }
 
-  /**
-   * A view to one connection: only what changed since the last one it had, when that's smaller (a
-   * move changes a few dozen bytes of a view of several kilobytes, which matters to players on a
-   * phone's data); otherwise the whole view.
-   */
-  /** (`view` is a copy, as sent: a view shares the lobby and game with the host, which change in place, and the next patch is worked out against it) */
-  private sendView(peer: string, view: View): boolean {
-    const prev = this.sentViews.get(peer);
-    if (prev && prev.hid === view.hid && view.v > prev.v) {
-      // (the version number is the patch's own `v`: the player sets it, it isn't sent twice more)
-      const ops = diff(prev, view).filter((op) => !(op[0] === 's' && VERSION_PATHS.has(op[1].join('.')) && op[2] === view.v));
-      // nothing they can see has changed (a phone saying hello again, someone else's move that's
-      // hidden from them): send nothing (the next patch still fits what they have)
-      if (!ops.length) return false;
-      this.sentViews.set(peer, view);
-      if (JSON.stringify(ops).length < JSON.stringify(view).length * 0.6) {
-        this.transport?.send({ t: 'patch', hid: view.hid, base: prev.v, v: view.v, ops }, peer);
-        return true;
-      }
-    }
-    this.sentViews.set(peer, view);
-    this.transport?.send({ t: 'view', view }, peer);
-    return true;
-  }
-
-  /**
-   * The connection a person's views go on, when several networks reach them (as after the relay
-   * dropped and the backup networks opened): the one in use while it answers, else the one heard
-   * from last. Everything twice would be twice the data. A new one starts with a whole view: the
-   * player takes patches only from the connection their last whole view came on.
-   */
-  private routeTo(cid: string): string | undefined {
-    const now = Date.now();
-    const seen = (p: string) => this.health.get(p)?.seen ?? 0;
-    const conns = [...this.peers].filter(([, c]) => c === cid).map(([p]) => p);
-    const cur = this.routes.get(cid);
-    if (cur && conns.includes(cur) && now - seen(cur) < PING_AFTER_MS + HEARTBEAT_MS * 2) return cur;
-    const best = conns.reduce<string | undefined>((a, p) => (!a || seen(p) > seen(a) ? p : a), undefined);
-    if (best && best !== cur) this.sentViews.delete(best);
-    if (best) this.routes.set(cid, best);
-    else this.routes.delete(cid);
-    return best;
-  }
-  private routes = new Map<string, string>();
-
   /** A player's patch didn't fit: the whole view again (once a second at most, per connection). */
   private resync(peer: string) {
-    const cid = this.peers.get(peer);
-    const last = this.syncedAt.get(peer) ?? 0;
-    if (cid === undefined || Date.now() - last < 1000) return;
-    // (they're listening on this one: their views go here from now on)
-    this.routes.set(cid, peer);
-    this.syncedAt.set(peer, Date.now());
-    this.sentViews.delete(peer);
-    this.sendView(peer, wire(this.viewFor(this.displays.has(peer) ? null : cid)));
+    const cid = this.conns.resync(peer);
+    if (cid !== undefined) this.conns.sendView(peer, wire(this.viewFor(this.displays.has(peer) ? null : cid)));
   }
 }
 
