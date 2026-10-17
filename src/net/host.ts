@@ -1,7 +1,6 @@
 import { botView } from '../engine/botView';
 import { isHidden, redact, redactActions, resolveAction } from '../engine/redact';
 import { randomSeed } from '../engine/rng';
-import { nightPoints, standingsOf } from '../engine/state';
 import { RuleError, type Action, type GameModule, type GameState } from '../engine/types';
 import { checkAction } from '../engine/validate';
 import { getGame, GAMES, loadRules, rulesFor, startProblem } from '../games';
@@ -25,10 +24,10 @@ import {
   REACTIONS,
 } from './protocol';
 import { seal } from './backup';
-import { GameRecord, toCsv } from './gameRecord';
+import { Hands, noteScores, tally } from './host/history';
 import type { ExportFormat } from './exports/formats';
 import { pingsMoved, VERSION_PATHS, wire } from './host/wire';
-import { cleanNightGame, finalScores, SCORE_HANDS, standardFormats, totalsOf } from './host/records';
+import { cleanNightGame, standardFormats } from './host/records';
 import { carriedGame, defaultOptions } from './host/lobby';
 export { SCORE_HANDS, totalsOf } from './host/records';
 export { defaultOptions } from './host/lobby';
@@ -65,14 +64,10 @@ import {
   BACKUP_HOLDERS,
   HELLO_GAP_MS,
   IDENTITIES_PER_MINUTE,
-  REPLAY_HANDS,
-  REPLAY_STEPS,
-  REPLAY_TOTAL,
   TABLE_MAX,
   RTT_EVERY_MS,
   UNDO,
   BOT_NAMES,
-  END_PHASES,
   FRAMES_PER_SECOND,
 } from './host/limits';
 
@@ -618,12 +613,8 @@ export class Host {
 
   // ---- replays ------------------------------------------------------------------------------
 
-  /** Finished hands of this game, oldest first: every moment of each, as the host saw it. */
-  private hands: GameState[][] = [];
-  /** The hand being played now, so far. */
-  private recording: GameState[] | null = null;
-  /** The whole game, move by move, for saving as a spreadsheet (see gameRecord.ts). */
-  private gameRecord = new GameRecord();
+  /** The last few hands for replays, and the whole game move by move (see history.ts). */
+  private hands = new Hands();
 
   /** This game so far as CSV, for `cid`: the moves, and only their own cards. */
   exportCsv(cid: string | null): string | null {
@@ -634,63 +625,22 @@ export class Host {
   exportFile(cid: string | null, format: ExportFormat): string | null {
     const s = this.state;
     if (!s || !this.module || this.module.realtime) return null;
-    const seat = this.gameSeat(cid);
-    const names = s.players.map((p) => p.name);
-    if (format === 'csv') return toCsv(this.gameRecord, seat, names);
-    return this.gameRecord.write(format, seat, { names, table: this.lobby.code });
+    return this.hands.file(s, this.gameSeat(cid), format, this.lobby.code);
   }
 
   /** The move being made (for the standard records: who did what), while it's committed. */
   private move: { seat: number; action: Action } | undefined;
 
-  /**
-   * Keep each moment of the hand in play, for replays. A hand ends in one of the end phases every
-   * family uses (or when the game shows a result banner); the next starts with the next deal. (Real-time games are a blur: not kept.)
-   * The states are the host's own (each move makes a new one), so keeping them costs no copying.
-   */
+  /** Keep this moment for replays and the game's record; a hand that has just ended adds to the score history. */
   private record() {
     const s = this.state;
     const m = this.module;
-    if (!s || !m || m.realtime) return;
-    const ended = END_PHASES.has(s.phase) || !!m.status(s, 0).banner;
-    this.gameRecord.note(
-      s,
-      ended,
-      () => {
-        // (the result as someone watching sees it: no "you")
-        try {
-          return m.status(s, -1).banner?.lines ?? [];
-        } catch {
-          return [];
-        }
-      },
-      this.move,
-    );
-    if (!ended) {
-      this.recording ??= [];
-      if (this.recording.length < REPLAY_STEPS && this.recording.at(-1) !== s) this.recording.push(s);
-      return;
-    }
-    if (!this.recording) return;
-    this.noteScores();
-    this.recording.push(s);
-    this.hands.push(this.recording);
-    if (this.hands.length > REPLAY_HANDS) this.hands.shift();
-    while (this.hands.length > 1 && this.hands.reduce((n, h) => n + h.length, 0) > REPLAY_TOTAL) this.hands.shift();
-    this.recording = null;
+    if (s && m && this.hands.record(m, s, this.move)) this.noteScores();
   }
 
   /** Add everyone's total now to the game's score history (at the deal, and as each hand ends). */
   private noteScores(atDeal = false) {
-    const t = this.module && this.state ? totalsOf(this.module, this.state, atDeal) : null;
-    if (!t) return;
-    const h = this.lobby.scores;
-    if (!h || h.names.join('|') !== t.names.join('|')) this.lobby.scores = { names: t.names, totals: [t.totals] };
-    else {
-      h.totals.push(t.totals);
-      // (the deal and the latest hands: a long poker night stays small)
-      if (h.totals.length > SCORE_HANDS + 1) h.totals.splice(1, 1);
-    }
+    if (this.module && this.state) noteScores(this.lobby, this.module, this.state, atDeal);
   }
 
   /**
@@ -698,15 +648,7 @@ export class Host {
    * if they were shown. `hand` counts back from the latest (0); `step` is clamped to the hand.
    */
   frame(cid: string | null, hand: number, step: number): Frame | null {
-    const m = this.module;
-    const hands = this.hands.length;
-    if (!m || !hands || !Number.isInteger(hand) || !Number.isInteger(step)) return null;
-    const h = Math.max(0, Math.min(hands - 1, hand));
-    const frames = this.hands[hands - 1 - h];
-    const at = Math.max(0, Math.min(frames.length - 1, step));
-    const seat = this.gameSeat(cid);
-    const s = frames[at];
-    return { hand: h, hands, step: at, steps: frames.length, state: redact(m, s, seat), status: m.status(s, seat) };
+    return this.module ? this.hands.frame(this.module, this.gameSeat(cid), hand, step) : null;
   }
 
   /** Replay requests, a few a second per connection at most. */
@@ -733,24 +675,7 @@ export class Host {
 
   /** Add a game that has just finished to tonight's tally (once; a rematch starts a new one). */
   private tally() {
-    const s = this.state;
-    const m = this.module;
-    if (!s || !m) return;
-    if (s.phase !== 'gameOver') {
-      s.tallied = false;
-      return;
-    }
-    if (s.tallied || !s.winner?.length) return;
-    s.tallied = true;
-    const places = standingsOf(m, s);
-    this.lobby.night ??= { games: [] };
-    this.lobby.night.games.push({
-      game: m.config.id,
-      name: m.config.name,
-      at: Date.now(),
-      results: this.players().map((seat, i) => ({ id: seat.id, name: seat.name, place: places[i], points: nightPoints(places[i], places) })),
-      final: finalScores(m, s),
-    });
+    if (this.state && this.module) tally(this.lobby, this.module, this.state, this.players());
   }
 
   /** A reaction from someone at the table, passed on to everyone (one a second each, at most). */
@@ -1273,9 +1198,7 @@ export class Host {
     this.lobby.started = true;
     this.history = [];
     this.takeBack = null;
-    this.hands = [];
-    this.recording = null;
-    this.gameRecord = new GameRecord(standardFormats(this.module.config));
+    this.hands.reset(standardFormats(this.module.config));
     this.state = this.module.setup(
       players.map((s) => ({ name: s.name, bot: s.bot })),
       this.seed ?? randomSeed(),
@@ -1293,9 +1216,7 @@ export class Host {
     this.state = null;
     this.module = null;
     this.history = [];
-    this.hands = [];
-    this.recording = null;
-    this.gameRecord = new GameRecord();
+    this.hands.reset();
     this.lobby.seats = this.lobby.seats.filter((s) => s.connected || s.host);
     // whoever sat out that game gets priority for the next one
     const played = new Set(this.lobby.playing ?? []);
@@ -1338,9 +1259,9 @@ export class Host {
       state: s && m ? redact(m, s, seat) : null,
       actions: s && m && seat >= 0 ? redactActions(s, seat, m.actions(s, seat)) : [],
       status: s && m ? m.status(s, seat) : null,
-      ...(s && this.hands.length ? { replays: this.hands.length } : {}),
+      ...(s && this.hands.count ? { replays: this.hands.count } : {}),
       // (the hand on the table has just finished: offer to replay it)
-      ...(s && this.hands.at(-1)?.at(-1) === s ? { handDone: true as const } : {}),
+      ...(s && this.hands.justEnded(s) ? { handDone: true as const } : {}),
     };
     if (s && m?.config.undo && this.history.length && seat >= 0) view.actions.push({ type: UNDO, label: 'Undo', menu: true });
     else if (s && seat >= 0 && this.takeBackFor(seat)) view.actions.push({ type: UNDO, label: 'Take back', style: 'quiet' });
