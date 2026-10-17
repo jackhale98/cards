@@ -6,14 +6,14 @@ import { assertRule, type GameConfig, type GameModule } from '../../types';
 import { trickActions } from './actions';
 import { applyBid, applyBid500, applyBury, applyCall, applyDecline, applyDouble, applyName, applyOrder } from './bidding';
 import { hardQuick, quickBot, quickTricks, trickSearch } from './bots';
-import { applyCallPartner, applyDefend, applyNominate, callable, startRound } from './deal';
+import { applyCallPartner, applyDefend, applyNominate, callable, checkBoards, dealBoards, startRound } from './deal';
 import { applyBlind, applyBlindGive, applyPass } from './exchange';
 import { collectTrick, leadJoker, playCard } from './play';
-import { endRound } from './scoring';
+import { endRound, finishDuplicate, impTotals, waitingForOthers } from './scoring';
 import { controller, teamOf, teamsFor } from './sides';
 import { trickStatus } from './status';
 import { applyPitchBid } from './pitch';
-import { trickGame, type TrickData } from './types';
+import { duplicateBridge, trickGame, type TrickData } from './types';
 import { setbackBid, setbackCard } from './setbackHard';
 import { dd500Bid, ddBid, ddBudget, ddCard, ddEuchreCall, ddGame } from './ddPlay';
 
@@ -54,7 +54,7 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
     config,
     botLevels: true,
 
-    setup(players, seed, options) {
+    setup(players, seed, options, table) {
       const s = createState<TrickData>(config, players, seed, options, {
         round: 0,
         handSize: 0,
@@ -72,6 +72,14 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
         result: null,
       });
       s.dealer = players.length - 1;
+      // duplicate bridge: the boards to play, given (the same as at other tables), or dealt here
+      if (g.bridgeBids && duplicateBridge(s)) {
+        if (table?.boards?.length) checkBoards(g, table.boards);
+        s.data.boards = table?.boards?.length ? structuredClone(table.boards) : dealBoards(g, s, Number(s.options.deals ?? g.R.end.deals ?? 4));
+        s.data.results = [];
+        s.data.others = [];
+        s.data.compared = !!table?.compared;
+      }
       startRound(g, s);
       return s;
     },
@@ -134,6 +142,7 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
           return endRound(g, s);
         case 'next':
           assertRule(s.phase === 'roundOver', 'Round not over');
+          assertRule(!waitingForOthers(s), 'Waiting for the other table');
           d.round++;
           s.dealer = nextSeat(s, s.dealer);
           startRound(g, s);
@@ -144,6 +153,8 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
           d.scores = d.scores.map(() => 0);
           d.bags = d.bags.map(() => 0);
           s.winner = undefined;
+          // (duplicate: fresh boards, dealt here; the comparison was with the last game's)
+          if (d.boards) Object.assign(d, { boards: dealBoards(g, s, d.boards.length), results: [], others: [], compared: false });
           startRound(g, s);
           return;
       }
@@ -231,6 +242,8 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
         received: ownOnly(d.received, viewer),
         // who holds honours is told when the hand is scored, not before
         honours: s.phase === 'roundOver' || s.phase === 'gameOver' ? d.honours : null,
+        // duplicate: the boards are nobody's to see (each hand is dealt from them)
+        boards: undefined,
         // Pitch: which cards are High, Low and Jack would say who holds what (or that a card
         // wasn't dealt), and so would who has them so far: only once the hand is scored
         ...(d.pitch && s.phase !== 'roundOver' && s.phase !== 'gameOver'
@@ -242,10 +255,24 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
     sides: (n) => teamsFor(g, n),
 
     standings(s) {
+      // (duplicate compared with other tables: on IMPs)
+      const totals = s.data.compared ? impTotals(s) : s.data.scores;
       return placesFromScores(
-        s.players.map((_, i) => s.data.scores[teamOf(g, s, i)]),
+        s.players.map((_, i) => totals[teamOf(g, s, i)]),
         g.lowWins,
       );
+    },
+
+    report(s) {
+      return { hand: s.data.round + 1, ...(s.data.results ? { boards: structuredClone(s.data.results) } : {}) };
+    },
+
+    compare(s, others) {
+      const d = s.data;
+      if (!d.results || !d.others) return;
+      for (const o of others) if (d.results.some((r) => r.n === o.n) && !d.others.some((x) => x.n === o.n && x.at === o.at)) d.others.push(structuredClone(o));
+      // (the last result in: the game is decided)
+      if (d.compared && s.phase === 'roundOver' && d.results.length >= (d.boards?.length ?? 0) && !waitingForOthers(s)) finishDuplicate(g, s);
     },
 
     status: (s, viewer) => trickStatus(g, s, viewer),

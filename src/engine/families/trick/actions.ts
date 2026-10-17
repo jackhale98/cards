@@ -8,6 +8,7 @@ import { ALL_BIDS, bidLabel, contractLabel, MISERE, NAMEABLE, OPEN_MISERE, SUIT_
 import { callable } from './deal';
 import { jokerLeadSuits, legalCards, suitless } from './play';
 import { botPitchBid, forcedDealer, pitchBids, pitchLabel } from './pitch';
+import { waitingForOthers } from './scoring';
 import { controller, partnersOf, sourceZone } from './sides';
 import type { S, TrickGame } from './types';
 
@@ -168,7 +169,8 @@ export function trickActions(g: TrickGame, s: S, seat: number): ActionSpec[] {
     out.push({ type: 'moonSub', label: `Take ${g.totalPoints} off my score`, style: 'primary' });
     out.push({ type: 'moonAdd', label: `Give everyone else ${g.totalPoints}` });
   } else if (s.phase === 'roundOver') {
-    out.push({ type: 'next', label: 'Next hand', style: 'primary' });
+    // (duplicate: the last board played, waiting for the other table's results on the boards)
+    if (!waitingForOthers(s)) out.push({ type: 'next', label: d.boards ? 'Next board' : 'Next hand', style: 'primary' });
   } else if (s.phase === 'gameOver') {
     out.push({ type: 'rematch', label: 'New game', style: 'primary' });
   }

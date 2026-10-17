@@ -54,6 +54,20 @@ export interface BridgeContract {
 export const bridgeLabel = (c: BridgeContract, short = false) =>
   `${contractLabel({ tricks: c.level, suit: c.strain, value: 0 })}${short ? ['', '×', '××'][c.dbl] : ['', ' doubled', ' redoubled'][c.dbl]}`;
 
+/** A contract as a board's result records it (`4S`, `3NTX`, `6HXX`), and back (null: not one). */
+export const contractCode = (c: BridgeContract) => `${c.level}${c.strain}${['', 'X', 'XX'][c.dbl]}`;
+export function contractOf(code: string): BridgeContract | null {
+  const m = /^([1-7])(NT|S|H|D|C)(X{0,2})$/.exec(code);
+  return m ? { level: Number(m[1]), strain: m[2] as Suit | 'NT', dbl: m[3].length as 0 | 1 | 2 } : null;
+}
+/** A board's result, short: "4♠ S +1", "3NT× W −2", "Passed out". */
+export function resultLabel(r: { contract: string | null; declarer: number | null; tricks: number | null }): string {
+  const c = r.contract ? contractOf(r.contract) : null;
+  if (!c || r.declarer == null || r.tricks == null) return 'Passed out';
+  const over = r.tricks - c.level - 6;
+  return `${bridgeLabel(c, true)} ${'NESW'[r.declarer]} ${over === 0 ? '=' : over > 0 ? `+${over}` : `−${-over}`}`;
+}
+
 /**
  * Duplicate bridge score for one deal: positive = the declaring side's score, negative = what the
  * defenders score.

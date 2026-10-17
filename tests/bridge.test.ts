@@ -276,3 +276,155 @@ describe('bridge: Chicago and rubber scoring (pagat)', () => {
     throw new Error('no hand with four aces');
   });
 });
+
+describe('bridge: duplicate', () => {
+  const tg = trickGame(g.config);
+  const people = Array.from({ length: 4 }, (_, i) => ({ name: `P${i}` }));
+  const DUP = { style: 2, deals: 4 };
+  /** Boards dealt from a seed (as another table would have them). */
+  const boardsFrom = (seed: number, count = 4) => g.setup(people, seed, { ...DUP, deals: count }).data.boards!;
+  /** Score the board being played: seat `maker` declared, their side took `won` tricks. */
+  function play(s: GameState<TrickData>, maker: number, level: number, strain: 'C' | 'D' | 'H' | 'S' | 'NT', won: number, dbl: 0 | 1 | 2 = 0) {
+    const d = s.data;
+    d.bridge = { level, strain, dbl };
+    d.maker = maker;
+    d.tricks = [0, 1, 2, 3].map((i) => (i === maker ? won : i === (maker + 1) % 4 ? 13 - won : 0));
+    endRound(tg, s);
+  }
+  const passAll = (s: GameState<TrickData>) => {
+    for (let i = 0; i < 4; i++) g.apply(s, s.turn!, { type: 'decline' });
+  };
+
+  it('deals each board as given, its dealer and vulnerability from its number', () => {
+    const boards = boardsFrom(5, 8);
+    const s = g.setup(people, 1, DUP, { boards: boards.slice(1, 7) });
+    // board 2: East deals, North–South vulnerable
+    expect(s.data.board).toBe(2);
+    expect(s.dealer).toBe(1);
+    expect(s.turn).toBe(1);
+    expect(s.data.vul).toEqual([true, false]);
+    for (let i = 0; i < 4; i++) expect(ids(s, `hand:${i}`).sort()).toEqual([...boards[1].hands[i]].sort());
+    // board 7: South deals, everyone vulnerable
+    s.data.round = 5;
+    s.phase = 'roundOver';
+    s.data.round--;
+    g.apply(s, 0, { type: 'next' });
+    expect(s.data.board).toBe(7);
+    expect(s.dealer).toBe(2);
+    expect(s.data.vul).toEqual([true, true]);
+    expect(cardsIn(s)).toBe(52);
+  });
+
+  it('scores each board on its own: a game or part score bonus on the board, nothing carried', () => {
+    const s = g.setup(people, 1, DUP, { boards: boardsFrom(5) });
+    // board 1, nobody vulnerable: North makes 4♠ +1 (450); a part score next doesn't build on anything
+    play(s, 0, 4, 'S', 11);
+    expect(s.data.scores).toEqual([450, 0]);
+    expect(s.data.results).toEqual([{ n: 1, contract: '4S', declarer: 0, tricks: 11, ns: 450 }]);
+    g.apply(s, 0, { type: 'next' });
+    // board 2, North–South vulnerable: East makes 2♥ (110: 60 and the part score's 50)
+    play(s, 1, 2, 'H', 8);
+    expect(s.data.scores).toEqual([450, 110]);
+    expect(s.data.results![1]).toEqual({ n: 2, contract: '2H', declarer: 1, tricks: 8, ns: -110 });
+  });
+
+  it('a board all four pass is passed out: no score, and no new deal', () => {
+    const s = g.setup(people, 1, DUP, { boards: boardsFrom(5) });
+    passAll(s);
+    expect(s.phase).toBe('roundOver');
+    expect(s.data.results).toEqual([{ n: 1, contract: null, declarer: null, tricks: null, ns: 0 }]);
+    expect(s.data.scores).toEqual([0, 0]);
+    g.apply(s, 0, { type: 'next' });
+    expect(s.data.board).toBe(2);
+  });
+
+  it('ends after the boards: most points wins', () => {
+    const s = g.setup(people, 1, { ...DUP, deals: 4 });
+    for (let k = 0; k < 4; k++) {
+      play(s, 1, 3, 'NT', 9);
+      if (k < 3) g.apply(s, 0, { type: 'next' });
+    }
+    expect(s.phase).toBe('gameOver');
+    expect(s.winner).toEqual([1, 3]);
+    expect(g.report!(s).boards).toHaveLength(4);
+  });
+
+  it('nobody sees the boards: not the ones still to come, nor the hands in them', () => {
+    const s = g.setup(people, 1, DUP);
+    for (const viewer of [-1, 0, 1, 2, 3]) expect(g.redactData!(s, viewer).boards).toBeUndefined();
+  });
+
+  it('boards dealt from the same seed are the same; a game again deals new ones', () => {
+    expect(boardsFrom(9)).toEqual(boardsFrom(9));
+    const s = g.setup(people, 1, { ...DUP, deals: 4 });
+    const first = structuredClone(s.data.boards);
+    for (let k = 0; k < 4; k++) {
+      passAll(s);
+      if (k < 3) g.apply(s, 0, { type: 'next' });
+    }
+    g.apply(s, 0, { type: 'rematch' });
+    expect(s.data.boards).not.toEqual(first);
+    expect(s.data.results).toEqual([]);
+    expect(s.data.board).toBe(1);
+  });
+
+  it('bots play a duplicate game through, board by board', () => {
+    const s = g.setup(bots, 3, { ...DUP, botLevel: 0 });
+    const boards: number[] = [];
+    for (let i = 0; i < 20000 && s.phase !== 'gameOver'; i++) {
+      const sys = g.system?.(s);
+      if (sys) {
+        sys.run(s);
+        continue;
+      }
+      if (s.phase === 'roundOver') {
+        boards.push(s.data.board!);
+        g.apply(s, 0, { type: 'next' });
+        continue;
+      }
+      const seat = s.players.findIndex((p) => g.bot!(s, p.seat));
+      if (seat < 0) throw new Error(`stuck in ${s.phase}`);
+      g.apply(s, seat, g.bot!(s, seat)!);
+    }
+    expect(s.phase).toBe('gameOver');
+    expect([...boards, s.data.board]).toEqual([1, 2, 3, 4]);
+    expect(s.data.results!.map((r) => r.n)).toEqual([1, 2, 3, 4]);
+    expect(s.data.scores.reduce((a, b) => a + b)).toBe(s.data.results!.reduce((t, r) => t + Math.abs(r.ns), 0));
+  });
+
+  it('refuses boards that aren’t a whole deck dealt thirteen a hand', () => {
+    const boards = boardsFrom(5);
+    boards[0].hands[0][0] = boards[0].hands[1][0];
+    expect(() => g.setup(people, 1, DUP, { boards })).toThrow();
+  });
+
+  it('compared with another table: each board in IMPs, the game decided on them once the last result is in', () => {
+    const s = g.setup(people, 1, { ...DUP, deals: 2 }, { boards: boardsFrom(5, 2), compared: true });
+    // board 1 here: 4♠ by North, made (420); there: 4♠ by North, one off (−50): +470 is 10 IMPs
+    play(s, 0, 4, 'S', 10);
+    const there = { at: 'Bots', declarer: 0 };
+    g.compare!(s, [{ ...there, n: 1, contract: '4S', tricks: 9, ns: -50 }]);
+    // (a board not yet played here is kept back; a repeat is ignored)
+    g.compare!(s, [
+      { ...there, n: 1, contract: '4S', tricks: 9, ns: -50 },
+      { ...there, n: 2, contract: '3NT', tricks: 10, ns: 430 },
+    ]);
+    expect(s.data.others).toHaveLength(1);
+    const board = g.status(s, 0).scoreboard!;
+    expect(board.columns).toEqual(['Here', 'Bots', 'IMPs N–S']);
+    // (a thin space keeps a contract from reading as a card)
+    expect(board.rows[0]).toEqual({ name: 'Board 1', values: ['4\u2009♠ N = +420', '4\u2009♠ N −1 −50', '+10'] });
+    g.apply(s, 0, { type: 'next' });
+    // board 2, everyone's last: East–West make 3NT (here 400 to them); the result from there is still to come
+    play(s, 1, 3, 'NT', 9);
+    expect(s.phase).toBe('roundOver');
+    expect(g.actions(s, 0)).toEqual([]);
+    expect(g.status(s, 0).headline).toBe('Every board played: waiting for the other table');
+    // there, East–West bid and made 6NT (990): North–South lost 400 here rather than 990: +590 is 11 IMPs
+    g.compare!(s, [{ ...there, n: 2, contract: '6NT', declarer: 1, tricks: 12, ns: -990 }]);
+    expect(s.phase).toBe('gameOver');
+    expect(s.winner).toEqual([0, 2]);
+    expect(g.standings!(s)).toEqual([0, 2, 0, 2]);
+    expect(g.status(s, 0).scoreboard!.rows.at(-2)!.values.at(-1)).toBe('+21 IMPs');
+  });
+});

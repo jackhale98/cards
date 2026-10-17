@@ -3,7 +3,8 @@ import { name, zone } from '../../state';
 import type { GameStatus } from '../../types';
 import { dirLabel } from './actions';
 import { auctionState, callLabel } from './bidding';
-import { bidOf, bridgeLabel, contractLabel } from './contracts';
+import { bidOf, bridgeLabel, contractLabel, resultLabel } from './contracts';
+import { comparisons, impTotals, waitingForOthers } from './scoring';
 import { openerOf, suitless } from './play';
 import { active, controller, partnersOf, teamName, teamOf, teamsFor } from './sides';
 import { rubberBridge, type S, type TrickGame } from './types';
@@ -43,7 +44,7 @@ export function trickStatus(g: TrickGame, s: S, viewer: number): GameStatus {
     const cur = a.lastBid >= 0 ? `${bridgeLabel({ ...bidOf(a.lastBid), dbl: a.dbl }, true)} by ${name(s, a.bidder)}` : 'no bids yet';
     const vul = d.vul ?? [];
     const vulText = vul.every(Boolean) ? 'all vulnerable' : !vul.some(Boolean) ? 'none vulnerable' : `${teamName(g, s, vul.indexOf(true))} vulnerable`;
-    headline = `${s.turn === viewer ? 'Your call' : `${name(s, s.turn!)} to call`} · ${cur} · ${vulText}`;
+    headline = `${s.turn === viewer ? 'Your call' : `${name(s, s.turn!)} to call`} · ${cur} · ${d.boards ? `board ${d.board}, ` : ''}${vulText}`;
   } else if (s.phase === 'discard') {
     const k = auction ? (R.kitty ?? 3) : 1;
     headline = s.turn === viewer ? `Discard ${k > 1 ? `${k} cards` : 'a card'}` : `${name(s, s.turn!)} is discarding`;
@@ -76,7 +77,8 @@ export function trickStatus(g: TrickGame, s: S, viewer: number): GameStatus {
     headline = s.turn === viewer ? 'Give the joker a suit' : `${name(s, s.turn!)} is choosing the joker’s suit`;
   } else if (s.phase === 'moon') {
     headline = s.turn === viewer ? `You shot the moon! Take ${totalPoints} off, or give everyone ${totalPoints}?` : `🌙 ${name(s, s.turn!)} shot the moon`;
-  } else if (s.phase === 'roundOver') headline = 'Hand complete';
+  } else if (s.phase === 'roundOver')
+    headline = waitingForOthers(s) ? 'Every board played: waiting for the other table' : d.boards ? `Board ${d.board} complete` : 'Hand complete';
   else if (s.phase === 'gameOver') headline = 'Game over';
   // (a bridge contract names its trump suit, and the declarer's badge shows it)
   if (d.trump && s.phase !== 'gameOver' && !d.bridge) headline += ` · trumps ${SUIT_SYMBOL[d.trump]}`;
@@ -142,31 +144,33 @@ export function trickStatus(g: TrickGame, s: S, viewer: number): GameStatus {
     headline,
     actor: s.phase === 'play' ? controller(s) : undefined,
     seats: s.players.map((_, i) => ({ badge: seatBadge(i), tag: i === s.dealer ? 'D' : undefined })),
-    scoreboard: g.bridgeBids
-      ? {
-          // bridge: the part score toward the next game, and in a rubber the games won
-          columns: ['Part score', ...(rubberBridge(s) ? ['Games'] : []), 'Total'],
-          rows: teams.map((t, ti) => ({
-            name: teamName(g, s, ti),
-            values: [d.below?.[ti] ?? 0, ...(rubberBridge(s) ? [d.games?.[ti] ?? 0] : []), d.scores[ti]],
-            highlight: !!s.winner && t.some((i) => s.winner!.includes(i)),
-          })),
-        }
-      : {
-          columns: [bidding ? 'Won / bid' : R.scoring.type === 'penalty' ? 'This hand' : g.pitchBids ? 'Game points' : 'Tricks', 'Total'],
-          rows: teams.map((t, ti) => ({
-            name: teamName(g, s, ti),
-            values: [
-              bidding
-                ? t.map((i) => `${d.tricks[i]}/${d.bids[i] ?? '–'}`).join(' ')
-                : R.scoring.type === 'penalty' || g.pitchBids
-                  ? t.reduce((n, i) => n + d.points[i], 0)
-                  : t.reduce((n, i) => n + d.tricks[i], 0),
-              d.scores[ti],
-            ],
-            highlight: !!s.winner && t.some((i) => s.winner!.includes(i)),
-          })),
-        },
+    scoreboard: d.boards
+      ? duplicateBoard(g, s)
+      : g.bridgeBids
+        ? {
+            // bridge: the part score toward the next game, and in a rubber the games won
+            columns: ['Part score', ...(rubberBridge(s) ? ['Games'] : []), 'Total'],
+            rows: teams.map((t, ti) => ({
+              name: teamName(g, s, ti),
+              values: [d.below?.[ti] ?? 0, ...(rubberBridge(s) ? [d.games?.[ti] ?? 0] : []), d.scores[ti]],
+              highlight: !!s.winner && t.some((i) => s.winner!.includes(i)),
+            })),
+          }
+        : {
+            columns: [bidding ? 'Won / bid' : R.scoring.type === 'penalty' ? 'This hand' : g.pitchBids ? 'Game points' : 'Tricks', 'Total'],
+            rows: teams.map((t, ti) => ({
+              name: teamName(g, s, ti),
+              values: [
+                bidding
+                  ? t.map((i) => `${d.tricks[i]}/${d.bids[i] ?? '–'}`).join(' ')
+                  : R.scoring.type === 'penalty' || g.pitchBids
+                    ? t.reduce((n, i) => n + d.points[i], 0)
+                    : t.reduce((n, i) => n + d.tricks[i], 0),
+                d.scores[ti],
+              ],
+              highlight: !!s.winner && t.some((i) => s.winner!.includes(i)),
+            })),
+          },
     banner:
       s.phase === 'gameOver'
         ? {
@@ -174,7 +178,41 @@ export function trickStatus(g: TrickGame, s: S, viewer: number): GameStatus {
             lines: d.result?.lines ?? [],
           }
         : s.phase === 'roundOver'
-          ? { title: 'Hand complete', lines: d.result?.lines ?? [] }
+          ? { title: d.boards ? `Board ${d.board} complete` : 'Hand complete', lines: d.result?.lines ?? [] }
           : undefined,
+  };
+}
+
+/** A score from North–South's side: "+450", "−50", "0". */
+const signed = (x: number) => (x > 0 ? `+${x}` : x < 0 ? `−${-x}` : '0');
+
+/**
+ * Duplicate bridge: board by board. Alone, each board's result and who scored it, and the totals;
+ * compared with another table, each board here and there, North–South's IMPs, and each side's.
+ */
+function duplicateBoard(g: TrickGame, s: S): GameStatus['scoreboard'] {
+  const d = s.data;
+  const rows = comparisons(s);
+  const teams = teamsFor(g, s.players.length);
+  const won = (ti: number) => !!s.winner && teams[ti].some((i) => s.winner!.includes(i));
+  if (!d.compared && !d.others?.length)
+    return {
+      columns: ['Result', 'N–S', 'E–W'],
+      rows: [
+        ...rows.map(({ here }) => ({ name: `Board ${here.n}`, values: [resultLabel(here), here.ns > 0 ? here.ns : '', here.ns < 0 ? -here.ns : ''] })),
+        ...teams.map((_, ti) => ({ name: teamName(g, s, ti), values: ['', ti === 0 ? d.scores[0] : '', ti === 1 ? d.scores[1] : ''], highlight: won(ti) })),
+      ],
+    };
+  const at = d.others?.[0]?.at ?? 'Other table';
+  const totals = impTotals(s);
+  return {
+    columns: ['Here', at, 'IMPs N–S'],
+    rows: [
+      ...rows.map(({ here, there, imps }) => ({
+        name: `Board ${here.n}`,
+        values: [`${resultLabel(here)} ${signed(here.ns)}`, there ? `${resultLabel(there)} ${signed(there.ns)}` : '…', imps == null ? '' : signed(imps)],
+      })),
+      ...teams.map((_, ti) => ({ name: teamName(g, s, ti), values: ['', '', `${signed(totals[ti])} IMPs`], highlight: won(ti) })),
+    ],
   };
 }

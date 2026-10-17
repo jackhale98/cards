@@ -13,6 +13,8 @@ import { EVERYONE, type HandFormat } from './types';
  */
 interface PbnHand {
   board: number;
+  /** How it's scored: Chicago, Rubber, or duplicate (IMPs). */
+  scoring: string;
   at: Date;
   dealer: number;
   vul: boolean[];
@@ -61,7 +63,9 @@ export const pbn: HandFormat<PbnHand> = {
   start(deal, at) {
     const d = deal.data as TrickData;
     return {
-      board: d.round + 1,
+      // (duplicate: the board's own number)
+      board: d.board ?? d.round + 1,
+      scoring: ['Chicago', 'Rubber', 'IMP'][Number(deal.options.style ?? 0)] ?? 'Chicago',
       at,
       dealer: deal.dealer,
       vul: [...(d.vul ?? [false, false])],
@@ -121,7 +125,7 @@ export const pbn: HandFormat<PbnHand> = {
         tag('Dealer', SEAT[h.dealer]),
         tag('Vulnerable', vul),
         tag('Deal', `${SEAT[h.dealer]}:${deal.join(' ')}`),
-        tag('Scoring', 'Chicago'),
+        tag('Scoring', h.scoring),
         tag('Declarer', decl != null ? SEAT[decl] : ''),
         tag('Contract', c ? `${c.level}${c.strain}${'X'.repeat(c.dbl)}` : 'Pass'),
         tag('Result', won != null ? String(won) : ''),

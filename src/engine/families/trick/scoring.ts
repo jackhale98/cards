@@ -1,7 +1,9 @@
+import { imps } from '../../lib/duplicate';
 import { name } from '../../state';
-import { bridgeLabel, bridgeParts, contractLabel } from './contracts';
+import type { BoardResult, OtherResult } from '../../types';
+import { bridgeLabel, bridgeParts, bridgeScore, contractCode, contractLabel } from './contracts';
 import { teamName, teamOf, teamsFor } from './sides';
-import { rubberBridge, target, totalRounds, type S, type TrickGame } from './types';
+import { duplicateBridge, rubberBridge, target, totalRounds, type S, type TrickGame } from './types';
 import { pitchScores } from './pitch';
 
 /** Scoring a hand, and whether the game is over. */
@@ -57,6 +59,8 @@ export function roundScores(g: TrickGame, s: S): { deltas: number[]; lines: stri
       deltas[1 - makers] = d.defAlone != null ? euchred * 2 : euchred;
       lines.push(`${teamName(g, s, makers)} are euchred${d.defAlone != null ? ` by ${name(s, d.defAlone)} alone` : ''}! (${won} tricks)`);
     }
+  } else if (sc.type === 'bridge' && duplicateBridge(s)) {
+    duplicateScores(g, s, deltas, lines);
   } else if (sc.type === 'bridge') {
     const c = d.bridge!;
     const side = teamOf(g, s, d.maker!);
@@ -189,6 +193,75 @@ export function roundScores(g: TrickGame, s: S): { deltas: number[]; lines: stri
   return { deltas, lines };
 }
 
+/**
+ * Duplicate bridge: the board alone, as `bridgeScore` has it (game and part-score bonuses on the
+ * board itself, nothing carried), its result kept. A passed-out board scores nothing.
+ */
+function duplicateScores(g: TrickGame, s: S, deltas: number[], lines: string[]) {
+  const d = s.data;
+  const n = d.board!;
+  const c = d.bridge;
+  const results = (d.results ??= []);
+  if (!c || d.maker == null) {
+    lines.push(`Board ${n} is passed out: no score`);
+    results.push({ n, contract: null, declarer: null, tricks: null, ns: 0 });
+    return;
+  }
+  const side = teamOf(g, s, d.maker);
+  const vul = !!d.vul?.[side];
+  const won = teamsFor(g, s.players.length)[side].reduce((k, i) => k + d.tricks[i], 0);
+  const diff = won - c.level - 6;
+  const score = bridgeScore(c, vul, won);
+  lines.push(
+    `Board ${n}: ${name(s, d.maker)} ${diff >= 0 ? `made ${bridgeLabel(c)}${diff ? ` +${diff}` : ''}` : `went down ${-diff} in ${bridgeLabel(c)}`}${vul ? ' (vulnerable)' : ''}`,
+  );
+  if (score > 0) deltas[side] = score;
+  else deltas[1 - side] = -score;
+  // (North–South are the first side)
+  results.push({ n, contract: contractCode(c), declarer: d.maker, tricks: won, ns: side === 0 ? score : -score });
+}
+
+/** Duplicate bridge: each board's comparison with another table's result there (the first one in), from North–South's side. */
+export function comparisons(s: S): { here: BoardResult; there: OtherResult | null; imps: number | null }[] {
+  const d = s.data;
+  return (d.results ?? []).map((here) => {
+    const there = d.others?.find((o) => o.n === here.n) ?? null;
+    return { here, there, imps: there ? imps(here.ns - there.ns) : null };
+  });
+}
+/** …and each side's IMPs so far (North–South, East–West). */
+export function impTotals(s: S): number[] {
+  const ns = comparisons(s).reduce((t, c) => t + (c.imps ?? 0), 0);
+  return [ns, -ns];
+}
+/** Duplicate bridge compared with other tables: every board played, waiting for a result still to come from them. */
+export const waitingForOthers = (s: S) =>
+  !!s.data.compared && s.phase === 'roundOver' && (s.data.results?.length ?? 0) >= (s.data.boards?.length ?? 0) && comparisons(s).some((c) => !c.there);
+
+/**
+ * Duplicate bridge, a board done: on to the next, or the end, decided on the comparison with the
+ * other tables when there is one (once their last result is in), else on points.
+ */
+function endBoard(g: TrickGame, s: S) {
+  const d = s.data;
+  s.phase = 'roundOver';
+  if (d.round + 1 < d.boards!.length || waitingForOthers(s)) return;
+  finishDuplicate(g, s);
+}
+export function finishDuplicate(g: TrickGame, s: S) {
+  const d = s.data;
+  const teams = teamsFor(g, s.players.length);
+  const totals = d.compared ? impTotals(s) : d.scores;
+  const best = Math.max(...totals);
+  if (d.compared) {
+    const lines = (d.result ??= { lines: [] }).lines;
+    teams.forEach((_, ti) => lines.push(`${teamName(g, s, ti)}: ${totals[ti] > 0 ? '+' : ''}${totals[ti]} IMPs`));
+  }
+  s.winner = teams.flatMap((t, ti) => (totals[ti] === best ? t : []));
+  s.phase = 'gameOver';
+  s.turn = null;
+}
+
 /** The last trick is in (or a misère has failed): score the hand and see whether the game is over. */
 export function endRound(g: TrickGame, s: S) {
   const d = s.data;
@@ -210,6 +283,7 @@ export function endRound(g: TrickGame, s: S) {
   s.turn = null;
   if (g.auction) return endAuctionRound(g, s, deltas, lines);
   if (g.pitchBids) return endPitchRound(g, s, deltas, lines);
+  if (d.boards) return endBoard(g, s);
   const best = lowWins ? Math.min(...d.scores) : Math.max(...d.scores);
   const reached = R.end.deals
     ? g.bridgeBids && rubberBridge(s)

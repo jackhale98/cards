@@ -156,6 +156,49 @@ describe('saving a game in its standard record', { timeout: 30_000 }, () => {
       host.close();
     }, 30000);
 
+    it('writes duplicate boards by their own numbers, dealer and vulnerability, scored in IMPs', () => {
+      const g = GAMES.bridge;
+      const people = ['N', 'E', 'S', 'W'].map((name) => ({ name, bot: true }));
+      const given = g.setup(people, 3, { style: 2, deals: 6 }).data.boards!.slice(4);
+      let s = g.setup(people, 11, { style: 2, botLevel: 0 }, { boards: given });
+      const record = new GameRecord({ pbn: pbn as HandFormat<unknown> });
+      const ended = (x: typeof s) => ['roundOver', 'gameOver'].includes(x.phase);
+      record.note(s, false, () => []);
+      for (let i = 0; i < 4000 && s.phase !== 'gameOver'; i++) {
+        const next = structuredClone(s);
+        if (s.phase === 'roundOver') {
+          g.apply(next, 0, { type: 'next' });
+          s = next;
+          record.note(s, false, () => [], { seat: 0, action: { type: 'next' } });
+          continue;
+        }
+        const sys = g.system?.(s);
+        if (sys) {
+          sys.run(next);
+          s = next;
+          record.note(s, ended(s), () => []);
+          continue;
+        }
+        // (board 5 is passed out)
+        const seat = s.players.find((p) => g.bot!(s, p.seat))!.seat;
+        const action = s.data.board === 5 && s.phase === 'call' ? { type: 'decline' } : g.bot!(s, seat)!;
+        g.apply(next, s.phase === 'call' ? s.turn! : seat, action);
+        s = next;
+        record.note(s, ended(s), () => [], { seat, action });
+      }
+      const text = record.write('pbn', EVERYONE, { names: ['N', 'E', 'S', 'W'], table: 'T' })!;
+      const tags = (b: string) => Object.fromEntries([...b.matchAll(/^\[(\w+) "(.*)"\]$/gm)].map((m) => [m[1], m[2]]));
+      const boards = text
+        .split('\r\n\r\n')
+        .filter((b) => b.includes('[Deal '))
+        .map(tags);
+      expect(boards.map((b) => [b.Board, b.Dealer, b.Vulnerable, b.Scoring])).toEqual([
+        ['5', 'N', 'NS', 'IMP'],
+        ['6', 'E', 'EW', 'IMP'],
+      ]);
+      expect(boards[0].Contract).toBe('Pass');
+    });
+
     it('writes a passed-out deal as its own board, with its own cards', () => {
       const g = GAMES.bridge;
       let s = g.setup(

@@ -243,6 +243,12 @@ export interface SetupPlayer {
 export interface TableSetup {
   /** Duplicate: the boards to play, in order, each player's hand given (by seat: North, East, South, West). */
   boards?: Board[];
+  /**
+   * Duplicate: other tables play these boards too, and their results come in as they're known (see
+   * `GameModule.compare`): the game is decided on the comparison (IMPs), waiting at the end for any
+   * still to come.
+   */
+  compared?: boolean;
   /** Poker: each seat's chips, who has the button, and the blinds. */
   chips?: number[];
   button?: number;
@@ -260,13 +266,20 @@ export interface Blinds {
 }
 /** A change a tournament makes to a table between hands. */
 export type TableChange = { blinds: Blinds };
-/** One board's result at a table: the contract (null: passed out), who declared, tricks taken, and North–South's score. */
+/**
+ * One board's result at a table: the contract (`4S`, `3NTX`, `6HXX`; null: passed out), who
+ * declared (a seat: North 0, East 1, South 2, West 3), tricks they took, and North–South's score.
+ */
 export interface BoardResult {
   n: number;
   contract: string | null;
   declarer: number | null;
   tricks: number | null;
   ns: number;
+}
+/** Another table's result on a board (`at`: whose, for its column: "Bots", "Table 2", "Par"). */
+export interface OtherResult extends BoardResult {
+  at: string;
 }
 /** What a tournament table tells the director, all of it public: each board's result, everyone's chips. */
 export interface TableReport {
@@ -313,6 +326,11 @@ export interface GameModule<D = any> {
   adjust?(s: GameState<D>, change: TableChange): void;
   /** What a tournament table reports (public information only): board results, chips. */
   report?(s: GameState<D>): TableReport;
+  /**
+   * Duplicate: other tables' results on boards played here (each told only once this table has
+   * played it), shown beside this table's own. Any time; a repeat is ignored.
+   */
+  compare?(s: GameState<D>, others: OtherResult[]): void;
 }
 
 export class RuleError extends Error {}

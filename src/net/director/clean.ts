@@ -1,7 +1,7 @@
 import { isEventCode, isValidCode, cleanAvatar } from '../protocol';
 import type { SignedMove } from '../eventCrypto';
 import type { BotSeat, EventSeat, EventTable } from '../host/event';
-import type { Board, TableSetup } from '../../engine/types';
+import type { Board, OtherResult, TableSetup } from '../../engine/types';
 import { TABLE_MAX } from '../host/limits';
 
 /**
@@ -39,6 +39,7 @@ function cleanSetup(s: unknown): TableSetup | undefined | null {
     }
     out.boards = boards;
   }
+  if (x.compared === true) out.compared = true;
   if (x.chips !== undefined) {
     if (!Array.isArray(x.chips) || x.chips.length > TABLE_MAX || !x.chips.every((c) => int(c, 0, 1e9))) return null;
     out.chips = [...x.chips];
@@ -51,6 +52,19 @@ function cleanSetup(s: unknown): TableSetup | undefined | null {
     const b = x.blinds as Record<string, unknown>;
     if (!b || !int(b.sb, 0, 1e9) || !int(b.bb, 1, 1e9) || (b.ante !== undefined && !int(b.ante, 0, 1e9))) return null;
     out.blinds = { sb: b.sb, bb: b.bb, ...(b.ante !== undefined ? { ante: b.ante as number } : {}) };
+  }
+  return out;
+}
+
+/** Other tables' results on a duplicate table's boards (see Host.compare), checked: the sensible ones. */
+export function cleanOthers(list: unknown): OtherResult[] {
+  if (!Array.isArray(list)) return [];
+  const out: OtherResult[] = [];
+  for (const r of list.slice(0, 256)) {
+    if (!r || typeof r !== 'object' || !int(r.n, 1, 999) || !int(r.ns, -10_000, 10_000) || !text(r.at, 24)) continue;
+    const passed = r.contract === null && r.declarer === null && r.tricks === null;
+    if (!passed && !(typeof r.contract === 'string' && /^[1-7](NT|S|H|D|C)X{0,2}$/.test(r.contract) && int(r.declarer, 0, 3) && int(r.tricks, 0, 13))) continue;
+    out.push({ n: r.n, contract: r.contract, declarer: r.declarer, tricks: r.tricks, ns: r.ns, at: r.at });
   }
   return out;
 }

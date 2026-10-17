@@ -1,11 +1,13 @@
-import { cardName, cardOrJokerLabel, parseCard, SUIT_NAME, SUIT_SYMBOL, type Suit } from '../../cards';
-import { deal, hand, ids, log, moveTop, name, nextSeat, resetDeck, sortHand, zone } from '../../state';
-import { assertRule, type Action } from '../../types';
+import { buildDeck, cardName, cardOrJokerLabel, parseCard, SUIT_NAME, SUIT_SYMBOL, type Suit } from '../../cards';
+import { boardDealer, vulSides } from '../../lib/duplicate';
+import { shuffle } from '../../rng';
+import { deal, hand, ids, log, moveCards, moveTop, name, nextSeat, resetDeck, sortHand, zone } from '../../state';
+import { assertRule, type Action, type Board } from '../../types';
 import { NAMEABLE, SAME_COLOUR } from './contracts';
 import { openerOf, suitOf } from './play';
 import { startPitch } from './pitch';
 import { active, nextActive, partnersOf, teamOf, teamsFor } from './sides';
-import { rubberBridge, sequence, type S, type TrickGame } from './types';
+import { duplicateBridge, rubberBridge, sequence, type S, type TrickGame } from './types';
 
 /** A hand from the deal to the first lead: dealing, turning up trumps, and who bids and leads. */
 
@@ -18,13 +20,38 @@ function sizeForRound(g: TrickGame, s: S, round: number): number {
   return Math.min(all, seq[round % seq.length]);
 }
 
+/** Duplicate bridge: `count` boards (numbered from `first`), each dealt from the game's dice. */
+export function dealBoards(g: TrickGame, s: S, count: number, first = 1): Board[] {
+  return Array.from({ length: count }, (_, k) => {
+    const deck = shuffle(buildDeck(g.config.deck), s);
+    return { n: first + k, hands: [0, 1, 2, 3].map((i) => deck.slice(i * 13, i * 13 + 13)) };
+  });
+}
+
+/** Boards given to the table (by a tournament, or the other tables playing them): each a whole deck, thirteen cards a hand. */
+export function checkBoards(g: TrickGame, boards: Board[]) {
+  const deck = buildDeck(g.config.deck).sort().join();
+  for (const b of boards)
+    if (!Number.isInteger(b.n) || b.n < 1 || b.hands.length !== 4 || b.hands.some((h) => h.length !== 13) || [...b.hands.flat()].sort().join() !== deck)
+      throw new Error(`Board ${b.n} isn't a deal of the whole deck`);
+}
+
+/** Duplicate bridge: the board's own hands, and its dealer. */
+function dealBoard(s: S, b: Board) {
+  s.data.board = b.n;
+  s.dealer = boardDealer(b.n);
+  b.hands.forEach((cards, seat) => moveCards(s, 'deck', `hand:${seat}`, cards));
+}
+
 export function startRound(g: TrickGame, s: S) {
   const R = g.R;
   const d = s.data;
   const n = s.players.length;
   resetDeck(s, g.config);
   d.handSize = sizeForRound(g, s, d.round);
-  deal(s, [{ to: 'hand', count: d.handSize }]);
+  const board = d.boards?.[d.round];
+  if (board) dealBoard(s, board);
+  else deal(s, [{ to: 'hand', count: d.handSize }]);
   d.trump = R.trump && R.trump !== 'none' && R.trump !== 'turnUp' && R.trump !== 'chosen' && R.trump !== 'lastCard' && R.trump !== 'pitched' ? R.trump : null;
   if (g.pitchBids) startPitch(s);
   d.maker = null;
@@ -59,12 +86,15 @@ export function startRound(g: TrickGame, s: S) {
     d.below ??= teamsFor(g, n).map(() => 0);
     d.games ??= teamsFor(g, n).map(() => 0);
     const k = d.round % 4;
-    d.vul = rubberBridge(s)
-      ? // rubber: a side that has won a game is vulnerable
-        d.games.map((x) => x > 0)
-      : // Chicago as pagat plays it now: nobody, then the side not dealing on deals 2 and 3 (as on
-        // duplicate boards 2 and 3), then everybody. The original game had the dealer's side instead.
-        teamsFor(g, n).map((t) => k === 3 || ((k === 1 || k === 2) && !t.includes(s.dealer)));
+    d.vul = duplicateBridge(s)
+      ? // duplicate: as the board says (North–South are the first side)
+        [...vulSides(d.board ?? d.round + 1)]
+      : rubberBridge(s)
+        ? // rubber: a side that has won a game is vulnerable
+          d.games.map((x) => x > 0)
+        : // Chicago as pagat plays it now: nobody, then the side not dealing on deals 2 and 3 (as on
+          // duplicate boards 2 and 3), then everybody. The original game had the dealer's side instead.
+          teamsFor(g, n).map((t) => k === 3 || ((k === 1 || k === 2) && !t.includes(s.dealer)));
   }
   if (g.euchreBids && zone(s, 'deck').cards.length) {
     moveTop(s, 'deck', 'upcard', 1, { up: true });

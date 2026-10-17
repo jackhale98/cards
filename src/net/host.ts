@@ -2,7 +2,8 @@ import { botView } from '../engine/botView';
 import { isHidden, redact, redactActions, resolveAction } from '../engine/redact';
 import { randomSeed } from '../engine/rng';
 import { steadily } from '../engine/bots/search';
-import { RuleError, type Action, type GameModule, type GameState, type TableChange } from '../engine/types';
+import { RuleError, type Action, type GameModule, type GameState, type OtherResult, type TableChange } from '../engine/types';
+import { cleanOthers } from './director/clean';
 import { checkAction } from '../engine/validate';
 import { getGame, GAMES, loadRules, rulesFor, startProblem } from '../games';
 import { type Brain } from './brain';
@@ -1115,6 +1116,22 @@ export class Host {
     this.state = next;
     this.commit();
     return null;
+  }
+
+  /**
+   * Duplicate: other tables' results on this table's boards (see GameModule.compare), as they come:
+   * shown beside its own, and, with every board played, the game decided on them.
+   */
+  compare(others: OtherResult[]) {
+    const s = this.state;
+    const m = this.module;
+    const clean = cleanOthers(others);
+    if (!s || !m?.compare || !clean.length) return;
+    const next = structuredClone(s);
+    m.compare(next, clean);
+    if (JSON.stringify(next) === JSON.stringify(s)) return;
+    this.state = next;
+    this.commit();
   }
 
   /** The finished game's result again (a table reloaded, or taken over: its director ignores a repeat). */

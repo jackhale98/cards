@@ -6,7 +6,8 @@ import { beforePlay, redeal, startPlay, startRound } from './deal';
 import { partnersOf, teamOf } from './sides';
 import { explainLast } from './systems/bidder';
 import { biddingSystem } from './systems/choice';
-import { rubberBridge, type S, type TrickData, type TrickGame } from './types';
+import { endRound } from './scoring';
+import { duplicateBridge, rubberBridge, type S, type TrickData, type TrickGame } from './types';
 
 /**
  * The bidding styles: tricks (spades, Oh Hell), euchre's order up / name trumps, 500's auction and
@@ -157,6 +158,11 @@ function afterCall(g: TrickGame, s: S, seat: number) {
   const d = s.data;
   const calls = d.calls!;
   if (calls.length === 4 && calls.every((c) => c.call === 'P')) {
+    // (duplicate: the board is passed out, and scores nothing at this table)
+    if (duplicateBridge(s)) {
+      log(s, `All pass — board ${s.data.board} is passed out`);
+      return endRound(g, s);
+    }
     log(s, 'All pass — new deal');
     return startRound(g, s); // same dealer, same vulnerability
   }

@@ -1,6 +1,6 @@
 import { buildDeck, parseCard, type Suit } from '../../cards';
 import type { PassDirection } from '../../lib/passing';
-import { familyRules, type GameConfig, type GameState } from '../../types';
+import { familyRules, type Board, type BoardResult, type GameConfig, type GameState, type OtherResult } from '../../types';
 import type { BridgeContract, Call, Contract } from './contracts';
 import type { TrickTakingRules as TrickRules } from '../../schema.gen';
 /** This family's settings in game.json (generated from the schema). */
@@ -52,6 +52,16 @@ export interface TrickData {
   dummy?: number | null;
   dummyUp?: boolean;
   vul?: boolean[];
+  /**
+   * Duplicate bridge: the boards to play (nobody sees them: see redactData), the one being played,
+   * each board's result here, other tables' results on boards played here (see compare), and
+   * whether those are to come (the game is then decided on them, in IMPs).
+   */
+  boards?: Board[];
+  board?: number;
+  results?: BoardResult[];
+  others?: OtherResult[];
+  compared?: boolean;
   /** Bridge: each side's part score toward the next game (below the line); rubber: games won, and whether the rubber is over. */
   below?: number[];
   games?: number[];
@@ -151,9 +161,11 @@ export function trickGame(config: GameConfig): TrickGame {
   };
 }
 
-/** Points to play to (the `target` option, else the game's own). */
 /** Bridge scored as a rubber (the `style` option) rather than Chicago. */
 export const rubberBridge = (s: S) => Number(s.options.style ?? 0) === 1;
+/** Bridge played duplicate (the `style` option): numbered boards, each scored on its own. */
+export const duplicateBridge = (s: S) => Number(s.options.style ?? 0) === 2;
+/** Points to play to (the `target` option, else the game's own). */
 export const target = (g: TrickGame, s: S) => Number(s.options.target ?? g.R.end.target ?? 100);
 
 /** "ladder": from the most cards (as many as the deck allows, up to `maxHand`) down to one and back up. */
