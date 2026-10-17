@@ -48,8 +48,6 @@ src/engine/            pure TS: no DOM, no network, no UI
   bots/search.ts       Monte Carlo search bots any family can plug into
   events/              tournaments, pure: formats (Swiss, round robin, knockout: pairing.ts), standings,
                        what the screens and each player see (view.ts); the event is plain JSON too
-  events/              tournaments: Swiss, round robin, knockout (pairing.ts), standings, what screens
-                       and phones may see (view.ts); lib/duplicate.ts is duplicate bridge's arithmetic
 src/games/<id>/game.json   a game = a family plus parameters (schemas/game.schema.json)
 src/engine/schema.gen.ts   the game.json types, generated from the schema (pnpm gen:types; never edit)
 src/games/index.ts     registry: game files load with the app (GameInfo), rules only when picked
@@ -58,11 +56,8 @@ src/net/host.ts        the authoritative host: seats and keys, checking and appl
                        its parts in src/net/host/: conns (connections, heartbeat, views and patches),
                        bots (bots and automatic steps), history (replays, the game's record, scores,
                        tonight's tally), backups (host handoff), lobby (who plays, lobby buttons),
-                       records, limits; event (a tournament's table: reserved seats, holds, its result)
-                       and uplink (that table's host's link to the director), event (a tournament table: seats the director assigns, held
-                       between hands, results reported)
-src/net/director.ts    a tournament's director: runs the event, seats each round's tables (director/tables.ts:
-                       hosted on this device, or by a player there), hears results;  eventCrypto.ts its secrets
+                       records, limits; event (a tournament's table: the seats the director assigns,
+                       held between hands, its result) and uplink (that table's host's link to the director)
 src/net/brain.ts       where bots think: botWorker.ts (a Web Worker) in the app, inline in tests;
                        shareBrain, one brain taking turns between several tables
 src/net/director.ts    a tournament's director: runs the event, seats each round's tables (TableLinks);

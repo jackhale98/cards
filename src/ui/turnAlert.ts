@@ -58,9 +58,14 @@ export function raiseTurn(game: string) {
   );
 }
 
-/** You're looking again, or it's no longer your turn: take it all down. */
-export function clearTurn() {
-  if (!raised) return;
+/**
+ * You're looking again, or it's no longer your turn: take it all down. `everything`: what an
+ * earlier page left up too (the app opening afresh, coming back to it, leaving a table): an
+ * iPhone often closes a Home Screen app in the background, and keeps its badge until the app
+ * itself takes it down, so the page that opens next must, though it never raised it.
+ */
+export function clearTurn(everything = false) {
+  if (!raised && !everything) return;
   raised = false;
   if (document.title.startsWith(MARK)) document.title = document.title.slice(MARK.length);
   void (navigator as Navigator & { clearAppBadge?: () => Promise<void> }).clearAppBadge?.()?.catch(() => {});
@@ -70,4 +75,7 @@ export function clearTurn() {
   );
 }
 
-if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && clearTurn());
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && clearTurn(true));
+  if (document.visibilityState === 'visible') clearTurn(true);
+}

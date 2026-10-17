@@ -382,8 +382,8 @@
 
   // keep the screen awake while at the table
   $effect(() => keepAwake());
-  // (leaving the table: no "your turn" left behind in the title)
-  $effect(() => () => clearTurn());
+  // (leaving the table: no "your turn" left behind in the title, the badge or a notification)
+  $effect(() => () => clearTurn(true));
 
   // ---- what just happened ------------------------------------------------------------------
   const lastEntry = $derived(s.log.at(-1));

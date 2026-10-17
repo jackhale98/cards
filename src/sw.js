@@ -44,6 +44,21 @@ self.addEventListener('activate', (e) => {
   );
 });
 
+// A "your turn" notification tapped: back to the app (the window that has the table, if one's
+// open), and the badge down: on an iPhone it stays until the app takes it down.
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  e.waitUntil(
+    (async () => {
+      await self.navigator.clearAppBadge?.().catch(() => {});
+      const open = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      const tab = open.find((c) => 'focus' in c);
+      if (tab) await tab.focus();
+      else await self.clients.openWindow(self.registration.scope);
+    })(),
+  );
+});
+
 self.addEventListener('fetch', (e) => {
   const req = e.request;
   const url = new URL(req.url);
