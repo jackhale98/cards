@@ -1,12 +1,12 @@
 import { nextRandom, seedState, shuffle, type Seed } from '../rng';
 import type { GameConfig, TableReport } from '../types';
-import { knockout, knockoutAdvance, knockoutOrder, roundRobin, roundRobinOrder, swiss, type Pairing } from './pairing';
+import { knockout, knockoutAdvance, knockoutOrder, roundRobin, roundRobinOrder, swiss, swissRounds, type Pairing } from './pairing';
 import { standings } from './standings';
 import type { Entrant, EventConfig, EventState, FormatId, Round, TableSeat } from './types';
 
 export * from './types';
 export { standings } from './standings';
-export { personalView, publicView, type EventPersonal, type EventPublic } from './view';
+export { personalView, publicView, type BracketRound, type EventPersonal, type EventPublic } from './view';
 export { bracketSeeds, swissRounds, tableSizes } from './pairing';
 
 /**
@@ -16,7 +16,8 @@ export { bracketSeeds, swissRounds, tableSizes } from './pairing';
  */
 
 const FORMATS: Record<FormatId, { pair: (e: EventState) => Pairing | null; start?: (e: EventState) => void; after?: (e: EventState) => void }> = {
-  swiss: { pair: swiss },
+  // (how many rounds is settled at the start: everyone knows, and a withdrawal doesn't change it)
+  swiss: { pair: swiss, start: (e) => void (e.config.rounds ??= swissRounds(e.entrants.length, e.config.sides.length)) },
   roundRobin: { pair: roundRobin, start: (e) => (e.order = roundRobinOrder(e)) },
   knockout: { pair: knockout, start: (e) => (e.order = knockoutOrder(e)), after: knockoutAdvance },
 };
@@ -89,7 +90,12 @@ export function nextRound(e: EventState): Round | null {
       e.phase = 'done';
       return null;
     }
-    const round: Round = { n: e.rounds.length + 1, byes: p.byes, tables: p.tables.map((sides, i) => seatTable(e, sides, i + 1)) };
+    const round: Round = {
+      n: e.rounds.length + 1,
+      byes: p.byes,
+      tables: p.tables.map((sides, i) => seatTable(e, sides, i + 1)),
+      ...(p.order ? { order: p.order } : {}),
+    };
     e.rounds.push(round);
     if (round.tables.length) {
       e.phase = 'playing';

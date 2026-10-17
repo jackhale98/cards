@@ -5,6 +5,7 @@
   import Home from './ui/screens/Home.svelte';
   import { applyLook } from './ui/looks';
   import { setReportContext } from './net/reports';
+  import { isEventCode } from './net/protocol';
 
   $effect(() => {
     void app.sync();
@@ -18,6 +19,11 @@
   const lobby = () => (lobbyP ??= import('./ui/screens/Lobby.svelte'));
   const table = () => (tableP ??= import('./ui/screens/Table.svelte'));
   const tv = () => (tvP ??= import('./ui/screens/TvScreen.svelte'));
+  // (a tournament's screens: only for those in one)
+  const eventPhone = () => import('./ui/screens/EventPhone.svelte');
+  const eventDirector = () => import('./ui/screens/EventDirector.svelte');
+  const eventBoard = () => import('./ui/screens/EventBoard.svelte');
+  const screen = $derived(app.events.screen);
   $effect(() => {
     const later = () => {
       void lobby();
@@ -71,6 +77,21 @@
   {#key route.code}<Home code={route.code} />{/key}
 {:else if route.name === 'tv'}
   {#await tv()}{@render waiting()}{:then m}<m.default />{/await}
+{:else if route.name === 'event'}
+  {#await eventPhone()}{@render waiting()}{:then m}<m.default />{/await}
+{:else if route.name === 'direct'}
+  {#await eventDirector()}{@render waiting()}{:then m}<m.default />{/await}
+{:else if route.name === 'display' && isEventCode(route.code)}
+  {#await eventBoard()}{@render waiting()}{:then m}
+    <m.default
+      code={route.code}
+      board={screen?.board ?? null}
+      people={screen?.people ?? []}
+      tiles={screen?.tiles ?? []}
+      live={screen?.live ?? null}
+      show={screen?.show ?? 'turn'}
+    />
+  {/await}
 {:else if !view}
   <div class="connecting">
     <span class="load"><Loader size={48} /></span>

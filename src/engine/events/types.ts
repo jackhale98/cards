@@ -65,6 +65,8 @@ export interface Round {
   tables: TableRound[];
   /** Entrants without a table this round. */
   byes: string[];
+  /** Knockout, two sides a table: the bracket's places this round, in order (each pair meets; null: nobody there). */
+  order?: (string | null)[];
 }
 
 export interface EventState {

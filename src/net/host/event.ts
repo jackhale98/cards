@@ -22,6 +22,7 @@ export interface EventSeat {
 /** A bot playing for an entrant (an event against bots). */
 export interface BotSeat {
   bot: true;
+  /** Empty: the table names it (a person's bot partner). */
   name: string;
 }
 const isMember = (m: EventSeat | BotSeat | null): m is EventSeat => !!m && !('bot' in m);
@@ -82,7 +83,7 @@ export function eventSeats(t: EventTable, host: { cid: string; name: string; ava
     else
       seats.push({
         id: `bot:t${t.info.table}s${i}`,
-        name: m?.name ?? names.shift() ?? `Bot ${i + 1}`,
+        name: m?.name || names.shift() || `Bot ${i + 1}`,
         avatar: { emoji: AVATAR_EMOJI[(i * 7 + 3) % AVATAR_EMOJI.length], color: AVATAR_COLORS[(i * 3 + 1) % AVATAR_COLORS.length] },
         bot: true,
         connected: true,

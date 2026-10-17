@@ -30,7 +30,16 @@ export interface EventPerson {
   name: string;
   avatar?: Avatar;
   partner?: string;
+  /** A bot the director put in. */
+  bot?: boolean;
 }
+
+/**
+ * What the screens show, as the director chooses: the tables, the standings and (a knockout) the
+ * bracket in turn, or just one of them, or the tables live, one after another.
+ */
+export type BoardShow = 'turn' | 'tables' | 'standings' | 'bracket' | 'live';
+export const BOARD_SHOWS: readonly BoardShow[] = ['turn', 'tables', 'standings', 'bracket', 'live'];
 
 /** To the director. */
 export type EventInMsg =
@@ -63,7 +72,14 @@ export type EventOutMsg =
   | { t: 'evRoom'; code: string }
   | { t: 'evYou'; you: EventPersonal }
   /** The event as the screens show it (and the people signed up, before it starts); `live`: a table being featured. */
-  | { t: 'evBoard'; board: EventPublic; people: EventPerson[]; live?: { table: number; view: View } | null }
+  | {
+      t: 'evBoard';
+      board: EventPublic;
+      people: EventPerson[];
+      tiles?: { table: number; tile: TableTile | null }[];
+      live?: { table: number; view: View } | null;
+      show?: BoardShow;
+    }
   /** Go to this table. */
   | { t: 'evMove'; move: SignedMove }
   /** To a table's host: the table, who sits where (with their seats' keys), and what to deal. */

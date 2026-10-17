@@ -1,6 +1,7 @@
 import type { TableChange } from '../../engine/types';
 import type { Brain } from '../brain';
 import { Host, type HostSnapshot } from '../host';
+import type { TableTile } from '../eventProtocol';
 import type { EventTable, TableNews } from '../host/event';
 import type { View } from '../protocol';
 import type { Transport } from '../transport';
@@ -22,6 +23,8 @@ export interface TableLink {
   onNews: (news: TableNews) => void;
   /** The table as a screen shows it (null: not to hand here). */
   view(): View | null;
+  /** How far it's got, for its tile (null: not heard yet). */
+  progress(): TableTile | null;
   /** Development and tests: one step of its game (see Host.step). False: nothing to do. */
   step(): boolean;
   /** For the director's own snapshot (null: hosted elsewhere, which keeps its own). */
@@ -36,6 +39,8 @@ export interface TableLink {
 export class LocalTable implements TableLink {
   readonly host: Host;
   onNews: (news: TableNews) => void = () => {};
+  /** Anything changed at the table (the screens, if they're showing it). */
+  onView: () => void = () => {};
   private snap: HostSnapshot | null = null;
 
   constructor(
@@ -48,7 +53,10 @@ export class LocalTable implements TableLink {
       still: opts.still,
     });
     this.host.onTable = (n) => this.onNews(n);
-    this.host.onPersist = (s) => (this.snap = s);
+    this.host.onPersist = (s) => {
+      this.snap = s;
+      this.onView();
+    };
     if (opts.restore) this.host.resume();
   }
 
@@ -66,6 +74,9 @@ export class LocalTable implements TableLink {
   }
   view() {
     return this.host.viewFor(null);
+  }
+  progress() {
+    return this.host.tile();
   }
   step() {
     // (a table that's waiting for its rules or its players deals as soon as it can)

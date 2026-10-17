@@ -1,17 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createEvent, standings, type EventConfig } from '../src/engine/events';
-import { Client } from '../src/net/client';
-import { Director } from '../src/net/director';
-import { Desk, ROOM_PEERS } from '../src/net/director/desk';
+import { standings } from '../src/engine/events';
+import { ROOM_PEERS } from '../src/net/director/desk';
 import { Registry } from '../src/net/director/registry';
 import { LocalTable } from '../src/net/director/tables';
-import { newSecret, prove, seatKeyFor, signMove, type SignedMove } from '../src/net/eventCrypto';
+import { newSecret, prove, signMove } from '../src/net/eventCrypto';
 import { EVENT_PROTOCOL } from '../src/net/eventProtocol';
-import { EventLink, isOurMove, type EventIdentity } from '../src/net/eventLink';
+import { EventLink } from '../src/net/eventLink';
 import { Host, type HostSnapshot } from '../src/net/host';
+import { seedState } from '../src/engine/rng';
 import { Uplink } from '../src/net/host/uplink';
 import type { Msg } from '../src/net/protocol';
-import { Bus, MemTransport } from './netHarness';
+import { MemTransport } from './netHarness';
+import { CODE, director, Net, Phone, playOut, settle } from './eventHarness';
 import './games';
 
 /**
@@ -20,115 +20,36 @@ import './games';
  * tables link back, report, and pass moves on. Every move is checked with its player's secret.
  */
 
-const CODE = 'BCDFGH';
-
-/** Rooms by code. A connection joins its room a moment after it's made (as a real one would). */
-class Net {
-  buses = new Map<string, Bus>();
-  n = 0;
-  /** Every message sent: who from, who to (none: everyone in the room), and what. */
-  log: { from: string; to?: string; msg: Msg }[] = [];
-  directors = new Set<string>();
-  open = (code: string, director = false) => {
-    const bus = this.buses.get(code) ?? new Bus();
-    this.buses.set(code, bus);
-    const t = new MemTransport(bus, `${director ? 'd' : 'p'}${++this.n}`);
-    if (director) this.directors.add(t.selfId);
-    const send = t.send.bind(t);
-    t.send = (msg, to) => {
-      this.log.push({ from: t.selfId, to, msg });
-      send(msg, to);
-    };
-    setTimeout(() => bus.join(t), 0);
-    return t;
-  };
-}
-
-/** A phone, doing what the app does: sign up, then follow each move (checked) to host a table or sit at one. */
-class Phone {
-  id: EventIdentity;
-  link: EventLink | null;
-  client: Client | null = null;
-  host: Host | null = null;
-  uplink: Uplink | null = null;
-  at: SignedMove | null = null;
-  moves: SignedMove[] = [];
-  constructor(
-    private net: Net,
-    name: string,
-  ) {
-    this.id = { code: CODE, cid: name.toLowerCase(), name, secret: newSecret() };
-    this.link = new EventLink(net.open, this.id);
-    this.link.onMove = (m) => this.go(m);
-  }
-  go(m: SignedMove) {
-    if (!isOurMove(this.id, m) || (this.at && m.round < this.at.round) || (this.at && m.room === this.at.room)) return;
-    this.moves.push(m);
-    this.leaveTable();
-    // (at a table, a phone is only a player there: its next move comes through the table's host)
-    this.link?.close();
-    this.link = null;
-    this.at = m;
-    const { cid, name, secret } = this.id;
-    if (m.host) {
-      this.host = new Host(this.net.open(m.room), m.room, { cid, name });
-      this.host.expectTable({ code: CODE, name: 'Swiss', round: m.round, table: m.table });
-      this.uplink = new Uplink(this.net.open, CODE, this.host, { cid, secret, round: m.round, table: m.table });
-      this.uplink.onMove = (mv) => this.go(mv);
-    } else {
-      this.client = new Client(this.net.open(m.room), cid, name, undefined, false, seatKeyFor(secret, CODE, m.round, m.table));
-      this.client.onMove = (mm) => mm.ev && this.go(mm.ev);
-    }
-  }
-  /** "Find my table": back to the director, which says where. */
-  findTable() {
-    this.link?.close();
-    this.link = new EventLink(this.net.open, this.id);
-    this.link.onMove = (m) => this.go(m);
-  }
-  leaveTable() {
-    this.client?.close();
-    this.uplink?.close();
-    this.host?.close();
-    this.client = null;
-    this.uplink = null;
-    this.host = null;
-  }
-}
-
-function director(net: Net, cfg: Partial<EventConfig> = {}) {
-  const registry = new Registry();
-  const event = createEvent(
-    { name: 'Swiss', format: 'swiss', game: { id: 'gin-rummy', options: { target: 25 } }, seats: 2, sides: [[0], [1]], host: 'player', rounds: 2, ...cfg },
-    11,
-  );
-  // (the director's tables are the desk's, and the desk works for the director: each made knowing the other)
-  const ref: { desk?: Desk } = {};
-  const d = new Director({
-    event,
-    code: CODE,
-    pause: null,
-    keyFor: (m, round, table) => seatKeyFor(registry.secretOf(m)!, CODE, round, table),
-    makeTable: (round, t) => (t.seats.some((s) => s.member) ? ref.desk!.remote(round, t) : new LocalTable(round, t.table, { code: `B${round}${t.table}` })),
+describe('the sign-up list', () => {
+  const dice = { rng: seedState(5) };
+  it('bots the director puts in are sides of their own, named, and nobody’s partner', () => {
+    const r = new Registry();
+    r.add({ id: 'ann', name: 'Ann', secret: newSecret() });
+    r.add({ id: 'bo', name: 'Bo', secret: newSecret() });
+    const a = r.addBot();
+    const b = r.addBot();
+    expect(a.id).not.toBe(b.id);
+    expect(a.name).not.toBe(b.name);
+    expect(r.people().filter((p) => p.bot)).toHaveLength(2);
+    // one to a side
+    const singles = r.entrants(1, structuredClone(dice));
+    expect(singles).toHaveLength(4);
+    expect(singles.filter((x) => x.bot).map((x) => x.members)).toEqual([[], []]);
+    // two to a side: the people pair up, and each bot is a pair of bots, with names of their own
+    r.setPartner('ann', a.id);
+    expect(r.members.get('ann')!.partner).toBeUndefined();
+    r.setPartner(a.id, 'ann');
+    expect(r.members.get(a.id)!.partner).toBeUndefined();
+    const pairs = r.entrants(2, structuredClone(dice));
+    expect(pairs).toHaveLength(3);
+    const botPairs = pairs.filter((x) => x.bot);
+    expect(botPairs).toHaveLength(2);
+    const names = botPairs.flatMap((x) => x.names!);
+    expect(new Set(names).size).toBe(4);
+    expect(names).not.toContain('Ann');
+    expect(r.secretOf(a.id)).toBe('');
   });
-  const desk = (ref.desk = new Desk({ code: CODE, registry, director: () => d, open: (code) => net.open(code, true) }));
-  d.onChange = () => desk.changed();
-  return { d, desk, registry };
-}
-
-/** Let the network settle: connections join, hellos are answered (paced), moves followed. */
-const settle = async (ms = 3000) => {
-  for (let i = 0; i < ms / 100; i++) await vi.advanceTimersByTimeAsync(100);
-};
-
-/** Play every table's game to its end, a step at a time (Host.step plays every seat, people's too). */
-async function playOut(phones: Phone[]) {
-  for (let i = 0; i < 5000; i++) {
-    const hosts = phones.map((p) => p.host).filter((h): h is Host => !!h && !!h.state);
-    if (!hosts.some((h) => h.step())) break;
-  }
-  await settle(500);
-}
+});
 
 describe('a tournament over the network', () => {
   beforeEach(() => vi.useFakeTimers());
@@ -307,6 +228,36 @@ describe('a tournament over the network', () => {
     desk.close();
   });
 
+  it('a bye, and the end: those without a table wait at the event, and come back for the next round', async () => {
+    const net = new Net();
+    const { d, desk } = director(net);
+    const phones = ['Ann', 'Bo', 'Cy'].map((n) => new Phone(net, n));
+    await settle();
+    desk.start();
+    await settle();
+    const bye = phones.find((p) => p.at?.table === 0)!;
+    expect(bye).toBeDefined();
+    expect(bye.link).not.toBeNull();
+    expect(bye.link!.you?.bye).toBe(true);
+    await playOut(phones);
+    d.advance();
+    await settle();
+    expect(bye.at?.round).toBe(2);
+    expect(bye.at?.table).toBeGreaterThan(0);
+    expect(phones.filter((p) => p.at?.round === 2 && p.at.table === 0)).toHaveLength(1);
+    await playOut(phones);
+    d.advance();
+    await settle();
+    expect(d.event.phase).toBe('done');
+    // everyone back at the event, for the final standings
+    expect(phones.every((p) => p.at?.table === 0 && p.link?.board?.board.phase === 'done')).toBe(true);
+    desk.close();
+    phones.forEach((p) => {
+      p.leaveTable();
+      p.link?.close();
+    });
+  });
+
   it('“Find my table”: a phone that missed its move asks the director again', async () => {
     const net = new Net();
     const { desk } = director(net);
@@ -323,6 +274,97 @@ describe('a tournament over the network', () => {
     expect(phones[3].at?.round).toBe(1);
     desk.close();
     phones.forEach((p) => p.leaveTable());
+  });
+
+  it('bots the director puts in are entrants: at a table with a person, its host names them; on their own, the director hosts them', async () => {
+    const net = new Net();
+    const { d, desk, registry } = director(net, { rounds: 1 });
+    const ann = new Phone(net, 'Ann');
+    await settle();
+    for (let i = 0; i < 3; i++) registry.addBot();
+    expect(desk.start()).toBeNull();
+    await settle();
+    const r = d.event.rounds[0];
+    expect(r.tables).toHaveLength(2);
+    const mine = r.tables.find((t) => t.seats.some((s) => s.member === 'ann'))!;
+    const bots = r.tables.find((t) => t !== mine)!;
+    expect(d.link(bots.table)).toBeInstanceOf(LocalTable);
+    // Ann hosts hers, with a bot entrant across from her, under its own name
+    expect(ann.host).not.toBeNull();
+    const botSeat = ann.host!.lobby.seats.find((s) => s.bot)!;
+    expect(registry.people().map((p) => p.name)).toContain(botSeat.name);
+    await playOut([ann], d);
+    expect(d.event.phase).toBe('between');
+    expect(d.event.rounds[0].tables.every((t) => t.result)).toBe(true);
+    // (moves went to people only)
+    const moved = net.log.filter((x) => x.msg.t === 'evMove' || x.msg.t === 'evForward');
+    expect(JSON.stringify(moved)).not.toContain('bot:');
+    desk.close();
+    ann.leaveTable();
+  });
+
+  it('in a partnership game, a person without a partner plays with a bot of their own name, not theirs', async () => {
+    const net = new Net();
+    const { desk, registry } = director(net, {
+      game: { id: 'euchre', options: {} },
+      seats: 4,
+      sides: [
+        [0, 2],
+        [1, 3],
+      ],
+      rounds: 1,
+    });
+    const ann = new Phone(net, 'Ann');
+    await settle();
+    registry.addBot();
+    expect(desk.start()).toBeNull();
+    await settle();
+    const names = ann.host!.lobby.seats.map((s) => s.name);
+    expect(names.filter((n) => n === 'Ann')).toHaveLength(1);
+    expect(new Set(names).size).toBe(4);
+    desk.close();
+    ann.leaveTable();
+  });
+
+  it('the screens show what the director chooses: the tables live in turn, or the table it picks', async () => {
+    const net = new Net();
+    const { d, desk, registry } = director(net, { rounds: 2 }, { still: true });
+    for (let i = 0; i < 6; i++) registry.addBot();
+    const screen = new EventLink(net.open, { code: CODE, cid: 'screen:tv', name: 'Screen', secret: newSecret() }, true);
+    await settle();
+    expect(desk.start()).toBeNull();
+    await settle();
+    expect(screen.board?.show).toBe('turn');
+    expect(screen.board?.live).toBeNull();
+    // the tables live: each in turn
+    desk.setShow('live');
+    await settle(1000);
+    expect(screen.board?.show).toBe('live');
+    expect(screen.board?.live?.table).toBe(1);
+    expect(screen.board?.live?.view).toBeTruthy();
+    await settle(15_000);
+    expect(screen.board?.live?.table).toBe(2);
+    await settle(30_000);
+    expect(screen.board?.live?.table).toBe(1);
+    // the director picks one: it stays
+    desk.feature(3);
+    await settle(31_000);
+    expect(screen.board?.live?.table).toBe(3);
+    // a finished table makes way for those still playing
+    desk.feature(null);
+    const one = d.link(1) as LocalTable;
+    for (let i = 0; i < 3000 && one.step(); i++);
+    await settle(1000);
+    expect(d.event.rounds[0].tables[0].result).toBeTruthy();
+    expect(desk.featured).not.toBe(1);
+    // anything but the tables live: no table on the screens, and no timer
+    desk.setShow('standings');
+    await settle(1000);
+    expect(screen.board?.show).toBe('standings');
+    expect(screen.board?.live).toBeNull();
+    expect(vi.getTimerCount()).toBeLessThan(20);
+    desk.close();
+    screen.close();
   });
 
   it('when the first room fills, newcomers are sent on to another', async () => {

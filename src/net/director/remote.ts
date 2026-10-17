@@ -93,6 +93,9 @@ export class RemoteTable implements TableLink {
   view() {
     return this.live;
   }
+  progress() {
+    return this.tile;
+  }
   step() {
     return false;
   }

@@ -1,6 +1,6 @@
-import { addEntrant, currentRound, personalView, type TableRound } from '../../engine/events';
+import { addEntrant, currentRound, personalView, type Round, type TableRound } from '../../engine/events';
 import { isSecret, prove, same, signMove, type SignedMove } from '../eventCrypto';
-import { EVENT_PROTOCOL, type EventInMsg, type EventOutMsg } from '../eventProtocol';
+import { EVENT_PROTOCOL, type BoardShow, type EventInMsg, type EventOutMsg } from '../eventProtocol';
 import type { Director } from '../director';
 import type { EventSeat } from '../host/event';
 import { cleanAvatar, makeRoomCode, type Msg } from '../protocol';
@@ -24,6 +24,8 @@ export const LINK_WAIT_MS = 60_000;
 const RETIRE_MS = 120_000;
 /** The screens hear of changes at most this often. */
 const BOARD_EVERY_MS = 500;
+/** Showing the tables live, the screens move on to the next one this often. */
+export const LIVE_TURN_MS = 15_000;
 
 type Want = { kind: 'back' } | { kind: 'link'; round: number; table: number };
 interface Peer {
@@ -44,17 +46,22 @@ interface Room {
 export interface DeskSaved {
   rooms: string[];
   tables: Record<number, { room: string; hostCid: string; tried: string[] }>;
+  show?: BoardShow;
 }
 
 export class Desk implements RemoteDesk {
   private rooms = new Map<string, Room>();
   private remotes = new Map<number, RemoteTable>();
   private retired = new Set<RemoteTable>();
-  /** Each player's latest move (sent again when they come back asking where to go). */
-  private latest = new Map<string, SignedMove>();
   private boardTimer: ReturnType<typeof setTimeout> | null = null;
   private timers = new Set<ReturnType<typeof setTimeout>>();
-  private featured: number | null = null;
+  /** What the screens show (the director's choice). */
+  show: BoardShow = 'turn';
+  /** The table the director asked the screens to show (null: none). */
+  pinned: number | null = null;
+  /** The table being shown live now: the pinned one, or, showing the tables live, each in turn. */
+  featured: number | null = null;
+  private liveTimer: ReturnType<typeof setInterval> | null = null;
   private closed = false;
 
   constructor(
@@ -65,10 +72,13 @@ export class Desk implements RemoteDesk {
       /** One of the director's rooms, as its host. */
       open: (code: string) => Transport;
       saved?: DeskSaved;
+      /** Something changed at the desk (someone signed up, a table's progress). */
+      onChange?: () => void;
     },
   ) {
     this.openRoom(o.code);
     for (const code of o.saved?.rooms ?? []) if (code !== o.code) this.openRoom(code);
+    if (o.saved?.show) this.setShow(o.saved.show);
   }
 
   private get event() {
@@ -203,8 +213,24 @@ export class Desk implements RemoteDesk {
     p.you = JSON.stringify(you);
     this.send(room, peer, { t: 'evWelcome', you });
     this.sendBoard(room, peer);
-    const move = this.latest.get(cid);
-    if (move && move.round === currentRound(this.event)?.n) this.send(room, peer, { t: 'evMove', move });
+    const move = this.moveFor(cid);
+    if (move) this.send(room, peer, { t: 'evMove', move });
+  }
+
+  /**
+   * Where someone is to be now, signed for them: their table this round (once it's placed), or the
+   * event's own room (a bye, knocked out, or the event over). Worked out afresh each time (the
+   * signature is the same every time), so the director knows after a reload or a takeover too.
+   */
+  private moveFor(cid: string): SignedMove | null {
+    const secret = this.o.registry.secretOf(cid);
+    const r = currentRound(this.event);
+    if (!secret || !r) return null;
+    const t = this.event.phase === 'done' ? undefined : r.tables.find((x) => x.seats.some((s) => s.member === cid));
+    if (!t) return signMove(secret, { event: this.o.code, round: r.n, table: 0, room: this.o.code, host: false });
+    const remote = this.remotes.get(t.table);
+    if (!remote?.room || remote.round !== r.n) return null;
+    return signMove(secret, { event: this.o.code, round: r.n, table: t.table, room: remote.room, host: remote.hostCid === cid });
   }
 
   // ---- the event ----------------------------------------------------------------------------
@@ -264,7 +290,6 @@ export class Desk implements RemoteDesk {
    * the moves it passes on to its players must be on their way first.
    */
   private deliver(cid: string, move: SignedMove) {
-    this.latest.set(cid, move);
     if (!this.outbox.length) queueMicrotask(() => this.flush());
     this.outbox.push([cid, move]);
   }
@@ -307,19 +332,72 @@ export class Desk implements RemoteDesk {
     this.timers.add(timer);
   }
 
-  /** Feature a table live on the screens (null: none). */
+  /**
+   * A round is seated: everyone without a table in it (a bye, knocked out, or the event over: null)
+   * goes to the event's own room to wait, with the standings to look at.
+   */
+  round(r: Round | null) {
+    // (the round's tables are new: what the screens show live starts again)
+    this.pinned = null;
+    this.featured = null;
+    this.featureNext();
+    const seated = new Set(r?.tables.flatMap((t) => t.seats.map((s) => s.member)) ?? []);
+    const n = r?.n ?? currentRound(this.event)?.n ?? 1;
+    for (const m of this.o.registry.members.values())
+      if (!m.bot && !seated.has(m.id)) this.deliver(m.id, signMove(m.secret, { event: this.o.code, round: n, table: 0, room: this.o.code, host: false }));
+  }
+
+  /** Show a table live on the screens, whatever else they're showing (null: none). */
   feature(table: number | null) {
-    if (this.featured === table) return;
-    if (this.featured != null) this.remotes.get(this.featured)?.feature(false);
-    this.featured = table;
-    if (table != null) this.remotes.get(table)?.feature(true);
+    this.pinned = table;
+    this.featureNext();
+  }
+
+  /** What the screens show: in turn, the tables, the standings, the bracket, or the tables live, one after another. */
+  setShow(show: BoardShow) {
+    this.show = show;
+    if (this.liveTimer) clearInterval(this.liveTimer);
+    this.liveTimer = null;
+    // (a timer only while the screens turn through the tables)
+    if (show === 'live' && !this.closed) this.liveTimer = setInterval(() => this.featureNext(true), LIVE_TURN_MS);
+    this.featureNext();
     this.boardSoon();
   }
+
+  /** The table to show live now (`turn`: time to move on to the next one still playing). */
+  private featureNext(turn = false) {
+    let next = this.pinned;
+    if (next == null && this.show === 'live') {
+      const playing = (currentRound(this.event)?.tables ?? []).filter((t) => !t.result).map((t) => t.table);
+      const at = this.featured != null ? playing.indexOf(this.featured) : -1;
+      next = at >= 0 && !turn ? this.featured : (playing.find((t) => t > (this.featured ?? 0)) ?? playing[0] ?? null);
+      if (this.event.phase === 'done' && this.liveTimer) {
+        clearInterval(this.liveTimer);
+        this.liveTimer = null;
+      }
+    }
+    if (next === this.featured) return;
+    if (this.featured != null) this.remotes.get(this.featured)?.feature(false);
+    this.featured = next;
+    if (next != null) this.remotes.get(next)?.feature(true);
+    this.boardSoon();
+  }
+
+  /** Something changed at a table hosted here: the screens, if they show it live or its tile changed. */
+  viewed(table: number) {
+    const tile = JSON.stringify(this.o.director().link(table)?.progress() ?? null);
+    if (this.featured === table || tile !== this.lastTiles.get(table)) this.boardSoon();
+    this.lastTiles.set(table, tile);
+  }
+  private lastTiles = new Map<number, string>();
 
   // ---- out to the screens and phones -------------------------------------------------------
 
   /** Something changed: the screens (soon), and anyone whose own place changed (now). */
   changed() {
+    // (the table shown live may have finished, or a new round begun)
+    this.featureNext();
+    this.o.onChange?.();
     for (const room of this.rooms.values())
       for (const [peer, p] of room.peers) {
         if (p.kind !== 'player' || !p.cid) continue;
@@ -337,20 +415,36 @@ export class Desk implements RemoteDesk {
     if (this.boardTimer || this.closed) return;
     this.boardTimer = setTimeout(() => {
       this.boardTimer = null;
+      this.o.onChange?.();
       for (const room of this.rooms.values())
-        for (const [peer, p] of room.peers) if (p.kind === 'screen' || (p.kind === 'player' && this.event.phase === 'registering')) this.sendBoard(room, peer);
+        // (the screens, and the phones waiting here: signing up, a bye, knocked out, or the event over)
+        for (const [peer, p] of room.peers) if (p.kind === 'screen' || p.kind === 'player') this.sendBoard(room, peer);
     }, BOARD_EVERY_MS);
   }
 
   private sendBoard(room: Room, peer: string) {
     const d = this.o.director();
     const live = this.featured != null ? (d.link(this.featured)?.view() ?? null) : null;
-    this.send(room, peer, { t: 'evBoard', board: d.view, people: this.o.registry.people(), live: live ? { table: this.featured!, view: live } : null });
+    this.send(room, peer, {
+      t: 'evBoard',
+      board: d.view,
+      people: this.o.registry.people(),
+      tiles: [...this.tiles()].map(([table, t]) => ({ table, tile: t.tile })),
+      live: live ? { table: this.featured!, view: live } : null,
+      show: this.show,
+    });
   }
 
-  /** The progress of each table this round (for the tiles). */
+  /** The progress of each table this round (for the tiles), wherever it's hosted. */
   tiles() {
-    return new Map([...this.remotes].map(([n, t]) => [n, { tile: t.tile, linked: !!t.link, room: t.room, host: t.hostCid }]));
+    const d = this.o.director();
+    return new Map(
+      (currentRound(this.event)?.tables ?? []).map((t) => {
+        const remote = this.remotes.get(t.table);
+        const tile = d.link(t.table)?.progress() ?? null;
+        return [t.table, { tile, linked: remote ? !!remote.link : true, room: remote?.room ?? null, host: remote?.hostCid ?? null, local: !remote }];
+      }),
+    );
   }
 
   saved(): DeskSaved {
@@ -359,12 +453,14 @@ export class Desk implements RemoteDesk {
       tables: Object.fromEntries(
         [...this.remotes].filter(([, t]) => t.room && t.hostCid).map(([n, t]) => [n, { room: t.room!, hostCid: t.hostCid!, tried: [...t.tried] }]),
       ),
+      show: this.show,
     };
   }
 
   close() {
     this.closed = true;
     if (this.boardTimer) clearTimeout(this.boardTimer);
+    if (this.liveTimer) clearInterval(this.liveTimer);
     for (const t of this.timers) clearTimeout(t);
     for (const r of this.rooms.values()) r.transport.leave();
   }

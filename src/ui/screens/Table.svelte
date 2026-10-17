@@ -46,8 +46,12 @@
   import MeldsSheet from '../table/MeldsSheet.svelte';
   import CardLayer from '../components/CardLayer.svelte';
 
-  /** `replay`: a moment of a finished hand is on screen (the table shows it, quietly). */
-  let { view, display = false, replay = null }: { view: View; display?: boolean; replay?: Frame | null } = $props();
+  /**
+   * `replay`: a moment of a finished hand is on screen (the table shows it, quietly). `watching`:
+   * the table on a tournament's board, for everyone to watch (its menu and scores are for those at
+   * the table: their places are kept, so nothing moves).
+   */
+  let { view, display = false, replay = null, watching = false }: { view: View; display?: boolean; replay?: Frame | null; watching?: boolean } = $props();
 
   const s = $derived(view.state!);
   const you = $derived(view.you);
@@ -516,7 +520,7 @@
 >
   <!-- top: menu + opponents + scores -->
   <header bind:clientHeight={sz.headerH}>
-    <button class="icon" onclick={() => (sheet = 'menu')} aria-label="Menu">
+    <button class="icon" class:unseen={watching} inert={watching} onclick={() => (sheet = 'menu')} aria-label="Menu">
       <svg viewBox="0 0 24 24" width="20" height="20"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
     </button>
     <SeatsBar
@@ -566,7 +570,7 @@
         </div>
       {/if}
     {/if}
-    <button class="icon" onclick={() => (sheet = 'scores')} aria-label="Scores and log">
+    <button class="icon" class:unseen={watching} inert={watching} onclick={() => (sheet = 'scores')} aria-label="Scores and log">
       <svg viewBox="0 0 24 24" width="20" height="20"
         ><path
           d="M7 4h10v3a5 5 0 0 1-10 0V4Zm5 8v4m-4 4h8m-4-4v4M7 6H4v1a3 3 0 0 0 3 3m10-4h3v1a3 3 0 0 1-3 3"
@@ -926,6 +930,9 @@
     background: var(--glass);
     border: 1px solid var(--line);
     color: var(--ink-dim);
+  }
+  .icon.unseen {
+    visibility: hidden;
   }
   main {
     grid-area: center;

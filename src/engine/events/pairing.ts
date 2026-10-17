@@ -9,6 +9,8 @@ import type { EventState, TableRound } from './types';
 export interface Pairing {
   tables: (string | null)[][];
   byes: string[];
+  /** The bracket's places, for its picture (see Round). */
+  order?: (string | null)[];
 }
 
 const active = (e: EventState) => e.entrants.filter((x) => !x.out);
@@ -193,7 +195,7 @@ export function knockout(e: EventState): Pairing | null {
       if (a && b) tables.push([a, b]);
       else if (a || b) byes.push((a ?? b)!);
     }
-    return { tables, byes };
+    return { tables, byes, order };
   }
   const left = [...alive];
   const tables = tableSizes(alive.length, k).map((size) => [...left.splice(0, size), ...Array<null>(k - size).fill(null)]);

@@ -5,7 +5,20 @@ import { workerBrain, type Brain } from './net/brain';
 import { Client } from './net/client';
 import { loadRules } from './games';
 import type { Host, HostSnapshot } from './net/host';
-import { AVATAR_COLORS, AVATAR_EMOJI, cleanAvatar, makeRoomCode, type Avatar, type Frame, type Night, type View } from './net/protocol';
+import {
+  AVATAR_COLORS,
+  AVATAR_EMOJI,
+  cleanAvatar,
+  isEventCode,
+  makeRoomCode,
+  type Avatar,
+  type Frame,
+  type LobbyEvent,
+  type Night,
+  type View,
+} from './net/protocol';
+import type { SignedMove } from './net/eventCrypto';
+import { Events } from './event.svelte';
 import type { MultiTransport, NetworkStatus } from './net/multiTransport';
 import type { RelayTransport } from './net/relayTransport';
 import { noteGames } from './ui/record';
@@ -17,11 +30,18 @@ const SAVE_AFTER_MS = 800;
 const REJOIN_AFTER_MS = 8000;
 /** A host gone this long can be taken over by a player (the relay itself waits 20s). */
 export const TAKEOVER_OFFER_MS = 25_000;
+/** At a tournament's table, a phone whose host has been gone this long asks the director where to go. */
+const EVENT_FIND_AFTER_MS = 5000;
 
 export type Route =
   | { name: 'home'; code?: string }
   | { name: 'room'; code: string }
+  /** A table screen, or (a tournament's six-letter code) the tournament's board. */
   | { name: 'display'; code: string }
+  /** A phone in a tournament: signing up, or waiting between tables. */
+  | { name: 'event'; code: string }
+  /** The device directing a tournament. */
+  | { name: 'direct'; code: string }
   /** A TV waiting to be paired with a table (`/tv`, or a Chromecast at `/?cast=1`). */
   | { name: 'tv' };
 
@@ -195,6 +215,8 @@ export function parseHash(hash = location.hash): Route {
   const [, kind, code] = hash.replace(/\?.*$/, '').replace(/^#\/?/, '/').split('/');
   if (kind === 'room' && code) return { name: 'room', code: code.toUpperCase() };
   if (kind === 'display' && code) return { name: 'display', code: code.toUpperCase() };
+  if (kind === 'event' && code) return { name: 'event', code: code.toUpperCase() };
+  if (kind === 'direct' && code) return { name: 'direct', code: code.toUpperCase() };
   if (kind === 'join' && code) return { name: 'home', code: code.toUpperCase() };
   if (kind === 'tv' || /\/tv\/?$/.test(location.pathname) || new URLSearchParams(location.search).has('cast')) return { name: 'tv' };
   return { name: 'home' };
@@ -269,6 +291,29 @@ class App {
   /** When this device started trying to join the current table (for the "Finding table" screen). */
   joinStarted = $state(0);
   cid = clientId();
+  /** Tournaments on this device (see event.svelte.ts). */
+  readonly events: Events = new Events({
+    get cid() {
+      return app.cid;
+    },
+    get name() {
+      return app.name;
+    },
+    get avatar() {
+      return app.avatar;
+    },
+    get net() {
+      return app.net;
+    },
+    go: (hash) => this.go(hash),
+    say: (text) => this.say(text),
+    becomeId: (cid) => this.becomeId(cid),
+    inUse,
+    sit: (m, key) => this.sit(m, key),
+    brain: () => this.brain,
+    still: !!devTable().still,
+    seed: devTable().seed,
+  });
   readonly net: TransportKind = (['local', 'relay', 'public'] as const).find((k) => k === new URLSearchParams(location.search).get('net')) ?? 'p2p';
 
   host: Host | null = null;
@@ -352,7 +397,18 @@ class App {
   /** Bring connections in line with the current route. */
   async sync() {
     const r = this.route;
-    if (r.name === 'home' || r.name === 'tv') return this.leave(false);
+    // (a tournament: its screens and phones talk to its director, not to a table)
+    const event = r.name === 'event' || r.name === 'direct' || (r.name === 'display' && isEventCode(r.code));
+    if (r.name !== 'event') this.events.closePhone();
+    if (!(r.name === 'display' && event)) this.events.closeScreen();
+    if (r.name === 'home' || r.name === 'tv' || event) this.leave(false);
+    if (r.name === 'event') return this.events.openPhone(r.code);
+    if (r.name === 'direct') {
+      if (!(await this.events.openDirector(r.code))) this.say('That tournament isn’t on this device');
+      return;
+    }
+    if (event) return this.events.openScreen(r.code);
+    if (r.name === 'home' || r.name === 'tv') return;
     if (this.currentCode === r.code) return;
     this.leave(false);
     this.currentCode = r.code;
@@ -383,7 +439,10 @@ class App {
     parent?: string;
     back?: boolean;
     game?: { id: string; options: Record<string, number | boolean> };
+    ev?: SignedMove;
   }) {
+    // (a tournament's move, passed on by this table's host: checked with our secret before we go)
+    if (m.ev) return this.events.follow(m.ev);
     const from = this.currentCode;
     if (!from || m.code === from) return;
     if (m.back && m.night) this.returning = { to: m.code, from, night: m.night };
@@ -431,6 +490,21 @@ class App {
     store.set('cards.hostScreen', on ? '1' : null);
     this.host?.setScreen(on);
   }
+
+  /**
+   * A tournament's move: to a table, to host it (opened for the tournament, its seating on its way
+   * from the director) or to sit at it, holding the seat's key (see Events.follow).
+   */
+  private sit(m: SignedMove, key: string) {
+    if (m.host) {
+      this.pendingEventTable = { room: m.room, info: { code: m.event, name: '', round: m.round, table: m.table } };
+      this.pendingHostCode = m.room;
+      this.forgetSaved();
+    } else rememberSeat(m.room, this.cid, key);
+    this.go(`/room/${m.room}`);
+  }
+  /** A table this device is about to host for a tournament (see sit). */
+  private pendingEventTable: { room: string; info: LobbyEvent } | null = null;
 
   /** Split the table (host only): these people go to a new table that `newHost` hosts. */
   split(ids: string[], newHost: string) {
@@ -588,6 +662,8 @@ class App {
           return a;
         },
         __phase: () => this.host?.state?.phase ?? null,
+        // (a tournament's table: which round it is)
+        __round: () => this.host?.lobby.event?.round ?? null,
         // (`n` steps of the game at once, the same every time: see Host.step; how many were taken)
         __advance: (n: number) => {
           let i = 0;
@@ -597,12 +673,18 @@ class App {
       });
     this.isHost = true;
     this.connected = true;
+    // a tournament's table: opened for it (its seating on its way), or carrying on after a reload or a takeover
+    const ev = this.pendingEventTable?.room === code ? this.pendingEventTable : null;
+    this.pendingEventTable = null;
+    if (ev) host.expectTable(ev.info);
+    const info = ev?.info ?? restore?.event?.table.info;
+    if (info) void this.events.linkTable(host, info);
     if (restore) host.resume();
     else {
       const look = this.savedLook;
       if (look) host.lobby.look = look;
       // (a laptop that was the table screen last time is the table screen again)
-      if (store.get('cards.hostScreen') && !split) host.setScreen(true);
+      if (store.get('cards.hostScreen') && !split && !ev) host.setScreen(true);
       else host.broadcast();
     }
     // the connection to everyone else, whenever it's ready
@@ -627,19 +709,22 @@ class App {
     this.connected = false;
     this.joinStarted = Date.now();
     this.lostSince = 0;
+    // (the key that holds our seat: this tab's own, or a tournament's for this table: see sit)
+    let key = seatKey();
     if (!display) {
       // back at a table after closing the tab: sit down in the seat this device held there
       const held = heldSeats()[code];
       if (held && held.cid !== this.cid && !(await inUse(held.cid))) this.becomeId(held.cid, held.key);
       if (this.currentCode !== code) return;
-      rememberSeat(code, this.cid, seatKey());
+      if (held?.cid === this.cid) key = held.key;
+      rememberSeat(code, this.cid, key);
     }
     const joined = await createTransport(this.net, code, 'guest');
     // the route may have changed while we were connecting
     if (this.currentCode !== code) return joined.transport.leave();
     this.transport = joined.transport;
     this.addNext = joined.addNext;
-    const client = new Client(joined.transport, this.cid, this.name || 'Player', this.avatar, display, seatKey());
+    const client = new Client(joined.transport, this.cid, this.name || 'Player', this.avatar, display, key);
     client.onView = (v) => {
       this.view = v;
       this.noteRecord(v);
@@ -690,7 +775,11 @@ class App {
         return;
       }
       const client = this.client;
+      if (client?.connected) this.events.stopFinding();
       if (!client || client.connected) return;
+      // (a tournament's table whose host has gone: where to now? the director knows)
+      const ev = this.view?.lobby.event;
+      if (ev && this.hostGoneSince && Date.now() - this.hostGoneSince > EVENT_FIND_AFTER_MS) void this.events.findTable(ev.code);
       if (Date.now() - lastFallback > FALLBACK_AFTER_MS && this.addNext) {
         lastFallback = Date.now();
         void this.addNext();
@@ -861,6 +950,8 @@ class App {
    */
   get controls(): TableControls | null {
     const host = this.host;
+    // (a tournament's table: its director decides the game, the seats and what comes next)
+    if (this.view?.lobby.event) return null;
     if (host)
       return {
         setGame: (id) => host.setGame(id),
@@ -910,6 +1001,8 @@ class App {
   leave(clearSaved = true) {
     if (this.watch) clearInterval(this.watch);
     this.watch = null;
+    this.events.closeUplink();
+    this.events.stopFinding();
     this.host?.close();
     this.client?.close();
     this.transport = null;
@@ -931,5 +1024,12 @@ class App {
 }
 
 export const app = new App();
-// (development builds: the debug snapshot, for tests and by hand from the console)
-if (import.meta.env.DEV) Object.assign(window, { __snapshot: () => app.debugSnapshot(), __loadSnapshot: (text: string) => app.loadSnapshot(text) });
+// (development builds: the debug snapshot, for tests and by hand from the console; and a tournament
+// directed here stepped on, its tables hosted here and on to its next round, the same every time)
+if (import.meta.env.DEV)
+  Object.assign(window, {
+    __snapshot: () => app.debugSnapshot(),
+    __loadSnapshot: (text: string) => app.loadSnapshot(text),
+    __eventStep: (n: number) => app.events.stepEvent(n),
+    __eventAdvance: () => app.events.advance(),
+  });

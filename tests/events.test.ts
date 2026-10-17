@@ -13,7 +13,7 @@ import {
   withdraw,
 } from '../src/engine/events';
 import type { EventConfig, EventState, FormatId } from '../src/engine/events';
-import { bracketSeeds } from '../src/engine/events/pairing';
+import { bracketSeeds, swissRounds } from '../src/engine/events/pairing';
 import { sideResults } from '../src/engine/events/standings';
 import { seedState, nextRandom } from '../src/engine/rng';
 
@@ -159,6 +159,21 @@ describe('Swiss', () => {
     expect(standings(e).find((r) => r.entrant === 'e0')!.played).toBe(1);
   });
 
+  it('a Swiss settles how many rounds it plays when it starts: a withdrawal doesn’t change it', () => {
+    const e = event(config('swiss', 2), 8);
+    const dice = { rng: seedState(3) };
+    startEvent(e);
+    expect(e.config.rounds).toBe(swissRounds(8, 2));
+    expect(publicView(e).rounds).toBe(e.config.rounds);
+    playRound(e, dice);
+    for (const id of ['e0', 'e1', 'e2', 'e3']) withdraw(e, id);
+    for (let i = 0; i < 9 && e.phase !== 'done'; i++) {
+      nextRound(e);
+      if (e.phase === 'playing') playRound(e, dice);
+    }
+    expect(e.rounds).toHaveLength(swissRounds(8, 2));
+  });
+
   it('a result that’s late, repeated, or the wrong shape is ignored', () => {
     const e = event(config('swiss', 2, { rounds: 2 }), 4);
     startEvent(e);
@@ -217,6 +232,41 @@ describe('knockout', () => {
     const view = publicView(e);
     expect(view.bracket!.at(-1)!.tables[0].through).toEqual(champ);
     expect(standings(e)[0].entrant).toBe(champ[0]);
+  });
+
+  it('the bracket: each round’s places in order, byes in theirs, winners as each table ends, and the rounds to come', () => {
+    const e = event(config('knockout', 2), 5);
+    startEvent(e);
+    const b = publicView(e).bracket!;
+    // 5 in a bracket of 8: four pairs (one table, three byes), then the semi-finals and the final, still to come
+    expect(b.map((r) => [r.tables.length, !!r.later])).toEqual([
+      [4, false],
+      [2, true],
+      [1, true],
+    ]);
+    expect(b[0].tables.filter((t) => t.bye)).toHaveLength(3);
+    // those with a bye are already through, in their places in the next round
+    const order = e.rounds[0].order!;
+    const seeded = (j: number) => (b[0].tables[j].bye ? b[0].tables[j].through[0] : null);
+    expect(b[1].tables.map((t) => t.sides)).toEqual([
+      [seeded(0), seeded(1)],
+      [seeded(2), seeded(3)],
+    ]);
+    expect(order).toHaveLength(8);
+    // the table's winner shows as soon as it's done
+    const t = e.rounds[0].tables[0];
+    recordResult(e, 1, t.table, { places: [1, 0] });
+    const after = publicView(e).bracket!;
+    const winner = t.seats[1].entrant!;
+    const slot = after[0].tables.find((x) => !x.bye)!;
+    expect(slot.through).toEqual([winner]);
+    expect(after[1].tables.flatMap((x) => x.sides)).toContain(winner);
+  });
+
+  it('four a table: the bracket shows the tables to come, down to the final', () => {
+    const e = event(config('knockout', 4, { advance: 2 }), 10);
+    startEvent(e);
+    expect(publicView(e).bracket!.map((r) => r.tables.length)).toEqual([3, 2, 1]);
   });
 
   it('a tie at a table is settled by the game’s score, then by lot', () => {

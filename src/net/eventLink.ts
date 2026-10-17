@@ -1,6 +1,6 @@
 import type { EventPersonal, EventPublic } from '../engine/events';
 import { checkMove, prove, type SignedMove } from './eventCrypto';
-import { EVENT_PROTOCOL, type EventOutMsg, type EventPerson } from './eventProtocol';
+import { BOARD_SHOWS, EVENT_PROTOCOL, type BoardShow, type EventOutMsg, type EventPerson, type TableTile } from './eventProtocol';
 import { cleanMove } from './director/clean';
 import { isValidCode, type Avatar, type Msg, type View } from './protocol';
 import type { Transport } from './transport';
@@ -33,7 +33,13 @@ export const isOurMove = (id: EventIdentity, m: unknown): m is SignedMove => {
  */
 export class EventLink {
   you: EventPersonal | null = null;
-  board: { board: EventPublic; people: EventPerson[]; live: { table: number; view: View } | null } | null = null;
+  board: {
+    board: EventPublic;
+    people: EventPerson[];
+    tiles: { table: number; tile: TableTile | null }[];
+    live: { table: number; view: View } | null;
+    show: BoardShow;
+  } | null = null;
   refused: { why: string; reload?: boolean } | null = null;
   onChange: () => void = () => {};
   onMove: (m: SignedMove) => void = () => {};
@@ -115,7 +121,13 @@ export class EventLink {
       case 'evBoard':
         // (a screen is welcomed by the board itself)
         this.welcomed = true;
-        this.board = { board: msg.board, people: Array.isArray(msg.people) ? msg.people : [], live: msg.live ?? null };
+        this.board = {
+          board: msg.board,
+          people: Array.isArray(msg.people) ? msg.people : [],
+          tiles: Array.isArray(msg.tiles) ? msg.tiles : [],
+          live: msg.live ?? null,
+          show: BOARD_SHOWS.includes(msg.show!) ? msg.show! : 'turn',
+        };
         return this.onChange();
       case 'evMove':
         if (isOurMove(this.id, msg.move)) this.onMove(cleanMove(msg.move)!);

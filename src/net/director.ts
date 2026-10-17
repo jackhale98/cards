@@ -40,6 +40,8 @@ export interface DirectorOptions {
   pause?: number | null;
   /** How long a table waits for its players before bots stand in (ms). */
   grace?: number;
+  /** A round has been seated (null: the event is over), for telling those without a table. */
+  onRound?: (r: Round | null) => void;
   restore?: DirectorSnapshot;
 }
 
@@ -91,7 +93,10 @@ export class Director {
     this.timer = null;
     const r = nextRound(this.event);
     if (r) this.seatRound(r);
-    else this.closeTables();
+    else {
+      this.closeTables();
+      this.o.onRound?.(null);
+    }
     this.changed();
   }
 
@@ -150,6 +155,7 @@ export class Director {
       link.seat(this.tableFor(r, t));
     }
     for (const link of last) link.close();
+    this.o.onRound?.(r);
   }
 
   private listen(link: TableLink, r: Round, t: TableRound) {
@@ -164,10 +170,12 @@ export class Director {
   /** What a table is told: its game, who sits where (each member with their seat's key), its deal. */
   private tableFor(r: Round, t: TableRound): EventTable {
     const e = this.event;
-    const seats = t.seats.map((s): EventSeat | BotSeat | null => {
+    const seats = t.seats.map((s, seat): EventSeat | BotSeat | null => {
       const x = e.entrants.find((y) => y.id === s.entrant);
       if (!x) return null;
-      if (!s.member) return { bot: true, name: x.name };
+      // (a bot entrant's seats have its names; a person's bot partner is named at the table)
+      const j = e.config.sides.find((side) => side.includes(seat))?.indexOf(seat) ?? 0;
+      if (!s.member) return { bot: true, name: x.bot ? (x.names?.[j] ?? x.name) : '' };
       const i = x.members.indexOf(s.member);
       return { id: s.member, name: x.names?.[i] ?? x.name, key: this.o.keyFor(s.member, r.n, t.table) };
     });

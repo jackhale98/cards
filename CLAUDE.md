@@ -44,8 +44,10 @@ src/engine/            pure TS: no DOM, no network, no UI
   families/            one engine per kind of game; index.ts loads them on demand (rules.family →
                        engine), traits.ts says which have bots / real-time play without loading them
   lib/                 betting, pokerEval, trickTaking, passing, melds, cribbageScore, teams,
-                       realtime (the speed games), canastaCards
+                       realtime (the speed games), canastaCards, duplicate (boards, IMPs, matchpoints)
   bots/search.ts       Monte Carlo search bots any family can plug into
+  events/              tournaments, pure: formats (Swiss, round robin, knockout: pairing.ts), standings,
+                       what the screens and each player see (view.ts); the event is plain JSON too
   events/              tournaments: Swiss, round robin, knockout (pairing.ts), standings, what screens
                        and phones may see (view.ts); lib/duplicate.ts is duplicate bridge's arithmetic
 src/games/<id>/game.json   a game = a family plus parameters (schemas/game.schema.json)
@@ -56,12 +58,19 @@ src/net/host.ts        the authoritative host: seats and keys, checking and appl
                        its parts in src/net/host/: conns (connections, heartbeat, views and patches),
                        bots (bots and automatic steps), history (replays, the game's record, scores,
                        tonight's tally), backups (host handoff), lobby (who plays, lobby buttons),
-                       records, limits, event (a tournament table: seats the director assigns, held
+                       records, limits; event (a tournament's table: reserved seats, holds, its result)
+                       and uplink (that table's host's link to the director), event (a tournament table: seats the director assigns, held
                        between hands, results reported)
 src/net/director.ts    a tournament's director: runs the event, seats each round's tables (director/tables.ts:
                        hosted on this device, or by a player there), hears results;  eventCrypto.ts its secrets
 src/net/brain.ts       where bots think: botWorker.ts (a Web Worker) in the app, inline in tests;
                        shareBrain, one brain taking turns between several tables
+src/net/director.ts    a tournament's director: runs the event, seats each round's tables (TableLinks);
+                       director/: desk (its rooms: signing up, moves to tables, the screens), registry,
+                       remote (a table a player hosts), tables (one hosted here: bots only)
+src/net/eventCrypto.ts each phone's secret: signed moves between tables, seat keys (sha256.ts: HMAC);
+                       eventProtocol.ts the director's messages; eventLink.ts a phone's (or TV's) link
+src/event.svelte.ts    the app's side of tournaments: a phone signing up, a screen, directing
 src/net/client.ts      a player's (or TV's) connection to the host
 src/net/protocol.ts    every message between devices
 src/net/*Transport.ts  relay (ours), trystero (public WebRTC networks), local, multi (several at once)
@@ -70,7 +79,8 @@ src/net/gameRecord.ts  the whole game move by move, saved as CSV (each player ge
 src/net/exports/       the standard records a game can also be saved as: PBN (bridge), Open Hand History
                        (Hold'em, Omaha); formats.ts says which game gets which
                        (and PHH, poker for PokerKit: written only for checking, see tools/)
-src/ui/screens/        Home, Lobby, Table, TvScreen;  src/ui/components/  the pieces
+src/ui/screens/        Home, Lobby, Table, TvScreen; EventDirector, EventBoard (a tournament on a big
+                       screen), EventPhone;  src/ui/components/  the pieces
 src/ui/table/          the table screen's parts: its sheets and columns (components), what shows where
                        (shown.ts), picking cards (selection), the sizes (sizing.svelte.ts over
                        layout/table.ts, the pure arithmetic); Table.svelte puts them together
@@ -103,6 +113,10 @@ docs/ADDING_A_GAME.md  how to add a game: read it before touching families or ga
   a connection only with that seat's key, which a client sends only to the host. Clients accept
   host messages only from the host (`Client.isHost`: our relay vouches for it; elsewhere the first
   host found). Treat every message as hostile input: check types and sizes before use.
+- **A tournament trusts its signatures.** Each phone's secret goes to the director once (only to the
+  vouched director: `evHere`); after that it proves it holds it. A phone follows a move to another
+  table only if it's signed with its own secret, and a table's host is given only its own table's seat
+  keys. Every network path is in `tests/eventNet.test.ts`.
 - **Rules load lazily.** UI and lobby code use `getGame(id)` (config and traits only). Only the
   host touches rules (`rulesFor`), after `loadRules`. Tests get every engine from `tests/games.ts`.
 - **The schema defines game.json.** Its types are generated (`pnpm gen:types`); a family reads
@@ -154,7 +168,8 @@ browser layout tests cover a new game automatically.
   holds the table (no bot moves by itself), `__advance(n)` makes the next n moves the same way every
   time (`Host.step`: Easy bots thinking `steadily`), and the menu's "Copy debug snapshot" / the home
   screen's "Load debug snapshot" (`__snapshot()` / `__loadSnapshot(text)`) carry a table between
-  devices. `e2e/gallery.spec.ts` uses them to screen-check every game; a test that plays a game
+  devices. A tournament directed here steps on with `__eventStep(n)` (its tables of bots, then the
+  next round). `e2e/gallery.spec.ts` uses them to screen-check every game; a test that plays a game
   through should step it from a seed too, not wait on live bots (only the real-time games need them).
 
 ## Style

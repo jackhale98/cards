@@ -15,8 +15,10 @@ const text = (x: unknown, max: number): x is string => typeof x === 'string' && 
 export function cleanMove(m: unknown): SignedMove | null {
   if (!m || typeof m !== 'object') return null;
   const x = m as Record<string, unknown>;
-  if (typeof x.event !== 'string' || !isEventCode(x.event) || typeof x.room !== 'string' || !isValidCode(x.room)) return null;
-  if (!int(x.round, 1, 999) || !int(x.table, 1, 999) || typeof x.host !== 'boolean' || !text(x.sig, 64)) return null;
+  if (typeof x.event !== 'string' || !isEventCode(x.event) || typeof x.room !== 'string') return null;
+  if (!int(x.round, 1, 999) || !int(x.table, 0, 999) || typeof x.host !== 'boolean' || !text(x.sig, 64)) return null;
+  // (table 0: no table this round, wait at the event: its room is the event's own)
+  if (x.table === 0 ? x.room !== x.event || x.host : !isValidCode(x.room)) return null;
   return { event: x.event, round: x.round, table: x.table, room: x.room, host: x.host, sig: x.sig };
 }
 
@@ -66,7 +68,8 @@ export function cleanEventTable(t: unknown): EventTable | null {
   const seats: (EventSeat | BotSeat | null)[] = [];
   for (const s of x.seats as unknown[]) {
     if (s === null) seats.push(null);
-    else if (s && typeof s === 'object' && (s as BotSeat).bot === true && text((s as BotSeat).name, 40)) seats.push({ bot: true, name: (s as BotSeat).name });
+    else if (s && typeof s === 'object' && (s as BotSeat).bot === true && typeof (s as BotSeat).name === 'string' && (s as BotSeat).name.length <= 40)
+      seats.push({ bot: true, name: (s as BotSeat).name });
     else if (s && typeof s === 'object' && text((s as EventSeat).id, 64) && text((s as EventSeat).name, 40) && text((s as EventSeat).key, 128)) {
       const m = s as EventSeat;
       const avatar = cleanAvatar(m.avatar);

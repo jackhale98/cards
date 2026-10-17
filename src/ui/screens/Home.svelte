@@ -2,7 +2,7 @@
   import { bugReportLink, CONTACT_EMAIL, gameRequestLink, SUPPORT_URL } from '../contact';
   import { untrack } from 'svelte';
   import { app } from '../../app.svelte';
-  import { CODE_LENGTH, isValidCode, normaliseCode } from '../../net/protocol';
+  import { CODE_LENGTH, EVENT_CODE_LENGTH, isEventCode, isValidCode, normaliseAnyCode } from '../../net/protocol';
   import AvatarBadge from '../components/AvatarBadge.svelte';
   import AvatarPicker from '../components/AvatarPicker.svelte';
   import Card from '../components/Card.svelte';
@@ -12,13 +12,15 @@
   import { loadRecord } from '../record';
 
   let { code: initialCode = '' }: { code?: string } = $props();
-  let code = $state(normaliseCode(untrack(() => initialCode)));
+  let code = $state(normaliseAnyCode(untrack(() => initialCode)));
+  /** A table's code, or a tournament's (six letters). */
+  const usable = (c: string) => isValidCode(c) || isEventCode(c);
   /** Arrived by an invite link (`#/join/ABCD`). */
-  const invited = untrack(() => (isValidCode(normaliseCode(initialCode)) ? normaliseCode(initialCode) : ''));
+  const invited = untrack(() => (usable(normaliseAnyCode(initialCode)) ? normaliseAnyCode(initialCode) : ''));
   let name = $state(app.name);
   const saved = app.savedHost;
   // the button lights up as soon as the code is complete; a missing name is asked for on tap
-  const canJoin = $derived(isValidCode(code));
+  const canJoin = $derived(usable(code));
   let nameInput: HTMLInputElement;
   let needName = $state(false);
   /** No name yet: point at the name box instead of silently doing nothing. */
@@ -44,10 +46,17 @@
     app.createRoom();
   }
   function join(display = false) {
-    if (!isValidCode(code)) return app.say(`Table codes are ${CODE_LENGTH} letters`);
+    if (!usable(code)) return app.say(`Table codes are ${CODE_LENGTH} letters, tournaments’ ${EVENT_CODE_LENGTH}`);
     if (!display && !name.trim()) return askForName();
     commitName();
-    app.go(`/${display ? 'display' : 'room'}/${code}`);
+    // (a tournament's code: sign up with its director)
+    app.go(`/${display ? 'display' : isEventCode(code) ? 'event' : 'room'}/${code}`);
+  }
+  /** Run a tournament from this device: it directs, and its screen shows the event. */
+  function direct() {
+    if (!name.trim()) return askForName();
+    commitName();
+    app.go(`/direct/${app.events.create(app.recentGames[0])}`);
   }
   // (development builds: loading a debug snapshot)
   let snapshotOpen = $state(false);
@@ -206,7 +215,11 @@
     <button class="btn wide" class:primary={!invited} class:light={!invited} onclick={host}>Start a table</button>
 
     {#if invited}
-      <p class="invited">You're invited to table <b>{invited}</b> — add your name and deal yourself in.</p>
+      <p class="invited">
+        You're invited to {isEventCode(invited) ? 'the tournament' : 'table'} <b>{invited}</b> — add your name and {isEventCode(invited)
+          ? 'sign up'
+          : 'deal yourself in'}.
+      </p>
     {/if}
     <div class="or"><span>or join one</span></div>
 
@@ -214,18 +227,23 @@
       <input
         class="code"
         value={code}
-        oninput={(e) => (code = normaliseCode(e.currentTarget.value))}
+        oninput={(e) => (code = normaliseAnyCode(e.currentTarget.value))}
         onkeydown={(e) => e.key === 'Enter' && join()}
         placeholder="CODE"
-        maxlength={CODE_LENGTH}
+        maxlength={EVENT_CODE_LENGTH}
         autocapitalize="characters"
         autocomplete="off"
         spellcheck="false"
         aria-label="Table code"
       />
-      <button class="btn" class:primary={!!invited} class:light={!!invited} disabled={!canJoin} onclick={() => join()}>Deal me in</button>
+      <button class="btn" class:primary={!!invited} class:light={!!invited} disabled={!canJoin} onclick={() => join()}
+        >{isEventCode(code) ? 'Sign me up' : 'Deal me in'}</button
+      >
     </div>
-    <button class="link" disabled={!isValidCode(code)} onclick={() => join(true)}>Use this device as the table display</button>
+    <button class="link" disabled={!canJoin} onclick={() => join(true)}
+      >Use this device as the {isEventCode(code) ? 'tournament’s screen' : 'table display'}</button
+    >
+    <button class="link" onclick={direct}>Run a tournament</button>
 
     {#if import.meta.env.DEV}
       <!-- (development builds: put a table copied with the menu's "Copy debug snapshot" back on screen) -->

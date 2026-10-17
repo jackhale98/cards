@@ -54,6 +54,9 @@
   }
 
   const mySeat = $derived(lobby.seats.findIndex((s) => s.id === app.cid));
+  // a tournament's table: who it's still waiting for
+  const awaited = $derived(lobby.event ? lobby.seats.filter((s) => !s.bot && !s.connected && !s.out).map((s) => s.name) : []);
+  const listNames = (names: string[]) => (names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names.at(-1)}` : names[0]);
 
   // the picker: recent games first, then a section per kind of game
   // (the host's laptop as the table screen isn't a player)
@@ -216,11 +219,16 @@
     <div class="code">
       {#each lobby.code.split('') as ch, k (k)}<span>{ch}</span>{/each}
     </div>
-    <!-- the QR is generated a moment later: hold its place so the page doesn't jump -->
-    {#if qr}<img class="qr" src={qr} alt="QR code to join this table" />{:else}<div class="qr" aria-hidden="true"></div>{/if}
-    <p class="small">Scan, or open the site and enter the code. Friends somewhere else can join with the invite link. Same WiFi is fastest.</p>
+    {#if lobby.event}
+      <!-- (a tournament's table: its players were sent here, nobody joins by invite) -->
+      <p class="small">Table {lobby.event.table} of {lobby.event.name}. Everyone here was sent by the director.</p>
+    {:else}
+      <!-- the QR is generated a moment later: hold its place so the page doesn't jump -->
+      {#if qr}<img class="qr" src={qr} alt="QR code to join this table" />{:else}<div class="qr" aria-hidden="true"></div>{/if}
+      <p class="small">Scan, or open the site and enter the code. Friends somewhere else can join with the invite link. Same WiFi is fastest.</p>
+    {/if}
     <div class="row">
-      <button class="btn" onclick={share}>Share invite</button>
+      {#if !lobby.event}<button class="btn" onclick={share}>Share invite</button>{/if}
       <button class="btn" onclick={() => (tv = true)}>TV</button>
       <button
         class="btn quiet"
@@ -234,6 +242,16 @@
   </section>
 
   <section class="setup">
+    {#if lobby.event}
+      <div class="block tourney">
+        <div class="eyebrow">🏆 {lobby.event.name} · Round {lobby.event.round} · Table {lobby.event.table}</div>
+        <p>
+          {awaited.length
+            ? `Waiting for ${listNames(awaited)}. The game starts when everyone's here (a bot steps in for anyone who doesn't come).`
+            : 'Everyone’s here: dealing…'}
+        </p>
+      </div>
+    {/if}
     <div class="block">
       <div class="head">
         <div class="eyebrow">Playing · {playing}/{seatsMax}{sittingOut ? ` · ${sittingOut} sitting out` : ''}</div>
@@ -416,12 +434,19 @@
     {#if ctl}
       <button class="btn primary big" disabled={!!startError} onclick={deal}>Deal <span class="long">{game.config.name}</span></button>
     {:else}
-      <span class="waiting"><Loader size={16} /> Waiting for {captain ? captain.name : 'the host'}…</span>
+      <span class="waiting"
+        ><Loader size={16} /> {lobby.event ? 'The game starts when everyone’s here' : `Waiting for ${captain ? captain.name : 'the host'}…`}</span
+      >
     {/if}
   </div>
 </main>
 
 <style>
+  .tourney p {
+    margin: 0.3rem 0 0;
+    color: var(--ink-dim);
+    line-height: 1.4;
+  }
   .lobby {
     position: absolute;
     inset: 0;

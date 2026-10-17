@@ -1,5 +1,5 @@
 import type { Action } from '../engine/types';
-import { isValidCode, type Avatar, type Frame, type HostMsg, type LobbyOp, type Night, type View } from './protocol';
+import { isEventCode, isValidCode, type Avatar, type Frame, type HostMsg, type LobbyOp, type Night, type View } from './protocol';
 import type { ExportFormat } from './exports/formats';
 import type { Transport } from './transport';
 import type { SignedMove } from './eventCrypto';
@@ -76,7 +76,8 @@ export class Client {
         return;
       }
       if (msg.t === 'move') {
-        if (from !== this.hostPeer || typeof msg.code !== 'string' || !isValidCode(msg.code)) return;
+        // (a tournament's move may be back to the event itself: its code, checked with its signature by the app)
+        if (from !== this.hostPeer || typeof msg.code !== 'string' || !(isValidCode(msg.code) || (msg.ev && isEventCode(msg.code)))) return;
         this.onMove(msg);
         return;
       }

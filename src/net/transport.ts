@@ -38,6 +38,21 @@ export interface Joined {
 }
 
 /**
+ * A tournament's rooms: our relay alone (it vouches for the director, so a phone's secret goes to
+ * the director and nobody else), or this browser's tabs in local test mode. The code loads once;
+ * after that a room opens at once (the director opens its rooms, and a table's host its link to
+ * the director, in step with everything else). `hostKey`: the director's claim on its rooms.
+ */
+export async function eventRooms(kind: TransportKind): Promise<(code: string, hostKey?: string) => Transport> {
+  if (kind === 'local') {
+    const { LocalTransport } = await import('./localTransport');
+    return (code) => new LocalTransport(code);
+  }
+  const { RelayTransport } = await import('./relayTransport');
+  return (code, hostKey) => new RelayTransport(code, undefined, hostKey ? { hostKey } : undefined);
+}
+
+/**
  * Join a room. Normally everyone starts on our relay alone, which keeps a phone to one connection
  * (plus a direct link per device it talks to). The public signalling networks are backups: a
  * guest adds them one by one while no host answers (`addNext`), and the host opens them all if the
