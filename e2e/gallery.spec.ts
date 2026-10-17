@@ -163,14 +163,16 @@ for (const [g, seats] of TABLES) {
     watch(page, errors);
     await page.setViewportSize(SCREENS[0]);
     const code = await deal(page, g, seats);
-    const tv = await context.newPage();
-    watch(tv, errors);
-    await tv.setViewportSize({ width: 1366, height: 768 });
-    await tv.goto(`/?net=local#/display/${code}`);
-    await tv.locator('.table.display').waitFor();
-    await page.locator('.table.handmode').waitFor();
     const found: Record<string, string[]> = {};
+    // (the TV joins at each moment looked at, and leaves before the game steps on: it would draw
+    // every step in between, hundreds in a long hand, and that's not what's checked here)
     const look = async (at: string) => {
+      const tv = await context.newPage();
+      watch(tv, errors);
+      await tv.setViewportSize({ width: 1366, height: 768 });
+      await tv.goto(`/?net=local#/display/${code}`);
+      await tv.locator('.table.display').waitFor();
+      await page.locator('.table.handmode').waitFor();
       const p = await phase(page);
       for (const [where, screen, display] of [
         ['the TV', tv, true],
@@ -179,6 +181,7 @@ for (const [g, seats] of TABLES) {
         const q = await problems(screen, { display });
         if (q.length) found[`${at} (${p}), ${where}`] = q;
       }
+      await tv.close();
     };
     await look('dealt');
     await stepTo(page, STEPS[1]);

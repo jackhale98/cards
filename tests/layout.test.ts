@@ -67,12 +67,31 @@ describe('the trick', () => {
       0,
       4,
     );
-    expect([all.w, all.h]).toEqual([180, 135]);
+    // (about three cards wide, two and a quarter tall: a little more, to take in the turned corners)
+    expect(all.w).toBeGreaterThanOrEqual(180);
+    expect(all.w).toBeLessThan(200);
+    expect(all.h).toBeGreaterThanOrEqual(135);
     expect(all.spots[0]).toEqual(first.spots[0]);
     expect(all.spots[3].y).toBeGreaterThan(all.h / 2);
     expect(all.spots[1].y).toBeLessThan(all.h / 2);
     expect(all.spots[0].x).toBeLessThan(all.w / 2);
     expect(all.spots.map((s) => s.z)).toEqual([1, 2, 3, 4]);
+  });
+
+  it('takes in every card whole, turned corners and all, however many play (big cards needn’t reach past it)', () => {
+    for (const players of [2, 3, 4, 5, 6, 7, 8]) {
+      const cards = Array.from({ length: players }, (_, by) => ({ id: `${by + 2}C`, by }));
+      const t = trick(cards, 100, 0, players);
+      for (const s of t.spots) {
+        const a = (Math.abs(s.rot) * Math.PI) / 180;
+        const rx = (s.w * Math.cos(a) + s.w * 1.4 * Math.sin(a)) / 2;
+        const ry = (s.w * 1.4 * Math.cos(a) + s.w * Math.sin(a)) / 2;
+        expect(s.x - rx, `${players}`).toBeGreaterThanOrEqual(-0.01);
+        expect(s.x + rx, `${players}`).toBeLessThanOrEqual(t.w + 0.01);
+        expect(s.y - ry, `${players}`).toBeGreaterThanOrEqual(-0.01);
+        expect(s.y + ry, `${players}`).toBeLessThanOrEqual(t.h + 0.01);
+      }
+    }
   });
 });
 
@@ -220,7 +239,7 @@ describe('melds as piles', () => {
 
 describe('a zone by its layout', () => {
   it('lays out each kind the way its layout says', () => {
-    expect(layoutZone(zone('trick', []), MIDDLE).w).toBe(180);
+    expect(layoutZone(zone('trick', []), MIDDLE).w).toBeCloseTo(trick([], 60, 0, 4).w);
     expect(layoutZone(zone('stack', refs(['5C'])), MIDDLE).w).toBe(60);
     expect(layoutZone(zone('spread', refs(['5C', '6C'])), MIDDLE).w).toBeCloseTo(126);
     expect(layoutZone(zone('spread', refs(['5C', '5D'], { group: 0 }), { piles: true }), MIDDLE).spots.at(-1)!.count).toBe(2);

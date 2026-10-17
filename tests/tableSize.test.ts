@@ -290,10 +290,26 @@ describe('the last move’s line', () => {
       if (!one.lastFits || !two.lastFits) continue;
       // (a taller line: never bigger cards, and smaller ones whenever the room was already tight)
       expect(two.center + two.hand, `${m.game} ${m.at}`).toBeLessThanOrEqual(one.center + one.hand);
-      expect(two.spare, `${m.game} ${m.at}`).toBeLessThanOrEqual(one.spare);
+      // (the same cards: less room left over; smaller ones may leave a little more, what's less than a step)
+      if (two.center + two.hand === one.center + one.hand) expect(two.spare, `${m.game} ${m.at}`).toBeLessThanOrEqual(one.spare);
       if (two.center + two.hand < one.center + one.hand || two.spare < one.spare) gave++;
     }
     expect(gave).toBeGreaterThan(0);
+  });
+});
+
+describe('a tall screen', () => {
+  it('gives the height your hand has no use for to the middle’s cards, as far as it fits, never past your hand’s size', () => {
+    // (a tablet: 1180 × 820, the middle a trick)
+    const screen = { ...SCREENS.laptop, vw: 1180, vh: 820, mainW: 1180 - 170 - 170 };
+    const m = MOMENTS.find((x) => x.game === 'hearts' && x.at !== 'dealt')!;
+    const fit = sizes(m, screen);
+    // (what the middle asks for on its own: 92px)
+    expect(fit.center).toBeGreaterThan(92);
+    expect(fit.center).toBeLessThanOrEqual(size.handCw({ hand: fit.hand, handMode: false, stripShown: false, pileOnly: false }));
+    expect(fit.fits).toBe(true);
+    // (a phone's spare height is a few pixels: its cards stay as they were)
+    expect(sizes(m, SCREENS.phone).center).toBeLessThanOrEqual(92);
   });
 });
 

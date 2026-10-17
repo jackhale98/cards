@@ -14,6 +14,8 @@ import { FULL_HAND } from './spread';
 export const MIN_CW = 30;
 /** The least of a card in your hand that shows, to tap it (px). */
 export const TOUCH = 28;
+/** The middle's cards grow into spare height no wider than this (px). */
+export const MIDDLE_MAX = 160;
 /** The last move's line under the headline (px, with the gap over it), until it's been measured. */
 export const LAST_H = 26;
 
@@ -467,7 +469,7 @@ export function fitSizes(i: FitInput): { center: number; hand: number; lastFits:
     while (k < 1 && fits(k + 0.02, false)) k += 0.02;
   }
   if (!i.headlineAbove) lastFits = i.side;
-  const center = wantCenter * k;
+  let center = wantCenter * k;
   let hand = wantHand * k;
   const spare = Math.max(0, room(hand, lastFits) - i.middle(Math.max(34, Math.round(center))));
   // room left over once everything fits (a small middle, a short hand): most of it to your hand,
@@ -489,6 +491,14 @@ export function fitSizes(i: FitInput): { center: number; hand: number; lastFits:
     const floor = handOf(0);
     const tight = (h: number) => fanGap(fan.n, fan.width(handOf(h)), handOf(h)) < TOUCH;
     while (handOf(hand) > floor && tight(hand)) hand = Math.min(hand, handOf(hand)) - 1;
+  }
+  // and height still left once your hand has its fill (a tall screen, a small middle): the middle's
+  // cards grow into it, as far as it fits, up to your hand's size and their share of the screen (not
+  // when the room is the dummy's to grow into, nor one row as wide as fits, nor beside a table screen)
+  if (k >= 1 && i.hasMiddle && !i.handMode && !i.rowFit && !i.growing) {
+    const ceiling = Math.min(MIDDLE_MAX, i.vw * 0.14, i.vh * 0.24, i.handEmpty || i.pileOnly ? Infinity : handOf(hand));
+    const fitsAt = (cw: number) => i.middle(Math.max(34, Math.round(cw))) <= room(hand, lastFits);
+    while (center + 2 <= ceiling && fitsAt(center + 2)) center += 2;
   }
   const left = room(hand, lastFits) - i.middle(Math.max(34, Math.round(center)));
   // (`fits`: false when even the smallest cards don't, and the middle will be scaled to fit)
