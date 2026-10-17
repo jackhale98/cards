@@ -108,7 +108,7 @@ components that each own their CSS. Rules for the components:
       run before and after each step, compared pixel for pixel (`toHaveScreenshot` against the
       "before" set). Bots' later moves aren't seeded, so only the dealt moment and a scripted
       first move are compared; e2e covers the rest.
-- [ ] 2a. **Sheets into components** (`src/ui/table/`): `MenuSheet` (the menu and How to play,
+- [x] 2a. **Sheets into components** (`src/ui/table/`): `MenuSheet` (the menu and How to play,
       with the per-device settings moved into `settings.svelte.ts`: sound, four colours, hints,
       turn notifications, hand order), `ScoresSheet`, `SaveSheet`, `MeldsSheet` (everyone's melds
       full screen, with its own `spreadCw` sizing and measuring), the `Look` sheet stays a
@@ -191,3 +191,8 @@ Goal: one module per job behind the same `Host` API (no protocol change).
 - 2.0 (branch `phase2`): `?seed=…&still` (Host options `seed`, `still`; development builds only) and
   `pnpm pictures` (36 tests, 72 pictures: stable over repeated runs; a 1px change to the headline
   shows). The menu's title has the table's random code: the spec writes a fixed one in first.
+- 2a: `src/ui/table/` has `MenuSheet` (full screen handled inside it), `ScoresSheet`, `SaveSheet`,
+  `ResultBanner`, `RotatePrompt` and `settings.svelte.ts` (`TableSettings`); 2578 → 2185 lines,
+  pictures identical. `MeldsSheet` moves in 2c, once the selection is one object (2b): today it
+  would need fifteen props. Unused CSS left behind is found by svelte-check's "unused selector"
+  warnings (a script in the scratchpad removed exactly those rules).

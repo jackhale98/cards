@@ -1,7 +1,6 @@
 <script lang="ts">
-  import { bugReportLink, SUPPORT_URL } from '../contact';
   import SuitText from '../components/SuitText.svelte';
-  import { app, inviteUrl } from '../../app.svelte';
+  import { app } from '../../app.svelte';
   import type { ActionSpec, ZoneState } from '../../engine/types';
   import { getGame, howToPlay } from '../../games';
   import { REACTIONS, type Frame, type View } from '../../net/protocol';
@@ -20,24 +19,25 @@
   import LookPicker from '../components/LookPicker.svelte';
   import AvatarBadge from '../components/AvatarBadge.svelte';
   import Track from '../components/Track.svelte';
-  import NightBoard from '../components/NightBoard.svelte';
-  import ScoreChart from '../components/ScoreChart.svelte';
   import { nightTotals } from '../../net/night';
   import { seatRelation } from '../../engine/state';
   import { flight, haptic, play, snapshot } from '../motion';
-  import { play as playSound, setSound, soundOn, type Sound } from '../sound';
-  import { fourColourOn, setFourColour } from '../suits';
-  import { hintsOn, setHints } from '../hints';
-  import { arrangeHand, HAND_SORT_LABEL, HAND_SORTS, handSortOn, setHandSort, type HandSort } from '../handOrder';
+  import { play as playSound, type Sound } from '../sound';
+  import { arrangeHand } from '../handOrder';
   import { marquee } from '../marquee';
   import { fade } from 'svelte/transition';
   import { isHidden } from '../../engine/redact';
-  import { SCREEN_SOUND, STAND_IN } from '../../net/host';
+  import { STAND_IN } from '../../net/host';
   import { seatColor } from '../seatColors';
   import { keepAwake } from '../wakeLock';
-  import { canNotify, clearTurn, raiseTurn, setTurnAlerts, turnAlertsOn } from '../turnAlert';
-  import { EXPORT_ABOUT, EXPORT_FILE, EXPORT_LABEL, recordFormats } from '../../net/exports/formats';
+  import { clearTurn, raiseTurn } from '../turnAlert';
   import TvSheet from '../components/TvSheet.svelte';
+  import MenuSheet from '../table/MenuSheet.svelte';
+  import ScoresSheet from '../table/ScoresSheet.svelte';
+  import SaveSheet from '../table/SaveSheet.svelte';
+  import ResultBanner from '../table/ResultBanner.svelte';
+  import RotatePrompt from '../table/RotatePrompt.svelte';
+  import { TableSettings } from '../table/settings.svelte';
   import CardLayer from '../components/CardLayer.svelte';
 
   /** `replay`: a moment of a finished hand is on screen (the table shows it, quietly). */
@@ -393,12 +393,10 @@
 
   const myHandZone = $derived(you >= 0 ? s.zones[`hand:${you}`] : undefined);
   const dealtHand = $derived(you >= 0 ? (s.zones[`hand:${you}`]?.cards ?? []) : []);
-  /** How this device sorts your hand, and where you've dragged cards to (by id; see arrangeHand). */
-  let handSort = $state<HandSort>(handSortOn());
-  /** A notification when it's your turn and you're elsewhere (see turnAlert.ts). */
-  let turnAlerts = $state(turnAlertsOn());
+  /** This device's settings (the menu's), and where you've dragged cards to in your hand (by id; see arrangeHand). */
+  const settings = new TableSettings();
   let handOrder = $state<string[]>([]);
-  const myHand = $derived(arrangeHand(dealtHand, handSort, handOrder));
+  const myHand = $derived(arrangeHand(dealtHand, settings.handSort, handOrder));
   /**
    * Hands turned over at a showdown (poker), laid out in the middle beside the board, labelled with
    * who and what they hold: the cards move there from the seat (which shows none meanwhile).
@@ -472,7 +470,7 @@
   function tap(id: string) {
     if (!selectable?.has(id)) {
       // (with the hints off nothing looks unplayable, so a tap on such a card says why nothing happens)
-      if (!hints && selectable && fanCards.some((c) => c.id === id)) app.say('That card can’t be played right now');
+      if (!settings.hints && selectable && fanCards.some((c) => c.id === id)) app.say('That card can’t be played right now');
       return;
     }
     if (selected.includes(id)) {
@@ -549,7 +547,6 @@
     haptic(spec.react ? 25 : 10);
   }
 
-  /** Actions triggered by tapping a pile (draw from the deck, take the discard…). */
   /** Tapping a pile: its action (draw, take…), or, with cards selected, putting them there (Kings Corners). */
   const zoneAction = (zoneId: string) =>
     view.actions.find(
@@ -739,37 +736,6 @@
   });
   let bannerHidden = $state<number | null>(null);
   const showBanner = $derived(!!status.banner && bannerHidden !== s.v);
-  // (remembered for the visit, so a new table doesn't ask again)
-  const remembered = (key: string) => {
-    try {
-      return sessionStorage.getItem(key) === '1';
-    } catch {
-      return false;
-    }
-  };
-  const remember = (key: string) => {
-    try {
-      sessionStorage.setItem(key, '1');
-    } catch {
-      /* private mode: just this table */
-    }
-    return true;
-  };
-  let portraitOk = $state(remembered('cards.portraitOk'));
-  let fullscreen = $state(!!document.fullscreenElement);
-
-  async function toggleFullscreen() {
-    try {
-      if (document.fullscreenElement) await document.exitFullscreen();
-      else {
-        await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
-        await (screen.orientation as any).lock?.('landscape').catch(() => {});
-      }
-    } catch {
-      // (Safari on iPhone has no full screen for websites; an app added to the Home Screen does)
-      app.say('Full screen isn’t available here — on iPhone, tap Share, then Add to Home Screen');
-    }
-  }
 
   // keep the screen awake while at the table
   $effect(() => keepAwake());
@@ -804,12 +770,8 @@
   );
 
   // ---- sounds: each new move on the table (on the big screen, when there is one), and the end
-  let soundsOn = $state(soundOn());
-  let fourColour = $state(fourColourOn());
-  let hints = $state(hintsOn());
   // a table screen stays quiet when someone at the table has muted it (a Chromecast has no menu)
   const sound = (x: Sound) => (replay || (display && view.lobby.screenSound === false) ? undefined : playSound(x));
-  const screenSoundOn = $derived(view.lobby.screenSound !== false);
   let heard = -1;
   function soundFor(e: { text: string; fromZone?: string; toZone?: string }): Sound | null {
     const t = e.text.toLowerCase();
@@ -968,7 +930,7 @@
   const myInfo = $derived(you >= 0 ? status.seats[you] : undefined);
 </script>
 
-<svelte:window onkeydown={onkey} bind:innerWidth={vw} bind:innerHeight={vh} onfullscreenchange={() => (fullscreen = !!document.fullscreenElement)} />
+<svelte:window onkeydown={onkey} bind:innerWidth={vw} bind:innerHeight={vh} />
 
 <!-- whose turn it is and the last move: above the middle, or (a phone on its side) in the column on the left -->
 {#snippet tableStatus()}
@@ -1171,33 +1133,18 @@
       <p class="recap" aria-label="This hand: {recap}" bind:clientHeight={recapH}>This hand: {recap}</p>
     {/if}
     {#if showBanner && status.banner}
-      <div class="banner panel">
-        <button class="close" onclick={() => (bannerHidden = s.v)} aria-label="Hide">×</button>
-        <h2>{status.banner.title}</h2>
-        <div class="lines" class:cols={status.banner.lines.length > 5}>
-          {#each status.banner.lines as line, k (k)}<p><SuitText text={line} /></p>{/each}
-        </div>
-        {#if recap}<p class="recap-line">This hand: {recap}</p>{/if}
-        {#if (view.handDone || (s.phase === 'gameOver' && history)) && !display && !replay}
-          <div class="banner-btns">
-            {#if view.handDone}<button class="btn small-btn" onclick={() => app.showReplay(0, 0)}>Replay this hand</button>{/if}
-            {#if s.phase === 'gameOver' && history}<button class="btn small-btn" onclick={() => (sheet = 'scores')}>How it went</button>{/if}
-          </div>
-        {/if}
-        {#if s.phase === 'gameOver' && tonight.length}
-          <!-- top four, so a nine-player night still fits -->
-          <p class="tonight">
-            Tonight: {tonight
-              .slice(0, 4)
-              .map((r) => `${r.name} ${r.points}`)
-              .join(' · ')}{tonight.length > 4 ? ` · +${tonight.length - 4} more` : ''}
-          </p>
-        {/if}
-        {#if s.phase === 'gameOver' && !display}
-          <!-- one quiet line, only when a game is over (never during play) -->
-          <p class="support">Enjoyed that? Lamplight is free and ad-free — <a href={SUPPORT_URL} target="_blank" rel="noreferrer">buy us a beer 🍺</a></p>
-        {/if}
-      </div>
+      <ResultBanner
+        banner={status.banner}
+        {recap}
+        handDone={!!view.handDone}
+        gameOver={s.phase === 'gameOver'}
+        history={!!history}
+        {tonight}
+        {display}
+        replay={!!replay}
+        onhide={() => (bannerHidden = s.v)}
+        onscores={() => (sheet = 'scores')}
+      />
     {/if}
   </main>
 
@@ -1264,7 +1211,7 @@
               {selected}
               {selectable}
               fresh={playFrom ? [] : freshIds}
-              {hints}
+              hints={settings.hints}
               ontap={tap}
               onswipe={swipe}
               onreorder={playFrom ? undefined : (ids) => (handOrder = ids)}
@@ -1308,13 +1255,7 @@
   <CardLayer {frames} {you} entry={s.log.at(-1)} />
 </div>
 
-{#if !portraitOk && !display}
-  <div class="rotate">
-    <div class="phone"></div>
-    <p>Turn your phone sideways for the best view</p>
-    <button class="btn quiet" onclick={() => (portraitOk = remember('cards.portraitOk'))}>Continue anyway</button>
-  </div>
-{/if}
+{#if !display}<RotatePrompt />{/if}
 
 {#if sheet === 'spread'}
   <Sheet title="On the table" full onclose={() => (sheet = null)}>
@@ -1342,7 +1283,17 @@
     <!-- (your hand and your moves, so you can meld and lay off from here) -->
     <div class="spread-dock">
       <div class="spread-hand">
-        <Hand cards={myHand} cw={spreadHandCw} inline {selected} {selectable} {hints} ontap={tap} onswipe={swipe} onreorder={(ids) => (handOrder = ids)} />
+        <Hand
+          cards={myHand}
+          cw={spreadHandCw}
+          inline
+          {selected}
+          {selectable}
+          hints={settings.hints}
+          ontap={tap}
+          onswipe={swipe}
+          onreorder={(ids) => (handOrder = ids)}
+        />
       </div>
       <div class="spread-acts">
         <ActionBar
@@ -1365,169 +1316,35 @@
 {/if}
 
 {#if sheet === 'menu'}
-  <Sheet title="Table {view.lobby.code}" onclose={() => (sheet = null)}>
-    <div class="menu-list">
-      <button class="btn" onclick={toggleFullscreen}>{fullscreen ? 'Exit full screen' : 'Full screen'}</button>
-      <button
-        class="btn"
-        onclick={() => {
-          soundsOn = !soundsOn;
-          setSound(soundsOn);
-        }}>{display ? (soundsOn ? 'Sound here: on' : 'Sound here: off') : soundsOn ? 'Sound: on' : 'Sound: off'}</button
-      >
-      {#if !display}
-        <button
-          class="btn"
-          onclick={() => {
-            fourColour = !fourColour;
-            setFourColour(fourColour);
-          }}>{fourColour ? 'Four-colour suits: on' : 'Four-colour suits: off'}</button
-        >
-        <button
-          class="btn"
-          onclick={() => {
-            hints = !hints;
-            setHints(hints);
-          }}>{hints ? 'Show playable cards: on' : 'Show playable cards: off'}</button
-        >
-        {#if canNotify()}
-          <button class="btn" onclick={async () => (turnAlerts = await setTurnAlerts(!turnAlerts))}
-            >{turnAlerts ? 'Turn notifications: on' : 'Turn notifications: off'}</button
-          >
-        {/if}
-        <button
-          class="btn"
-          onclick={() => {
-            handSort = HAND_SORTS[(HAND_SORTS.indexOf(handSort) + 1) % HAND_SORTS.length];
-            setHandSort(handSort);
-            handOrder = [];
-          }}>Hand: {HAND_SORT_LABEL[handSort]}</button
-        >
-      {/if}
-      {#if view.lobby.displays && !display}
-        <button class="btn" onclick={() => app.act({ type: SCREEN_SOUND, amount: screenSoundOn ? 0 : 1 })}
-          >{screenSoundOn ? 'TV sound: on' : 'TV sound: off'}</button
-        >
-      {/if}
-      {#if view.lobby.displays && !display}
-        <button
-          class="btn"
-          onclick={() => {
-            app.setHandMode(!app.handMode);
-            sheet = null;
-          }}
-        >
-          {app.handMode ? 'Show whole table' : 'Just my hand'}
-        </button>
-      {/if}
-      {#if view.replays && !display && !replay}
-        <button
-          class="btn"
-          onclick={() => {
-            app.showReplay(0, 0);
-            sheet = null;
-          }}>Replay the last hand</button
-        >
-      {/if}
-      {#if !display && !game.realtime}<button class="btn" onclick={() => (sheet = 'save')}>Save this game</button>{/if}
-      {#if !display}<button class="btn" onclick={() => (sheet = 'tv')}>Show on a TV</button>{/if}
-      {#if app.controls}<button class="btn" onclick={() => (sheet = 'look')}>Card backs & cloth</button>{/if}
-      <button
-        class="btn"
-        onclick={() => {
-          navigator.clipboard?.writeText(inviteUrl(view.lobby.code));
-          app.say('Invite link copied');
-        }}>Copy invite link</button
-      >
-      {#if app.controls}
-        <button
-          class="btn good"
-          onclick={() => {
-            app.controls?.endGame();
-            sheet = null;
-          }}>Back to lobby</button
-        >
-      {/if}
-      <a class="btn" href={bugReportLink({ game: game.config.name, table: view.lobby.code })}>Report a problem</a>
-      <button
-        class="btn danger"
-        onclick={() => {
-          app.leave();
-          app.go('/');
-        }}>{app.isHost ? 'Close table' : 'Leave table'}</button
-      >
-    </div>
-    {#if rules.length}
-      <div class="eyebrow">How to play {game.config.name}</div>
-      <ul class="rules">
-        {#each rules as r, k (k)}<li>{r}</li>{/each}
-      </ul>
-    {/if}
-  </Sheet>
+  <MenuSheet
+    {view}
+    {game}
+    {rules}
+    {settings}
+    {display}
+    replay={!!replay}
+    onsheet={(x) => (sheet = x)}
+    onsort={() => (handOrder = [])}
+    onclose={() => (sheet = null)}
+  />
 {:else if sheet === 'save'}
-  <Sheet title="Save this game" onclose={() => (sheet = null)}>
-    <!-- the spreadsheet for every game; bridge and poker have their own standard records too -->
-    <div class="save-list">
-      {#each ['csv' as const, ...recordFormats(game.config)] as format (format)}
-        <button
-          class="btn save"
-          onclick={() => {
-            app.exportGame(format);
-            sheet = null;
-          }}
-        >
-          <b>{EXPORT_LABEL[format]} <span class="ext">.{EXPORT_FILE[format].ext}</span></b>
-          <span class="about">{EXPORT_ABOUT[format]}</span>
-        </button>
-      {/each}
-    </div>
-    <p class="save-note">Only your own cards are in it, and the cards everyone saw.</p>
-  </Sheet>
+  <SaveSheet config={game.config} onclose={() => (sheet = null)} />
 {:else if sheet === 'look'}
   <Sheet title="The table's look" onclose={() => (sheet = null)}>
     <LookPicker look={view.lobby.look} onpick={app.controls ? (l) => app.controls?.setLook(l) : undefined} />
   </Sheet>
 {:else if sheet === 'scores'}
-  <Sheet title="Scores" onclose={() => (sheet = null)}>
-    {#if status.track}<div class="sheet-track"><Track track={status.track} avatars={s.players.map((_, i) => lobbySeat(i)?.avatar)} /></div>{/if}
-    {#if status.scoreboard}
-      <table class="scores">
-        <thead
-          ><tr
-            ><th></th>{#each status.scoreboard.columns as c, k (k)}<th>{c}</th>{/each}</tr
-          ></thead
-        >
-        <tbody>
-          {#each status.scoreboard.rows as r, k (k)}
-            <tr class:hl={r.highlight}
-              ><td>{r.name}</td>{#each r.values as v, j (j)}<td><SuitText text={v} /></td>{/each}</tr
-            >
-          {/each}
-        </tbody>
-      </table>
-    {:else if showChips}
-      <table class="scores">
-        <tbody>
-          {#each [...s.players].sort((a, b) => b.chips - a.chips) as p (p.seat)}
-            <tr><td>{p.name}</td><td>{p.chips.toLocaleString()}</td></tr>
-          {/each}
-        </tbody>
-      </table>
-    {/if}
-    {#if history}
-      <div class="eyebrow">Hand by hand</div>
-      <ScoreChart {history} />
-    {/if}
-    {#if view.lobby.night?.games.length}
-      <div class="eyebrow">Game night</div>
-      <NightBoard night={view.lobby.night} seats={view.lobby.seats} />
-      <div style:height="1rem"></div>
-    {/if}
-    <div class="eyebrow">Recent</div>
-    <ol class="log">
-      {#each [...s.log].reverse().slice(0, 14) as l, k (k)}<li><SuitText text={l.text} /></li>{/each}
-    </ol>
-  </Sheet>
+  <ScoresSheet
+    {status}
+    players={s.players}
+    chips={showChips}
+    {history}
+    night={view.lobby.night}
+    seats={view.lobby.seats}
+    log={s.log}
+    avatars={s.players.map((_, i) => lobbySeat(i)?.avatar)}
+    onclose={() => (sheet = null)}
+  />
 {/if}
 
 <style>
@@ -2090,56 +1907,9 @@
       0 1px 2px rgba(0, 0, 0, 0.4);
     border: 1.5px dashed rgba(255, 255, 255, 0.6);
   }
-  .banner p.support {
-    margin-top: 0.6rem;
-    font-size: 0.75rem;
-    color: var(--ink-faint);
-  }
-  .support a {
-    color: var(--gold);
-  }
-  .tonight {
-    margin-top: 0.5rem;
-    padding-top: 0.5rem;
-    border-top: 1px solid var(--line);
-    color: var(--gold);
-    font-weight: 600;
-  }
-  /* over the whole screen, not just the middle of the table: on a short screen (a phone in full
-     screen with the browser's bars, or a small one) the middle can be only a sliver tall */
-  .banner {
-    position: fixed;
-    z-index: 5;
-    background: rgba(8, 26, 20, 0.94);
-    background: color-mix(in srgb, var(--felt-3) 94%, transparent);
-    top: calc(50% + (var(--safe-t) - var(--safe-b)) / 2);
-    left: calc(50% + (var(--safe-l) - var(--safe-r)) / 2);
-    transform: translate(-50%, -50%);
-    padding: 0.9rem 1.4rem;
-    text-align: center;
-    min-width: 16rem;
-    max-width: 92%;
-    max-height: calc(100vh - 16px - var(--safe-t) - var(--safe-b));
-    max-height: calc(100dvh - 16px - var(--safe-t) - var(--safe-b));
-    overflow: auto;
-    animation: rise 0.35s var(--ease-spring);
-  }
-  .banner h2 {
-    margin: 0 0 0.3rem;
-    font-family: var(--font-card);
-    font-size: 1.35rem;
-    color: var(--gold);
-  }
   .replay-quick {
     margin-bottom: 0.4rem;
     width: 100%;
-  }
-  .banner-btns {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 0.4rem;
-    margin-top: 0.5rem;
   }
   .recap {
     position: relative;
@@ -2154,47 +1924,6 @@
     font-weight: 600;
     text-align: center;
     font-variant-numeric: tabular-nums;
-  }
-  .banner .recap-line {
-    color: var(--ink);
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-  }
-  .banner p {
-    margin: 0.15rem 0;
-    font-size: 0.85rem;
-    color: var(--ink-dim);
-  }
-  /* (a short screen and a long list of scores: two columns, so the panel fits without scrolling) */
-  @media (max-height: 440px) {
-    .lines.cols {
-      columns: 2;
-      column-gap: 1.6rem;
-    }
-    .lines.cols p {
-      break-inside: avoid;
-    }
-  }
-  .close {
-    position: absolute;
-    top: 4px;
-    right: 8px;
-    font-size: 1.2rem;
-    color: var(--ink-faint);
-    width: 32px;
-    height: 32px;
-  }
-  /* (a 44px target around the small ×) */
-  .close::after {
-    content: '';
-    position: absolute;
-    inset: -6px;
-  }
-  @keyframes rise {
-    from {
-      opacity: 0;
-      transform: translate(-50%, -40%) scale(0.95);
-    }
   }
   footer {
     grid-area: hand;
@@ -2216,11 +1945,6 @@
     max-width: clamp(120px, 22vw, 200px);
     padding-bottom: 2px;
     font-size: 0.8rem;
-  }
-  .sheet-track {
-    display: flex;
-    justify-content: center;
-    margin-bottom: 0.8rem;
   }
   /* a phone on its side: whose turn it is at the top of the column, you at the bottom */
   .me.side {
@@ -2447,135 +2171,6 @@
     min-height: 0;
     height: auto;
   }
-  .rotate {
-    display: none;
-  }
-  @media (orientation: portrait) and (max-width: 600px) {
-    .rotate {
-      position: fixed;
-      inset: 0;
-      z-index: 60;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 1rem;
-      text-align: center;
-      padding: 2rem;
-      background: rgba(5, 18, 14, 0.96);
-    }
-    .phone {
-      width: 44px;
-      height: 78px;
-      border: 3px solid var(--ink);
-      border-radius: 10px;
-      animation: turn 2s var(--ease-out) 3;
-    }
-  }
-  @keyframes turn {
-    0%,
-    20% {
-      transform: rotate(0);
-    }
-    60%,
-    100% {
-      transform: rotate(-90deg);
-    }
-  }
-  .menu-list {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
-    gap: 0.5rem;
-    margin-bottom: 1rem;
-  }
-  /* (a label too long for its button wraps rather than spilling over the next one) */
-  .menu-list > .btn {
-    min-width: 0;
-    white-space: normal;
-    text-align: center;
-  }
-  /* (a phone on its side: four across, so the whole menu fits without scrolling) */
-  @media (max-height: 440px) and (min-width: 560px) {
-    .menu-list {
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 0.4rem;
-      margin-bottom: 0.4rem;
-    }
-    .menu-list > .btn {
-      padding: 0.4em 0.5em;
-      font-size: 0.85rem;
-    }
-  }
-  .save-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-  }
-  .btn.save {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.15rem;
-    padding: 0.7rem 1rem;
-    border-radius: 16px;
-    white-space: normal;
-    text-align: left;
-    height: auto;
-  }
-  .btn.save .ext {
-    font-weight: 500;
-    color: var(--ink-dim);
-  }
-  .btn.save .about {
-    font-size: 0.82rem;
-    font-weight: 400;
-    color: var(--ink-dim);
-  }
-  .save-note {
-    margin: 0.8rem 0 0;
-    font-size: 0.8rem;
-    color: var(--ink-dim);
-  }
-  .rules {
-    margin: 0.4rem 0 0;
-    padding-left: 1.1rem;
-    color: var(--ink-dim);
-    font-size: 0.88rem;
-    line-height: 1.45;
-  }
-  .scores {
-    width: 100%;
-    border-collapse: collapse;
-    margin-bottom: 1rem;
-    font-variant-numeric: tabular-nums;
-  }
-  .scores th {
-    text-align: right;
-    font-size: 0.7rem;
-    color: var(--ink-dim);
-    font-weight: 600;
-    padding: 0.3rem 0.5rem;
-  }
-  .scores td {
-    padding: 0.45rem 0.5rem;
-    border-top: 1px solid var(--line);
-    text-align: right;
-  }
-  .scores td:first-child {
-    text-align: left;
-    font-weight: 600;
-  }
-  .scores tr.hl td {
-    color: var(--gold);
-  }
-  .log {
-    margin: 0.4rem 0 0;
-    padding-left: 1.2rem;
-    color: var(--ink-dim);
-    font-size: 0.85rem;
-    line-height: 1.6;
-  }
-
   /* very short landscape phones */
   @media (max-height: 360px) {
     .headline {
