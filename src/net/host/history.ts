@@ -14,6 +14,8 @@ import { finalScores, SCORE_HANDS, totalsOf } from './records';
  * or a game's standard record).
  */
 export class Hands {
+  /** `total`: the most moments kept across the replay hands. */
+  constructor(private readonly total = REPLAY_TOTAL) {}
   /** Finished hands of this game, oldest first. */
   private done: GameState[][] = [];
   /** The hand being played now, so far. */
@@ -68,7 +70,7 @@ export class Hands {
     this.recording.push(s);
     this.done.push(this.recording);
     if (this.done.length > REPLAY_HANDS) this.done.shift();
-    while (this.done.length > 1 && this.done.reduce((n, h) => n + h.length, 0) > REPLAY_TOTAL) this.done.shift();
+    while (this.done.length > 1 && this.done.reduce((n, h) => n + h.length, 0) > this.total) this.done.shift();
     this.recording = null;
     return true;
   }

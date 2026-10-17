@@ -40,6 +40,8 @@ export const END_PHASES = new Set(['handOver', 'roundOver', 'gameOver']);
 export const REPLAY_STEPS = 600;
 /** Most moments kept across all the replay hands (each is a whole game state: memory adds up). */
 export const REPLAY_TOTAL = 1200;
+/** A tournament table's: a director may host many tables in one tab. */
+export const EVENT_REPLAY_TOTAL = 300;
 /** Replay frames one connection may ask for a second (stepping, or playing a hand back). */
 export const FRAMES_PER_SECOND = 20;
 /** Most people at one table (more than any game seats: the rest sit out and rotate in). */

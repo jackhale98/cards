@@ -16,6 +16,8 @@ export interface BotTable {
   apply(seat: number, a: Action): string | null;
   /** Run an automatic step (collect a trick, deal the next hand…). */
   system(sys: { run: (s: GameState) => void }, module: GameModule): void;
+  /** The table is waiting (a tournament's hold at a hand's end): nothing moves by itself. */
+  paused(s: GameState): boolean;
 }
 
 /**
@@ -57,7 +59,7 @@ export class Bots {
     this.timer = null;
     const s = this.t.state;
     const module = this.t.module;
-    if (!s || !module || this.still) return;
+    if (!s || !module || this.still || this.t.paused(s)) return;
     if (module.realtime) return this.pumpRealtime(s, module);
     const sys = module.system?.(s);
     // (a move that can still be taken back: give its player a moment before the table moves on)

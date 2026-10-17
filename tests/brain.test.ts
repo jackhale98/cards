@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { pickNow, workerBrain, type Brain, type BrainRequest, type Pick } from '../src/net/brain';
+import { pickNow, shareBrain, workerBrain, type Brain, type BrainRequest, type Pick } from '../src/net/brain';
 import { Host } from '../src/net/host';
 import type { GameModule, GameState } from '../src/engine/types';
 import { deadline, now } from '../src/engine/bots/search';
@@ -129,6 +129,98 @@ describe('bots thinking in the background', () => {
     brain.close();
     host.close();
     vi.unstubAllGlobals();
+  });
+});
+
+describe('one brain for several tables', () => {
+  /** A worker that answers only when told to. */
+  function fakeWorker() {
+    const posted: BrainRequest[] = [];
+    let onmessage: (e: { data: unknown }) => void = () => {};
+    class FakeWorker {
+      set onmessage(f: (e: { data: unknown }) => void) {
+        onmessage = f;
+      }
+      onerror = null;
+      postMessage(req: BrainRequest) {
+        posted.push(req);
+      }
+      terminate() {}
+    }
+    vi.stubGlobal('Worker', FakeWorker);
+    return { posted, answer: (i: number, pick: Pick | null = null) => onmessage({ data: { id: posted[i].id, pick } }) };
+  }
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("tables take turns, and one table's newer question never drops another table's", async () => {
+    const w = fakeWorker();
+    const host = new Host(null, 'BRAIN', { cid: 'h', name: 'Hana' });
+    host.setGame('hearts');
+    for (let i = 0; i < 3; i++) host.addBot();
+    host.start();
+    const s = host.state!;
+    const shared = shareBrain(workerBrain());
+    const a = shared.table('a');
+    const b = shared.table('b');
+    const a1 = a.think('hearts', { 1: s }, [1]);
+    const b1 = b.think('hearts', { 2: s }, [2]);
+    // table A has moved on while its first question is with the worker: its new one waits behind B's
+    const a2 = a.think('hearts', { 3: s }, [3]);
+    expect(w.posted.map((r) => r.seats)).toEqual([[1]]);
+    w.answer(0);
+    expect(await a1).toBeNull();
+    await Promise.resolve();
+    expect(w.posted.map((r) => r.seats)).toEqual([[1], [2]]);
+    w.answer(1, { seat: 2, action: { type: 'pass' } });
+    // (a worker brain shared directly would have answered B "nothing" here, and B's bots would never move again)
+    expect(await b1).toEqual({ seat: 2, action: { type: 'pass' } });
+    await Promise.resolve();
+    expect(w.posted.map((r) => r.seats)).toEqual([[1], [2], [3]]);
+    // a table's own older question still waiting is out of date: answered "nothing"
+    const a3 = a.think('hearts', { 1: s }, [1]);
+    const a4 = a.think('hearts', { 2: s }, [2]);
+    expect(await a3).toBeNull();
+    w.answer(2);
+    expect(await a2).toBeNull();
+    await Promise.resolve();
+    expect(w.posted.at(-1)!.seats).toEqual([2]);
+    w.answer(3);
+    expect(await a4).toBeNull();
+    shared.close();
+    host.close();
+  });
+
+  it('two tables sharing one worker both play on', async () => {
+    vi.useFakeTimers();
+    // a worker that thinks for a moment, then answers as the bots would
+    const posted: BrainRequest[] = [];
+    class FakeWorker {
+      onmessage: (e: { data: unknown }) => void = () => {};
+      onerror = null;
+      postMessage(req: BrainRequest) {
+        posted.push(req);
+        setTimeout(() => this.onmessage({ data: { id: req.id, pick: pickNow(req.game, req.views, req.seats) } }), 300);
+      }
+      terminate() {}
+    }
+    vi.stubGlobal('Worker', FakeWorker);
+    const shared = shareBrain(workerBrain());
+    const hosts = ['a', 'b'].map((id) => {
+      const host = new Host(null, `T${id}`, { cid: 'h', name: 'Hana' }, undefined, { brain: shared.table(id) });
+      host.setGame('hearts');
+      for (let i = 0; i < 3; i++) host.addBot();
+      host.start();
+      return host;
+    });
+    for (const host of hosts) {
+      const mine = host.state!.zones['hand:0'].cards.slice(0, 3).map((c) => c.id);
+      expect(host.act('h', { type: 'pass', cards: mine })).toBeNull();
+    }
+    await vi.advanceTimersByTimeAsync(20_000);
+    for (const host of hosts) expect(host.state!.phase).toBe('play');
+    shared.close();
+    for (const host of hosts) host.close();
+    vi.useRealTimers();
   });
 });
 

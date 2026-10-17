@@ -54,8 +54,10 @@ src/net/host.ts        the authoritative host: seats and keys, checking and appl
                        its parts in src/net/host/: conns (connections, heartbeat, views and patches),
                        bots (bots and automatic steps), history (replays, the game's record, scores,
                        tonight's tally), backups (host handoff), lobby (who plays, lobby buttons),
-                       records, limits
-src/net/brain.ts       where bots think: botWorker.ts (a Web Worker) in the app, inline in tests
+                       records, limits, event (a tournament table: seats the director assigns, held
+                       between hands, results reported)
+src/net/brain.ts       where bots think: botWorker.ts (a Web Worker) in the app, inline in tests;
+                       shareBrain, one brain taking turns between several tables
 src/net/client.ts      a player's (or TV's) connection to the host
 src/net/protocol.ts    every message between devices
 src/net/*Transport.ts  relay (ours), trystero (public WebRTC networks), local, multi (several at once)

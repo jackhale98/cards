@@ -233,9 +233,51 @@ export interface SetupPlayer {
   bot?: boolean;
 }
 
+/**
+ * A tournament table's private inputs (see src/engine/events): what the game itself needs that
+ * the lobby's settings can't carry, since those are public numbers. Kept in the game's `data`,
+ * and kept from players by `redactData`.
+ */
+export interface TableSetup {
+  /** Duplicate: the boards to play, in order, each player's hand given (by seat: North, East, South, West). */
+  boards?: Board[];
+  /** Poker: each seat's chips, who has the button, and the blinds. */
+  chips?: number[];
+  button?: number;
+  blinds?: Blinds;
+}
+export interface Board {
+  /** The board's number: who deals and who is vulnerable follow from it. */
+  n: number;
+  hands: string[][];
+}
+export interface Blinds {
+  sb: number;
+  bb: number;
+  ante?: number;
+}
+/** A change a tournament makes to a table between hands. */
+export type TableChange = { blinds: Blinds };
+/** One board's result at a table: the contract (null: passed out), who declared, tricks taken, and North–South's score. */
+export interface BoardResult {
+  n: number;
+  contract: string | null;
+  declarer: number | null;
+  tricks: number | null;
+  ns: number;
+}
+/** What a tournament table tells the director, all of it public: each board's result, everyone's chips. */
+export interface TableReport {
+  boards?: BoardResult[];
+  stacks?: number[];
+  /** Hands played so far. */
+  hand?: number;
+}
+
 export interface GameModule<D = any> {
   config: GameConfig;
-  setup(players: SetupPlayer[], seed: Seed, options: Record<string, number | boolean>): GameState<D>;
+  /** `table`: a tournament table's private inputs (boards, chips), for games that play in tournaments. */
+  setup(players: SetupPlayer[], seed: Seed, options: Record<string, number | boolean>, table?: TableSetup): GameState<D>;
   /** Actions available to `seat` right now. */
   actions(s: GameState<D>, seat: number): ActionSpec[];
   /** Apply an action to a (cloned) state. Throw `RuleError` if illegal. */
@@ -260,6 +302,10 @@ export interface GameModule<D = any> {
    * game night tally. Without it, the winners are first and everyone else shares second.
    */
   standings?(s: GameState<D>): number[];
+  /** A tournament's change to the table (new blinds), made by the host between hands only. */
+  adjust?(s: GameState<D>, change: TableChange): void;
+  /** What a tournament table reports (public information only): board results, chips. */
+  report?(s: GameState<D>): TableReport;
 }
 
 export class RuleError extends Error {}

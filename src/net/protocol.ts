@@ -128,6 +128,19 @@ export interface Lobby {
    * after each hand (chips, in chip games). For the score chart and the end-of-hand recap.
    */
   scores?: ScoreHistory;
+  /** A table in a tournament: what everyone here may know about it (see host/event.ts). */
+  event?: LobbyEvent;
+}
+
+/** A tournament table, as everyone at it sees: the event, the round and which table this is. */
+export interface LobbyEvent {
+  /** The event's code (six letters: see makeEventCode). */
+  code: string;
+  name: string;
+  round: number;
+  table: number;
+  /** A line for the table ("Round 2 starts when every table's done"). */
+  note?: string;
 }
 
 export interface ScoreHistory {
@@ -267,6 +280,24 @@ export const normaliseCode = (c: string) =>
     .slice(0, CODE_LENGTH);
 // (four-letter codes from before the switch still open)
 export const isValidCode = (c: string) => /^[A-Z]{4,5}$/.test(c);
+
+/**
+ * A tournament's code: six letters, so it can't be mistaken for a table's (an older app, which
+ * knows only tables, refuses it rather than joining something it can't show).
+ */
+export const EVENT_CODE_LENGTH = 6;
+export function makeEventCode(): string {
+  const a = new Uint32Array(EVENT_CODE_LENGTH);
+  crypto.getRandomValues(a);
+  return [...a].map((n) => CODE_CHARS[n % CODE_CHARS.length]).join('');
+}
+export const isEventCode = (c: string) => new RegExp(`^[${CODE_CHARS}]{${EVENT_CODE_LENGTH}}$`).test(c);
+/** A code typed in: a table's or a tournament's, by its length. */
+export const normaliseAnyCode = (c: string) =>
+  c
+    .toUpperCase()
+    .replace(/[^A-Z]/g, '')
+    .slice(0, EVENT_CODE_LENGTH);
 
 /** A round trip's light: green under 120 ms, amber under 400 ms, red beyond. */
 export function pingBand(ms: number | null | undefined): 'none' | 'good' | 'ok' | 'slow' {

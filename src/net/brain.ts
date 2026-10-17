@@ -49,6 +49,67 @@ export function inlineBrain(): Brain {
 }
 
 /**
+ * One brain for several tables (a tournament director hosting many). A worker brain answers one
+ * question at a time and lets a newer question replace one still waiting, which is right for one
+ * table (it has moved on) but would drop another table's question for good: that table's bots
+ * would never move again. Here each table keeps its own newest question, and the tables take
+ * turns at the brain.
+ */
+export function shareBrain(inner: Brain): { table(id: string): Brain; close(): void } {
+  type Ask = { game: string; views: Record<number, GameState>; seats: number[]; resolve: (p: Thought) => void };
+  // (a Map keeps the order tables first asked in: a newer question keeps its table's place)
+  const waiting = new Map<string, Ask>();
+  const tables = new Map<string, Brain>();
+  let asking: string | null = null;
+  inner.onError = (e, game, phase) => (asking != null ? tables.get(asking)?.onError(e, game, phase) : undefined);
+  const next = () => {
+    if (asking != null) return;
+    const first = waiting.entries().next();
+    if (first.done) return;
+    const [id, ask] = first.value;
+    waiting.delete(id);
+    asking = id;
+    const answer = (p: Thought) => {
+      asking = null;
+      ask.resolve(p);
+      next();
+    };
+    try {
+      Promise.resolve(inner.think(ask.game, ask.views, ask.seats)).then(answer, () => answer('failed'));
+    } catch (e) {
+      tables.get(id)?.onError(e, ask.game, ask.views[ask.seats[0]]?.phase ?? '');
+      answer('failed');
+    }
+  };
+  return {
+    table(id) {
+      const brain: Brain = {
+        think: (game, views, seats) =>
+          new Promise<Thought>((resolve) => {
+            // (this table's older question is out of date: answered "nothing", as a worker would)
+            waiting.get(id)?.resolve(null);
+            waiting.set(id, { game, views, seats, resolve });
+            next();
+          }),
+        close() {
+          waiting.get(id)?.resolve(null);
+          waiting.delete(id);
+          tables.delete(id);
+        },
+        onError: () => {},
+      };
+      tables.set(id, brain);
+      return brain;
+    },
+    close() {
+      for (const ask of waiting.values()) ask.resolve(null);
+      waiting.clear();
+      inner.close();
+    },
+  };
+}
+
+/**
  * Messages to and from the bot worker (botWorker.ts). The game's own settings come along (the
  * worker builds its rules from them), so the worker needn't download every game's file.
  */

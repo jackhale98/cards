@@ -1,6 +1,7 @@
 import type { GameState } from '../../engine/types';
 import { seal } from '../backup';
 import type { Lobby } from '../protocol';
+import type { HostEvent } from './event';
 import type { Transport } from '../transport';
 import { BACKUP_EVERY_MS, BACKUP_HOLDERS, BACKUP_SOON_MS } from './limits';
 
@@ -10,6 +11,8 @@ export interface BackupTable {
   readonly state: GameState | null;
   readonly lobby: Lobby;
   readonly keys: Record<string, string>;
+  /** A tournament table's place in its event (see host/event.ts). */
+  readonly event: HostEvent | null;
   /** The table's version now. */
   readonly v: number;
   /** transport peer → client id, and which peers are table screens. */
@@ -95,7 +98,7 @@ export class Backups {
     const fresh = v === this.sent ? to.filter(([cid]) => !this.holders.includes(cid)) : to;
     this.at = Date.now();
     if (!fresh.length) return;
-    const blob = await seal({ lobby: this.t.lobby, state: this.t.state, keys: this.t.keys }, this.key!);
+    const blob = await seal({ lobby: this.t.lobby, state: this.t.state, keys: this.t.keys, ...(this.t.event ? { event: this.t.event } : {}) }, this.key!);
     this.sent = v;
     this.holders = to.map(([cid]) => cid);
     for (const [, peer] of fresh) this.t.transport?.send({ t: 'backup', blob, v, token: this.token }, peer);

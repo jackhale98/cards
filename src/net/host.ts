@@ -2,7 +2,7 @@ import { botView } from '../engine/botView';
 import { isHidden, redact, redactActions, resolveAction } from '../engine/redact';
 import { randomSeed } from '../engine/rng';
 import { steadily } from '../engine/bots/search';
-import { RuleError, type Action, type GameModule, type GameState } from '../engine/types';
+import { RuleError, type Action, type GameModule, type GameState, type TableChange } from '../engine/types';
 import { checkAction } from '../engine/validate';
 import { getGame, GAMES, loadRules, rulesFor, startProblem } from '../games';
 import { type Brain } from './brain';
@@ -53,13 +53,16 @@ export {
   REPLAY_TOTAL,
   TABLE_MAX,
 } from './host/limits';
-import { HEARTBEAT_MS, TAKE_BACK_MS, SCREEN_SOUND, STAND_IN, TABLE_MAX, UNDO } from './host/limits';
+import { END_PHASES, EVENT_REPLAY_TOTAL, HEARTBEAT_MS, TAKE_BACK_MS, SCREEN_SOUND, STAND_IN, TABLE_MAX, UNDO } from './host/limits';
+import { EVENT_GRACE_MS, eventSeats, tableResult, type EventTable, type HostEvent, type TableNews } from './host/event';
 
 export interface HostSnapshot {
   lobby: Lobby;
   state: GameState | null;
   /** Each seat's key, by client id (see `hello`): kept with the game, never sent to players. */
   keys?: Record<string, string>;
+  /** A tournament table's place in its event (see host/event.ts). */
+  event?: HostEvent;
 }
 
 /**
@@ -101,6 +104,14 @@ export class Host {
   /** Host handoff: sealed backups held by two players (see host/backups.ts). */
   private readonly backups: Backups;
   private closed = false;
+  /** A table in a tournament: its director decides who sits where and when it moves on (see host/event.ts). */
+  private event: HostEvent | null = null;
+  /** News of a tournament table for its director: each hand, the game's end, a hold reached. */
+  onTable: (news: TableNews) => void = () => {};
+  /** A tournament table waits this long for everyone, then deals with bots for whoever isn't here. */
+  private graceTimer: ReturnType<typeof setTimeout> | null = null;
+  /** The phase at the last commit (a hand has just ended when it changes into an end phase). */
+  #lastPhase: string | null = null;
 
   constructor(
     private transport: Transport | null,
@@ -145,6 +156,7 @@ export class Host {
         grace: (s) => (this.takeBack?.after === s ? TAKE_BACK_MS : 0),
         apply: (seat, a) => this.applyAs(seat, a),
         system: (sys, module) => this.runSystem(sys, module),
+        paused: (s) => this.held(s),
       },
       opts.brain,
       !!opts.still,
@@ -161,6 +173,9 @@ export class Host {
       },
       get keys() {
         return self.keys;
+      },
+      get event() {
+        return self.event;
       },
       get v() {
         return self.v;
@@ -204,6 +219,8 @@ export class Host {
       // back on screen to look at, everyone stays as they were)
       if (!opts.still) this.lobby.seats.forEach((s) => (s.connected = !!s.bot || !!s.host));
       this.state = restore.state;
+      this.event = restore.event ?? null;
+      if (this.event) this.hands = new Hands(EVENT_REPLAY_TOTAL);
       // (the app loads a saved game's rules before reopening it: see loadRules)
       if (this.state) this.module = rulesFor(this.state.game) ?? missing(this.state.game);
       // (a game saved before people could sit out: everyone at the table is in it)
@@ -225,6 +242,7 @@ export class Host {
     this.lobby.tid ??= Math.random().toString(36).slice(2, 12);
     if (transport) this.wire(transport);
     this.v = this.state?.v ?? 0;
+    this.#lastPhase = this.state?.phase ?? null;
     // the game picked in the lobby: fetch its rules now, so dealing is instant
     if (!this.state) void loadRules(this.lobby.gameId).catch(() => {});
   }
@@ -313,10 +331,12 @@ export class Host {
     if (seat) {
       seat.connected = true;
       seat.avatar = avatar ?? seat.avatar;
-      if (!this.lobby.started) seat.name = name.slice(0, 20);
+      // (a tournament's names are the ones its players registered with)
+      if (!this.lobby.started && !this.event) seat.name = name.slice(0, 20);
       // back after a bot played for them: their seat is theirs again
       if (seat.standIn) return this.handBack(seat);
-    } else if (this.lobby.seats.length < TABLE_MAX || this.lobby.seats.some((s) => s.bot)) {
+      if (this.event) return this.maybeStart();
+    } else if (!this.event && (this.lobby.seats.length < TABLE_MAX || this.lobby.seats.some((s) => s.bot))) {
       if (this.lobby.seats.length >= TABLE_MAX) this.dropBot();
       if (key) this.keys[cid] = key;
       // mid-game, newcomers watch and play from the next game; in the lobby they're in if there's room
@@ -363,7 +383,8 @@ export class Host {
     if (seat && !this.conns.reaches(seat.id)) {
       seat.connected = false;
       // before the game starts, leaving frees the seat (and maybe a place for someone sitting out)
-      if (!this.lobby.started) {
+      // (a tournament's seats are kept for their players: the director decides who sits where)
+      if (!this.lobby.started && !this.event) {
         this.lobby.seats = this.lobby.seats.filter((s) => s !== seat);
         this.fit();
       }
@@ -408,6 +429,8 @@ export class Host {
       this.commit();
       return null;
     }
+    const stop = this.eventStop(a.type);
+    if (stop) return stop;
     // only what was offered, in the shape it was offered (a raise in range, cards you may pick…)
     const checked = checkAction(a, module.actions(this.state!, seat));
     if ('error' in checked) return checked.error;
@@ -500,6 +523,7 @@ export class Host {
 
   /** The host turns take-backs on or off (any time). */
   setTakeBacks(on: boolean) {
+    if (this.event) return;
     this.lobby.takeBacks = on || undefined;
     this.broadcast();
   }
@@ -509,6 +533,7 @@ export class Host {
     this.tally();
     this.record();
     this.broadcast();
+    this.tellDirector();
     this.bots.pump();
   }
 
@@ -569,7 +594,8 @@ export class Host {
 
   /** Add a game that has just finished to tonight's tally (once; a rematch starts a new one). */
   private tally() {
-    if (this.state && this.module) tally(this.lobby, this.module, this.state, this.players());
+    // (a tournament keeps its own standings)
+    if (this.state && this.module && !this.event) tally(this.lobby, this.module, this.state, this.players());
   }
 
   /** A reaction from someone at the table, passed on to everyone (one a second each, at most). */
@@ -613,7 +639,7 @@ export class Host {
   // ---- lobby controls (host device only) --------------------------------------------------
 
   setGame(gameId: string) {
-    if (this.lobby.started) return;
+    if (this.lobby.started || this.event) return;
     const g = getGame(gameId);
     // fetch its rules now, while people settle in, so dealing is instant
     void loadRules(gameId).catch(() => {});
@@ -642,7 +668,7 @@ export class Host {
   step(): boolean {
     const s = this.state;
     const m = this.module;
-    if (!s || !m) return false;
+    if (!s || !m || this.held(s)) return false;
     const sys = m.system?.(s);
     if (sys) {
       const v = s.v;
@@ -714,7 +740,7 @@ export class Host {
 
   /** The host picks who plays this game. */
   setPlaying(id: string, playing: boolean) {
-    if (this.lobby.started) return;
+    if (this.lobby.started || this.event) return;
     const seat = this.lobby.seats.find((s) => s.id === id);
     if (!seat || seat.screen) return;
     seat.out = !playing;
@@ -734,7 +760,7 @@ export class Host {
    * then it never takes a seat in a game, and the phones switch to showing just their hands.
    */
   setScreen(on: boolean) {
-    if (this.lobby.started) return;
+    if (this.lobby.started || this.event) return;
     const me = this.lobby.seats.find((s) => s.host);
     if (!me || !!me.screen === on) return;
     if (on) {
@@ -754,7 +780,7 @@ export class Host {
 
   /** The player whose phone runs the table while the host's device is the table screen (null: none). */
   get captain(): string | null {
-    if (!this.hostScreen) return null;
+    if (!this.hostScreen || this.event) return null;
     const seat = this.lobby.seats.find((s) => s.id === this.lobby.captain);
     return seat && !seat.bot && !seat.host ? seat.id : null;
   }
@@ -762,7 +788,7 @@ export class Host {
   /** The host hands the table's controls to someone at the table. */
   setCaptain(id: string) {
     const seat = this.lobby.seats.find((s) => s.id === id);
-    if (!this.hostScreen || !seat || seat.bot || seat.host) return;
+    if (!this.hostScreen || this.event || !seat || seat.bot || seat.host) return;
     this.lobby.captain = id;
     this.broadcast();
   }
@@ -808,7 +834,7 @@ export class Host {
    * tally when they head back (see mergeBack).
    */
   split(ids: string[], newHost: string): string | null {
-    if (this.lobby.started) return null;
+    if (this.lobby.started || this.event) return null;
     const going = this.lobby.seats.filter((s) => ids.includes(s.id) && !s.bot && !s.host && s.connected);
     if (!going.some((s) => s.id === newHost)) return null;
     const code = makeRoomCode();
@@ -848,16 +874,17 @@ export class Host {
   }
 
   setOption(id: string, value: number | boolean) {
+    if (this.event) return;
     this.lobby.options[id] = value;
     this.broadcast();
   }
 
   addBot() {
-    if (addBot(this.lobby, this.players().length)) this.broadcast();
+    if (!this.event && addBot(this.lobby, this.players().length)) this.broadcast();
   }
 
   removeSeat(id: string) {
-    if (this.lobby.started) return;
+    if (this.lobby.started || this.event) return;
     this.lobby.seats = this.lobby.seats.filter((s) => s.id !== id || s.host);
     for (const [p, c] of this.peers) if (c === id) this.peers.delete(p);
     this.fit();
@@ -868,7 +895,7 @@ export class Host {
     const seats = this.lobby.seats;
     const i = seats.findIndex((s) => s.id === id);
     const j = i + dir;
-    if (i < 0 || j < 0 || j >= seats.length || this.lobby.started) return;
+    if (i < 0 || j < 0 || j >= seats.length || this.lobby.started || this.event) return;
     [seats[i], seats[j]] = [seats[j], seats[i]];
     this.broadcast();
   }
@@ -909,24 +936,26 @@ export class Host {
     this.history = [];
     this.takeBack = null;
     this.hands.reset(standardFormats(this.module.config));
+    if (this.graceTimer) clearTimeout(this.graceTimer);
+    this.graceTimer = null;
+    // (at a tournament table, a bot plays for whoever hasn't arrived, until they do)
+    const away = (s: LobbySeat) => !!this.event && !s.bot && !s.connected;
+    for (const s of players) if (away(s)) s.standIn = true;
     this.state = this.module.setup(
-      players.map((s) => ({ name: s.name, bot: s.bot })),
-      this.seed ?? randomSeed(),
+      players.map((s) => ({ name: s.name, bot: s.bot || away(s) })),
+      this.event?.table.seed ?? this.seed ?? randomSeed(),
       { ...this.lobby.options },
+      this.event?.table.setup,
     );
     delete this.lobby.scores;
     if (!this.module.realtime) this.noteScores(true);
     this.commit();
   }
 
-  /** Back to the lobby. */
+  /** Back to the lobby (not at a tournament table: its director moves it on). */
   endGame() {
-    this.bots.stop();
-    this.lobby.started = false;
-    this.state = null;
-    this.module = null;
-    this.history = [];
-    this.hands.reset();
+    if (this.event) return;
+    this.clearGame();
     this.lobby.seats = this.lobby.seats.filter((s) => s.connected || s.host);
     // whoever sat out that game gets priority for the next one
     const played = new Set(this.lobby.playing ?? []);
@@ -940,6 +969,134 @@ export class Host {
     this.broadcast();
   }
 
+  /** The game off the table (the seats stay as they are). */
+  private clearGame() {
+    this.bots.stop();
+    this.lobby.started = false;
+    this.state = null;
+    this.module = null;
+    this.history = [];
+    this.hands.reset();
+  }
+
+  // ---- a tournament table (see host/event.ts) ----------------------------------------------
+
+  /**
+   * The director seats this table for a round: its game, who sits where (each seat held by its
+   * member's key) and its private inputs. Any game on the table now is put away. The game is dealt
+   * as soon as everyone is here, or after a grace period with bots for whoever isn't.
+   */
+  seatTable(t: EventTable) {
+    if (this.closed) return;
+    const carried = carriedGame(t.game);
+    if (!carried) return;
+    if (this.state) this.clearGame();
+    const me = this.lobby.seats.find((s) => s.host)!;
+    this.event = { table: t, held: false, over: false };
+    this.hands = new Hands(EVENT_REPLAY_TOTAL);
+    this.lobby.gameId = carried.id;
+    this.lobby.options = carried.options;
+    this.lobby.seats = eventSeats(t, { cid: me.id, name: me.name, avatar: me.avatar });
+    this.lobby.playing = undefined;
+    this.lobby.event = t.info;
+    delete this.lobby.captain;
+    delete this.lobby.takeBacks;
+    delete this.lobby.scores;
+    const mine = this.keys[me.id];
+    this.keys = Object.fromEntries(t.seats.filter((m) => !!m).map((m) => [m!.id, m!.key]));
+    if (mine) this.keys[me.id] = mine;
+    if (this.graceTimer) clearTimeout(this.graceTimer);
+    this.graceTimer = setTimeout(() => {
+      this.graceTimer = null;
+      if (!this.lobby.started) this.start();
+    }, t.grace ?? EVENT_GRACE_MS);
+    void loadRules(carried.id).then(
+      () => this.maybeStart(),
+      () => {},
+    );
+    this.broadcast();
+    // anyone already here for one of these seats shows its key to take it (a client id alone is public)
+    const reserved = new Set(t.seats.map((m) => m?.id));
+    for (const [peer, cid] of this.peers)
+      if (reserved.has(cid) && cid !== me.id) this.transport?.send({ t: 'view', view: { ...this.viewFor(null), who: true } }, peer);
+  }
+
+  /** A tournament table deals once everyone it's waiting for is here. */
+  private maybeStart() {
+    if (!this.event || this.closed || this.lobby.started || this.event.over) return this.broadcast();
+    if (this.lobby.seats.every((s) => s.bot || s.connected || s.out)) this.start();
+    else this.broadcast();
+  }
+
+  /**
+   * The director holds the table at the end of the hand (to move players between tables, or
+   * change the blinds), or lets it carry on. Reaching the hold is news for the director.
+   */
+  hold(on: boolean) {
+    if (!this.event || this.event.held === on) return;
+    this.event.held = on;
+    if (on && this.state && END_PHASES.has(this.state.phase)) this.onTable({ kind: 'held' });
+    this.broadcast();
+    if (!on) this.bots.pump();
+  }
+
+  /** The table is held at the end of a hand: nothing moves on until the director says. */
+  private held(s: GameState): boolean {
+    return !!this.event?.held && END_PHASES.has(s.phase);
+  }
+
+  /** A tournament's change to the game (new blinds), between hands only, as a step of its own. Null: done; else why not. */
+  adjust(change: TableChange): string | null {
+    const s = this.state;
+    const m = this.module;
+    if (!this.event || !s || !m?.adjust) return 'Nothing to change';
+    if (!END_PHASES.has(s.phase)) return 'Only between hands';
+    const next = structuredClone(s);
+    try {
+      m.adjust(next, change);
+    } catch (e) {
+      return e instanceof Error ? e.message : 'Couldn’t change that';
+    }
+    this.state = next;
+    this.commit();
+    return null;
+  }
+
+  /** The director puts a bot in for a player who isn't here (`seat`: their game seat), until they're back. */
+  standInFor(seat: number) {
+    const target = this.lobby.seats.find((x) => x.id === this.lobby.playing?.[seat]);
+    if (!this.event || !this.state || !this.module?.bot || !target || target.bot || target.standIn || target.connected) return;
+    target.standIn = true;
+    this.setBot(seat, true);
+  }
+
+  /**
+   * Why a move isn't on at a tournament table (null: it is). Nobody there deals the game again:
+   * the director decides what comes next; and a table held at a hand's end waits.
+   */
+  private eventStop(type: string): string | null {
+    if (!this.event) return null;
+    if (type === 'rematch') return 'The tournament decides what’s next';
+    if (type === 'next' && this.state && this.held(this.state)) return 'The table is waiting for the tournament';
+    return null;
+  }
+
+  /** Tell a tournament's director how the table is going: a hand ended, the game ended, a hold reached. */
+  private tellDirector() {
+    const s = this.state;
+    const m = this.module;
+    const ev = this.event;
+    const was = this.#lastPhase;
+    this.#lastPhase = s?.phase ?? null;
+    if (!ev || !s || !m || s.phase === was || !END_PHASES.has(s.phase)) return;
+    this.onTable({ kind: 'hand', ...(m.report ? { report: m.report(s) } : {}) });
+    if (s.phase === 'gameOver' && s.winner?.length && !ev.over) {
+      ev.over = true;
+      this.onTable({ kind: 'over', result: tableResult(m, s) });
+    }
+    if (ev.held) this.onTable({ kind: 'held' });
+  }
+
   /** Resume bots/system steps after restoring from a snapshot. */
   resume() {
     this.broadcast();
@@ -948,6 +1105,7 @@ export class Host {
 
   close() {
     this.closed = true;
+    if (this.graceTimer) clearTimeout(this.graceTimer);
     this.bots.stop();
     for (const peer of this.conns.known) this.conns.forget(peer);
     this.backups.stop();
@@ -967,7 +1125,7 @@ export class Host {
       lobby: this.lobby,
       you: s ? seat : -1,
       state: s && m ? redact(m, s, seat) : null,
-      actions: s && m && seat >= 0 ? redactActions(s, seat, m.actions(s, seat)) : [],
+      actions: s && m && seat >= 0 ? redactActions(s, seat, m.actions(s, seat)).filter((a) => !this.eventStop(a.type)) : [],
       status: s && m ? m.status(s, seat) : null,
       ...(s && this.hands.count ? { replays: this.hands.count } : {}),
       // (the hand on the table has just finished: offer to replay it)
@@ -983,7 +1141,7 @@ export class Host {
     if (this.closed) return;
     this.v++;
     // while the host is the table screen someone holds the controls: the first person here, unless the host picks
-    if (this.hostScreen && !this.captain) this.lobby.captain = this.lobby.seats.find((s) => !s.bot && !s.host && s.connected)?.id;
+    if (this.hostScreen && !this.event && !this.captain) this.lobby.captain = this.lobby.seats.find((s) => !s.bot && !s.host && s.connected)?.id;
     // (people sitting out are at the table: not counted as watching)
     const seated = new Set(this.lobby.seats.map((s) => s.id));
     // a device can reach us on several networks: count devices (client ids), not connections
@@ -1005,7 +1163,7 @@ export class Host {
         this.conns.sendView(peer, view);
       }
     }
-    this.onPersist({ lobby: this.lobby, state: this.state, keys: this.keys });
+    this.onPersist({ lobby: this.lobby, state: this.state, keys: this.keys, ...(this.event ? { event: this.event } : {}) });
     this.backups.queue();
   }
 
