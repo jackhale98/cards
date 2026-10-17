@@ -50,25 +50,25 @@ Goal: card sizes, rows and room come from one pure function (`src/ui/layout/tabl
 the zone layouts' own sizes; nothing is measured to decide sizes except the screen and the fixed
 chrome (seats bar, headline, your column), and the middle is never scaled below a readable card.
 
-- [ ] 1a. **Extract** the current sizing into `layout/table.ts` as pure functions with explicit
+- [x] 1a. **Extract** the current sizing into `layout/table.ts` as pure functions with explicit
       inputs (screen, mode, chrome heights, zones, labels, actions count), same outputs, same
       numbers. `Table.svelte` calls it. Characterisation tests pin today's outputs for fixture
       tables (every game's zones at the audit sizes). No visible change.
-- [ ] 1b. **One geometry**: replace the estimates (`centerRows`, `centerHeight`, `roomy`,
+- [x] 1b. **One geometry**: replace the estimates (`centerRows`, `centerHeight`, `roomy`,
       `unitsOf`/`packedHeight`, `spreadCw`) with `layoutZone(...)` sizes (labels: an injected text
       measurer, canvas `measureText` in the app, a fixed-width one in tests). Rows are packed
       exactly as the page will (same gaps). Tests: for each fixture, the rows and heights the
       function predicts match what the page lays out (an e2e check reads the frames).
-- [ ] 1c. **Fit exactly, readable first**: the function chooses, in order, smaller cards down to
+- [x] 1c. **Fit exactly, readable first**: the function chooses, in order, smaller cards down to
       the readable minimum, more rows, dropping the last-move line, a one-row strip that scrolls;
       never below `MIN_CW` for a face-up card. `fitHeight` stays only as a guard and reports (dev
       warning; the audit flags "the middle was scaled to fit") when it has to act.
-- [ ] 1d. **Remove the patches it makes unnecessary**, one at a time, each with its regression
+- [x] 1d. **Remove the patches it makes unnecessary**, one at a time, each with its regression
       test still passing: `growTo` (the dummy's growth computed from spare height), `stripSpace` /
       `stripKeep` (the strip's size from the function; a one-way hold only through a hand),
       `rowFit`, `slotCw`/`stripCw` duplicates. `keptRoom` and `tallFor` are about _what_ is shown
       when, not sizes: keep them, moved into the table's state module (phase 2).
-- [ ] 1e. Audit: "hard to read" findings gone or explained; nothing new. Docs: ADDING_A_GAME's
+- [x] 1e. Audit: "hard to read" findings gone or explained; nothing new. Docs: ADDING_A_GAME's
       layout section says a new layout's size feeds the table automatically.
 
 ## Phase 2: `Table.svelte` into parts
@@ -228,3 +228,6 @@ Goal: one module per job behind the same `Host` API (no protocol change).
   applying actions and take-backs stay in `host.ts`: they're the host's own job and short now.
   Net tests unchanged except one that read the bots' timers (now `host.bots`); new
   `tests/hostParts.test.ts` tests the parts on their own (8 tests). No protocol change.
+- 1e (phase 1 done): the full audit on the finished sizing (21cbbc0): 160 runs, no errors; cards
+  too small to read 548 → 41, hard to touch 42 → 13, too small to touch 129 → 53. The new numbers
+  are `docs/audit-baseline.md`, with what's left and why.
