@@ -2,6 +2,7 @@ import type { Action } from '../engine/types';
 import { isValidCode, type Avatar, type Frame, type HostMsg, type LobbyOp, type Night, type View } from './protocol';
 import type { ExportFormat } from './exports/formats';
 import type { Transport } from './transport';
+import type { SignedMove } from './eventCrypto';
 import { apply } from './patch';
 
 /** No word from the host (which pings a quiet connection every 9 s or so) for this long means we've lost it. */
@@ -36,6 +37,7 @@ export class Client {
     parent?: string;
     back?: boolean;
     game?: { id: string; options: Record<string, number | boolean> };
+    ev?: SignedMove;
   }) => void = () => {};
   /** Back from a table that split off: its code and finished games, sent with each hello. */
   returning: { from: string; night: Night } | null = null;

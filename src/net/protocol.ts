@@ -1,5 +1,7 @@
 import type { Action, ActionSpec, GameState, GameStatus } from '../engine/types';
 import type { Op } from './patch';
+import type { SignedMove } from './eventCrypto';
+import type { EventMsg } from './eventProtocol';
 
 /** A player's chosen look: an emoji on a coloured disc. */
 export interface Avatar {
@@ -258,9 +260,14 @@ export type HostMsg =
       back?: boolean;
       /** For the new host of a split-off table: the game (and settings) this table was on, to start from. */
       game?: { id: string; options: Record<string, number | boolean> };
+      /**
+       * A tournament's move, passed on from its director: signed for this player, who checks it
+       * before going (see eventCrypto), so the host passing it on can't send them elsewhere.
+       */
+      ev?: SignedMove;
     };
 
-export type Msg = ClientMsg | HostMsg;
+export type Msg = ClientMsg | HostMsg | EventMsg;
 
 /**
  * Room codes: five letters (3.2 million codes) without vowels (no accidental words) or look-alike

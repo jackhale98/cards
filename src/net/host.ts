@@ -16,6 +16,7 @@ import {
   type Frame,
   type HostMsg,
   type Lobby,
+  type LobbyEvent,
   type LobbySeat,
   type Msg,
   type Night,
@@ -55,6 +56,7 @@ export {
 } from './host/limits';
 import { END_PHASES, EVENT_REPLAY_TOTAL, HEARTBEAT_MS, TAKE_BACK_MS, SCREEN_SOUND, STAND_IN, TABLE_MAX, UNDO } from './host/limits';
 import { EVENT_GRACE_MS, eventSeats, tableResult, type EventTable, type HostEvent, type TableNews } from './host/event';
+import type { TableTile } from './eventProtocol';
 
 export interface HostSnapshot {
   lobby: Lobby;
@@ -106,6 +108,8 @@ export class Host {
   private closed = false;
   /** A table in a tournament: its director decides who sits where and when it moves on (see host/event.ts). */
   private event: HostEvent | null = null;
+  /** After every change has gone out (a tournament table's link to its director sends its progress). */
+  onBroadcast: () => void = () => {};
   /** News of a tournament table for its director: each hand, the game's end, a hold reached. */
   onTable: (news: TableNews) => void = () => {};
   /** A tournament table waits this long for everyone, then deals with bots for whoever isn't here. */
@@ -873,6 +877,11 @@ export class Host {
     for (const [peer, c] of this.peers) if (c === cid) this.transport?.send(msg, peer);
   }
 
+  /** A message for one person at the table, on every network that reaches them (a tournament's move, passed on). */
+  tell(cid: string, msg: HostMsg) {
+    this.sendTo(cid, msg);
+  }
+
   setOption(id: string, value: number | boolean) {
     if (this.event) return;
     this.lobby.options[id] = value;
@@ -919,7 +928,7 @@ export class Host {
   }
 
   start() {
-    if (this.closed || this.canStart()) return;
+    if (this.closed || this.canStart() || this.event?.pending) return;
     const module = rulesFor(this.lobby.gameId);
     if (!module) {
       // (rules still downloading: deal as soon as they're here)
@@ -988,6 +997,9 @@ export class Host {
    */
   seatTable(t: EventTable) {
     if (this.closed) return;
+    // (the same table again: its link to the director came back, after a drop, a reload or a takeover; it plays on)
+    const now = this.event && !this.event.pending ? this.event.table.info : null;
+    if (now && now.code === t.info.code && now.round === t.info.round && now.table === t.info.table) return;
     const carried = carriedGame(t.game);
     if (!carried) return;
     if (this.state) this.clearGame();
@@ -1021,9 +1033,44 @@ export class Host {
       if (reserved.has(cid) && cid !== me.id) this.transport?.send({ t: 'view', view: { ...this.viewFor(null), who: true } }, peer);
   }
 
+  /**
+   * A table opened for a tournament before its seating has come from the director: it's a
+   * tournament table already (nobody can change it, or sit down), with nothing to deal yet.
+   */
+  expectTable(info: LobbyEvent) {
+    if (this.event && !this.event.pending) return;
+    const me = this.lobby.seats.find((s) => s.host)!;
+    this.event = { table: { info, game: { id: this.lobby.gameId, options: this.lobby.options }, seats: [] }, held: false, over: false, pending: true };
+    this.lobby.seats = [me];
+    this.lobby.event = info;
+    delete this.lobby.captain;
+    this.broadcast();
+  }
+
+  /** A tournament table's progress, for its tile on the director's screens (null: not a tournament table). */
+  tile(): TableTile | null {
+    if (!this.event) return null;
+    const s = this.state;
+    const m = this.module;
+    let totals: TableTile['totals'] = null;
+    try {
+      const board = s && m ? m.status(s, -1).scoreboard : undefined;
+      if (board?.rows.length) totals = board.rows.map((r) => ({ name: r.name, total: String(r.values.at(-1) ?? '') }));
+    } catch {
+      /* (a status that fails is reported elsewhere) */
+    }
+    return {
+      started: this.lobby.started,
+      over: this.event.over,
+      hands: this.event.hands ?? 0,
+      waiting: this.lobby.seats.filter((x) => !x.bot && !x.connected && !x.out).map((x) => x.name),
+      totals,
+    };
+  }
+
   /** A tournament table deals once everyone it's waiting for is here. */
   private maybeStart() {
-    if (!this.event || this.closed || this.lobby.started || this.event.over) return this.broadcast();
+    if (!this.event || this.closed || this.lobby.started || this.event.over || this.event.pending) return this.broadcast();
     if (this.lobby.seats.every((s) => s.bot || s.connected || s.out)) this.start();
     else this.broadcast();
   }
@@ -1062,6 +1109,13 @@ export class Host {
     return null;
   }
 
+  /** The finished game's result again (a table reloaded, or taken over: its director ignores a repeat). */
+  resendResult() {
+    const s = this.state;
+    const m = this.module;
+    if (this.event && s && m && s.phase === 'gameOver' && s.winner?.length) this.onTable({ kind: 'over', result: tableResult(m, s) });
+  }
+
   /** The director puts a bot in for a player who isn't here (`seat`: their game seat), until they're back. */
   standInFor(seat: number) {
     const target = this.lobby.seats.find((x) => x.id === this.lobby.playing?.[seat]);
@@ -1089,6 +1143,7 @@ export class Host {
     const was = this.#lastPhase;
     this.#lastPhase = s?.phase ?? null;
     if (!ev || !s || !m || s.phase === was || !END_PHASES.has(s.phase)) return;
+    ev.hands = (ev.hands ?? 0) + 1;
     this.onTable({ kind: 'hand', ...(m.report ? { report: m.report(s) } : {}) });
     if (s.phase === 'gameOver' && s.winner?.length && !ev.over) {
       ev.over = true;
@@ -1165,6 +1220,7 @@ export class Host {
     }
     this.onPersist({ lobby: this.lobby, state: this.state, keys: this.keys, ...(this.event ? { event: this.event } : {}) });
     this.backups.queue();
+    this.onBroadcast();
   }
 
   /** A player's patch didn't fit: the whole view again (once a second at most, per connection). */

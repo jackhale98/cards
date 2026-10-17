@@ -30,8 +30,8 @@ export interface DirectorSnapshot {
 
 export interface DirectorOptions {
   event: EventState;
-  /** A link to table `table` of round `round` (restored from its snapshot, when the director is coming back). */
-  makeTable: (round: number, table: number, restore?: HostSnapshot) => TableLink;
+  /** A link to a table of round `round` (restored from its snapshot, when the director is coming back). */
+  makeTable: (round: number, t: TableRound, restore?: HostSnapshot) => TableLink;
   /** The key that holds `member`'s seat at that table (each table gets only its own players' keys). */
   keyFor: (member: string, round: number, table: number) => string;
   /** The event's code, for the tables' lobbies. */
@@ -62,7 +62,7 @@ export class Director {
     const r = currentRound(this.event);
     if (o.restore && r && this.event.phase !== 'registering')
       for (const t of r.tables) {
-        const link = o.makeTable(r.n, t.table, o.restore.tables[t.table]);
+        const link = o.makeTable(r.n, t, o.restore.tables[t.table]);
         this.listen(link, r, t);
         this.links.set(t.table, link);
         if (!o.restore.tables[t.table]) link.seat(this.tableFor(r, t));
@@ -140,13 +140,16 @@ export class Director {
   // ---- the round's tables --------------------------------------------------------------------
 
   private seatRound(r: Round) {
-    this.closeTables();
+    // (the last round's tables close once the new ones are seated: players at them hear where to go next through them)
+    const last = [...this.links.values()];
+    this.links.clear();
     for (const t of r.tables) {
-      const link = this.o.makeTable(r.n, t.table);
+      const link = this.o.makeTable(r.n, t);
       this.listen(link, r, t);
       this.links.set(t.table, link);
       link.seat(this.tableFor(r, t));
     }
+    for (const link of last) link.close();
   }
 
   private listen(link: TableLink, r: Round, t: TableRound) {

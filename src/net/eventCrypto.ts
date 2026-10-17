@@ -1,3 +1,5 @@
+import { hmacSha256 } from './sha256';
+
 /**
  * A tournament's secrets. Each player's phone makes a secret when they sign up and gives it to
  * the director, once. From it both work out, without it travelling again:
@@ -6,7 +8,7 @@
  *  - a check on where to go next (`signMove`): a move reaches a phone through its table's host,
  *    and the host can't send it elsewhere, or replay an old one, without it showing;
  *  - an answer to the director's challenge (`prove`), when a phone comes back, or a table's host links up.
- * HMAC-SHA-256 through the browser's own cryptography.
+ * HMAC-SHA-256 (sha256.ts: worked out at once, so the director seats a round in one go).
  */
 
 const b64url = (bytes: Uint8Array) => {
@@ -21,17 +23,9 @@ export const newSecret = () => b64url(crypto.getRandomValues(new Uint8Array(32))
 /** A secret as it comes over the network: the right shape, or nothing. */
 export const isSecret = (s: unknown): s is string => typeof s === 'string' && /^[A-Za-z0-9_-]{43}$/.test(s);
 
-const keys = new Map<string, Promise<CryptoKey>>();
-const keyOf = (secret: string) => {
-  let k = keys.get(secret);
-  if (!k) keys.set(secret, (k = crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])));
-  return k;
-};
-
 /** The secret's signature over these parts, in order. */
-export async function mac(secret: string, ...parts: (string | number | boolean)[]): Promise<string> {
-  const sig = await crypto.subtle.sign('HMAC', await keyOf(secret), enc.encode(parts.map(String).join('\u0000')));
-  return b64url(new Uint8Array(sig));
+export function mac(secret: string, ...parts: (string | number | boolean)[]): string {
+  return b64url(hmacSha256(enc.encode(secret), enc.encode(parts.map(String).join('\u0000'))));
 }
 
 /** Compare without stopping at the first difference (how far it got would say something). */
@@ -57,8 +51,8 @@ export interface SignedMove extends Move {
   sig: string;
 }
 const moveParts = (m: Move) => ['move', m.event, m.round, m.table, m.room, m.host] as const;
-export const signMove = async (secret: string, m: Move): Promise<SignedMove> => ({ ...m, sig: await mac(secret, ...moveParts(m)) });
-export const checkMove = async (secret: string, m: SignedMove) => same(m.sig, await mac(secret, ...moveParts(m)));
+export const signMove = (secret: string, m: Move): SignedMove => ({ ...m, sig: mac(secret, ...moveParts(m)) });
+export const checkMove = (secret: string, m: SignedMove) => same(m.sig, mac(secret, ...moveParts(m)));
 
 /** Answer the director's challenge (`nonce`) for a purpose ("me", or "table" plus its round and table). */
 export const prove = (secret: string, nonce: string, ...what: (string | number)[]) => mac(secret, 'prove', nonce, ...what);

@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { RelayTransport } from '../src/net/relayTransport';
+import { EventLink } from '../src/net/eventLink';
+import { newSecret } from '../src/net/eventCrypto';
 
 /** An in-memory stand-in for the relay (same protocol as relay/src/index.ts). */
 class FakeRelay {
@@ -335,5 +337,43 @@ describe('who is who on the relay', () => {
     (guest as unknown as { marks: boolean }).marks = false;
     expect(guest.vouch('anyone')).toBeUndefined();
     guest.leave();
+  });
+});
+
+describe('a tournament’s rooms on the relay', () => {
+  it('a phone heeds only the director (the room’s host), not another phone pretending', async () => {
+    const director = new RelayTransport('EVBCDF', 'ws://relay.test', { hostKey: 'director-host-key' });
+    const said: unknown[] = [];
+    director.onMessage = (m) => said.push(m);
+    const stranger = new RelayTransport('EVBCDF', 'ws://relay.test');
+    await flush();
+    const link = new EventLink((code) => new RelayTransport(code, 'ws://relay.test'), { code: 'EVBCDF', cid: 'ann', name: 'Ann', secret: newSecret() });
+    await flush();
+    // (its hello went to the director, not to the other phone)
+    expect(said.some((m) => (m as { t: string }).t === 'evJoin')).toBe(true);
+    const phone = [...relay.sockets].find((s) => s.peer !== director.selfId && s.peer !== stranger.selfId)!.peer;
+    const board = {
+      name: 'Fake',
+      format: 'swiss',
+      game: { id: 'hearts', options: {} },
+      phase: 'done',
+      round: 9,
+      entrants: [],
+      standings: [],
+      tables: [],
+      byes: [],
+    };
+    stranger.send({ t: 'evBoard', board, people: [] } as never, phone);
+    stranger.send({ t: 'evRefused', why: 'go away' } as never, phone);
+    stranger.send({ t: 'evRoom', code: 'QRSTV' } as never, phone);
+    await flush();
+    expect(link.board).toBeNull();
+    expect(link.refused).toBeNull();
+    director.send({ t: 'evBoard', board, people: [] } as never, phone);
+    await flush();
+    expect(link.board?.board.round).toBe(9);
+    link.close();
+    director.leave();
+    stranger.leave();
   });
 });

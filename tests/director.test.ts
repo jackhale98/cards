@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { addEntrant, createEvent, standings, winners, type EventConfig, type EventState } from '../src/engine/events';
+import { addEntrant, createEvent, standings, winners, type EventConfig, type EventState, type TableRound } from '../src/engine/events';
 import { Director, type DirectorSnapshot } from '../src/net/director';
 import { LocalTable } from '../src/net/director/tables';
 import type { HostSnapshot } from '../src/net/host';
@@ -17,7 +17,7 @@ function botEvent(game: string, seats: number, entrants: number, more: Partial<E
   return e;
 }
 
-const makeTable = (round: number, table: number, restore?: HostSnapshot) => new LocalTable(round, table, { code: `R${round}T${table}`, restore });
+const makeTable = (round: number, t: TableRound, restore?: HostSnapshot) => new LocalTable(round, t.table, { code: `R${round}T${t.table}`, restore });
 
 function director(event: EventState, restore?: DirectorSnapshot) {
   return new Director({ event, code: 'BCDFGH', makeTable, keyFor: (m) => `key-${m}`, pause: null, restore });

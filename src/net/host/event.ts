@@ -57,6 +57,10 @@ export interface HostEvent {
   held: boolean;
   /** The game has ended and the director has been told. */
   over: boolean;
+  /** Opened for the tournament, its seating still on its way from the director: nothing to deal yet. */
+  pending?: boolean;
+  /** Hands finished in this game. */
+  hands?: number;
 }
 
 /** How long a table waits for everyone before bots stand in, unless the director says. */

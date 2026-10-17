@@ -42,8 +42,10 @@ export function addEntrant(e: EventState, x: Entrant): string | null {
   if (e.phase !== 'registering') return 'The tournament has started';
   if (!x.id || e.entrants.some((y) => y.id === x.id)) return 'Already signed up';
   if (!x.bot && x.members.length !== sideSize(e)) return sideSize(e) === 2 ? 'Sign up as a pair' : 'Sign up one at a time';
-  const taken = new Set(e.entrants.flatMap((y) => y.members));
-  if (x.members.some((m) => taken.has(m)) || new Set(x.members).size !== x.members.length) return 'Already signed up';
+  // (an empty member is a bot partnering someone left without a partner)
+  const people = x.members.filter(Boolean);
+  const taken = new Set(e.entrants.flatMap((y) => y.members).filter(Boolean));
+  if (people.some((m) => taken.has(m)) || new Set(people).size !== people.length) return 'Already signed up';
   e.entrants.push({ id: x.id, name: x.name, members: [...x.members], ...(x.names ? { names: [...x.names] } : {}), ...(x.bot ? { bot: true } : {}) });
   return null;
 }
@@ -103,7 +105,7 @@ function seatTable(e: EventState, sides: (string | null)[], table: number) {
   const seats: TableSeat[] = Array.from({ length: e.config.seats }, () => ({ entrant: null, member: null }));
   e.config.sides.forEach((side, i) => {
     const x = e.entrants.find((y) => y.id === sides[i]);
-    side.forEach((seat, j) => (seats[seat] = { entrant: x?.id ?? null, member: x && !x.bot ? (x.members[j] ?? null) : null }));
+    side.forEach((seat, j) => (seats[seat] = { entrant: x?.id ?? null, member: x && !x.bot ? x.members[j] || null : null }));
   });
   return { table, seats, seed: Math.floor(nextRandom(e) * 2 ** 32) };
 }
