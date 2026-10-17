@@ -19,7 +19,7 @@
   import { arrangeHand } from '../handOrder';
   import { fade } from 'svelte/transition';
   import { isHidden } from '../../engine/redact';
-  import { STAND_IN } from '../../net/host';
+  import { STAND_IN } from '../../net/host/limits';
   import { seatColor } from '../seatColors';
   import { keepAwake } from '../wakeLock';
   import { clearTurn, raiseTurn } from '../turnAlert';

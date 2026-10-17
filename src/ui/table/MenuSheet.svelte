@@ -1,7 +1,7 @@
 <script lang="ts">
   import { app, inviteUrl } from '../../app.svelte';
   import type { GameInfo } from '../../games';
-  import { SCREEN_SOUND } from '../../net/host';
+  import { SCREEN_SOUND } from '../../net/host/limits';
   import type { View } from '../../net/protocol';
   import Sheet from '../components/Sheet.svelte';
   import { bugReportLink } from '../contact';

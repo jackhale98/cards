@@ -20,68 +20,61 @@ import {
   type LobbySeat,
   type Msg,
   type Night,
-  type NightFinal,
   type NightGame,
   type View,
   REACTIONS,
-  type ScoreHistory,
-  pingBand,
 } from './protocol';
 import { seal } from './backup';
 import { GameRecord, toCsv } from './gameRecord';
-import { recordFormats, type ExportFormat } from './exports/formats';
-import { ohh } from './exports/ohh';
-import { pbn } from './exports/pbn';
-import type { HandFormat } from './exports/types';
-import { familyRules } from '../engine/types';
+import type { ExportFormat } from './exports/formats';
+import { pingsMoved, VERSION_PATHS, wire } from './host/wire';
+import { cleanNightGame, finalScores, SCORE_HANDS, standardFormats, totalsOf } from './host/records';
+import { carriedGame, defaultOptions } from './host/lobby';
+export { SCORE_HANDS, totalsOf } from './host/records';
+export { defaultOptions } from './host/lobby';
 import { report } from './reports';
 import type { Transport } from './transport';
 import { diff } from './patch';
 
-/** How often the host checks on everyone (a timer: nothing is sent unless someone needs a ping). */
-export const HEARTBEAT_MS = 3000;
-/**
- * A connection we haven't heard from for this long gets a ping (its moves and answers show it's
- * there): in practice one every 9 seconds. Each ping and answer costs a phone's data and wakes its
- * radio; over a game night of hours they would outnumber the game's own messages.
- */
-export const PING_AFTER_MS = 7000;
-/** Round-trip times are refreshed at least this often, even for a connection that's talking anyway. */
-const RTT_EVERY_MS = 30_000;
-/** A peer silent for this long is treated as gone (it keeps its seat and can come back): two pings unanswered. */
-export const DEAD_AFTER_MS = 20_000;
-const UNDO = '__undo';
-/** With take-backs on, bots and automatic steps wait this much longer after a person's move (time to take it back). */
-export const TAKE_BACK_MS = 1500;
-/** Anyone at the table can mute (amount 0) or unmute the table screens: a Chromecast has no menu of its own. */
-export const SCREEN_SOUND = '__screenSound';
-/** Anyone at the table can let a bot play for a player who has dropped (`seat`: their game seat) until they're back. */
-export const STAND_IN = '__standIn';
-/**
- * Host handoff: two players hold a sealed backup (one is enough to take over; two in case one has
- * gone too). It's sent when a trick or hand ends, and otherwise at most this often: a game night
- * lasts hours, and every backup costs the holders' data.
- */
-export const BACKUP_EVERY_MS = 30000;
-/** Backups after a trick or a hand wait this long, so a burst of moves makes one backup. */
-export const BACKUP_SOON_MS = 1000;
-export const BACKUP_HOLDERS = 2;
-const BOT_NAMES = ['Ada', 'Bix', 'Cleo', 'Dash', 'Echo', 'Fizz', 'Gus', 'Hux', 'Ivy'];
-/** A connection's hellos are handled at most this often; a burst is folded into its latest. */
-export const HELLO_GAP_MS = 400;
-/** How many different seats one connection may ask for in a minute (a client keeps one id). */
-export const IDENTITIES_PER_MINUTE = 3;
-/** Finished hands kept for replay, and the most moments kept of one hand. */
-export const REPLAY_HANDS = 5;
-/** The phases a hand ends in, across the families. */
-const END_PHASES = new Set(['handOver', 'roundOver', 'gameOver']);
-export const REPLAY_STEPS = 600;
-/** Most moments kept across all the replay hands (each is a whole game state: memory adds up). */
-export const REPLAY_TOTAL = 1200;
-/** Replay frames one connection may ask for a second (stepping, or playing a hand back). */
-const FRAMES_PER_SECOND = 20;
-/** Most people at one table (more than any game seats: the rest sit out and rotate in). */
-export const TABLE_MAX = 16;
+export {
+  HEARTBEAT_MS,
+  PING_AFTER_MS,
+  DEAD_AFTER_MS,
+  TAKE_BACK_MS,
+  SCREEN_SOUND,
+  STAND_IN,
+  BACKUP_EVERY_MS,
+  BACKUP_SOON_MS,
+  BACKUP_HOLDERS,
+  HELLO_GAP_MS,
+  IDENTITIES_PER_MINUTE,
+  REPLAY_HANDS,
+  REPLAY_STEPS,
+  REPLAY_TOTAL,
+  TABLE_MAX,
+} from './host/limits';
+import {
+  HEARTBEAT_MS,
+  PING_AFTER_MS,
+  DEAD_AFTER_MS,
+  TAKE_BACK_MS,
+  SCREEN_SOUND,
+  STAND_IN,
+  BACKUP_EVERY_MS,
+  BACKUP_SOON_MS,
+  BACKUP_HOLDERS,
+  HELLO_GAP_MS,
+  IDENTITIES_PER_MINUTE,
+  REPLAY_HANDS,
+  REPLAY_STEPS,
+  REPLAY_TOTAL,
+  TABLE_MAX,
+  RTT_EVERY_MS,
+  UNDO,
+  BOT_NAMES,
+  END_PHASES,
+  FRAMES_PER_SECOND,
+} from './host/limits';
 
 /** The most players a game seats. */
 const seatsIn = (g: { config: GameModule['config'] }) => (g.config.players.counts ? Math.max(...g.config.players.counts) : g.config.players.max);
@@ -1497,152 +1490,6 @@ export class Host {
   }
 }
 
-/**
- * Whether the latency lights have changed enough to tell anyone: someone arriving or leaving, a
- * light changing colour, or (`exact`: where the numbers show) a round trip moving by 25 ms.
- */
-function pingsMoved(a: (number | null)[], b: (number | null)[], exact: boolean): boolean {
-  return (
-    a.length !== b.length ||
-    b.some((p, i) => (p == null) !== (a[i] == null) || pingBand(p) !== pingBand(a[i]) || (exact && Math.abs((p ?? 0) - (a[i] ?? 0)) > 25))
-  );
-}
-
-/** Where a view carries its version number. */
-const VERSION_PATHS = new Set(['v', 'state.v']);
-
-/** A copy of a view as it goes over the wire (JSON: what's undefined isn't there). */
-const wire = <T>(x: T): T => JSON.parse(JSON.stringify(x)) as T;
-
-/** Hands kept in the score history (after the deal). */
-export const SCORE_HANDS = 300;
-
-/**
- * Everyone's running total, as the scoreboard shows it to someone watching (its last column), or
- * their chips in a chip game. Null when there's no number to follow (a game with no running score).
- */
-export function totalsOf(m: GameModule, s: GameState, atDeal = false): (Omit<ScoreHistory, 'totals'> & { totals: number[] }) | null {
-  try {
-    // (at the deal, before the blinds and antes went in: everyone's starting chips)
-    if (atDeal && m.config.chips) return { names: s.players.map((p) => p.name), totals: s.players.map(() => m.config.chips!.start) };
-    const board = m.status(s, -1).scoreboard;
-    if (board?.rows.length) {
-      const totals = board.rows.map((r) => toNumber(r.values.at(-1)));
-      if (totals.every((x) => x !== null)) return { names: board.rows.map((r) => r.name), totals: totals as number[] };
-    }
-    if (m.config.chips) return { names: s.players.map((p) => p.name), totals: s.players.map((p) => p.chips) };
-  } catch {
-    /* (a status that fails is reported elsewhere) */
-  }
-  return null;
-}
-
-const toNumber = (v: unknown): number | null => {
-  if (typeof v === 'number') return Number.isFinite(v) ? v : null;
-  const m =
-    typeof v === 'string'
-      ? v
-          .replace(/[,\s]/g, '')
-          .replace('−', '-')
-          .match(/^-?\d+(\.\d+)?$/)
-      : null;
-  return m ? Number(m[0]) : null;
-};
-
-/** A finished game's own scores, as someone watching sees them (nothing private: it's over). */
-function finalScores(m: GameModule, s: GameState): NightFinal | undefined {
-  try {
-    const st = m.status(s, -1);
-    const board =
-      st.scoreboard ??
-      (m.config.chips
-        ? {
-            columns: ['Chips'],
-            rows: [...s.players]
-              .sort((a, b) => b.chips - a.chips)
-              .map((p) => ({ name: p.name, values: [p.chips.toLocaleString()], highlight: !!s.winner?.includes(p.seat) })),
-          }
-        : null);
-    const out = cleanFinal({
-      columns: board?.columns ?? [],
-      rows: board?.rows.map((r) => ({ ...r, values: r.values.map(String) })) ?? [],
-      lines: st.banner?.lines ?? [],
-    });
-    return out && (out.rows.length || out.lines.length) ? out : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-/** A game's final scores, size-limited and checked (they come from another device on a merge). */
-function cleanFinal(x: unknown): NightFinal | undefined {
-  if (!x || typeof x !== 'object') return undefined;
-  const f = x as Record<string, unknown>;
-  const strs = (a: unknown, n: number, len: number) =>
-    Array.isArray(a)
-      ? a
-          .slice(0, n)
-          .filter((v): v is string => typeof v === 'string')
-          .map((v) => v.slice(0, len))
-      : [];
-  const rows = Array.isArray(f.rows)
-    ? f.rows.slice(0, TABLE_MAX).flatMap((r) => {
-        if (!r || typeof r !== 'object') return [];
-        const { name, values, highlight } = r as Record<string, unknown>;
-        return typeof name === 'string' ? [{ name: name.slice(0, 40), values: strs(values, 8, 24), ...(highlight === true ? { highlight: true } : {}) }] : [];
-      })
-    : [];
-  return { columns: strs(f.columns, 8, 24), rows, lines: strs(f.lines, 12, 120) };
-}
-
-/** A finished game from another device, checked field by field (it goes into everyone's tally). */
-function cleanNightGame(x: unknown): NightGame | null {
-  if (!x || typeof x !== 'object') return null;
-  const g = x as Record<string, unknown>;
-  if (typeof g.game !== 'string' || typeof g.name !== 'string' || typeof g.at !== 'number' || !Number.isFinite(g.at) || !Array.isArray(g.results)) return null;
-  const results: NightGame['results'] = [];
-  for (const r of g.results.slice(0, TABLE_MAX)) {
-    if (!r || typeof r !== 'object') return null;
-    const { id, name, place, points } = r as Record<string, unknown>;
-    if (typeof id !== 'string' || typeof name !== 'string' || typeof place !== 'number' || typeof points !== 'number') return null;
-    if (!Number.isFinite(place) || !Number.isFinite(points)) return null;
-    results.push({ id: id.slice(0, 64), name: name.slice(0, 20), place, points });
-  }
-  const final = cleanFinal(g.final);
-  return { game: g.game.slice(0, 40), name: g.name.slice(0, 40), at: g.at, results, ...(final ? { final } : {}) };
-}
-
-/** The standard record formats a game is followed in (see exports/formats.ts). */
-function standardFormats(config: GameModule['config']): Partial<Record<ExportFormat, HandFormat<unknown>>> {
-  const out: Partial<Record<ExportFormat, HandFormat<unknown>>> = {};
-  for (const f of recordFormats(config)) {
-    if (f === 'pbn') out.pbn = pbn as HandFormat<unknown>;
-    if (f === 'ohh') out.ohh = ohh(familyRules(config, 'poker')) as HandFormat<unknown>;
-  }
-  return out;
-}
-
 function missing(id: string): never {
   throw new Error(`The rules for ${id} aren't loaded (loadRules first)`);
-}
-
-/**
- * The game a split-off table starts on (it came over the network, so only a game we have, and
- * only that game's own settings with values of the right kind; the rest are its defaults).
- */
-function carriedGame(game: unknown): { id: string; options: Record<string, number | boolean> } | null {
-  if (!game || typeof game !== 'object') return null;
-  const { id, options } = game as { id?: unknown; options?: unknown };
-  if (typeof id !== 'string' || !Object.hasOwn(GAMES, id)) return null;
-  const given = options && typeof options === 'object' ? (options as Record<string, unknown>) : {};
-  const out = defaultOptions(GAMES[id]);
-  for (const o of GAMES[id].config.options ?? []) {
-    const v = given[o.id];
-    if (typeof v === typeof o.default && (typeof v !== 'number' || Number.isFinite(v))) out[o.id] = v as number | boolean;
-  }
-  return { id, options: out };
-}
-
-export function defaultOptions(g: { config: GameModule['config'] }): Record<string, number | boolean> {
-  return Object.fromEntries((g.config.options ?? []).map((o) => [o.id, o.default]));
 }
