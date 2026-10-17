@@ -12,7 +12,7 @@
   import Sheet from '../components/Sheet.svelte';
   import LookPicker from '../components/LookPicker.svelte';
   import Track from '../components/Track.svelte';
-  import { nightTotals } from '../../net/night';
+  import { nightTotals, nightUnit } from '../../net/night';
   import { seatRelation } from '../../engine/state';
   import { haptic, play, snapshot } from '../motion';
   import { play as playSound, type Sound } from '../sound';
@@ -486,6 +486,7 @@
   const recapShown = $derived(!!recap && !side && !(showBanner && status.banner));
   /** Game night standings, shown when a game ends. */
   const tonight = $derived(nightTotals(view.lobby.night));
+  const tonightUnit = $derived(nightUnit(view.lobby.night));
   const myInfo = $derived(you >= 0 ? status.seats[you] : undefined);
 </script>
 
@@ -672,6 +673,7 @@
         gameOver={s.phase === 'gameOver'}
         history={!!history}
         {tonight}
+        unit={tonightUnit}
         {display}
         replay={!!replay}
         onhide={() => (bannerHidden = s.v)}

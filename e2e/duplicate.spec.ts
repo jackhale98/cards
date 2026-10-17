@@ -52,6 +52,27 @@ test('four at the table: a table of bots plays the same boards, compared in IMPs
   await expect(scores.getByText('Board 4')).toBeVisible();
 });
 
+test('compared with par: each board against the solver’s (worked out in a worker)', async ({ page }) => {
+  await page.setViewportSize({ width: 852, height: 393 });
+  await page.goto(URL);
+  await page.fill('input[aria-label="Your name"]', 'Hana');
+  await page.click('text=Start a table');
+  await page.waitForURL(/#\/room\//);
+  await bridgeDuplicate(page);
+  await page.getByRole('button', { name: 'Settings' }).click();
+  await page.getByRole('button', { name: 'Par', exact: true }).click();
+  await page.keyboard.press('Escape');
+  for (let i = 0; i < 3; i++) await page.click('text=+ Add bot');
+  await page.click('.dealbar button.primary');
+  await page.locator('.table').waitFor();
+  await playOut(page);
+  await page.click('button[aria-label="Scores and log"]');
+  const scores = page.getByRole('dialog');
+  await expect(scores.getByText('Par', { exact: true })).toBeVisible();
+  // (the solver stays in its worker: never in the page)
+  expect(await page.evaluate(() => !!(globalThis as { __ddsReady?: boolean }).__ddsReady)).toBe(false);
+});
+
 test('five here: whoever is sitting out plays the same boards at a second table, then comes back', async ({ context }) => {
   const host = await context.newPage();
   await host.setViewportSize({ width: 852, height: 393 });

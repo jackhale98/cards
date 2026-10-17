@@ -269,10 +269,17 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
     },
 
     compareWith(options) {
-      return g.bridgeBids && Number(options.style ?? 0) === 2 && Number(options.compare ?? 0) === 0 ? 'table' : null;
+      if (!g.bridgeBids || Number(options.style ?? 0) !== 2) return null;
+      return (['table', 'par'] as const)[Number(options.compare ?? 0)] ?? null;
     },
 
     boards: (s) => s.data.boards ?? null,
+
+    nightScore(s) {
+      if (!s.data.compared) return null;
+      const totals = impTotals(s);
+      return { unit: 'IMPs', scores: s.players.map((_, i) => totals[teamOf(g, s, i)]) };
+    },
 
     compare(s, others) {
       const d = s.data;

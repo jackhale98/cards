@@ -32,9 +32,9 @@
       "type": "number",
       "default": 0,
       "min": 0,
-      "max": 1,
+      "max": 2,
       "step": 1,
-      "choices": ["Another table", "No one"]
+      "choices": ["Another table", "Par", "No one"]
     },
     { "id": "deals", "label": "Deals (Chicago, duplicate)", "type": "number", "default": 4, "min": 4, "max": 16, "step": 4 },
     { "id": "system", "label": "Bots bid", "type": "number", "default": 1, "min": 0, "max": 2, "step": 1, "choices": ["Natural", "SAYC", "2/1"] }
@@ -50,8 +50,8 @@
     "Going down gives the other side 50 a trick, or 100 if you're vulnerable (more if doubled).",
     "Chicago: deals in sets of four. A game scores 300, or 500 vulnerable, and a part score made on the fourth deal 100. Vulnerable: nobody on deal 1, the side not dealing on deals 2 and 3, everyone on deal 4. Most points wins.",
     "Rubber (a lobby option): play until a side wins two games; winning one makes you vulnerable. The rubber is worth 700 (2–0) or 500 (2–1). Honours in one hand score too: four of A K Q J 10 of trumps 100, all five or four aces at NT 150. Most points wins.",
-    "Duplicate (a lobby option): each deal is a numbered board, which says who deals and who is vulnerable. Each board is scored alone: on top of the tricks, a game is worth 300 (500 vulnerable) and a part score 50. A board passed out scores nothing.",
-    "Duplicate: another table plays the same boards: whoever is sitting out (bots in empty seats), or bots. Each board your score is compared with theirs from your seats, in IMPs (20 points is 1 IMP, 4000 is 24). Most IMPs wins; with no other table, most points.",
+    "Duplicate (a lobby option): each deal is a numbered board that says who deals and who is vulnerable. Each board is scored alone: on top of the tricks, a game is worth 300 (500 vulnerable), a part score 50. Compared with no one, most points wins.",
+    "Duplicate: each board, your score is compared with another table's in your seats (whoever is sitting out, or bots), or with par (perfect bidding and play, all cards known), in IMPs: 20 points is 1 IMP, 4000 is 24. Most IMPs wins.",
     "Bots bid SAYC (Standard American Yellow Card), or two over one or a plain natural style (a lobby option). The log says what each bot call means. A bot partnering you takes your calls in the same system."
   ]
 }

@@ -79,8 +79,13 @@ export interface NightGame {
   game: string;
   name: string;
   at: number;
-  /** Everyone who played, by lobby seat id (so moving seats doesn't matter). */
-  results: { id: string; name: string; place: number; points: number }[];
+  /**
+   * Everyone who played, by lobby seat id (so moving seats doesn't matter): their place, tonight's
+   * points for it, and, in a game whose own score adds up from game to game, that score (in `unit`).
+   */
+  results: { id: string; name: string; place: number; points: number; score?: number }[];
+  /** What `score` counts (duplicate bridge: "IMPs"). */
+  unit?: string;
   /** The game's own final scores, as anyone watching saw them (its scoreboard, and the result). */
   final?: NightFinal;
 }

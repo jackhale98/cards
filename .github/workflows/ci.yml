@@ -62,6 +62,8 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # (our relay, run alongside: e2e/relay.spec.ts goes through it, as the real site does)
+      - run: pnpm -C relay install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps ${{ matrix.browsers }}
       - run: pnpm test:e2e ${{ matrix.args }}
       - uses: actions/upload-artifact@v4

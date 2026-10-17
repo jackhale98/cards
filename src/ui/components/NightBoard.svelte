@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { gameWinners, nightTotals } from '../../net/night';
+  import { gameWinners, nightTotals, nightUnit, signedTotal } from '../../net/night';
   import type { LobbySeat, Night } from '../../net/protocol';
   import AvatarBadge from './AvatarBadge.svelte';
   import GameIcon from './GameIcon.svelte';
@@ -18,6 +18,8 @@
   /** Rank by total points, or by points per game played (fair to anyone who joined late). */
   let by = $state<'points' | 'perGame'>('points');
   const rows = $derived(nightTotals(night, by));
+  // (a night of duplicate bridge counts IMPs, not places)
+  const unit = $derived(nightUnit(night));
   // (the switch only matters once people have played different numbers of games)
   const uneven = $derived(new Set(rows.map((r) => r.played)).size > 1);
   const perGame = (r: { perGame: number }) => (Math.round(r.perGame * 10) / 10).toFixed(1);
@@ -50,8 +52,10 @@
         <AvatarBadge avatar={avatarOf(r.id)} name={r.name} seat={i} size={26} />
         <span class="who">{r.name}</span>
         <span class="wins">{r.played} game{r.played > 1 ? 's' : ''}{r.wins ? ` · ${r.wins} win${r.wins > 1 ? 's' : ''}` : ''}</span>
-        <span class="avg" class:main={by === 'perGame'} title="Points per game">{perGame(r)}<small>/game</small></span>
-        <span class="total" class:main={by === 'points'}>{r.points}</span>
+        <span class="avg" class:main={by === 'perGame'} title="{unit ?? 'Points'} per game">{perGame(r)}<small>/game</small></span>
+        <span class="total" class:main={by === 'points'}
+          >{unit ? signedTotal(r.points) : r.points}{#if unit}<small> {unit}</small>{/if}</span
+        >
       </li>
     {/each}
   </ol>

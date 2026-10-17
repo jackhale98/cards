@@ -2,6 +2,7 @@ import type { Action } from './engine/types';
 import { EXPORT_FILE, type ExportFormat } from './net/exports/formats';
 import { newBackupKey, open as openBackup } from './net/backup';
 import { workerBrain, type Brain } from './net/brain';
+import { workerSolver } from './net/solver';
 import { Client } from './net/client';
 import { loadRules } from './games';
 import type { Host, HostSnapshot } from './net/host';
@@ -642,6 +643,8 @@ class App {
       // (duplicate bridge in a room: the other table, playing the same boards, is hosted here too, in
       // a room of its own when people play there; its bots think in a worker of their own)
       twin: { open: (c) => rooms(c, hostKey()), brain: () => workerBrain() },
+      // (compared with the solver: each board's par, worked out in a worker: DDS stays out of the page)
+      par: workerSolver(),
       // (development builds: `?seed=7` deals the same cards every time, `&still` keeps the bots
       // and the table from moving, to put a moment on screen exactly)
       ...devTable(this.debugStill),

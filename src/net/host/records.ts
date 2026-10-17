@@ -98,13 +98,15 @@ export function cleanNightGame(x: unknown): NightGame | null {
   const results: NightGame['results'] = [];
   for (const r of g.results.slice(0, TABLE_MAX)) {
     if (!r || typeof r !== 'object') return null;
-    const { id, name, place, points } = r as Record<string, unknown>;
+    const { id, name, place, points, score } = r as Record<string, unknown>;
     if (typeof id !== 'string' || typeof name !== 'string' || typeof place !== 'number' || typeof points !== 'number') return null;
     if (!Number.isFinite(place) || !Number.isFinite(points)) return null;
-    results.push({ id: id.slice(0, 64), name: name.slice(0, 20), place, points });
+    const own = typeof score === 'number' && Number.isFinite(score) ? { score } : {};
+    results.push({ id: id.slice(0, 64), name: name.slice(0, 20), place, points, ...own });
   }
   const final = cleanFinal(g.final);
-  return { game: g.game.slice(0, 40), name: g.name.slice(0, 40), at: g.at, results, ...(final ? { final } : {}) };
+  const unit = typeof g.unit === 'string' && g.unit.length <= 12 ? { unit: g.unit } : {};
+  return { game: g.game.slice(0, 40), name: g.name.slice(0, 40), at: g.at, results, ...unit, ...(final ? { final } : {}) };
 }
 
 /** The standard record formats a game is followed in (see exports/formats.ts). */

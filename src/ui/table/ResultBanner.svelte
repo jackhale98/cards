@@ -1,7 +1,7 @@
 <script lang="ts">
   import { app } from '../../app.svelte';
   import type { GameStatus } from '../../engine/types';
-  import type { NightRow } from '../../net/night';
+  import { signedTotal, type NightRow } from '../../net/night';
   import SuitText from '../components/SuitText.svelte';
   import { SUPPORT_URL } from '../contact';
 
@@ -17,6 +17,7 @@
     gameOver,
     history,
     tonight,
+    unit = null,
     display,
     replay,
     onhide,
@@ -29,8 +30,9 @@
     gameOver: boolean;
     /** There's a hand-by-hand chart to show. */
     history: boolean;
-    /** Tonight's standings, shown when a game ends. */
+    /** Tonight's standings, shown when a game ends, and what they count when not places (see nightUnit). */
     tonight: NightRow[];
+    unit?: string | null;
     display: boolean;
     replay: boolean;
     onhide: () => void;
@@ -54,9 +56,9 @@
   {#if gameOver && tonight.length}
     <!-- top four, so a nine-player night still fits -->
     <p class="tonight">
-      Tonight: {tonight
+      Tonight{unit ? `, ${unit}` : ''}: {tonight
         .slice(0, 4)
-        .map((r) => `${r.name} ${r.points}`)
+        .map((r) => `${r.name} ${unit ? signedTotal(r.points) : r.points}`)
         .join(' · ')}{tonight.length > 4 ? ` · +${tonight.length - 4} more` : ''}
     </p>
   {/if}

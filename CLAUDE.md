@@ -17,7 +17,8 @@ pnpm test:quick          # unit tests without the slow bot suites (seconds): use
 pnpm test                # every unit test (a couple of minutes: bots play thousands of deals)
 pnpm exec vitest run tests/hearts.test.ts -t "moon"   # one file / one test
 pnpm test:e2e            # Playwright against a dev server on :4173 (PW_CHROMIUM=<path> to reuse a browser),
-                         # plus e2e/csp.spec.ts and e2e/offline.spec.ts on a production build with the real headers (:4174);
+                         # plus e2e/csp.spec.ts and e2e/offline.spec.ts on a production build with the real headers (:4174),
+                         # and e2e/relay.spec.ts through our relay run here (:4175; needs `pnpm -C relay install`);
                          # CI also runs the main flows in WebKit (Safari's engine): PW_WEBKIT=1 locally
 pnpm -C relay check      # the relay's type check
 pnpm records             # bots play bridge and Hold'em into records/; then python tools/check_records.py records
@@ -165,7 +166,9 @@ browser layout tests cover a new game automatically.
   straight into `s.zones[…]`.
 - A bug fix gets a test that fails without the fix.
 - Keep full-game bot playouts short (a few seeds, Easy bots) unless the test is about bot strength.
-- e2e: use `?net=local`; wait on locators or `expect.poll` rather than fixed timeouts.
+- e2e: use `?net=local`; wait on locators or `expect.poll` rather than fixed timeouts. `?net=local`
+  delivers at once and vouches for nobody; what depends on our relay's timing or its vouching for a
+  room's host belongs in e2e/relay.spec.ts (and tests/eventHarness.ts, which delays and vouches likewise).
 - To put a moment on screen exactly (development builds): `?seed=7` deals the same cards, `&still`
   holds the table (no bot moves by itself), `__advance(n)` makes the next n moves the same way every
   time (`Host.step`: Easy bots thinking `steadily`), and the menu's "Copy debug snapshot" / the home

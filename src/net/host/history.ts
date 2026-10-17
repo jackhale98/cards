@@ -119,12 +119,21 @@ export function tally(lobby: Lobby, m: GameModule, s: GameState, players: LobbyS
   if (s.tallied || !s.winner?.length) return;
   s.tallied = true;
   const places = standingsOf(m, s);
+  // (duplicate bridge: each player's IMPs too, which add up over a night of it)
+  const own = m.nightScore?.(s);
   lobby.night ??= { games: [] };
   lobby.night.games.push({
     game: m.config.id,
     name: m.config.name,
     at: Date.now(),
-    results: players.map((seat, i) => ({ id: seat.id, name: seat.name, place: places[i], points: nightPoints(places[i], places) })),
+    results: players.map((seat, i) => ({
+      id: seat.id,
+      name: seat.name,
+      place: places[i],
+      points: nightPoints(places[i], places),
+      ...(own ? { score: own.scores[i] } : {}),
+    })),
+    ...(own ? { unit: own.unit } : {}),
     final: finalScores(m, s),
   });
 }

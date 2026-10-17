@@ -1,7 +1,13 @@
+import { existsSync } from 'node:fs';
 import { defineConfig } from '@playwright/test';
 
 // (PW_PORT lets two checkouts run their browser tests side by side without sharing a server)
 const PORT = Number(process.env.PW_PORT ?? 4173);
+/**
+ * Our relay, run here (`relay/`, when its packages are installed: `pnpm -C relay install`): the
+ * tests in e2e/relay.spec.ts go through it, as phones do on the real site.
+ */
+const RELAY = existsSync('relay/node_modules/.bin/wrangler');
 
 /**
  * Browser tests (`pnpm test:e2e`): every game dealt at phone, laptop and TV sizes, checked for
@@ -60,5 +66,15 @@ export default defineConfig({
       reuseExistingServer: false,
       timeout: 180_000,
     },
+    ...(RELAY
+      ? [
+          {
+            command: `pnpm -C relay exec wrangler dev --port ${PORT + 2} --ip 127.0.0.1 --inspector-port ${PORT + 3} --show-interactive-dev-session=false`,
+            url: `http://127.0.0.1:${PORT + 2}`,
+            reuseExistingServer: !process.env.CI,
+            timeout: 120_000,
+          },
+        ]
+      : []),
   ],
 });

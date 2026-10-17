@@ -331,10 +331,18 @@ export interface GameModule<D = any> {
    * played it), shown beside this table's own. Any time; a repeat is ignored.
    */
   compare?(s: GameState<D>, others: OtherResult[]): void;
-  /** Duplicate, in a room: what a game with these settings is compared with (`table`: another table playing the same boards; null: nothing). */
-  compareWith?(options: Record<string, number | boolean>): 'table' | null;
+  /**
+   * Duplicate, in a room: what a game with these settings is compared with (`table`: another table
+   * playing the same boards; `par`: the solver's par for each board; null: nothing).
+   */
+  compareWith?(options: Record<string, number | boolean>): 'table' | 'par' | null;
   /** Duplicate: the boards this game plays (for the other table to play too). */
   boards?(s: GameState<D>): Board[] | null;
+  /**
+   * A finished game's own score for each player (by game seat), when it adds up from game to game
+   * over a night (duplicate compared with another table or par: IMPs). Null: places only.
+   */
+  nightScore?(s: GameState<D>): { unit: string; scores: number[] } | null;
 }
 
 export class RuleError extends Error {}

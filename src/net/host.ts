@@ -56,8 +56,11 @@ export {
   TABLE_MAX,
 } from './host/limits';
 import { END_PHASES, EVENT_REPLAY_TOTAL, HEARTBEAT_MS, TAKE_BACK_MS, SCREEN_SOUND, STAND_IN, TABLE_MAX, UNDO } from './host/limits';
+/** The solver failing (DDS not loading, say): asked again after this long. */
+const PAR_AGAIN_MS = 30_000;
 import { EVENT_GRACE_MS, eventSeats, tableResult, type EventTable, type HostEvent, type TableNews } from './host/event';
 import { boardsKey, twinSeats, twinTable, type TwinSaved } from './host/twin';
+import type { Solver } from './solver';
 import type { TableTile } from './eventProtocol';
 
 export interface HostSnapshot {
@@ -69,6 +72,8 @@ export interface HostSnapshot {
   event?: HostEvent;
   /** Duplicate in a room: the other table playing the same boards (see host/twin.ts). */
   twin?: TwinSaved;
+  /** Duplicate compared with the solver: each board's par, worked out (see solver.ts). */
+  par?: OtherResult[];
 }
 
 /**
@@ -88,6 +93,9 @@ export class Host {
   /** Duplicate in a room: the other table, playing the same boards (see host/twin.ts); its boards' mark. */
   private twin: (Omit<TwinSaved, 'snap'> & { host: Host; key: string; snap: HostSnapshot | null }) | null = null;
   private syncing = false;
+  /** Duplicate compared with the solver: what works out par, and each board's (once it has; null: on its way). */
+  private readonly solver: Solver | null;
+  private pars: { key: string; results: OtherResult[] | null; at: number } | null = null;
   private history: GameState[] = [];
   /** The connections: who each is, its health, what it was last sent (see host/conns.ts). */
   private readonly conns = new Conns((msg, peer) => this.transport?.send(msg, peer));
@@ -151,11 +159,14 @@ export class Host {
       still?: boolean;
       /** Duplicate in a room: the other table's room, hosted here (its people play there), and where its bots think (see host/twin.ts). */
       twin?: { open?: (code: string) => Transport; brain?: () => Brain };
+      /** Duplicate compared with the solver: works out each board's par (see solver.ts). */
+      par?: Solver;
     } = {},
   ) {
     this.seed = opts.seed;
     this.still = !!opts.still;
     this.twinOpts = opts.twin ?? {};
+    this.solver = opts.par ?? null;
     // (the bots and the backups see the table as it is when they look: getters onto this host)
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const self = this;
@@ -254,6 +265,8 @@ export class Host {
       // (a game saved before people could sit out: everyone at the table is in it)
       if (this.state && !this.lobby.playing) this.lobby.playing = this.lobby.seats.map((s) => s.id);
       if (restore.twin) this.restoreTwin(restore.twin);
+      const boards = this.state && this.module?.boards?.(this.state);
+      if (restore.par && boards?.length) this.pars = { key: boardsKey(boards), results: restore.par, at: 0 };
     } else {
       const carried = carriedGame(opts.game);
       this.lobby = {
@@ -984,8 +997,8 @@ export class Host {
       players.map((s) => ({ name: s.name, bot: s.bot || away(s) })),
       this.event?.table.seed ?? this.seed ?? randomSeed(),
       { ...this.lobby.options },
-      // (duplicate in a room: compared with the other table this host keeps, see syncTwin)
-      this.event?.table.setup ?? (this.module.compareWith?.(this.lobby.options) === 'table' ? { compared: true } : undefined),
+      // (duplicate in a room: compared with the other table this host keeps, or par, see syncTwin)
+      this.event?.table.setup ?? (this.comparing(this.module) ? { compared: true } : undefined),
     );
     delete this.lobby.scores;
     if (!this.module.realtime) this.noteScores(true);
@@ -1157,7 +1170,14 @@ export class Host {
       keys: this.keys,
       ...(this.event ? { event: this.event } : {}),
       ...(twin?.snap ? { twin: { snap: twin.snap, room: twin.room, label: twin.label, match: twin.match, seats: twin.seats } } : {}),
+      ...(this.pars?.results ? { par: this.pars.results } : {}),
     };
+  }
+
+  /** Duplicate in a room: whether this game is compared with something this host can give it (another table, or par). */
+  private comparing(m: GameModule): boolean {
+    const want = m.compareWith?.(this.lobby.options);
+    return want === 'table' || (want === 'par' && !!this.solver);
   }
   private persist() {
     this.onPersist(this.snapshot());
@@ -1190,14 +1210,16 @@ export class Host {
 
   /**
    * Duplicate in a room: the other table plays this game's boards (seated afresh for a new game of
-   * them), and each table hears the other's results (only on boards it has played: see compare).
+   * them), and each table hears the other's results (only on boards it has played: see compare); or
+   * each board's par, worked out by the solver, is told to this table as it plays the boards.
    */
   private syncTwin() {
     const s = this.state;
     const m = this.module;
-    if (this.syncing || this.closed || this.event || !s || !m?.boards || m.compareWith?.(this.lobby.options) !== 'table') return;
+    if (this.syncing || this.closed || this.event || !s || !m?.boards || !this.comparing(m)) return;
     const boards = m.boards(s);
     if (!boards?.length) return;
+    if (m.compareWith?.(this.lobby.options) === 'par') return this.syncPar(boards);
     this.syncing = true;
     try {
       const key = boardsKey(boards);
@@ -1207,6 +1229,33 @@ export class Host {
       if (!there || !m.report) return;
       this.compare((m.report(there).boards ?? []).map((r) => ({ ...r, at: twin.label })));
       twin.host.compare((m.report(this.state!).boards ?? []).map((r) => ({ ...r, at: 'Table 1' })));
+    } finally {
+      this.syncing = false;
+    }
+  }
+
+  /** Each board's par, asked of the solver once for a game's boards (again a while after it fails), and told as they're played. */
+  private syncPar(boards: Board[]) {
+    const key = boardsKey(boards);
+    const pars = this.pars;
+    if (pars?.key !== key || (!pars.results?.length && pars.at && Date.now() - pars.at > PAR_AGAIN_MS)) {
+      const asked: { key: string; results: OtherResult[] | null; at: number } = { key, results: null, at: Date.now() };
+      this.pars = asked;
+      void this.solver!(boards).then(
+        (results) => {
+          if (this.pars !== asked || this.closed) return;
+          asked.results = results;
+          this.persist();
+          this.syncTwin();
+        },
+        () => {},
+      );
+      return;
+    }
+    if (!pars.results?.length) return;
+    this.syncing = true;
+    try {
+      this.compare(pars.results);
     } finally {
       this.syncing = false;
     }

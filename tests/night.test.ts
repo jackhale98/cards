@@ -3,7 +3,7 @@ import { nightPoints, placesFromScores, standingsOf } from '../src/engine/state'
 import type { GameState } from '../src/engine/types';
 import { GAMES } from './games';
 import { Host } from '../src/net/host';
-import { nightTotals } from '../src/net/night';
+import { nightTotals, nightUnit } from '../src/net/night';
 
 describe('game night', () => {
   it('turns scores into places, sharing ties', () => {
@@ -52,6 +52,44 @@ describe('game night', () => {
       ['b', 3, 1, 2, 0],
       ['c', 0, 0, 1, 2],
     ]);
+  });
+
+  it('a night of duplicate bridge adds up IMPs; one with other games too, places', () => {
+    const dup = (results: [string, number, number][]) => ({
+      game: 'bridge',
+      name: 'Contract Bridge',
+      at: 1,
+      unit: 'IMPs',
+      results: results.map(([id, place, score]) => ({ id, name: id.toUpperCase(), place, points: place ? 0 : 3, score })),
+    });
+    // partnerships change between games: each player's own IMPs add up
+    const night = {
+      games: [
+        dup([
+          ['a', 0, 12],
+          ['b', 1, -12],
+          ['c', 0, 12],
+          ['d', 1, -12],
+        ]),
+        dup([
+          ['a', 1, -5],
+          ['b', 0, 5],
+          ['c', 0, 5],
+          ['d', 1, -5],
+        ]),
+      ],
+    };
+    expect(nightUnit(night)).toBe('IMPs');
+    expect(nightTotals(night).map((r) => [r.id, r.points, r.wins])).toEqual([
+      ['c', 17, 2],
+      ['a', 7, 1],
+      ['b', -7, 1],
+      ['d', -17, 0],
+    ]);
+    // a game of Hearts as well: places again
+    const mixed = { games: [...night.games, { game: 'hearts', name: 'Hearts', at: 2, results: [{ id: 'a', name: 'A', place: 0, points: 3 }] }] };
+    expect(nightUnit(mixed)).toBeNull();
+    expect(nightTotals(mixed)[0]).toMatchObject({ id: 'a', points: 6 });
   });
 
   it('can rank by points per game, so a late arrival isn’t ranked low for playing less', () => {

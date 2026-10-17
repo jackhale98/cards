@@ -4,6 +4,7 @@ import type { GameState } from '../src/engine/types';
 import { Client } from '../src/net/client';
 import { Host, type HostSnapshot } from '../src/net/host';
 import type { HostMsg } from '../src/net/protocol';
+import { parsHere } from '../src/net/solver';
 import { Bus, MemTransport } from './netHarness';
 import './games';
 
@@ -74,6 +75,12 @@ describe('duplicate in a room', () => {
     // the bots' table hears this one's results too
     expect((bots.state as GameState<TrickData>).data.others!.map((o) => o.at)).toEqual(['Table 1', 'Table 1']);
     expect(host.viewFor('h').status!.scoreboard!.columns).toEqual(['Here', 'Bots', 'IMPs N–S']);
+    // tonight's tally keeps each player's IMPs (partners alike, the other side the opposite)
+    const game = host.lobby.night!.games[0];
+    expect(game.unit).toBe('IMPs');
+    const imps = game.results.map((r) => r.score!);
+    expect(imps[0]).toBe(imps[2]);
+    expect(imps[1]).toBe(-imps[0]);
     host.close();
   });
 
@@ -124,7 +131,7 @@ describe('duplicate in a room', () => {
 
   it('“compare with no one”: no other table, and most points wins', async () => {
     const host = new Host(null, 'ROOMS', { cid: 'h', name: 'Hana', key: 'hk' }, undefined, { still: true });
-    duplicate(host, 2, 1);
+    duplicate(host, 2, 2);
     for (let i = 0; i < 3; i++) host.addBot();
     host.start();
     await vi.advanceTimersByTimeAsync(0);
@@ -134,6 +141,26 @@ describe('duplicate in a room', () => {
     expect(data(host).others).toEqual([]);
     host.close();
   });
+
+  it('compared with par: each board against the solver’s par, told as it’s played', async () => {
+    // (the solver works in real time: DDS loads, and solves each board)
+    vi.useRealTimers();
+    let snap: HostSnapshot | null = null;
+    const host = new Host(null, 'ROOMS', { cid: 'h', name: 'Hana', key: 'hk' }, undefined, { still: true, seed: 4, par: parsHere });
+    host.onPersist = (x) => (snap = x);
+    duplicate(host, 2, 1);
+    for (let i = 0; i < 3; i++) host.addBot();
+    host.start();
+    expect(host.otherTable).toBeNull();
+    await vi.waitFor(() => expect(snap?.par).toHaveLength(2), { timeout: 30_000, interval: 50 });
+    const pars = (await parsHere(data(host).boards!)).map((p) => p.ns);
+    expect(data(host).others).toEqual([]);
+    playOut(host);
+    expect(host.state!.phase).toBe('gameOver');
+    expect(data(host).others!.map((o) => [o.at, o.ns])).toEqual(pars.map((ns) => ['Par', ns]));
+    expect(host.viewFor('h').status!.scoreboard!.columns).toEqual(['Here', 'Par', 'IMPs N–S']);
+    host.close();
+  }, 60_000);
 
   it('more here than the table seats: whoever is sitting out plays the same boards at a table of their own, and comes back after', async () => {
     const net = network();
