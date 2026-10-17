@@ -48,8 +48,11 @@ src/games/<id>/game.json   a game = a family plus parameters (schemas/game.schem
 src/engine/schema.gen.ts   the game.json types, generated from the schema (pnpm gen:types; never edit)
 src/games/index.ts     registry: game files load with the app (GameInfo), rules only when picked
                        (loadRules / rulesFor); picker sections and search
-src/net/host.ts        the authoritative host: seats, actions, bots, views, backups, replays
-                       (the last few hands, each moment redacted for whoever asks: ReplayBar)
+src/net/host.ts        the authoritative host: seats and keys, checking and applying actions, the lobby;
+                       its parts in src/net/host/: conns (connections, heartbeat, views and patches),
+                       bots (bots and automatic steps), history (replays, the game's record, scores,
+                       tonight's tally), backups (host handoff), lobby (who plays, lobby buttons),
+                       records, limits
 src/net/brain.ts       where bots think: botWorker.ts (a Web Worker) in the app, inline in tests
 src/net/client.ts      a player's (or TV's) connection to the host
 src/net/protocol.ts    every message between devices

@@ -7,8 +7,6 @@ import { getGame, GAMES, loadRules, rulesFor, startProblem } from '../games';
 import { type Brain } from './brain';
 
 import {
-  AVATAR_COLORS,
-  AVATAR_EMOJI,
   cleanAvatar,
   makeRoomCode,
   type Avatar,
@@ -19,7 +17,6 @@ import {
   type LobbySeat,
   type Msg,
   type Night,
-  type NightGame,
   type View,
   REACTIONS,
 } from './protocol';
@@ -30,8 +27,8 @@ import { Backups } from './host/backups';
 import { Conns } from './host/conns';
 import type { ExportFormat } from './exports/formats';
 import { wire } from './host/wire';
-import { cleanNightGame, standardFormats } from './host/records';
-import { carriedGame, defaultOptions } from './host/lobby';
+import { standardFormats } from './host/records';
+import { addBot, carriedGame, defaultOptions, dropBot, fitSeats, lobbyCommand, mergeNight, seatsIn } from './host/lobby';
 export { SCORE_HANDS, totalsOf } from './host/records';
 export { defaultOptions } from './host/lobby';
 import { report } from './reports';
@@ -54,10 +51,7 @@ export {
   REPLAY_TOTAL,
   TABLE_MAX,
 } from './host/limits';
-import { HEARTBEAT_MS, TAKE_BACK_MS, SCREEN_SOUND, STAND_IN, TABLE_MAX, UNDO, BOT_NAMES } from './host/limits';
-
-/** The most players a game seats. */
-const seatsIn = (g: { config: GameModule['config'] }) => (g.config.players.counts ? Math.max(...g.config.players.counts) : g.config.players.max);
+import { HEARTBEAT_MS, TAKE_BACK_MS, SCREEN_SOUND, STAND_IN, TABLE_MAX, UNDO } from './host/limits';
 
 export interface HostSnapshot {
   lobby: Lobby;
@@ -661,38 +655,12 @@ export class Host {
   }
 
   private dropBot() {
-    const i = this.lobby.seats.map((s) => !!s.bot).lastIndexOf(true);
-    if (i >= 0) this.lobby.seats.splice(i, 1);
+    dropBot(this.lobby);
   }
 
-  /**
-   * Keep the players to what the game seats: bots go first, then whoever has sat out least
-   * (latest to join among equals) sits out; when there's room, whoever has sat out most comes in.
-   * A newcomer takes a bot's place, or sits out if the game is full of people.
-   */
+  /** Keep the players to what the game seats (see fitSeats). */
   private fit(opts: { newcomer?: string } = {}) {
-    const max = seatsIn(getGame(this.lobby.gameId));
-    const seats = this.lobby.seats;
-    const playing = () => seats.filter((s) => !s.out);
-    while (playing().length > max && seats.some((s) => s.bot)) this.dropBot();
-    const order = (s: LobbySeat) => (s.sat ?? 0) * 100 - seats.indexOf(s) / 100;
-    // the newcomer waits their turn rather than bumping someone already in
-    if (opts.newcomer && playing().length > max) {
-      const me = seats.find((s) => s.id === opts.newcomer);
-      if (me) me.out = true;
-    }
-    while (playing().length > max) {
-      const bump = playing()
-        .filter((s) => !s.host || playing().length === 1)
-        .sort((a, b) => order(a) - order(b))[0];
-      if (!bump) break;
-      bump.out = true;
-    }
-    while (playing().length < max) {
-      const next = seats.filter((s) => s.out && s.connected && !s.screen).sort((a, b) => order(b) - order(a))[0];
-      if (!next) break;
-      next.out = false;
-    }
+    fitSeats(this.lobby, opts);
   }
 
   /** The host picks who plays this game. */
@@ -756,64 +724,30 @@ export class Host {
    * a game we have, an option that game has with a value it allows, bots only to remove.
    */
   private lobbyOp(cid: string | undefined, op: unknown) {
-    if (!cid || cid !== this.captain || !op || typeof op !== 'object') return;
-    const o = op as Record<string, unknown>;
-    const str = (v: unknown) => (typeof v === 'string' && v.length <= 64 ? v : null);
-    switch (o.op) {
-      case 'game': {
-        const id = str(o.id);
-        if (id && GAMES[id]) this.setGame(id);
-        return;
-      }
-      case 'option': {
-        const id = str(o.id);
-        const opt = getGame(this.lobby.gameId).config.options?.find((x) => x.id === id);
-        if (this.lobby.started || !opt || !id) return;
-        if (opt.type === 'boolean' && typeof o.value === 'boolean') return this.setOption(id, o.value);
-        const v = o.value;
-        if (opt.type === 'number' && typeof v === 'number' && Number.isFinite(v)) {
-          const min = opt.min ?? 0;
-          const top = opt.choices ? opt.choices.length - 1 : (opt.max ?? Infinity);
-          // (on the option's own steps: a choice's index, or min + a whole number of steps)
-          const step = opt.choices ? 1 : (opt.step ?? 1);
-          if (v >= min && v <= top && Number.isInteger(Math.round(((v - min) / step) * 1e6) / 1e6)) this.setOption(id, v);
-        }
-        return;
-      }
+    if (!cid || cid !== this.captain) return;
+    const c = lobbyCommand(op, this.lobby);
+    if (!c) return;
+    switch (c.op) {
+      case 'game':
+        return this.setGame(c.id);
+      case 'option':
+        return this.setOption(c.id, c.value);
       case 'bot':
-        if (!this.lobby.started) this.addBot();
-        return;
-      case 'playing': {
-        const id = str(o.id);
-        if (id && typeof o.on === 'boolean') this.setPlaying(id, o.on);
-        return;
-      }
-      case 'move': {
-        const id = str(o.id);
-        if (id && (o.dir === 1 || o.dir === -1)) this.moveSeat(id, o.dir);
-        return;
-      }
-      case 'remove': {
-        // (only bots: who is at the table is the host's call)
-        const id = str(o.id);
-        if (id && this.lobby.seats.some((s) => s.id === id && s.bot)) this.removeSeat(id);
-        return;
-      }
+        return this.addBot();
+      case 'playing':
+        return this.setPlaying(c.id, c.on);
+      case 'move':
+        return this.moveSeat(c.id, c.dir);
+      case 'remove':
+        return this.removeSeat(c.id);
       case 'deal':
-        if (!this.lobby.started) this.start();
-        return;
+        return this.start();
       case 'takeBacks':
-        if (typeof o.on === 'boolean') this.setTakeBacks(o.on);
-        return;
+        return this.setTakeBacks(c.on);
       case 'end':
-        if (this.lobby.started) this.endGame();
-        return;
-      case 'look': {
-        const back = str(o.back);
-        const cloth = str(o.cloth);
-        if (back && cloth) this.setLook({ back, cloth });
-        return;
-      }
+        return this.endGame();
+      case 'look':
+        return this.setLook(c.look);
     }
   }
 
@@ -857,19 +791,7 @@ export class Host {
 
   /** Players back from a split-off table: add the games they finished there to tonight's tally. */
   private mergeBack(from: string, games: unknown[]) {
-    // (only a table that split off from this one, once; and only well-formed games)
-    if (!this.lobby.splits?.some((x) => x.code === from)) return;
-    const known = new Set((this.lobby.night?.games ?? []).map((g) => `${g.at}:${g.game}`));
-    const fresh = games
-      .slice(0, 100)
-      .map(cleanNightGame)
-      .filter((g): g is NightGame => !!g && !known.has(`${g.at}:${g.game}`));
-    if (fresh.length) {
-      this.lobby.night ??= { games: [] };
-      this.lobby.night.games.push(...fresh);
-      this.lobby.night.games.sort((a, b) => a.at - b.at);
-    }
-    this.lobby.splits = this.lobby.splits.filter((x) => x.code !== from);
+    mergeNight(this.lobby, from, games);
   }
 
   private sendTo(cid: string, msg: HostMsg) {
@@ -882,14 +804,7 @@ export class Host {
   }
 
   addBot() {
-    const g = getGame(this.lobby.gameId);
-    if (!g.bot || this.players().length >= seatsIn(g) || this.lobby.seats.length >= TABLE_MAX) return;
-    const used = new Set(this.lobby.seats.map((s) => s.name));
-    const name = BOT_NAMES.find((n) => !used.has(n)) ?? `Bot ${this.lobby.seats.length}`;
-    const n = this.lobby.seats.length;
-    const avatar = { emoji: AVATAR_EMOJI[(n * 7 + 3) % AVATAR_EMOJI.length], color: AVATAR_COLORS[(n * 3 + 1) % AVATAR_COLORS.length] };
-    this.lobby.seats.push({ id: `bot:${Math.random().toString(36).slice(2, 7)}`, name, avatar, bot: true, connected: true });
-    this.broadcast();
+    if (addBot(this.lobby, this.players().length)) this.broadcast();
   }
 
   removeSeat(id: string) {

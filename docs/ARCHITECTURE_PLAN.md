@@ -155,11 +155,11 @@ state (works for `$state` fields; check in `pnpm check`).
 
 Goal: one module per job behind the same `Host` API (no protocol change).
 
-- [ ] 3a. `host/seats.ts` (seats, keys, lobby, stand-ins), `host/acts.ts` (checking and applying
+- [x] 3a. `host/seats.ts` (seats, keys, lobby, stand-ins), `host/acts.ts` (checking and applying
       actions, rule errors), `host/bots.ts` (turn bots, real-time bot timers, thinking bank),
       `host/views.ts` (redacting, patches, routing, resync), `host/history.ts` (replays, records,
       the night's tally), backups stay in `backup.ts`.
-- [ ] 3b. Existing net tests pass unchanged; add focused tests where a module's rules were only
+- [x] 3b. Existing net tests pass unchanged; add focused tests where a module's rules were only
       covered end to end.
 
 ## Phase 4: reproducible bugs
@@ -219,3 +219,12 @@ Goal: one module per job behind the same `Host` API (no protocol change).
   shares the most state with the sizing and the layer, so it stays for now. Also fixed on the
   way: `tests/ddPlay.test.ts`'s Spades bid test drew its four sample deals with `Math.random`
   and flaked now and then; it uses a seeded die now.
+- Phase 3 (b19ff53…): `host.ts` 1648 → 972 lines. The parts in `src/net/host/`: `limits`, `wire`,
+  `records`, `lobby` (pure: who plays, lobby buttons checked, games merged back, bots sitting
+  down), `history` (`Hands`: replays and the game's record; the score history and the tally),
+  `bots` (`Bots`: turn bots, real-time timers, rescue), `backups` (`Backups`), `conns` (`Conns`:
+  connections, heartbeat, hello pacing, routes, patches). The parts that keep state see the host's
+  table through an object of getters (`BotTable`, `BackupTable`). Seats and keys, checking and
+  applying actions and take-backs stay in `host.ts`: they're the host's own job and short now.
+  Net tests unchanged except one that read the bots' timers (now `host.bots`); new
+  `tests/hostParts.test.ts` tests the parts on their own (8 tests). No protocol change.
