@@ -1,7 +1,8 @@
 # Screen audit baseline
 
 The full screen audit (`pnpm audit:screens`) of every game, once the table was
-sized by one function, `src/ui/layout/table.ts` (commit 21cbbc0). 160 runs, no errors,
+sized by one function, `src/ui/layout/table.ts`, last run at commit a2dc440 (after the middle's cards
+grow into spare height on large screens). 160 runs, no errors,
 nothing overlapping, off screen or cut off. What's left are the audit's softer findings, counted
 once per distinct finding across a game's runs (small and large screens, more and fewer players,
 with a TV):
@@ -13,45 +14,48 @@ with a TV):
 
 | game               | runs | too small to read | hard to touch | too small to touch | small | squeezed | other |
 | ------------------ | ---- | ----------------- | ------------- | ------------------ | ----- | -------- | ----- |
-| baccarat           | 6    | 0                 | 0             | 2                  | 39    | 0        | 0     |
-| blackjack          | 6    | 0                 | 0             | 2                  | 43    | 0        | 0     |
-| bridge             | 3    | 0                 | 0             | 0                  | 27    | 0        | 0     |
-| canasta            | 6    | 0                 | 3             | 2                  | 47    | 1        | 0     |
-| cheat              | 6    | 0                 | 4             | 4                  | 34    | 0        | 0     |
-| crazy-eights       | 6    | 0                 | 0             | 2                  | 40    | 0        | 1     |
+| baccarat           | 6    | 0                 | 0             | 2                  | 41    | 0        | 0     |
+| blackjack          | 6    | 0                 | 0             | 2                  | 40    | 0        | 0     |
+| bridge             | 3    | 0                 | 1             | 0                  | 27    | 0        | 0     |
+| canasta            | 6    | 0                 | 3             | 2                  | 49    | 0        | 0     |
+| cheat              | 6    | 0                 | 3             | 4                  | 35    | 0        | 0     |
+| crazy-eights       | 6    | 0                 | 0             | 2                  | 39    | 0        | 1     |
 | cribbage           | 4    | 0                 | 0             | 0                  | 35    | 0        | 0     |
 | egyptian-rat-screw | 6    | 0                 | 0             | 2                  | 34    | 0        | 0     |
-| euchre             | 4    | 0                 | 0             | 2                  | 32    | 0        | 0     |
-| five-card-draw     | 6    | 30 (20px)         | 0             | 2                  | 40    | 1        | 0     |
-| five-hundred       | 6    | 0                 | 0             | 2                  | 41    | 0        | 0     |
-| gin-rummy          | 3    | 0                 | 0             | 1                  | 28    | 0        | 0     |
-| go-fish            | 6    | 0                 | 0             | 2                  | 41    | 0        | 0     |
+| euchre             | 4    | 0                 | 0             | 2                  | 33    | 0        | 0     |
+| five-card-draw     | 6    | 0                 | 0             | 2                  | 39    | 0        | 0     |
+| five-hundred       | 6    | 0                 | 0             | 2                  | 40    | 0        | 0     |
+| gin-rummy          | 3    | 0                 | 0             | 1                  | 29    | 0        | 0     |
+| go-fish            | 6    | 0                 | 0             | 2                  | 39    | 0        | 0     |
 | hand-and-foot      | 6    | 0                 | 0             | 2                  | 39    | 2        | 0     |
-| hearts             | 6    | 0                 | 1             | 2                  | 39    | 0        | 0     |
-| holdem             | 6    | 0                 | 0             | 3                  | 36    | 0        | 0     |
-| kings-corners      | 6    | 0                 | 0             | 2                  | 42    | 0        | 0     |
-| oh-hell            | 6    | 0                 | 0             | 2                  | 41    | 0        | 0     |
-| omaha              | 6    | 0                 | 0             | 3                  | 36    | 0        | 0     |
-| palace             | 6    | 0                 | 0             | 2                  | 42    | 0        | 0     |
-| pinochle           | 3    | 0                 | 3             | 0                  | 34    | 0        | 0     |
+| hearts             | 6    | 0                 | 1             | 2                  | 37    | 0        | 0     |
+| holdem             | 6    | 0                 | 0             | 3                  | 37    | 0        | 0     |
+| kings-corners      | 6    | 0                 | 0             | 2                  | 41    | 0        | 0     |
+| oh-hell            | 6    | 0                 | 0             | 2                  | 40    | 0        | 0     |
+| omaha              | 6    | 0                 | 0             | 3                  | 37    | 0        | 0     |
+| palace             | 6    | 0                 | 0             | 2                  | 45    | 1        | 0     |
+| pinochle           | 3    | 6 (29px)          | 3             | 0                  | 33    | 2        | 0     |
 | president          | 6    | 0                 | 1             | 2                  | 39    | 0        | 0     |
-| rummy-500          | 6    | 7 (29px)          | 0             | 2                  | 47    | 2        | 0     |
-| setback            | 5    | 0                 | 0             | 0                  | 36    | 0        | 0     |
-| seven-card-stud    | 6    | 4 (28px)          | 0             | 2                  | 56    | 1        | 0     |
-| slapjack           | 6    | 0                 | 0             | 2                  | 35    | 0        | 0     |
-| spades             | 6    | 0                 | 1             | 2                  | 39    | 0        | 0     |
-| spit               | 3    | 0                 | 0             | 1                  | 26    | 0        | 1     |
-| spoons             | 6    | 0                 | 0             | 3                  | 30    | 0        | 0     |
+| rummy-500          | 6    | 0                 | 0             | 2                  | 47    | 1        | 0     |
+| setback            | 5    | 0                 | 0             | 0                  | 34    | 0        | 0     |
+| seven-card-stud    | 6    | 4 (27px)          | 0             | 2                  | 60    | 1        | 0     |
+| slapjack           | 6    | 0                 | 0             | 2                  | 34    | 0        | 0     |
+| spades             | 6    | 0                 | 1             | 2                  | 38    | 0        | 0     |
+| spit               | 3    | 0                 | 0             | 1                  | 25    | 0        | 1     |
+| spoons             | 6    | 0                 | 0             | 3                  | 29    | 0        | 0     |
 | whist              | 3    | 0                 | 0             | 0                  | 28    | 0        | 0     |
-| **all**            | 160  | 41                | 13            | 53                 | 1126  | 7        | 2     |
+| **all**            | 160  | 10                | 13            | 53                 | 1123  | 7        | 2     |
 
 What's left, and why:
 
-- Five Card Draw, 7 players, small phone, game over: seven hands turned up at once (35 cards) on a
-  phone 320px tall, under the result panel. There's no readable size for that many; it was so
-  before too.
-- Rummy 500 and Seven Card Stud: cards in the strip at the readable smallest, measured a hair
-  under it while a meld lands, and a stud showdown on a small phone.
+- Five Card Draw no longer shows up: its seven hands at game over now measure 30px or more (the
+  last baseline had 30 findings, 20px at worst).
+- Pinochle's meld on the smallest phone (667×320, browser bars showing): three panels of melds
+  beside the empty trick don't fit even at the smallest cards, so the middle is scaled to fit
+  (0.94–0.98) and the strip's cards measure 29px. Hard to touch: a 20-card hand while passing four.
+- Seven Card Stud: a showdown on a small phone (two seven-card hands and the result), 27px.
+- Rummy 500, Hand and Foot, Palace: the middle scaled by 1–6% with a sheet open over it (the menu,
+  save or scores) or as the result banner arrives; nothing is cut off.
 - "Buttons beside your hand though they'd fit": once the buttons have had to go beside your hand in
   a part of the game, they stay there till it moves on (so your hand doesn't slide about), and the
   audit looked while a sheet was open (Crazy Eights) or between two reactions (Spit).
