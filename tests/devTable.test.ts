@@ -2,9 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Host } from '../src/net/host';
 
 /** A table dealt and left as it is: the Host's development options (`?seed=…&still`). */
-function table(opts: { seed?: number; still?: boolean }) {
+function table(opts: { seed?: number; still?: boolean }, game = 'hearts') {
   const host = new Host(null, 'SEED', { cid: 'h', name: 'Hana' }, undefined, opts);
-  host.setGame('hearts');
+  host.setGame(game);
   for (let i = 0; i < 3; i++) host.addBot();
   host.start();
   return host;
@@ -34,5 +34,25 @@ describe('a table for looking at (development builds)', () => {
     expect(still.act('h', { type: 'pass', cards: mine })).toBeNull();
     expect(still.state!.v).toBeGreaterThan(v);
     for (const h of [still, moving]) h.close();
+  });
+
+  it('stepped on from a seed, the same moves follow every time, to the hand’s end', () => {
+    // (President's Easy bots look ahead a little: counted, not timed, while stepping)
+    for (const game of ['hearts', 'president']) {
+      const play = (busy: boolean) => {
+        const h = table({ seed: 7, still: true }, game);
+        for (let i = 0; i < 400 && !['handOver', 'roundOver'].includes(h.state!.phase); i++) {
+          // (whatever else draws on Math.random between steps doesn't change them)
+          if (busy) Math.random();
+          if (!h.step()) break;
+        }
+        const end = { phase: h.state!.phase, zones: h.state!.zones, log: h.state!.log.map((l) => l.text) };
+        h.close();
+        return end;
+      };
+      const first = play(false);
+      expect(first.phase, game).not.toBe('play');
+      expect(play(true), game).toEqual(first);
+    }
   });
 });

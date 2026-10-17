@@ -588,6 +588,12 @@ class App {
           return a;
         },
         __phase: () => this.host?.state?.phase ?? null,
+        // (`n` steps of the game at once, the same every time: see Host.step; how many were taken)
+        __advance: (n: number) => {
+          let i = 0;
+          while (i < n && this.host?.step()) i++;
+          return i;
+        },
       });
     this.isHost = true;
     this.connected = true;

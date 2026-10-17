@@ -33,8 +33,18 @@ test('on a table screen every meld shows and the piles hold still', async ({ con
   for (let i = 0; i < 1200 && melds < 2; i++) {
     const phase = await host.evaluate(() => (window as unknown as { __phase: () => string }).__phase());
     if (phase === 'gameOver') break;
+    // (a hand can end with the second player's melds just laid down, going out: count them before
+    // the next deal clears them, once the table screen has caught up)
+    if (phase === 'handOver') {
+      await expect
+        .poll(() => tv.locator('.strip > .zone').count(), { timeout: 2000 })
+        .toBeGreaterThanOrEqual(2)
+        .catch(() => {});
+      melds = await tv.locator('.strip > .zone').count();
+      if (melds >= 2) break;
+    }
     await host.evaluate(() => (window as unknown as { __botMove: () => unknown }).__botMove());
-    // (a hand can end with only one player's melds down: deal the next, and measure from there)
+    // (or with only one player's melds down: deal the next, and measure from there)
     if (phase === 'handOver') {
       await expect.poll(() => host.evaluate(() => (window as unknown as { __phase: () => string }).__phase())).not.toBe('handOver');
       await tv.waitForTimeout(800);

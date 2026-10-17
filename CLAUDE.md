@@ -25,6 +25,8 @@ pnpm verify              # check + lint + format:check + test + build + relay ch
 pnpm verify:all          # verify + e2e
 pnpm pictures            # a dozen games dealt from a fixed seed, held still (`?seed=7&still`, development only),
                          # photographed; `--update-snapshots` first, then again after a change: nothing may differ
+                         # (e2e/gallery.spec.ts, in test:e2e: every game from a seed, stepped on with `__advance`,
+                         # screen-checked at the deal, mid-hand and the hand's end; a quick check before the audit)
 AUDIT_GAMES=holdem,omaha pnpm audit:screens   # the screen audit (e2e/audit.spec.ts) for those games; `pnpm audit:screens`
                          # alone is every game (about an hour): run it when a change affects every table
 ```

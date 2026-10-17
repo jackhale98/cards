@@ -1,10 +1,12 @@
 import { botView } from '../engine/botView';
 import { isHidden, redact, redactActions, resolveAction } from '../engine/redact';
 import { randomSeed } from '../engine/rng';
+import { steadily } from '../engine/bots/search';
 import { RuleError, type Action, type GameModule, type GameState } from '../engine/types';
 import { checkAction } from '../engine/validate';
 import { getGame, GAMES, loadRules, rulesFor, startProblem } from '../games';
 import { type Brain } from './brain';
+import { fallbackMoves } from '../engine/fallback';
 
 import {
   cleanAvatar,
@@ -629,6 +631,43 @@ export class Host {
     if (this.state && this.lobby.playing)
       return this.lobby.playing.map((id) => this.lobby.seats.find((s) => s.id === id) ?? { id, name: '?', connected: false });
     return this.lobby.seats.filter((s) => !s.out);
+  }
+
+  /**
+   * Development and tests: one step of the game at once, the same every time from the same table:
+   * an automatic step (collect the trick, deal the next hand) if one is due, else the first seat
+   * with a move makes the one an Easy bot would (no searching against the clock, which a busy
+   * machine would cut short), or the plainest legal one. False: nothing left to do.
+   */
+  step(): boolean {
+    const s = this.state;
+    const m = this.module;
+    if (!s || !m) return false;
+    const sys = m.system?.(s);
+    if (sys) {
+      const v = s.v;
+      this.runSystem(sys, m);
+      return this.state !== s || this.state?.v !== v;
+    }
+    for (const p of s.players) {
+      const offered = m.actions(s, p.seat).filter((a) => !a.menu);
+      if (!offered.length) continue;
+      let a: Action | null;
+      if (offered.some((x) => x.type === 'next')) a = { type: 'next' };
+      else {
+        // (counted thinking and its own dice, seeded from the moment: whatever else on the page
+        // draws on Math.random, and however busy the machine)
+        a = steadily(s.v * 16 + p.seat, () => {
+          const v = botView(m, s, p.seat);
+          v.view.options = { ...v.view.options, botLevel: 0 };
+          const pick = m.bot?.(v.view, p.seat);
+          return pick ? resolveAction(s, p.seat, v.unfill(pick)) : null;
+        });
+      }
+      if (a && !this.applyAs(p.seat, a)) return true;
+      for (const f of fallbackMoves(m.actions(s, p.seat))) if (!this.applyAs(p.seat, f)) return true;
+    }
+    return false;
   }
 
   /**

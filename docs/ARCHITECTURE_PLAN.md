@@ -167,9 +167,11 @@ Goal: one module per job behind the same `Host` API (no protocol change).
 - [x] 4a. Development builds: `?seed=…` deals from a fixed seed; the menu's "Copy debug snapshot"
       (state, view, seat, sizes) and `?snapshot=` (or a paste box) loads one as host, so a report
       of "it looked wrong here" can be put on screen exactly.
-- [ ] 4b. A layout gallery: fixtures (saved moments of every game, made by a script with fixed
-      seeds) rendered at the audit's sizes with the screen check, no bots, no waiting: a fast,
-      deterministic spec that runs in CI. The hour-long audit stays for full play-throughs.
+- [x] 4b. A layout gallery (`e2e/gallery.spec.ts`): every game dealt from a fixed seed, held
+      still and stepped on (`Host.step`, `__advance`), checked with the screen check at the deal,
+      a few moves in and the hand's end, on a small phone and a large screen: fast (a minute or
+      two), the same every run, and part of `pnpm test:e2e`. The hour-long audit stays for full
+      play-throughs.
 
 ## Phase 5: one motion system
 
@@ -236,3 +238,11 @@ Goal: one module per job behind the same `Host` API (no protocol change).
   copies only its view), and the home screen "Load debug snapshot" (`app.loadSnapshot()`: hosts
   it, held still, at a fresh code, in the seat of whoever hosted it; held still, everyone shows as
   connected). Both as `__snapshot()` / `__loadSnapshot(text)` for tests (`e2e/snapshot.spec.ts`).
+- 4b: rather than saved fixtures (which go stale as games change), the gallery makes its moments
+  as it runs: `Host.step()` (development and tests) makes one move, an automatic step if one is
+  due, else the first seat to move plays what an Easy bot would, thinking `steadily`
+  (`bots/search.ts`: a counted number of deals, not timed, with dice seeded from the state's
+  version and seat), so the same seed reaches the same moment on any machine, however busy, and
+  whatever else on the page draws on `Math.random`. (Two full runs gave identical states at every
+  hand's end; `tests/devTable.test.ts` checks it for Hearts and President.) `__advance(n)` steps
+  from a test. 60 tests, about 1.3 minutes; nothing firm found in any game at either size.

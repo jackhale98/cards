@@ -1,3 +1,4 @@
+import { nextRandom, seedState } from '../rng';
 import { RuleError, type Action, type GameState } from '../types';
 
 /**
@@ -38,8 +39,28 @@ export const BOT_LEVELS: (SearchBudget | null)[] = [null, { samples: 24, ms: 40 
 export const botLevel = (options: Record<string, number | boolean>) => Math.max(0, Math.min(2, Number(options.botLevel ?? 0) || 0));
 export const botBudget = (options: Record<string, number | boolean>) => BOT_LEVELS[botLevel(options)] ?? null;
 
-/** Under the test runner: fixed sample counts, no clock (a busy machine can't change an answer). */
-export const TESTING = import.meta.env?.MODE === 'test';
+/**
+ * Under the test runner: fixed sample counts, no clock (a busy machine can't change an answer).
+ * Also while thinking `steadily`.
+ */
+export let TESTING = import.meta.env?.MODE === 'test';
+
+/**
+ * Development: think as under the test runner (a set number of deals, not as many as the clock
+ * allows) and with dice from `seed`, so the same moment always brings the same move (Host.step).
+ */
+export function steadily<T>(seed: number, think: () => T): T {
+  const was = { testing: TESTING, random: Math.random };
+  const dice = { rng: seedState(seed) };
+  TESTING = true;
+  Math.random = () => nextRandom(dice);
+  try {
+    return think();
+  } finally {
+    TESTING = was.testing;
+    Math.random = was.random;
+  }
+}
 
 /**
  * Easy bots play like beginners: their rules of thumb, with a slip now and then (a legal move
