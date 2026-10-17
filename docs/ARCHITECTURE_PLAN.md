@@ -128,7 +128,7 @@ components that each own their CSS. Rules for the components:
   - `reactions.svelte.ts`: emoji reactions showing on seats, and what each seat "said".
   - `tvSeatPos` into `layout/table.ts` (pure: seat, players, measured size).
   - `run(spec, …)` stays in the table, composing selection, fresh and race in four lines.
-- [ ] 2c. **Table parts as components**: `TableStatus` (headline and last move, used in the
+- [x] 2c. **Table parts as components**: `TableStatus` (headline and last move, used in the
       middle and in the side column), `MeColumn` (your column: whose turn on a phone on its side,
       the recap, your name, chips and hint), `SeatsBar` (the header's seats: the row that scrolls
       to whoever's turn it is, the TV's oval, reactions button and bar), `ActionsColumn` (the
@@ -200,3 +200,9 @@ Goal: one module per job behind the same `Host` API (no protocol change).
   `fresh.ts`, `race.ts` (`RaceClock`, the clock injectable for tests), `events.ts`,
   `reactions.svelte.ts`, `ovalSeat` in `layout/table.ts`; `tests/tableLogic.test.ts` (16 tests).
   2185 → 2075 lines (the logic was compact; the gain is that it's tested). Pictures identical.
+- 2c: `TableStatus` (headline and last move, in the middle or the side column), `Recap`,
+  `MeColumn` (takes the status as a snippet), `SeatsBar` (the row that follows the turn, or the
+  TV's oval; each seat's props from a function), `ActionsColumn`, `MeldsSheet`. The nine props
+  every pile needs are one `zoneHooks(z)`, the action bar's one `actionBar` object. The table's
+  mode classes (`.table.display .headline`) became the component's own (`.headline.display`),
+  placed after the rules they used to outrank. 2075 → 1508 lines; pictures identical.

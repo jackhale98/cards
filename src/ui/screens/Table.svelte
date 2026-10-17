@@ -1,14 +1,10 @@
 <script lang="ts">
-  import SuitText from '../components/SuitText.svelte';
   import { app } from '../../app.svelte';
   import type { ActionSpec, ZoneState } from '../../engine/types';
   import { getGame, howToPlay } from '../../games';
   import { REACTIONS, type Frame, type View } from '../../net/protocol';
   import { untrack } from 'svelte';
-  import ReplayBar from '../components/ReplayBar.svelte';
-  import ActionBar from '../components/ActionBar.svelte';
   import Hand from '../components/Hand.svelte';
-  import Seat from '../components/Seat.svelte';
   import Zone from '../components/Zone.svelte';
   import * as size from '../layout/table';
   type Fit = ReturnType<typeof size.fitSizes>;
@@ -17,14 +13,12 @@
   import { Frames, provideFrames } from '../layout/frames.svelte';
   import Sheet from '../components/Sheet.svelte';
   import LookPicker from '../components/LookPicker.svelte';
-  import AvatarBadge from '../components/AvatarBadge.svelte';
   import Track from '../components/Track.svelte';
   import { nightTotals } from '../../net/night';
   import { seatRelation } from '../../engine/state';
   import { flight, haptic, play, snapshot } from '../motion';
   import { play as playSound, type Sound } from '../sound';
   import { arrangeHand } from '../handOrder';
-  import { marquee } from '../marquee';
   import { fade } from 'svelte/transition';
   import { isHidden } from '../../engine/redact';
   import { STAND_IN } from '../../net/host';
@@ -44,6 +38,12 @@
   import { freshAfter } from '../table/fresh';
   import { announceText, lastMoveOf, recapOf, soundFor } from '../table/events';
   import { REACTION_NAMES, Reactions } from '../table/reactions.svelte';
+  import TableStatus from '../table/TableStatus.svelte';
+  import Recap from '../table/Recap.svelte';
+  import MeColumn from '../table/MeColumn.svelte';
+  import SeatsBar from '../table/SeatsBar.svelte';
+  import ActionsColumn from '../table/ActionsColumn.svelte';
+  import MeldsSheet from '../table/MeldsSheet.svelte';
   import CardLayer from '../components/CardLayer.svelte';
 
   /** `replay`: a moment of a finished hand is on screen (the table shows it, quietly). */
@@ -90,15 +90,8 @@
     tableH = tableClientH - parseFloat(st.paddingTop) - parseFloat(st.paddingBottom);
   });
   let recapH = $state(0);
-  /** The last move's line (it can wrap): kept from when it was last shown, as it isn't always. */
+  /** The last move's line (it can wrap), measured when last shown (see TableStatus). */
   let lastH = $state(0);
-  function measureLast(el: HTMLElement) {
-    const ro = new ResizeObserver(() => {
-      if (el.offsetHeight && el.offsetHeight !== lastH) lastH = el.offsetHeight;
-    });
-    ro.observe(el);
-    return { destroy: () => ro.disconnect() };
-  }
   /** The recap in your column (side mode): the column keeps room for it. */
   let sideRecapH = $state(0);
   /**
@@ -226,7 +219,6 @@
   const stripRoomShown = $derived.by(() => stripRoom && sizing.reserve);
   /** The middle's cards fit across side by side (a Hold'em board on a tablet): no need to overlap them. */
   const roomy = $derived.by(() => size.roomy(centerZones, centerCw, mainW, vw, stripZones.length > 0));
-  const MIN_CW = size.MIN_CW;
   // a score track takes some height, so table cards get a little smaller with one
   /** A game with a strip of melds: on a table screen its piles give up some room to everyone's melds. */
   const hasStrip = $derived(Object.values(s.zones).some((z) => z.area === 'strip'));
@@ -259,39 +251,6 @@
    * they're drawn smaller to fit. A transform doesn't change the layout, so measuring it can't
    * set off another round.
    */
-  /**
-   * Whose turn it is, in the short column on the left of a phone: the headline always shows whole;
-   * the last move only when there's room for all of it (never half a line).
-   */
-  function fitSide(el: HTMLElement) {
-    let frame = 0;
-    const fit = () => {
-      // (the last move goes first when the column can't hold everything, then the hand's summary,
-      // which the Scores sheet has too)
-      const parts = ['.last', '.recap'].map((q) => el.querySelector<HTMLElement>(q)).filter((x) => !!x);
-      for (const x of parts) x.style.display = '';
-      for (const x of parts) if (el.scrollHeight > el.clientHeight + 1) x.style.display = 'none';
-    };
-    const later = () => {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(fit);
-    };
-    const ro = new ResizeObserver(later);
-    ro.observe(el);
-    // (and when the column itself grows: with something hidden, this box is only as tall as what's
-    // left in it, so it wouldn't change size by itself to show it again)
-    if (el.parentElement) ro.observe(el.parentElement);
-    const mo = new MutationObserver(later);
-    mo.observe(el, { childList: true, subtree: true, characterData: true });
-    later();
-    return {
-      destroy: () => {
-        cancelAnimationFrame(frame);
-        ro.disconnect();
-        mo.disconnect();
-      },
-    };
-  }
   function fitHeight(el: HTMLElement) {
     const main = el.parentElement!;
     // The content's own size, from where its piles sit in the layout (offset sizes: a card in
@@ -497,6 +456,27 @@
 
   /** Tapping a pile: its action (draw, take…), or, with cards selected, putting them there (Kings Corners). */
   const zoneAction = (zoneId: string) => sel.zoneAction(zoneId);
+  /** What every pile needs to be tapped and played onto: the same in the middle, the strip and the melds full screen. */
+  const zoneHooks = (z: ZoneState) => ({
+    you,
+    players: n,
+    selected: sel.selected,
+    selectable,
+    ontap: tap,
+    zoneActive: !!zoneAction(z.id),
+    place: !!zoneAction(z.id)?.select,
+    onzone: zoneAction(z.id) ? () => run(zoneAction(z.id)!) : undefined,
+    fast: !!zoneAction(z.id)?.react,
+  });
+  /** Your moves, wherever their buttons are. */
+  const actionBar = $derived({
+    actions: view.actions,
+    selected: sel.selected,
+    pot: status.pot,
+    onact: (spec: ActionSpec, amount?: number, seat?: number) => run(spec, amount, sel.selected, seat),
+    onclear: () => sel.clear(),
+    seatInfo: (seat: number) => ({ name: s.players[seat]?.name ?? '', avatar: lobbySeat(seat)?.avatar, relation: seatRelation(you, seat, n) }),
+  });
   /** In hand mode only piles you can use right now stay on the phone (e.g. the deck to draw from, a bridge dummy). */
   const usable = (z: (typeof allCenterZones)[number]) => !!zoneAction(z.id) || z.cards.some((c) => selectable?.has(c.id));
   // (in a real-time game you react to the piles, so they stay put on the phone: watching the TV
@@ -612,11 +592,6 @@
       document.documentElement.style.fontSize = '';
     };
   });
-  /** Seats sit around an oval in turn order, seat 0 at the bottom (matching where trick cards land). */
-  // each seat's measured size, so a wide one is kept fully on screen instead of centred off the edge
-  let slotW = $state<Record<number, number>>({});
-  let slotH = $state<Record<number, number>>({});
-  const tvSeatPos = (seat: number) => size.ovalSeat(seat, n, slotW[seat], slotH[seat]);
   const handCw = $derived(size.handCw({ hand: cardSizes.hand, handMode, stripShown: stripZones.length > 0, pileOnly }));
   /**
    * Everyone's melds on the table (rummy games, stud's face-up cards): the middle runs to the
@@ -629,34 +604,6 @@
 
   // ---- chrome -----------------------------------------------------------------------------
   let sheet = $state<'menu' | 'scores' | 'tv' | 'look' | 'save' | 'spread' | null>(null);
-  /** The room the full-screen melds have (above your hand), measured. */
-  let spreadW = $state(0);
-  let spreadH = $state(0);
-  /**
-   * Everyone's melds full screen: the biggest cards that let them all fit the room, so a few melds
-   * fill the screen; only past a readable smallest size does the page scroll.
-   */
-  const spreadCw = $derived(
-    sheet === 'spread'
-      ? size.spreadCw({
-          zones: allStripZones,
-          w: spreadW,
-          h: spreadH,
-          labels,
-          whereOf: (z, cw) => ({
-            cw,
-            you,
-            players: n,
-            style: 'sheet',
-            maxW: spreadW ? spreadW - 20 : Infinity,
-            rowGap: 4.8,
-            tap: tappable(z) ? TAP : undefined,
-          }),
-        })
-      : 44,
-  );
-  // (your hand under them stays small: the melds are what you're looking at)
-  const spreadHandCw = $derived(Math.max(MIN_CW, Math.min(52, Math.round(vh * 0.1))));
   // (nothing left to show: the full-screen view of the melds closes itself, e.g. at a new hand)
   $effect(() => {
     if (sheet === 'spread' && !allStripZones.length) sheet = null;
@@ -758,34 +705,6 @@
     return () => cancelAnimationFrame(frame);
   });
 
-  // ---- the players row (phones): scrolls sideways, and slides to whoever's turn it is ----------
-  let seatsEl = $state<HTMLElement>();
-  let moreLeft = $state(false);
-  let moreRight = $state(false);
-  function edges() {
-    const el = seatsEl;
-    if (!el) return;
-    moreLeft = el.scrollLeft > 4;
-    moreRight = el.scrollLeft + el.clientWidth < el.scrollWidth - 4;
-  }
-  $effect(() => {
-    const el = seatsEl;
-    const turn = actor;
-    void [others.length, vw]; // (re-measure when these change)
-    if (!el || display) return;
-    const frame = requestAnimationFrame(() => {
-      edges();
-      const slot = turn == null ? null : (el.querySelector(`[data-seat="${turn}"]`)?.parentElement as HTMLElement | null);
-      if (!slot || el.scrollWidth <= el.clientWidth) return;
-      // centre the player whose turn it is
-      const box = el.getBoundingClientRect();
-      const r = slot.getBoundingClientRect();
-      const left = el.scrollLeft + r.left - box.left - (box.width - r.width) / 2;
-      el.scrollTo({ left, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
-    });
-    return () => cancelAnimationFrame(frame);
-  });
-
   /** The table seat (name, avatar, connection) of each player in the game, by game seat. */
   const lobbySeat = (seat: number) => {
     const id = view.lobby.playing?.[seat];
@@ -824,25 +743,18 @@
 
 <!-- whose turn it is and the last move: above the middle, or (a phone on its side) in the column on the left -->
 {#snippet tableStatus()}
-  {#if status.headline}<div class="headline" class:mine={actor === you && you >= 0} bind:clientHeight={headH}>
-      {#if side}<span class="tip" use:marquee><span class="run"><SuitText text={status.headline} /></span></span>{:else}<SuitText text={status.headline} />{/if}
-    </div>
-  {:else if display}
-    <!-- (a table screen keeps the headline's room too, between tricks say: the piles below stay put) -->
-    <div class="headline" aria-hidden="true" style:visibility="hidden">&nbsp;</div>{/if}
-  {#if lastMove && cardSizes.lastFits}
-    {#key lastMove.t}
-      <div class="last" use:measureLast>
-        {#if lastMove.seat != null}
-          <AvatarBadge avatar={lobbySeat(lastMove.seat)?.avatar} name={s.players[lastMove.seat]?.name ?? ''} seat={lastMove.seat} size={16} />
-        {/if}
-        <span><SuitText text={lastMove.text} /></span>
-      </div>
-    {/key}
-  {:else if display}
-    <!-- (a table screen keeps the line's room when there's no last move: the piles below stay put) -->
-    <div class="last" aria-hidden="true" style:visibility="hidden">&nbsp;</div>
-  {/if}
+  <TableStatus
+    headline={status.headline}
+    mine={actor === you && you >= 0}
+    {lastMove}
+    lastShown={cardSizes.lastFits}
+    who={lastMove?.seat != null ? { avatar: lobbySeat(lastMove.seat)?.avatar, name: s.players[lastMove.seat]?.name ?? '' } : null}
+    {display}
+    {side}
+    {handMode}
+    bind:headH
+    bind:lastH
+  />
 {/snippet}
 
 <div class="sr-only" aria-live="polite" aria-atomic="true">{announce}</div>
@@ -862,28 +774,27 @@
     <button class="icon" onclick={() => (sheet = 'menu')} aria-label="Menu">
       <svg viewBox="0 0 24 24" width="20" height="20"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
     </button>
-    <div class="seats" class:more-left={moreLeft} class:more-right={moreRight} bind:this={seatsEl} onscroll={edges}>
-      {#each others as seat (seat)}
-        {@const pos = display ? tvSeatPos(seat) : null}
-        <div class="seat-slot" style:left={pos?.left} style:top={pos?.top} bind:clientWidth={slotW[seat]} bind:clientHeight={slotH[seat]}>
-          <Seat
-            player={s.players[seat]}
-            info={status.seats[seat]}
-            cards={seatZone(seat)}
-            turn={s.turn === seat}
-            connected={lobbySeat(seat)?.connected ?? true}
-            {showChips}
-            compact={others.length > 4 || (others.length >= 3 && vw < 940 && !display)}
-            avatar={lobbySeat(seat)?.avatar}
-            relation={display ? null : seatRelation(you, seat, n)}
-            said={saidBy(seat)}
-            ping={lobbySeat(seat)?.host ? null : pingOf(seat)}
-            scale={tvRem / 16}
-            turnLabel={display}
-          />
-        </div>
-      {/each}
-    </div>
+    <SeatsBar
+      seats={others}
+      players={n}
+      turn={actor}
+      {display}
+      seat={(seat) => ({
+        player: s.players[seat],
+        info: status.seats[seat],
+        cards: seatZone(seat),
+        turn: s.turn === seat,
+        connected: lobbySeat(seat)?.connected ?? true,
+        showChips,
+        compact: others.length > 4 || (others.length >= 3 && vw < 940 && !display),
+        avatar: lobbySeat(seat)?.avatar,
+        relation: display ? null : seatRelation(you, seat, n),
+        said: saidBy(seat),
+        ping: lobbySeat(seat)?.host ? null : pingOf(seat),
+        scale: tvRem / 16,
+        turnLabel: display,
+      })}
+    />
     {#if !display && !replay && view.lobby.seats.some((x) => x.id === app.cid)}
       <button class="icon" onclick={() => (reacting = !reacting)} aria-label="React" aria-expanded={reacting}>
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
@@ -959,15 +870,7 @@
           <Zone
             zone={playFrom?.id === z.id ? { ...z, id: `hand:${you}`, label: 'Your hand', cards: myHand } : z}
             cw={slotCw(z)}
-            {you}
-            players={n}
-            selected={sel.selected}
-            {selectable}
-            ontap={tap}
-            zoneActive={!!zoneAction(z.id)}
-            place={!!zoneAction(z.id)?.select}
-            onzone={zoneAction(z.id) ? () => run(zoneAction(z.id)!) : undefined}
-            fast={!!zoneAction(z.id)?.react}
+            {...zoneHooks(z)}
             {roomy}
             {growTo}
             steady={display}
@@ -1004,15 +907,7 @@
               style="strip"
               room={display && mainW ? mainW * 1.2 - 1.6 * tvRem : Infinity}
               rowGap={display ? 0.3 * tvRem : undefined}
-              {you}
-              players={n}
-              selected={sel.selected}
-              {selectable}
-              ontap={tap}
-              zoneActive={!!zoneAction(z.id)}
-              place={!!zoneAction(z.id)?.select}
-              onzone={zoneAction(z.id) ? () => run(zoneAction(z.id)!) : undefined}
-              fast={!!zoneAction(z.id)?.react}
+              {...zoneHooks(z)}
             />
           {/each}
         </div>
@@ -1020,7 +915,7 @@
     </div>
 
     {#if recapShown}
-      <p class="recap" aria-label="This hand: {recap}" bind:clientHeight={recapH}>This hand: {recap}</p>
+      <Recap recap={recap!} bind:h={recapH} />
     {/if}
     {#if showBanner && status.banner}
       <ResultBanner
@@ -1040,35 +935,22 @@
 
   <!-- you: a column of your own beside the middle, above your hand, so your hand has the whole width -->
   {#if !display}
-    <section class="me" class:side aria-label="You">
-      {#if side}
-        <div class="side-status" use:fitSide>
-          {@render tableStatus()}
-          <!-- (the hand's summary: here on a phone held sideways, where the column is free once the hand
-               is over, rather than under the middle, where a big showdown needs every bit of the height) -->
-          {#if recap && !(showBanner && status.banner)}<p class="recap" aria-label="This hand: {recap}" bind:clientHeight={sideRecapH}>
-              This hand: {recap}
-            </p>{/if}
-        </div>
-      {/if}
-      <div class="me-own" bind:clientHeight={meOwnH}>
-        {#if me}
-          <div class="me-name">
-            {#if reacts[you]}{#key reacts[you].key}<span class="my-react" aria-hidden="true">{reacts[you].text}</span>{/key}{/if}
-            <AvatarBadge avatar={lobbySeat(you)?.avatar} name={me.name} seat={you} size={24} /><span class="mn">{me.name}</span>
-            {#if myInfo?.tag}<span class="mytag">{myInfo.tag}</span>{/if}
-          </div>
-          <div class="me-sub">
-            {#if showChips}<span><b>{me.chips.toLocaleString()}</b> chips</span>{/if}
-            {#if myInfo?.badge}<span class="gold"><SuitText text={myInfo.badge} /></span>{/if}
-          </div>
-          {#if status.hint}<div class="hint"><SuitText text={status.hint} /></div>{/if}
-        {:else}
-          <!-- (at the table but not in this game: you're in the next one) -->
-          <div class="me-sub">{view.lobby.seats.some((x) => x.id === app.cid) ? 'Sitting this one out — you’re in the next game' : 'Watching'}</div>
-        {/if}
-      </div>
-    </section>
+    <MeColumn
+      {me}
+      {you}
+      avatar={lobbySeat(you)?.avatar}
+      info={myInfo}
+      chips={showChips}
+      hint={status.hint}
+      react={reacts[you]}
+      away={view.lobby.seats.some((x) => x.id === app.cid) ? 'Sitting this one out — you’re in the next game' : 'Watching'}
+      {side}
+      {handMode}
+      recap={recap && !(showBanner && status.banner) ? recap : null}
+      status={tableStatus}
+      bind:meOwnH
+      bind:recapH={sideRecapH}
+    />
   {/if}
 
   {#if !display}
@@ -1078,18 +960,7 @@
       <div class="hand-wrap" style:padding-inline={handMode ? `${Math.round(handCw * 0.3)}px` : undefined}>
         {#if myHandZone?.layout === 'stack'}
           <!-- a face-down pile instead of a hand (slap games): tap it to turn up your top card -->
-          <Zone
-            zone={myHandZone}
-            cw={handCw}
-            {you}
-            players={n}
-            selected={sel.selected}
-            {selectable}
-            ontap={tap}
-            zoneActive={!!zoneAction(myHandZone.id)}
-            onzone={zoneAction(myHandZone.id) ? () => run(zoneAction(myHandZone.id)!) : undefined}
-            fast={!!zoneAction(myHandZone.id)?.react}
-          />
+          <Zone zone={myHandZone} cw={handCw} {...zoneHooks(myHandZone)} place={false} />
         {:else}
           <!-- (your hand and the dummy trade places quietly: see frames.calm) -->
           <div class="fan">
@@ -1111,35 +982,13 @@
       </div>
     </footer>
     <aside bind:offsetHeight={asideH}>
-      {#if status.track && !display}
-        <!-- (the board is on a TV, and in the scores: here just the numbers, in the race to the target) -->
-        <div class="race" aria-label="Score">
-          <div class="eyebrow">To {status.track.target}</div>
-          {#each status.track.lanes as lane (lane.label)}
-            {@const lead = lane.score === Math.max(...status.track.lanes.map((l) => l.score)) && lane.score > 0}
-            <div class="race-lane" class:lead style:--c={lobbySeat(lane.seat)?.avatar?.color ?? seatColor(lane.seat)}>
-              <span class="ln">{lane.label}</span><b>{lane.score}</b>
-            </div>
-          {/each}
-        </div>
-      {/if}
-      <!-- (a hand over without a result banner, e.g. everyone folded: offer the replay here) -->
-      {#if view.handDone && !(showBanner && status.banner) && !replay}
-        <button class="btn quiet small-btn replay-quick" onclick={() => app.showReplay(0, 0)}>Replay hand</button>
-      {/if}
-      <!-- (in a replay there's nothing to do but watch: the replay's controls get the whole column) -->
-      {#if replay}<ReplayBar frame={replay} />{:else}<ActionBar
-          actions={view.actions}
-          selected={sel.selected}
-          pot={status.pot}
-          onact={(spec, amount, seat) => run(spec, amount, sel.selected, seat)}
-          onclear={() => sel.clear()}
-          seatInfo={(seat) => ({
-            name: s.players[seat]?.name ?? '',
-            avatar: lobbySeat(seat)?.avatar,
-            relation: seatRelation(you, seat, n),
-          })}
-        />{/if}
+      <ActionsColumn
+        track={status.track}
+        colorOf={(seat) => lobbySeat(seat)?.avatar?.color ?? seatColor(seat)}
+        replayHand={!!view.handDone && !(showBanner && status.banner) && !replay}
+        replay={replay ?? null}
+        bar={actionBar}
+      />
     </aside>
   {/if}
   <CardLayer {frames} {you} entry={s.log.at(-1)} />
@@ -1148,59 +997,21 @@
 {#if !display}<RotatePrompt />{/if}
 
 {#if sheet === 'spread'}
-  <Sheet title="On the table" full onclose={() => (sheet = null)}>
-    <div class="spread-all" bind:clientWidth={spreadW} bind:clientHeight={spreadH}>
-      {#each allStripZones as z (z.id)}
-        <Zone
-          zone={z}
-          cw={spreadCw}
-          inline
-          style="sheet"
-          room={spreadW ? spreadW - 20 : Infinity}
-          rowGap={4.8}
-          {you}
-          players={n}
-          selected={sel.selected}
-          {selectable}
-          ontap={tap}
-          zoneActive={!!zoneAction(z.id)}
-          place={!!zoneAction(z.id)?.select}
-          onzone={zoneAction(z.id) ? () => run(zoneAction(z.id)!) : undefined}
-          fast={!!zoneAction(z.id)?.react}
-        />
-      {/each}
-    </div>
-    <!-- (your hand and your moves, so you can meld and lay off from here) -->
-    <div class="spread-dock">
-      <div class="spread-hand">
-        <Hand
-          cards={myHand}
-          cw={spreadHandCw}
-          inline
-          selected={sel.selected}
-          {selectable}
-          hints={settings.hints}
-          ontap={tap}
-          onswipe={swipe}
-          onreorder={(ids) => (handOrder = ids)}
-        />
-      </div>
-      <div class="spread-acts">
-        <ActionBar
-          actions={view.actions}
-          selected={sel.selected}
-          pot={status.pot}
-          onact={(spec, amount, seat) => run(spec, amount, sel.selected, seat)}
-          onclear={() => sel.clear()}
-          seatInfo={(seat) => ({
-            name: s.players[seat]?.name ?? '',
-            avatar: lobbySeat(seat)?.avatar,
-            relation: seatRelation(you, seat, n),
-          })}
-        />
-      </div>
-    </div>
-  </Sheet>
+  <MeldsSheet
+    zones={allStripZones}
+    hand={myHand}
+    hints={settings.hints}
+    {selectable}
+    {you}
+    players={n}
+    zone={zoneHooks}
+    bar={actionBar}
+    {labels}
+    ontap={tap}
+    onswipe={swipe}
+    onreorder={(ids) => (handOrder = ids)}
+    onclose={() => (sheet = null)}
+  />
 {:else if sheet === 'tv'}
   <TvSheet table={view.lobby.code} onclose={() => (sheet = null)} />
 {/if}
@@ -1305,9 +1116,6 @@
   .table.handmode footer {
     align-self: end;
   }
-  .table.handmode .me {
-    font-size: 0.9rem;
-  }
   /* ---- table screen: an oval table filling the screen, players around it ---- */
   .table.display {
     display: block;
@@ -1346,38 +1154,6 @@
     left: auto;
     right: 1rem;
   }
-  .table.display .seats {
-    position: absolute;
-    inset: 0;
-    display: block;
-    padding: 0;
-    margin: 0;
-    overflow: visible;
-  }
-  /* seats keep their size; a row too long for the screen scrolls (and follows the turn) */
-  .seat-slot {
-    flex: none;
-    display: flex;
-  }
-  /* fade the edge where more players are scrolled out of view */
-  .seats.more-left {
-    --fade: linear-gradient(90deg, transparent, #000 28px);
-  }
-  .seats.more-right {
-    --fade: linear-gradient(90deg, #000 calc(100% - 28px), transparent);
-  }
-  .seats.more-left.more-right {
-    --fade: linear-gradient(90deg, transparent, #000 28px, #000 calc(100% - 28px), transparent);
-  }
-  .seats.more-left,
-  .seats.more-right {
-    -webkit-mask-image: var(--fade);
-    mask-image: var(--fade);
-  }
-  .table.display .seat-slot {
-    position: absolute;
-    transform: translate(-50%, -50%);
-  }
   .table.display main {
     position: absolute;
     inset: 17% 21%;
@@ -1389,13 +1165,6 @@
     justify-content: flex-start;
     padding-top: 1rem;
   }
-  .table.display .headline {
-    font-size: 1.15rem;
-    padding: 0.4rem 1.2rem;
-  }
-  .table.display .last {
-    font-size: 0.95rem;
-  }
   header {
     grid-area: top;
     position: relative;
@@ -1403,29 +1172,6 @@
     display: flex;
     align-items: center;
     gap: 8px;
-  }
-  .seats {
-    flex: 1;
-    display: flex;
-    /* centred with auto margins (below), so a row too wide to fit scrolls instead of being cut off at both ends */
-    justify-content: flex-start;
-    gap: 8px;
-    min-width: 0;
-    overflow-x: auto;
-    scrollbar-width: none;
-    /* extra room below (overlapping the table) so speech bubbles aren't clipped */
-    padding: 10px 2px 40px;
-    margin-bottom: -34px;
-    pointer-events: none;
-  }
-  .seats > :global(*) {
-    pointer-events: auto;
-  }
-  .seats > :global(:first-child) {
-    margin-left: auto;
-  }
-  .seats > :global(:last-child) {
-    margin-right: auto;
   }
   .icon {
     flex: none;
@@ -1473,14 +1219,6 @@
   .reactbar button:focus-visible {
     background: rgba(255, 255, 255, 0.12);
   }
-  .my-react {
-    position: absolute;
-    left: 0;
-    bottom: 100%;
-    font-size: 1.5rem;
-    pointer-events: none;
-    animation: my-react 3.6s var(--ease-out) forwards;
-  }
   @keyframes my-react {
     0% {
       opacity: 0;
@@ -1497,9 +1235,6 @@
     }
   }
   @media (prefers-reduced-motion: reduce) {
-    .my-react {
-      animation-name: my-react-still;
-    }
     @keyframes my-react-still {
       0%,
       80% {
@@ -1538,63 +1273,11 @@
     font-size: 0.8rem;
     white-space: nowrap;
   }
-  .headline {
-    font-size: 0.82rem;
-    font-weight: 600;
-    padding: 0.3rem 0.9rem;
-    border-radius: 16px;
-    background: rgba(0, 0, 0, 0.22);
-    color: var(--ink-dim);
-    transition:
-      background 0.3s,
-      color 0.3s;
-    max-width: 100%;
-    text-align: center;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
-  .last {
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-    max-width: 100%;
-    margin-top: -2px;
-    font-size: 0.74rem;
-    color: var(--ink-dim);
-    animation: lastIn 0.35s var(--ease-out);
-  }
-  /* (hand mode: the middle is only as tall as it needs, so a long last move wraps rather than being cut) */
-  .table.handmode .last span {
-    white-space: normal;
-    text-align: center;
-  }
-  .last span {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
   @keyframes lastIn {
     from {
       opacity: 0;
       transform: translateY(-4px);
     }
-  }
-  .headline.mine {
-    --suit-red: #a8121e;
-    --suit-red4: #b54a2b;
-    --suit-blue: #07078f;
-    --suit-green: #197674;
-    background: var(--gold);
-    color: #2a1d05;
-    box-shadow: 0 0 24px rgba(233, 196, 106, 0.45);
-  }
-  /* never squash the headline or last move when the middle is short of room */
-  .headline,
-  .last {
-    flex-shrink: 0;
   }
   /* (the score track keeps its own width: the wrapper is only there to measure it) */
   .track-wrap {
@@ -1693,49 +1376,6 @@
     background: color-mix(in srgb, var(--felt-3) 85%, transparent);
     box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.15);
   }
-  /* everyone's melds full screen: panels that wrap, the page scrolling down */
-  .spread-all {
-    flex: 1;
-    min-height: 0;
-    overflow-y: auto;
-    display: flex;
-    flex-wrap: wrap;
-    align-content: flex-start;
-    gap: 10px;
-    padding: 4px 2px 8px;
-  }
-  .spread-all > :global(.zone) {
-    max-width: 100%;
-    padding: 0.25rem 0.5rem 0.4rem;
-    border-radius: 12px;
-    background: rgba(0, 0, 0, 0.16);
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
-  }
-  .spread-dock {
-    display: flex;
-    align-items: flex-end;
-    gap: 10px;
-    padding-top: 6px;
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
-  }
-  .spread-hand {
-    flex: 1;
-    min-width: 0;
-  }
-  .spread-acts {
-    flex: none;
-    width: min(15rem, 38vw);
-    max-height: 7.5rem;
-  }
-  /* (the moves in a row that wraps, beside the hand, rather than a tall column) */
-  .spread-acts :global(.bar) {
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-content: flex-end;
-  }
-  .spread-acts :global(.bar .btn) {
-    flex: 1 1 6rem;
-  }
   /* a table screen can't be scrolled: the melds wrap into rows instead (sized to fit: see stripFit) */
   /* (before the first meld: just its place, under the piles) */
   .strip-room {
@@ -1749,11 +1389,6 @@
   .table.display .zones > .zone-slot :global(.zone > .label) {
     min-width: calc(var(--cw) * 1.8);
     text-align: center;
-  }
-  /* (the headline stays on one line, reaching into the oval if it must, and the pot keeps room
-     for a few more digits: neither pushes the piles about as it changes) */
-  .table.display .headline {
-    white-space: nowrap;
   }
   .table.display .pot {
     min-width: 9rem;
@@ -1797,24 +1432,6 @@
       0 1px 2px rgba(0, 0, 0, 0.4);
     border: 1.5px dashed rgba(255, 255, 255, 0.6);
   }
-  .replay-quick {
-    margin-bottom: 0.4rem;
-    width: 100%;
-  }
-  .recap {
-    position: relative;
-    z-index: 3;
-    margin: 0;
-    max-width: calc(100% - 16px);
-    padding: 0.3rem 0.9rem;
-    border-radius: 16px;
-    background: rgba(0, 0, 0, 0.28);
-    color: var(--ink);
-    font-size: 0.82rem;
-    font-weight: 600;
-    text-align: center;
-    font-variant-numeric: tabular-nums;
-  }
   footer {
     grid-area: hand;
     /* (its cards stack among themselves, on a layer of their own: over the middle's piles and
@@ -1825,80 +1442,6 @@
     align-items: flex-end;
     gap: 8px;
     min-width: 0;
-  }
-  .me {
-    grid-area: me;
-    align-self: end;
-    /* (room for a short name and a badge beside it: "Tester ★"; wider for a longer status,
-       "0 in hand · 0 up · 3 down", so it takes two lines rather than four) */
-    min-width: clamp(90px, 13vw, 140px);
-    max-width: clamp(120px, 22vw, 200px);
-    padding-bottom: 2px;
-    font-size: 0.8rem;
-  }
-  /* a phone on its side: whose turn it is at the top of the column, you at the bottom */
-  .me.side {
-    align-self: stretch;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    gap: 6px;
-    min-height: 0;
-    /* a set width, not the width of the words in it: a one-line tip that grew and shrank with
-       each move would push the middle (and every card in it) about */
-    width: clamp(130px, 24vw, 210px);
-    max-width: none;
-  }
-  /* (a short column: the last move gives way first, so nothing runs into your name below) */
-  .side-status {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 4px;
-    min-height: 0;
-    overflow: hidden;
-  }
-  .side-status .last,
-  .side-status .recap {
-    flex-shrink: 0;
-  }
-  .side-status .recap {
-    max-width: 100%;
-    font-size: 0.74rem;
-    text-align: left;
-    border-radius: 12px;
-    padding: 0.3rem 0.6rem;
-  }
-  .me.side > .me-own {
-    flex: none;
-  }
-  /* one line: a tip too long for the column glides along it (see marquee), never cut short */
-  .side-status .headline {
-    display: block;
-    max-width: 100%;
-    text-align: left;
-    font-size: 0.78rem;
-    padding: 0.3rem 0.6rem;
-    border-radius: 999px;
-  }
-  .tip {
-    display: block;
-    overflow: hidden;
-    white-space: nowrap;
-  }
-  .tip .run {
-    display: inline-block;
-  }
-  .tip:global(.moving) {
-    --fade: 14px;
-    -webkit-mask-image: linear-gradient(to right, transparent, #000 0.4rem, #000 calc(100% - var(--fade)), transparent);
-    mask-image: linear-gradient(to right, transparent, #000 0.4rem, #000 calc(100% - var(--fade)), transparent);
-    padding-left: 0.4rem;
-    margin-left: -0.4rem;
-  }
-  .tip:global(.moving) .run {
-    /* a few passes then rest (battery); tapping it, or a new tip, plays it again */
-    animation: glide var(--cycle) ease-in-out 3;
   }
   @keyframes glide {
     0%,
@@ -1912,112 +1455,6 @@
     100% {
       transform: translateX(0);
     }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .tip:global(.moving) .run {
-      animation: none;
-    }
-  }
-  .side-status .last {
-    align-items: flex-start;
-    margin-top: 0;
-  }
-  /* (shown whole, or not at all: see fitSide) */
-  .side-status .last span {
-    white-space: normal;
-  }
-  aside > .race {
-    flex: none;
-  }
-  .race {
-    margin-bottom: 0.5rem;
-    padding: 0.35rem 0.55rem;
-    border-radius: 10px;
-    background: rgba(0, 0, 0, 0.22);
-  }
-  .race .eyebrow {
-    font-size: 0.7rem;
-  }
-  .race-lane {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    color: var(--ink-dim);
-  }
-  .race-lane::before {
-    content: '';
-    flex: none;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--c);
-  }
-  .race-lane .ln {
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .race-lane b {
-    font-variant-numeric: tabular-nums;
-    color: var(--ink);
-  }
-  .race-lane.lead b {
-    color: var(--gold);
-  }
-  .me-name {
-    position: relative;
-    font-weight: 700;
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-    white-space: nowrap;
-    min-width: 0;
-  }
-  /* a long name shortens ("Alexand…"); the dealer badge beside it always shows */
-  .me-name .mn {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    min-width: 0;
-  }
-  .me-name > :global(*) {
-    flex: none;
-  }
-  .me-name > .mn {
-    flex: 0 1 auto;
-  }
-  .mytag {
-    font-size: 0.7rem;
-    background: #fff;
-    color: #111;
-    border-radius: 6px;
-    padding: 0 4px;
-  }
-  /* (chips and your status on one line where they fit: "1,111 chips · Call 63") */
-  .me-sub {
-    color: var(--ink-dim);
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    column-gap: 0.4rem;
-  }
-  .me-sub b {
-    color: var(--ink);
-    font-size: 1rem;
-    font-variant-numeric: tabular-nums;
-  }
-  .gold,
-  .hint {
-    color: var(--gold);
-    font-weight: 600;
-  }
-  /* (a hint, "Melded 0 · holding 57": small, under your score) */
-  .hint {
-    margin-top: 0.15rem;
-    font-size: 0.7rem;
-    font-weight: 500;
-    opacity: 0.9;
   }
   /* (the old hand leaving and the new one coming in share one spot while they cross) */
   .fan {
@@ -2063,10 +1500,6 @@
   }
   /* very short landscape phones */
   @media (max-height: 360px) {
-    .headline {
-      font-size: 0.74rem;
-      padding: 0.2rem 0.7rem;
-    }
     .icon {
       width: 34px;
       height: 34px;

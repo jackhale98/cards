@@ -10,6 +10,7 @@ import { ovalSeat } from '../src/ui/layout/table';
 const card = (id: string) => ({ id });
 const zone = (id: string, cards: string[], more: Partial<ZoneState> = {}): ZoneState => ({
   id,
+  base: id.split(':')[0],
   visibility: 'all',
   layout: 'stack',
   area: 'center',
