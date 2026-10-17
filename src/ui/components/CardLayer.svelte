@@ -256,7 +256,8 @@
       // pile, or to someone's hand
       let away: Placement;
       let ms: number;
-      if (buried.has(c.at.id) || (isHidden(c.at.id) && all[c.frame]?.tally)) {
+      // (a seat's back, or its copy of a card shown elsewhere, the trick's say: it just fades)
+      if (buried.has(c.at.id) || (all[c.frame]?.tally && (isHidden(c.at.id) || c.key !== c.at.id))) {
         away = { ...c.at, z: 1, opacity: 0 };
         ms = 200;
       } else if (drawnHere && c.frame === drawnFrom && isHidden(c.at.id)) {

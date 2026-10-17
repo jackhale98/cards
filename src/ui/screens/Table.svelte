@@ -176,6 +176,9 @@
   /** Zones on the compact strip along the bottom of the table (e.g. everyone's melds). */
   const allStripZones = $derived(shown.stripZonesOf(s.zones, shownDownZones));
   const seatZone = (seat: number) => (shownDownSeats.has(seat) ? [] : (s.zones[`hand:${seat}`]?.cards ?? []));
+  /** A game with a trick: each seat's card in it, shown on their seat (null: not played to it yet), so who played what reads at a glance. */
+  const trick = $derived(Object.values(s.zones).find((z) => z.layout === 'trick'));
+  const playedBy = (seat: number) => (trick ? (trick.cards.filter((c) => c.by === seat).at(-1) ?? null) : undefined);
 
   // ---- selection --------------------------------------------------------------------------
   /** The cards you've picked (see selection.svelte.ts), pruned to what's still on offer after each update. */
@@ -525,6 +528,7 @@
         player: s.players[seat],
         info: status.seats[seat],
         cards: seatZone(seat),
+        played: playedBy(seat),
         turn: s.turn === seat,
         connected: lobbySeat(seat)?.connected ?? true,
         showChips,

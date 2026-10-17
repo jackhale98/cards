@@ -60,23 +60,30 @@
 
 <svelte:window bind:innerWidth={vw} />
 
-<div class="seats" class:display class:more-left={moreLeft} class:more-right={moreRight} bind:this={row} onscroll={edges}>
-  {#each seats as s (s)}
-    {@const pos = display ? ovalSeat(s, players, slotW[s], slotH[s]) : null}
-    <!-- (centred on its place by margins, not a transform: see .seat-slot.display) -->
-    <div
-      class="seat-slot"
-      class:display
-      style:left={pos?.left}
-      style:top={pos?.top}
-      style:margin-left={pos ? `${-(slotW[s] ?? 0) / 2}px` : undefined}
-      style:margin-top={pos ? `${-(slotH[s] ?? 0) / 2}px` : undefined}
-      bind:clientWidth={slotW[s]}
-      bind:clientHeight={slotH[s]}
-    >
-      <Seat {...seat(s)} />
-    </div>
-  {/each}
+<div class="seats-wrap" class:display>
+  <div class="seats" class:display bind:this={row} onscroll={edges}>
+    {#each seats as s (s)}
+      {@const pos = display ? ovalSeat(s, players, slotW[s], slotH[s]) : null}
+      <!-- (centred on its place by margins, not a transform: see .seat-slot.display) -->
+      <div
+        class="seat-slot"
+        class:display
+        style:left={pos?.left}
+        style:top={pos?.top}
+        style:margin-left={pos ? `${-(slotW[s] ?? 0) / 2}px` : undefined}
+        style:margin-top={pos ? `${-(slotH[s] ?? 0) / 2}px` : undefined}
+        bind:clientWidth={slotW[s]}
+        bind:clientHeight={slotH[s]}
+      >
+        <Seat {...seat(s)} />
+      </div>
+    {/each}
+  </div>
+  <!-- where more players are scrolled out of view, the row fades into the cloth: over the seats' cards
+       too (the card layer draws them), not by a mask on the row, which would take the speech bubbles
+       under the cards -->
+  {#if moreLeft}<div class="fade left" aria-hidden="true"></div>{/if}
+  {#if moreRight}<div class="fade right" aria-hidden="true"></div>{/if}
 </div>
 
 <style>
@@ -108,20 +115,34 @@
     flex: none;
     display: flex;
   }
-  /* fade the edge where more players are scrolled out of view */
-  .seats.more-left {
-    --fade: linear-gradient(90deg, transparent, #000 28px);
+  .seats-wrap {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    position: relative;
   }
-  .seats.more-right {
-    --fade: linear-gradient(90deg, #000 calc(100% - 28px), transparent);
+  /* (a table screen's seats sit round the oval, placed against the table) */
+  .seats-wrap.display {
+    display: contents;
   }
-  .seats.more-left.more-right {
-    --fade: linear-gradient(90deg, transparent, #000 28px, #000 calc(100% - 28px), transparent);
+  .fade {
+    position: absolute;
+    z-index: 4;
+    top: 0;
+    bottom: 34px;
+    width: 28px;
+    pointer-events: none;
+    background: var(--felt);
   }
-  .seats.more-left,
-  .seats.more-right {
-    -webkit-mask-image: var(--fade);
-    mask-image: var(--fade);
+  .fade.left {
+    left: 0;
+    -webkit-mask-image: linear-gradient(90deg, #000, transparent);
+    mask-image: linear-gradient(90deg, #000, transparent);
+  }
+  .fade.right {
+    right: 0;
+    -webkit-mask-image: linear-gradient(270deg, #000, transparent);
+    mask-image: linear-gradient(270deg, #000, transparent);
   }
   /* ---- a table screen: round the oval */
   .seats.display {

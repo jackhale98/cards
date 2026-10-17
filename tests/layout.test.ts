@@ -260,4 +260,24 @@ describe('a seat’s cards', () => {
     expect(at(hidden(2)).spots).toHaveLength(2);
     expect(at([])).toEqual({ w: 0, h: 0, spots: [] });
   });
+
+  it('with a trick: the front card is theirs in it, face up and readable, or a back the same size till they play', () => {
+    const before = at(hidden(9), true);
+    const none = seatRow(hidden(9), { seat: 2, up: 30, back: 22, crowded: true, played: null });
+    const played = seatRow(hidden(8), { seat: 2, up: 30, back: 22, crowded: true, played: { id: 'QS' } });
+    expect(none.spots.map((s) => [s.key, s.w, s.down])).toEqual([['seat:2:front', 30, true]]);
+    expect(played.spots.map((s) => [s.key, s.id, s.w, s.down])).toEqual([['seat:2:played', 'QS', 30, false]]);
+    // (the seat keeps its width as they play)
+    expect(played.w).toBe(none.w);
+    expect(none.w).toBeGreaterThan(before.w);
+    // (a roomy row: the other backs behind it, a strip of each showing)
+    const roomy = seatRow(hidden(8), { seat: 2, up: 30, back: 22, crowded: false, played: { id: 'QS' } });
+    expect(roomy.spots.map((s) => s.key)).toEqual(['seat:2:0', 'seat:2:1', 'seat:2:2', 'seat:2:played']);
+    expect(roomy.spots[3].x - roomy.spots[2].x).toBeCloseTo(22 * 0.3 + (30 - 22) / 2);
+    // (no taller than the seat: the readable card overhangs it evenly, so the seat keeps its height
+    // with cards or without)
+    const kept = seatRow(hidden(8), { seat: 2, up: 30, back: 22, crowded: true, played: { id: 'QS' }, room: 34 });
+    expect(kept.h).toBe(34);
+    expect(kept.spots[0].y).toBe(17);
+  });
 });

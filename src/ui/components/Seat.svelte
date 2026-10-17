@@ -28,6 +28,8 @@
     scale?: number;
     /** Label the seat whose move it is (table screen). */
     turnLabel?: boolean;
+    /** A game with a trick: their card in it (null: not played to it yet). Shown as their front card. */
+    played?: CardRef | null;
   }
   let {
     player,
@@ -43,11 +45,14 @@
     ping = null,
     scale = 1,
     turnLabel = false,
+    played = undefined,
   }: Props = $props();
   const RELATION_LABEL: Record<Relation, string> = { left: '◂ your left', right: 'your right ▸', across: 'across' };
   const hidden = $derived(cards.filter((c) => isHidden(c.id)).length);
   // (a crowded row shows face-down cards as one card and a count, leaving room for names)
-  const placed = $derived(seatRow(cards, { seat: player.seat, up: 30 * scale, back: (compact ? 18 : 22) * scale, crowded: compact }));
+  const placed = $derived(
+    seatRow(cards, { seat: player.seat, up: 30 * scale, back: (compact ? 18 : 22) * scale, crowded: compact, played, room: (compact ? 30 : 34) * scale }),
+  );
 
   // the card layer draws them (see layout/frames.svelte.ts): a card leaving this seat for the
   // table is the same card that lands there
@@ -97,8 +102,8 @@
     </div>
     <div class="sub">
       {#if showChips}<span class="chips"><span class="chip-dot"></span>{player.chips.toLocaleString()}</span>{/if}
-      <!-- (a crowded poker row drops the badge: each action also pops up as a bubble) -->
-      {#if info?.badge && !(compact && showChips)}<span class="badge"><SuitText text={info.badge} /></span>{/if}
+      <!-- (always, however many play: a row too long for the screen scrolls) -->
+      {#if info?.badge}<span class="badge"><SuitText text={info.badge} /></span>{/if}
       {#if !connected}<span class="badge warn">offline</span>{/if}
     </div>
   </div>
@@ -149,10 +154,10 @@
     border-radius: 50%;
   }
   /* pops over the right end of the seat pill so it never covers the table */
-  /* (over the card layer, which draws the seat's cards: see Table's header) */
+  /* (over the card layer, which draws the seat's cards, and the row's faded ends: see Table's header, SeatsBar) */
   .said {
     position: absolute;
-    z-index: 4;
+    z-index: 5;
     top: 50%;
     right: -4px;
     padding: 0.25rem 0.65rem;

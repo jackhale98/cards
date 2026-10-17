@@ -11,6 +11,8 @@
   --felt-1: #1d5c47;
   --felt-2: #0f3a2d;
   --felt-3: #071a14;
+  /* the table's cloth, fixed to the window: anything painted with it blends into the page wherever it is */
+  --felt: radial-gradient(ellipse 80% 70% at 50% 42%, var(--felt-1) 0%, var(--felt-2) 55%, var(--felt-3) 100%) fixed, var(--felt-3);
   --ink: #f3efe6;
   /* (quieter text, still about 4.5:1 on the lightest part of the green felt) */
   --ink-dim: rgba(243, 239, 230, 0.8);
@@ -72,9 +74,7 @@ body {
 body {
   font-family: var(--font-ui);
   color: var(--ink);
-  background:
-    radial-gradient(ellipse 80% 70% at 50% 42%, var(--felt-1) 0%, var(--felt-2) 55%, var(--felt-3) 100%) fixed,
-    var(--felt-3);
+  background: var(--felt);
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
   user-select: none;

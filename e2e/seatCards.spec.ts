@@ -40,8 +40,11 @@ test('each seat’s cards are drawn on the card layer, on its pill, under what t
   // (neither takes touches, so hit-testing would pass through both: let it find them for a moment)
   await page.addStyleTag({ content: '.said, .layer-card { pointer-events: auto !important }' });
   const onTop = await bubble.evaluate((el) => {
+    // (the part of it in view: a seat at the end of a row that scrolls may be partly out of it)
     const r = el.getBoundingClientRect();
-    return el.contains(document.elementFromPoint(r.x + r.width - 6, r.y + r.height / 2));
+    const row = el.closest('.seats')!.getBoundingClientRect();
+    const right = Math.min(r.right, row.right) - 6;
+    return el.contains(document.elementFromPoint(right, r.y + r.height / 2));
   });
   expect(onTop).toBe(true);
 });
@@ -62,7 +65,7 @@ test('a card an opponent plays starts from their seat’s cards', async ({ page 
   expect(played).not.toBeNull();
   // where its move began: the first keyframe of its transition (its top left corner), on the seat's pill
   const start = await page.evaluate((id) => {
-    const card = document.querySelector<HTMLElement>(`.layer-card[data-card="${id}"]`)!;
+    const card = document.querySelector<HTMLElement>(`.layer-card[data-frame="trick"][data-card="${id}"]`)!;
     const move = card.getAnimations().find((a) => a instanceof CSSTransition && a.transitionProperty === 'transform')!;
     const from = new DOMMatrixReadOnly((move.effect as KeyframeEffect).getKeyframes()[0].transform as string);
     const layer = card.parentElement!.getBoundingClientRect();
@@ -73,4 +76,23 @@ test('a card an opponent plays starts from their seat’s cards', async ({ page 
   expect(start.x).toBeLessThan(pill.x + pill.width);
   expect(start.y).toBeGreaterThan(pill.y);
   expect(start.y).toBeLessThan(pill.y + pill.height);
+});
+
+test('in a game with a trick, each seat shows the card they put in it, and a back until they have', async ({ page }) => {
+  await deal(page);
+  const played = async () => {
+    const s = JSON.parse(await page.evaluate(() => (window as unknown as { __snapshot: () => string }).__snapshot())).snap.state;
+    return (s.zones.trick.cards as { id: string; by: number }[]).filter((c) => c.by > 0);
+  };
+  // (on through the bids to a trick with an opponent's card in it)
+  for (let i = 0; i < 12 && !(await played()).length; i++) await advance(page, 1);
+  const inTrick = await played();
+  expect(inTrick.length).toBeGreaterThan(0);
+  await cardsLanded(page);
+  for (const seat of [1, 2, 3]) {
+    const card = inTrick.find((c) => c.by === seat);
+    const front = page.locator(`.layer-card[data-frame="seat:${seat}"]`).last();
+    if (card) await expect(front).toHaveAttribute('data-card', card.id);
+    else await expect(front).toHaveAttribute('data-key', `seat:${seat}:front`);
+  }
 });
