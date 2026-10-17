@@ -15,3 +15,19 @@ export const zoneCards = (page: Page | Locator, zone: string) => page.locator(`.
 
 /** The drawn card a hand's place (`.hand .slot`, named for its card) shows. */
 export const drawnFor = (page: Page, name: string) => page.locator(`.layer .layer-card[data-frame="hand"]:not([data-leaving]) .card[aria-label="${name}"]`);
+
+/**
+ * A point on a card in your hand (`.hand .slot`) that taps that card, relative to its box: the
+ * strip of it that shows. (A fanned card is turned, so a fixed point near its box's corner can
+ * fall on the card before it.)
+ */
+export async function showing(slot: Locator): Promise<{ x: number; y: number }> {
+  const at = await slot.evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    for (let y = r.top + r.height * 0.25; y < r.bottom - 4; y += 4)
+      for (let x = r.left + 2; x < r.right; x += 3) if (document.elementFromPoint(x, y)?.closest('.slot') === el) return { x: x + 4 - r.left, y: y - r.top };
+    return null;
+  });
+  if (!at) throw new Error('no part of the card shows');
+  return at;
+}

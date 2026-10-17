@@ -77,6 +77,25 @@ describe('pinochle (pagat)', () => {
     throw new Error('no deal reached the meld');
   });
 
+  it('once the melds go back into the hands, the table keeps no room for them till the next deal', () => {
+    const strip = (s: GameState<PinochleData>) => [0, 1, 2, 3].filter((i) => s.zones[`meld:${i}`].area === 'strip');
+    const s = g.setup(bots(4), 5, {});
+    const on = (until: (s: GameState<PinochleData>) => boolean) => {
+      for (let i = 0; i < 2000 && !until(s); i++) {
+        const sys = g.system?.(s);
+        if (sys) sys.run(s);
+        else if (s.phase === 'handOver') g.apply(s, 0, { type: 'next' });
+        else g.apply(s, s.turn!, g.bot!(s, s.turn!)!);
+      }
+    };
+    // (bidding: the melds come down after it, so their room is kept)
+    expect(strip(s)).toEqual([0, 1, 2, 3]);
+    on((x) => x.phase === 'play');
+    expect(strip(s)).toEqual([]);
+    on((x) => x.phase === 'bid' && x.data.handNo === 2);
+    expect(strip(s)).toEqual([0, 1, 2, 3]);
+  });
+
   /** Seat 0 to play a card to the trick with trumps hearts. */
   function midTrick(hand: string[], trick: [string, number][]) {
     const s = g.setup(people(4), 4, {});

@@ -119,6 +119,8 @@ export function pinochleFamily(config: GameConfig): GameModule<PinochleData> {
     const d = s.data;
     resetDeck(s, config);
     for (const z of Object.values(s.zones)) if (z.id !== 'deck') z.cards = [];
+    // (the melds come down on the table after the bidding: room is kept for them till then)
+    s.players.forEach((_, i) => (zone(s, `meld:${i}`).area = 'strip'));
     deal(s, [{ to: 'hand', count: 12 }]);
     s.players.forEach((_, i) => sortHand(s, i));
     d.handNo++;
@@ -177,9 +179,11 @@ export function pinochleFamily(config: GameConfig): GameModule<PinochleData> {
   const sideMeld = (s: S, side: number) => s.data.meld[side].points + s.data.meld[side + 2].points;
 
   function startPlay(s: S) {
-    // meld goes back into the hands
+    // meld goes back into the hands, and nothing comes down on the table again this hand: the
+    // room kept for the melds goes to the trick and the hands
     s.players.forEach((_, i) => {
       moveCards(s, `meld:${i}`, `hand:${i}`, ids(zone(s, `meld:${i}`)));
+      zone(s, `meld:${i}`).area = 'none';
       sortHand(s, i);
     });
     s.phase = 'play';

@@ -1,5 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
-import { handCards } from './cards';
+import { expect, test, type Locator, type Page } from '@playwright/test';
+import { handCards, showing } from './cards';
 import { screenProblems } from './screenCheck';
 import { cardsLanded } from './wait';
 
@@ -23,7 +23,7 @@ async function deal(page: Page, game: string, size = { width: 844, height: 390 }
 }
 const slots = (page: Page) => page.locator('.hand .slot');
 /** (the cards overlap, each over the one before: tap the strip of it that shows) */
-const EDGE = { position: { x: 10, y: 30 } };
+const tap = async (slot: Locator) => slot.click({ position: await showing(slot) });
 
 test('you pass, then play a card by dragging it up, and the same card lands in the trick', async ({ page }) => {
   await deal(page, 'hearts');
@@ -31,7 +31,7 @@ test('you pass, then play a card by dragging it up, and the same card lands in t
   await expect(handCards(page)).toHaveCount(13);
   // pick three and pass them
   for (let i = 0; i < 3; i++) {
-    await slots(page).nth(i).click(EDGE);
+    await tap(slots(page).nth(i));
     await expect(slots(page).nth(i)).toHaveAttribute('aria-pressed', 'true');
   }
   await page.getByRole('button', { name: /^Pass/ }).click();
@@ -43,16 +43,17 @@ test('you pass, then play a card by dragging it up, and the same card lands in t
   await expect(page.locator('[aria-live]')).toContainText('Your turn', { timeout: 60_000 });
   const slot = page.locator('.hand .slot:not([aria-disabled="true"])').first();
   const name = (await slot.getAttribute('aria-label'))!;
-  await slot.click(EDGE);
+  await tap(slot);
   await expect(slot).toHaveAttribute('aria-pressed', 'true');
   const drawn = page.locator('.layer .layer-card', { has: page.locator(`.card[aria-label="${name}"]`) });
   await drawn.evaluate((el) => ((window as unknown as { __played: Element }).__played = el));
   // drag it up
   const box = (await slot.boundingBox())!;
-  await page.mouse.move(box.x + 10, box.y + 30);
+  const at = await showing(slot);
+  await page.mouse.move(box.x + at.x, box.y + at.y);
   await page.mouse.down();
-  await page.mouse.move(box.x + 10, box.y - 20, { steps: 5 });
-  await page.mouse.move(box.x + 10, box.y - 100, { steps: 5 });
+  await page.mouse.move(box.x + at.x, box.y + at.y - 50, { steps: 5 });
+  await page.mouse.move(box.x + at.x, box.y + at.y - 130, { steps: 5 });
   await page.mouse.up();
   // it's no longer in your hand, and the element that left it is the one now in the trick
   await expect(drawn).toHaveAttribute('data-in', 'trick');
