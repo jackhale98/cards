@@ -122,7 +122,7 @@ export class Host {
     code: string,
     host: { cid: string; name: string; avatar?: Avatar; key?: string },
     restore?: HostSnapshot,
-    /** `takeover`: this device is a player taking over from a host that has gone. */
+    /** `takeover`: this device is a player (or a tournament's director) taking over from a host that has gone. */
     /** `brain`: where bots think (by default right here; the app gives a background worker). */
     opts: {
       backupKey?: string;
@@ -200,7 +200,15 @@ export class Host {
       this.lobby.code = code;
       const hostSeat = this.lobby.seats.find((s) => s.host);
       const mine = this.lobby.seats.find((s) => s.id === host.cid);
-      if (opts.takeover && mine && hostSeat !== mine) {
+      if (opts.takeover && !mine && restore.event) {
+        // a tournament's director takes the table over (its host's phone went quiet): the host
+        // keeps their seat as a player, and the director's device is the table's screen, sitting out
+        if (hostSeat) {
+          hostSeat.host = false;
+          delete hostSeat.screen;
+        }
+        this.lobby.seats.unshift({ id: host.cid, name: host.name, avatar: host.avatar, host: true, connected: true, screen: true, out: true });
+      } else if (opts.takeover && mine && hostSeat !== mine) {
         // the old host keeps their seat as a player (they can rejoin it), and we host from ours
         if (hostSeat) {
           hostSeat.host = false;
@@ -1150,6 +1158,12 @@ export class Host {
       this.onTable({ kind: 'over', result: tableResult(m, s) });
     }
     if (ev.held) this.onTable({ kind: 'held' });
+  }
+
+  /** A tournament's director holds the table's latest backup too (null: no longer), from its host's link (see host/uplink.ts). */
+  backupTo(f: ((blob: string, v: number, token: string) => void) | null) {
+    this.backups.away = f;
+    if (f) this.backups.queue();
   }
 
   /** Resume bots/system steps after restoring from a snapshot. */

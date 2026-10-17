@@ -11,6 +11,8 @@ import { EventLink, isOurMove, type EventIdentity } from '../src/net/eventLink';
 import { Host } from '../src/net/host';
 import { Uplink } from '../src/net/host/uplink';
 import type { Msg } from '../src/net/protocol';
+import type { Transport } from '../src/net/transport';
+import { newBackupKey } from '../src/net/backup';
 import { Bus, MemTransport } from './netHarness';
 
 /**
@@ -43,7 +45,11 @@ export class Net {
   };
 }
 
-/** A phone, doing what the app does: sign up, then follow each move (checked) to host a table or sit at one. */
+/**
+ * A phone, doing what the app does: sign up, then follow each move (checked) to host a table or sit
+ * at one, keeping its link to the director all the while (quiet at a table). With `escrow`, a
+ * table it hosts leaves its backup key with "the relay" (as the app's relay transport does).
+ */
 export class Phone {
   id: EventIdentity;
   link: EventLink | null;
@@ -55,6 +61,7 @@ export class Phone {
   constructor(
     private net: Net,
     name: string,
+    private escrow?: Escrow,
   ) {
     this.id = { code: CODE, cid: name.toLowerCase(), name, secret: newSecret() };
     this.link = new EventLink(net.open, this.id);
@@ -67,12 +74,17 @@ export class Phone {
     this.at = m;
     // (no table this round: wait at the event, with the director)
     if (m.table === 0) return this.findTable();
-    // (at a table, a phone is only a player there: its next move comes through the table's host)
-    this.link?.close();
-    this.link = null;
+    // (at a table, a phone is a player there; its link to the director stays, quietly)
+    this.link?.setQuiet(true);
+    this.sit(m);
+  }
+  private sit(m: SignedMove) {
     const { cid, name, secret } = this.id;
     if (m.host) {
-      this.host = new Host(this.net.open(m.room), m.room, { cid, name });
+      const t = this.net.open(m.room);
+      const backup = this.escrow ? { backupKey: newBackupKey(), takeoverToken: newBackupKey() } : {};
+      this.host = new Host(t, m.room, { cid, name }, undefined, backup);
+      if (this.escrow) this.escrow.deposit(m.room, t, backup.backupKey!, backup.takeoverToken!);
       this.host.expectTable({ code: CODE, name: 'Swiss', round: m.round, table: m.table });
       this.uplink = new Uplink(this.net.open, CODE, this.host, { cid, secret, round: m.round, table: m.table });
       this.uplink.onMove = (mv) => this.go(mv);
@@ -81,11 +93,27 @@ export class Phone {
       this.client.onMove = (mm) => mm.ev && this.go(mm.ev);
     }
   }
-  /** "Find my table": back to the director, which says where. */
+  /** "Find my table": back to the director, which says where (and shows the event). */
   findTable() {
+    if (!this.link) {
+      this.link = new EventLink(this.net.open, this.id);
+      this.link.onMove = (m) => this.go(m);
+    }
+    this.link.setQuiet(false);
+  }
+  /** The phone goes to sleep: everything it had open goes quiet (as a relay sees a phone that's gone). */
+  sleep() {
+    this.leaveTable();
     this.link?.close();
+    this.link = null;
+  }
+  /** …and wakes: back at its table as a player (whoever hosts it now), and linked to the director again. */
+  wake() {
+    const m = this.at!;
     this.link = new EventLink(this.net.open, this.id);
-    this.link.onMove = (m) => this.go(m);
+    this.link.onMove = (mv) => this.go(mv);
+    this.link.setQuiet(m.table !== 0);
+    if (m.table) this.sit({ ...m, host: false });
   }
   leaveTable() {
     this.client?.close();
@@ -123,9 +151,14 @@ export function director(
     pause: null,
     onRound: (r) => ref.desk!.round(r),
     keyFor: (m, round, table) => seatKeyFor(registry.secretOf(m)!, CODE, round, table),
-    makeTable: (round, t, restore) => {
-      if (t.seats.some((s) => s.member)) return ref.desk!.remote(round, t);
-      const local = new LocalTable(round, t.table, { code: `B${round}${t.table}`, still: o.still, restore });
+    makeTable: (round, t, { restore, room } = {}) => {
+      if (!room && t.seats.some((s) => s.member)) return ref.desk!.remote(round, t);
+      const local = new LocalTable(round, t.table, {
+        code: room ?? `B${round}${t.table}`,
+        transport: room ? ref.desk!.tableRoom(room) : null,
+        still: o.still,
+        restore,
+      });
       local.onView = () => ref.desk?.viewed(t.table);
       return local;
     },
@@ -137,7 +170,7 @@ export function director(
     director: () => d,
     open: (code) => net.open(code, true),
     saved: o.restore?.desk,
-    ...(o.backup ? { backup: o.backup } : {}),
+    ...(o.backup ? { backup: o.backup, takeover: { escrow: o.backup.escrow, hostKey: o.restore?.hostKey ?? 'host-key' } } : {}),
   }));
   d.onChange = () => desk.changed();
   d.resume();
@@ -146,9 +179,36 @@ export function director(
   return { d, desk, registry, save };
 }
 
-/** Let the network settle: connections join, hellos are answered (paced), moves followed. */
+/** The relay's escrow, for any room (see relay/src/index.ts): a key left by its host, handed once to a takeover that brings the token, once the host has gone. */
+export class FakeEscrow implements Escrow {
+  rooms = new Map<string, { key: string; token: string; host: string }>();
+  constructor(private net: Net) {}
+  deposit(code: string, room: Transport, key: string, token: string) {
+    this.rooms.set(code, { key, token, host: room.selfId });
+  }
+  async takeover(code: string, _newHostKey: string, token: string) {
+    const r = this.rooms.get(code);
+    if (!r) return { error: 'no-backup' };
+    if (this.net.buses.get(code)?.members.has(r.host)) return { error: 'host-here' };
+    if (r.token !== token) return { error: 'not-a-player' };
+    this.rooms.delete(code);
+    return { key: r.key };
+  }
+}
+
+/** A real moment (the timer as it was before the tests fake them). */
+const realTimeout = globalThis.setTimeout;
+
+/**
+ * Let the network settle: connections join, hellos are answered (paced), moves followed. Each step
+ * waits a real moment too: sealing and opening backups (crypto, compression) finish in real time,
+ * not on the fake clock.
+ */
 export const settle = async (ms = 3000) => {
-  for (let i = 0; i < ms / 100; i++) await vi.advanceTimersByTimeAsync(100);
+  for (let i = 0; i < ms / 100; i++) {
+    await vi.advanceTimersByTimeAsync(100);
+    await new Promise((r) => realTimeout(r, 1));
+  }
 };
 
 /** Play every table's game to its end, a step at a time (Host.step plays every seat, people's too), and the director's own tables (bots only). */

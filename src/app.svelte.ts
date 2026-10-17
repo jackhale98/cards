@@ -20,6 +20,7 @@ import {
 import type { SignedMove } from './net/eventCrypto';
 import { Events } from './event.svelte';
 import type { MultiTransport, NetworkStatus } from './net/multiTransport';
+import type { LocalTransport } from './net/localTransport';
 import type { RelayTransport } from './net/relayTransport';
 import { noteGames } from './ui/record';
 import { createTransport, FALLBACK_AFTER_MS, RELAY_GRACE_MS, type TransportKind } from './net/transport';
@@ -30,8 +31,6 @@ const SAVE_AFTER_MS = 800;
 const REJOIN_AFTER_MS = 8000;
 /** A host gone this long can be taken over by a player (the relay itself waits 20s). */
 export const TAKEOVER_OFFER_MS = 25_000;
-/** At a tournament's table, a phone whose host has been gone this long asks the director where to go. */
-const EVENT_FIND_AFTER_MS = 5000;
 
 export type Route =
   | { name: 'home'; code?: string }
@@ -402,7 +401,8 @@ class App {
     const r = this.route;
     // (a tournament: its screens and phones talk to its director, not to a table)
     const event = r.name === 'event' || r.name === 'direct' || r.name === 'standby' || (r.name === 'display' && isEventCode(r.code));
-    if (r.name !== 'event') this.events.closePhone();
+    // (a tournament's phone keeps its link to the director at its tables: see keepEventLink)
+    if (r.name !== 'event' && r.name !== 'room') this.events.closePhone();
     if (r.name !== 'standby') this.events.closeStandby();
     if (!(r.name === 'display' && event)) this.events.closeScreen();
     if (r.name === 'home' || r.name === 'tv' || event) this.leave(false);
@@ -698,11 +698,13 @@ class App {
     this.transport = joined?.transport ?? null;
     this.addAll = joined?.addAll ?? null;
     if (this.transport) {
-      // host handoff: players get sealed backups; the relay keeps the key
-      const relay = this.transport.network<RelayTransport>('relay');
+      // host handoff: players (and a tournament's director) get sealed backups; the relay keeps the
+      // key. (Testing in one browser, a tournament's table leaves it with the stand-in for the
+      // relay, so its director can take it over: see LocalTransport.deposit)
+      const relay = this.transport.network<RelayTransport>('relay') ?? (host.lobby.event ? this.transport.network<LocalTransport>('local') : undefined);
       const backupKey = relay ? newBackupKey() : undefined;
       const takeoverToken = relay ? newBackupKey() : undefined;
-      if (relay && backupKey) void relay.deposit(backupKey, takeoverToken);
+      if (relay && backupKey) void relay.deposit(backupKey, takeoverToken!);
       host.attach(this.transport, { backupKey, takeoverToken });
       host.broadcast();
     }
@@ -762,12 +764,23 @@ class App {
    * the backup networks; while a guest can't reach the host, try the backups one by one; and if a
    * host we had is gone for a while, rebuild the connection.
    */
+  /**
+   * At a tournament's table: the phone's quiet link to the director, where its next move comes
+   * (opened again after a reload). At any other table: none.
+   */
+  private keepEventLink() {
+    const ev = this.host?.lobby.event ?? this.view?.lobby.event;
+    if (ev) void this.events.openPhone(ev.code, true);
+    else if (this.events.phoneCode && (this.host || this.view)) this.events.closePhone();
+  }
+
   private startWatching() {
     if (this.watch) clearInterval(this.watch);
     let lastFallback = Date.now();
     let relayDownSince = 0;
     this.watch = setInterval(() => {
       this.netStatus = this.transport?.status() ?? null;
+      this.keepEventLink();
       if (this.host) {
         const relay = this.netStatus?.networks.find((n) => n.kind === 'relay');
         if (!relay || !this.addAll) return;
@@ -780,11 +793,7 @@ class App {
         return;
       }
       const client = this.client;
-      if (client?.connected) this.events.stopFinding();
       if (!client || client.connected) return;
-      // (a tournament's table whose host has gone: where to now? the director knows)
-      const ev = this.view?.lobby.event;
-      if (ev && this.hostGoneSince && Date.now() - this.hostGoneSince > EVENT_FIND_AFTER_MS) void this.events.findTable(ev.code);
       if (Date.now() - lastFallback > FALLBACK_AFTER_MS && this.addNext) {
         lastFallback = Date.now();
         void this.addNext();
@@ -855,6 +864,8 @@ class App {
     // our seat is under the id (and key) we hosted with (this may be a new tab, with new ones)
     if (seatId && seatId !== this.cid) this.becomeId(seatId, key);
     this.forgetSaved();
+    // (a tournament's table: its link to the director goes with the hosting)
+    this.events.closeUplink();
     this.host?.close();
     this.host = null;
     this.transport = null;
@@ -1007,7 +1018,6 @@ class App {
     if (this.watch) clearInterval(this.watch);
     this.watch = null;
     this.events.closeUplink();
-    this.events.stopFinding();
     this.host?.close();
     this.client?.close();
     this.transport = null;

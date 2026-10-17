@@ -48,8 +48,10 @@ export const MAX_COPY = 480_000;
 export type EventInMsg =
   /** Signing up: who they are and their secret (sent this once). */
   | { t: 'evJoin'; v: number; cid: string; name: string; avatar?: Avatar; secret: string }
-  /** Back (signed up before): the director answers with a challenge. */
-  | { t: 'evBack'; v: number; cid: string }
+  /** Back (signed up before): the director answers with a challenge. `quiet`: from a table (no board, only moves). */
+  | { t: 'evBack'; v: number; cid: string; quiet?: boolean }
+  /** At a table (on), or back at the event (off): see EventLink.setQuiet. */
+  | { t: 'evQuiet'; on: boolean }
   /** A table's host linking up for its round and table: the director answers with a challenge. */
   | { t: 'evLink'; v: number; cid: string; round: number; table: number }
   /** The answer to the challenge. */
@@ -63,7 +65,15 @@ export type EventInMsg =
   /** From a table's host: its news (sent again until acknowledged), its progress, its screen's view while featured. */
   | { t: 'evNews'; id: number; news: TableNews }
   | { t: 'evTile'; tile: TableTile }
-  | { t: 'evView'; view: View };
+  | { t: 'evView'; view: View }
+  /**
+   * From a table's host: the table's latest backup, sealed as its players' are (the relay keeps the
+   * key), and the token that takes it over: if the host's phone goes quiet, the director hosts the
+   * table from it (see Desk.adopt).
+   */
+  | { t: 'evTableBackup'; blob: string; v: number; token: string }
+  /** From a table's host: it's still here (when it has had nothing else to say for a while). */
+  | { t: 'evAlive' };
 
 /** From the director. */
 export type EventOutMsg =

@@ -7,11 +7,11 @@
    * The round's tables as tiles: who's at each, how far it's got (still waiting for someone, hands
    * played, the game's totals) and, once it's done, who finished where. With `onfeature`, a tap
    * puts that table on the screens (`pinned`: the one that's there); `showing` is the table the
-   * screens show live now.
+   * screens show live now. The director's own tiles say whose phones are off (`off`).
    */
   interface Props {
     tables: EventPublic['tables'];
-    tiles: { table: number; tile: TableTile | null; linked?: boolean }[];
+    tiles: { table: number; tile: TableTile | null; linked?: boolean; off?: string[] }[];
     names: Map<string, string>;
     pinned?: number | null;
     showing?: number | null;
@@ -47,6 +47,9 @@
       </ul>
       {#if tile?.totals && !t.places}
         <p class="totals">{tile.totals.map((r) => `${r.name} ${r.total}`).join(' · ')}</p>
+      {/if}
+      {#if x?.off?.length && !t.places}
+        <p class="off">{x.off.length === 1 ? `${x.off[0]}’s phone is off` : `Phones off: ${x.off.join(', ')}`}</p>
       {/if}
       {#if onfeature && !t.places}
         <button class="btn quiet feature" onclick={() => onfeature?.(pinned === t.table ? null : t.table)}
@@ -125,6 +128,11 @@
     margin: 0;
     font-size: 0.8em;
     color: var(--ink-dim);
+  }
+  .off {
+    margin: 0;
+    font-size: 0.8em;
+    color: var(--danger);
   }
   .feature {
     align-self: flex-start;

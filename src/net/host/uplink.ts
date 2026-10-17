@@ -1,5 +1,5 @@
 import { prove, type SignedMove } from '../eventCrypto';
-import { EVENT_PROTOCOL, type EventOutMsg } from '../eventProtocol';
+import { EVENT_PROTOCOL, type EventInMsg, type EventOutMsg } from '../eventProtocol';
 import type { Host } from '../host';
 import { cleanEventTable, cleanMove } from '../director/clean';
 import { isValidCode, type Msg } from '../protocol';
@@ -12,13 +12,17 @@ export const NEWS_AGAIN_MS = 4000;
 export const TILE_EVERY_MS = 2000;
 /** While featured, its screen's view at most this often. */
 export const VIEW_EVERY_MS = 700;
+/** With nothing else to say for this long, it says it's still here (a quiet table's host may be asleep: see Desk.adopt). */
+export const UPLINK_ALIVE_MS = 15_000;
 
 /**
  * A tournament table's link to its director, from the phone hosting it: a second connection, to
  * the director's room. It proves which table it hosts (with its player's secret), takes the
  * table's seating, holds and changes, sends its news until each is acknowledged (a result is
  * never lost to a dropped connection), its progress, and its screen's view while featured, and
- * passes the director's signed moves on to the players at the table.
+ * passes the director's signed moves on to the players at the table. The director also holds the
+ * table's latest backup (sealed: the relay keeps its key), so that if this phone goes quiet it can
+ * host the table itself and the game goes on.
  */
 export class Uplink {
   /** Where this phone's own player goes next (signed for them: the app checks it, as any move). */
@@ -35,6 +39,12 @@ export class Uplink {
   private tileDue = 0;
   private viewDue = 0;
   private closed = false;
+  /** The director won't have this link: no more asking. */
+  private refused = false;
+  /** The table's latest backup, for the director (sent when it's made, and again on linking up). */
+  private backup: { blob: string; v: number; token: string } | null = null;
+  /** When we last said anything to the director. */
+  private spoke = 0;
 
   private transport!: Transport;
 
@@ -51,11 +61,17 @@ export class Uplink {
       this.flush();
     };
     host.onBroadcast = () => this.progress();
-    // (news not yet acknowledged goes again, until it is; and the link asked for again, until it's made)
+    host.backupTo((blob, v, token) => {
+      this.backup = { blob, v, token };
+      this.sendBackup();
+    });
+    // (news not yet acknowledged goes again, until it is; the link asked for again, until it's
+    // made; and, with nothing else said for a while, a word that we're still here)
     this.timers.push(
       setInterval(() => {
-        if (!this.linked && this.director) this.hello(this.director);
+        if (!this.linked && this.director && !this.refused) this.hello(this.director);
         this.flush();
+        if (this.linked && this.director && Date.now() - this.spoke >= UPLINK_ALIVE_MS) this.say({ t: 'evAlive' });
       }, NEWS_AGAIN_MS),
     );
     // (a table taken over, or reloaded, after its game ended: the result again, in case it was lost)
@@ -111,6 +127,7 @@ export class Uplink {
         this.host.resendResult();
         this.flush();
         this.progress(true);
+        this.sendBackup();
         return;
       case 'evSeat': {
         const t = cleanEventTable(msg.table);
@@ -145,6 +162,7 @@ export class Uplink {
         return;
       }
       case 'evRefused':
+        this.refused = true;
         return this.onRefused(typeof msg.why === 'string' ? msg.why.slice(0, 120) : '');
       case 'evRoom':
         // (the director's first room is full: its link goes to another)
@@ -154,10 +172,20 @@ export class Uplink {
     }
   }
 
+  private say(msg: EventInMsg) {
+    if (!this.director) return;
+    this.spoke = Date.now();
+    this.transport.send(msg, this.director);
+  }
+
   /** Send the news the director hasn't acknowledged yet. */
   private flush() {
     if (!this.director || !this.linked) return;
-    for (const n of this.news) this.transport.send({ t: 'evNews', id: n.id, news: n.news }, this.director);
+    for (const n of this.news) this.say({ t: 'evNews', id: n.id, news: n.news });
+  }
+
+  private sendBackup() {
+    if (this.backup && this.linked) this.say({ t: 'evTableBackup', ...this.backup });
   }
 
   /** The table's progress (and, featured, its screen's view): at most every so often. */
@@ -166,11 +194,11 @@ export class Uplink {
     const t = Date.now();
     if (now || t >= this.tileDue) {
       const tile = this.host.tile();
-      if (tile) this.transport.send({ t: 'evTile', tile }, this.director);
+      if (tile) this.say({ t: 'evTile', tile });
       this.tileDue = t + TILE_EVERY_MS;
     } else this.later(this.tileDue - t);
     if (this.featured && (now || t >= this.viewDue)) {
-      this.transport.send({ t: 'evView', view: this.host.viewFor(null) }, this.director);
+      this.say({ t: 'evView', view: this.host.viewFor(null) });
       this.viewDue = t + VIEW_EVERY_MS;
     } else if (this.featured) this.later(this.viewDue - t);
   }
@@ -188,6 +216,7 @@ export class Uplink {
 
   close() {
     this.closed = true;
+    this.host.backupTo(null);
     for (const t of this.timers) clearInterval(t);
     if (this.pending) clearTimeout(this.pending);
     this.transport.leave();

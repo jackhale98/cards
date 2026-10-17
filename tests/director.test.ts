@@ -17,7 +17,8 @@ function botEvent(game: string, seats: number, entrants: number, more: Partial<E
   return e;
 }
 
-const makeTable = (round: number, t: TableRound, restore?: HostSnapshot) => new LocalTable(round, t.table, { code: `R${round}T${t.table}`, restore });
+const makeTable = (round: number, t: TableRound, { restore }: { restore?: HostSnapshot } = {}) =>
+  new LocalTable(round, t.table, { code: `R${round}T${t.table}`, restore });
 
 function director(event: EventState, restore?: DirectorSnapshot) {
   const d = new Director({ event, code: 'BCDFGH', makeTable, keyFor: (m) => `key-${m}`, pause: null, restore });

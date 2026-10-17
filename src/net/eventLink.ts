@@ -28,8 +28,8 @@ export const isOurMove = (id: EventIdentity, m: unknown): m is SignedMove => {
 /**
  * A phone's (or a screen's) connection to a tournament's director: signing up, coming back to find
  * its table, and the event as everyone may see it. Moves are checked with this phone's secret
- * before anything follows them. Used while signing up and between tables; at a table the phone
- * is just a player there, and its moves come through the table's host.
+ * before anything follows them. A phone keeps it all tournament: at a table it goes quiet (no
+ * board, just where to go next), so its next move never depends on the table's host.
  */
 export class EventLink {
   you: EventPersonal | null = null;
@@ -49,8 +49,10 @@ export class EventLink {
   onMove: (m: SignedMove) => void = () => {};
   private transport!: Transport;
   private director: string | null = null;
-  private timer: ReturnType<typeof setInterval>;
+  private timer: ReturnType<typeof setInterval> | null = null;
   private closed = false;
+  /** At a table: no board, only moves. */
+  private quiet = false;
 
   constructor(
     private readonly open: (code: string) => Transport,
@@ -59,22 +61,46 @@ export class EventLink {
     private readonly screen: boolean | { standby: string } = false,
   ) {
     this.join(id.code);
-    // (until the director answers: a lost hello, or the director not here yet)
+  }
+
+  /** Hello again every so often until the director answers (a lost hello, or the director not here yet): a timer only until then. */
+  private retry() {
+    if (this.timer || this.closed) return;
     this.timer = setInterval(() => {
-      if (!this.welcomed && !this.refused) this.hello();
+      if (this.welcomed || this.refused || this.closed) {
+        clearInterval(this.timer!);
+        this.timer = null;
+      } else this.hello();
     }, EVENT_HELLO_MS);
+  }
+
+  /** At a table (on), or back at the event (off): a quiet link hears only where to go next. */
+  setQuiet(on: boolean) {
+    if (this.quiet === on) return;
+    this.quiet = on;
+    if (this.director && this.welcomed && !this.screen) this.transport.send({ t: 'evQuiet', on }, this.director);
+  }
+
+  /** This link's own id in the director's room (tests). */
+  get selfId() {
+    return this.transport.selfId;
   }
 
   private join(code: string) {
     this.director = null;
     this.welcomed = false;
     this.transport = this.open(code);
+    this.retry();
     // (our relay vouches for the director; elsewhere it says it's here, and only then do we say who we are)
     this.transport.onPeerJoin = (peer) => {
       if (this.transport.vouch?.(peer)) this.found(peer);
     };
     this.transport.onPeerLeave = (peer) => {
-      if (peer === this.director) this.director = null;
+      if (peer !== this.director) return;
+      // (the director gone: a new one, or the same back, is greeted again when it's here)
+      this.director = null;
+      this.welcomed = false;
+      this.retry();
     };
     this.transport.onMessage = (raw, from) => this.receive(raw, from);
   }
@@ -98,7 +124,7 @@ export class EventLink {
         ? ({ t: 'evStandby', v: EVENT_PROTOCOL, token: this.screen.standby } as const)
         : ({ t: 'evScreen', v: EVENT_PROTOCOL } as const)
       : this.id.joined
-        ? ({ t: 'evBack', v: EVENT_PROTOCOL, cid: this.id.cid } as const)
+        ? ({ t: 'evBack', v: EVENT_PROTOCOL, cid: this.id.cid, ...(this.quiet ? { quiet: true } : {}) } as const)
         : ({ t: 'evJoin', v: EVENT_PROTOCOL, cid: this.id.cid, name: this.id.name, avatar: this.id.avatar, secret: this.id.secret } as const);
     this.transport.send(msg, peer);
   }
@@ -162,7 +188,8 @@ export class EventLink {
 
   close() {
     this.closed = true;
-    clearInterval(this.timer);
+    if (this.timer) clearInterval(this.timer);
+    this.timer = null;
     this.transport.leave();
   }
 }

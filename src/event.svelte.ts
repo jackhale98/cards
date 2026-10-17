@@ -101,8 +101,8 @@ export interface Directing {
   code: string;
   board: EventPublic;
   people: EventPerson[];
-  /** Each table this round: its progress, whether its host has linked up, where it is, who hosts it. */
-  tiles: { table: number; tile: TableTile | null; linked: boolean; host: string | null; local: boolean }[];
+  /** Each table this round: its progress, whether its host has linked up, where it is, who hosts it, whose phones are off. */
+  tiles: { table: number; tile: TableTile | null; linked: boolean; host: string | null; local: boolean; off: string[] }[];
   holding: boolean;
   /** What can be played, for the setup. */
   formats: FormatId[];
@@ -181,15 +181,19 @@ export class Events {
   }
 
   /** Sign up (or come back): a link to the director, until this phone goes to a table. */
-  async openPhone(code: string) {
+  async openPhone(code: string, quiet = false) {
+    this.quiet = quiet;
     // (claimed before anything is awaited: the app may ask twice as the route changes)
-    if (this.phoneFor === code) return;
+    if (this.phoneFor === code) return this.link?.setQuiet(quiet);
+    // (at a table: only a tournament this phone is in)
+    if (quiet && !this.entry(code)) return;
     this.closePhone();
     this.phoneFor = code;
     const id = await this.identity(code);
     const open = await eventRooms(this.app.net);
     if (this.phoneFor !== code) return;
     const link = new EventLink((c) => open(c), id);
+    link.setQuiet(this.quiet);
     this.link = link;
     const show = () => {
       if (this.link !== link) return;
@@ -207,6 +211,12 @@ export class Events {
     this.phoneFor = null;
   }
   private phoneFor: string | null = null;
+  /** At a table: the link to the director hears only where to go next (see EventLink.setQuiet). */
+  private quiet = false;
+  /** The tournament this phone is linked to (null: none). */
+  get phoneCode() {
+    return this.phoneFor;
+  }
 
   /** Partnership games: who this phone would like to partner. */
   partner(cid: string | null) {
@@ -227,42 +237,17 @@ export class Events {
     if (!e || !isOurMove(e, m)) return;
     if (e.move && (m.round < e.move.round || (m.round === e.move.round && m.room === e.move.room && m.table === e.move.table))) return;
     saveEntry({ ...e, move: m, joined: true });
-    this.stopFinding();
     const go = () => {
       if (m.table === 0) return this.app.go(`/event/${m.event}`);
-      this.closePhone();
+      // (the link to the director stays, quietly: the next move needs nothing from the table's host)
+      this.quiet = true;
+      this.link?.setQuiet(true);
       this.app.sit(m, seatKeyFor(e.secret, m.event, m.round, m.table));
     };
     // (this phone hosts a table: the moves it's passing on to its players get away before it closes)
     if (this.uplink) setTimeout(go, HOST_LEAVES_AFTER_MS);
     else go();
   }
-
-  /**
-   * At a tournament's table whose host has gone quiet: ask the director where to go (the move the
-   * host was to pass on may have gone with it). Quietly: the table stays on screen, and the phone
-   * moves only if there's somewhere new to go.
-   */
-  async findTable(code: string) {
-    if (this.finding === code) return;
-    const e = this.entry(code);
-    if (!e) return;
-    this.stopFinding();
-    this.finding = code;
-    const open = await eventRooms(this.app.net);
-    if (this.finding !== code) return;
-    const link = new EventLink((c) => open(c), { ...e, joined: true });
-    link.onMove = (m) => this.follow(m);
-    this.finder = link;
-  }
-  /** The table's host is back (or the phone has moved on). */
-  stopFinding() {
-    this.finder?.close();
-    this.finder = null;
-    this.finding = null;
-  }
-  private finder: EventLink | null = null;
-  private finding: string | null = null;
 
   /** This device hosts a tournament's table: its link to the director (null: not this tab's tournament). */
   async linkTable(host: Host, info: LobbyEvent): Promise<Uplink | null> {
@@ -365,10 +350,16 @@ export class Events {
       code,
       pause: this.app.still ? null : ROUND_PAUSE_MS,
       keyFor: (m, round, table) => seatKeyFor(registry.secretOf(m) ?? '', code, round, table),
-      makeTable: (round, t, restore) => {
-        if (t.seats.some((s) => s.member)) return ref.desk!.remote(round, t);
-        // (bots play every seat: the table is hosted here, with no network)
-        const local = new LocalTable(round, t.table, { code: makeRoomCode(), brain: tables.table(`${round}:${t.table}`), restore, still: this.app.still });
+      makeTable: (round, t, { restore, room } = {}) => {
+        if (!room && t.seats.some((s) => s.member)) return ref.desk!.remote(round, t);
+        // (hosted here: in the room its people play in, or, bots in every seat, with no network)
+        const local = new LocalTable(round, t.table, {
+          code: room ?? makeRoomCode(),
+          transport: room ? ref.desk!.tableRoom(room) : null,
+          brain: tables.table(`${round}:${t.table}`),
+          restore,
+          still: this.app.still,
+        });
         local.onView = () => ref.desk?.viewed(t.table);
         return local;
       },
@@ -388,6 +379,7 @@ export class Events {
       },
       backup: { ...backup, escrow: roomEscrow((c) => open(c)) },
       onStandby: () => this.backupSoon(true),
+      takeover: { escrow: roomEscrow((c) => open(c)), hostKey },
     }));
     this.dir = { code, hostKey, backup, director, desk, registry, tables };
     director.onChange = () => {
@@ -532,7 +524,7 @@ export class Events {
       people: d.registry.people(),
       tiles: (round?.tables ?? []).map((t) => {
         const x = tiles.get(t.table);
-        return { table: t.table, tile: x?.tile ?? null, linked: !!x?.linked, host: x?.host ?? null, local: x?.local ?? false };
+        return { table: t.table, tile: x?.tile ?? null, linked: !!x?.linked, host: x?.host ?? null, local: x?.local ?? false, off: x?.off ?? [] };
       }),
       holding: d.director.holding,
       formats: formatsFor(getGame(e.config.game.id).config, e.config.sides),

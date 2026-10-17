@@ -14,6 +14,8 @@ import type { Transport } from '../transport';
 export interface TableLink {
   readonly round: number;
   readonly table: number;
+  /** The room its players play in (null: none yet, or no people play there). */
+  readonly room: string | null;
   seat(t: EventTable): void;
   hold(on: boolean): void;
   adjust(change: TableChange): string | null;
@@ -35,9 +37,12 @@ export interface TableLink {
 /**
  * A table hosted on the director's device: a Host of its own (the director's device its screen),
  * on a network of its own for the people who play there, or none at all when bots play every seat.
+ * Restored from a snapshot: carried on after the director's reload, or taken over from a player's
+ * phone that hosted it until it went quiet (its backup: see Desk.adopt).
  */
 export class LocalTable implements TableLink {
   readonly host: Host;
+  readonly room: string | null;
   onNews: (news: TableNews) => void = () => {};
   /** Anything changed at the table (the screens, if they're showing it). */
   onView: () => void = () => {};
@@ -48,16 +53,23 @@ export class LocalTable implements TableLink {
     readonly table: number,
     opts: { code: string; transport?: Transport | null; brain?: Brain; restore?: HostSnapshot; still?: boolean },
   ) {
+    this.room = opts.transport ? opts.code : null;
     this.host = new Host(opts.transport ?? null, opts.code, { cid: 'director', name: `Table ${table}` }, opts.restore, {
       brain: opts.brain,
       still: opts.still,
+      takeover: !!opts.restore,
     });
     this.host.onTable = (n) => this.onNews(n);
     this.host.onPersist = (s) => {
       this.snap = s;
       this.onView();
     };
-    if (opts.restore) this.host.resume();
+    if (opts.restore) {
+      this.host.resume();
+      // (its game may have ended just before its host's phone went quiet, the result not yet heard:
+      // once the director is listening)
+      queueMicrotask(() => this.host.resendResult());
+    }
   }
 
   seat(t: EventTable) {

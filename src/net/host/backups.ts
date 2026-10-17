@@ -39,6 +39,10 @@ export class Backups {
   /** The phase, and the cards on the trick, at the last broadcast: their change marks a trick or hand ending. */
   private seenPhase?: string;
   private seenTrick = 0;
+  /** Someone away from the table holds the latest backup too: a tournament's director (see host/uplink.ts). */
+  away: ((blob: string, v: number, token: string) => void) | null = null;
+  /** The version they hold. */
+  private awaySent = -1;
 
   constructor(private readonly t: BackupTable) {}
 
@@ -96,11 +100,16 @@ export class Backups {
     const to = this.chosen();
     // (nothing new: only a new holder needs it)
     const fresh = v === this.sent ? to.filter(([cid]) => !this.holders.includes(cid)) : to;
+    const away = this.token && v !== this.awaySent ? this.away : null;
     this.at = Date.now();
-    if (!fresh.length) return;
+    if (!fresh.length && !away) return;
     const blob = await seal({ lobby: this.t.lobby, state: this.t.state, keys: this.t.keys, ...(this.t.event ? { event: this.t.event } : {}) }, this.key!);
     this.sent = v;
     this.holders = to.map(([cid]) => cid);
     for (const [, peer] of fresh) this.t.transport?.send({ t: 'backup', blob, v, token: this.token }, peer);
+    if (away) {
+      this.awaySent = v;
+      away(blob, v, this.token!);
+    }
   }
 }

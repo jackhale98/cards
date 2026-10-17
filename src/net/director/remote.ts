@@ -34,6 +34,13 @@ export class RemoteTable implements TableLink {
   private held = false;
   /** When it was placed (its host has a while to link up). */
   placedAt = 0;
+  /** When its host's link last said anything. */
+  heardAt = 0;
+  /** Its latest backup, from its host (sealed: the relay holds the key), and the token that takes it over. */
+  backup: { blob: string; v: number; token: string } | null = null;
+  /** Being taken over by the director now; and not to be tried again before this time (see Desk.adopt). */
+  adopting = false;
+  tryAfter = 0;
 
   constructor(
     private readonly desk: RemoteDesk,
@@ -61,6 +68,7 @@ export class RemoteTable implements TableLink {
   /** Its host's phone has linked up (or again, after a reload or a takeover). */
   attach(transport: Transport, peer: string) {
     this.link = { transport, peer };
+    this.heardAt = Date.now();
     if (this.seating) this.send({ t: 'evSeat', table: this.seating });
     if (this.held) this.send({ t: 'evHold', on: true });
     if (this.featured) this.send({ t: 'evFeature', on: true });

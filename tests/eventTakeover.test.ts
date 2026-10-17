@@ -3,9 +3,8 @@ import { standings } from '../src/engine/events';
 import { newBackupKey } from '../src/net/backup';
 import { newSecret } from '../src/net/eventCrypto';
 import { EventLink } from '../src/net/eventLink';
-import { sealSave, takeOver, type DirectorSave, type Escrow } from '../src/net/director/standby';
-import type { Transport } from '../src/net/transport';
-import { CODE, director, Net, Phone, playOut, settle } from './eventHarness';
+import { sealSave, takeOver, type DirectorSave } from '../src/net/director/standby';
+import { CODE, director, FakeEscrow, Net, Phone, playOut, settle } from './eventHarness';
 import './games';
 
 /**
@@ -14,23 +13,6 @@ import './games';
  * stops, takes over: the relay hands it the key and the director's rooms, and the tournament
  * carries on from there, the tables linking up again and no result lost.
  */
-
-/** The relay's side of a takeover (see relay/src/index.ts): a key left in each room, handed once to a takeover that brings the token, once its host has gone. */
-class FakeEscrow implements Escrow {
-  rooms = new Map<string, { key: string; token: string; host: string }>();
-  constructor(private net: Net) {}
-  deposit(code: string, room: Transport, key: string, token: string) {
-    this.rooms.set(code, { key, token, host: room.selfId });
-  }
-  async takeover(code: string, _newHostKey: string, token: string) {
-    const r = this.rooms.get(code);
-    if (!r) return { error: 'no-backup' };
-    if (this.net.buses.get(code)?.members.has(r.host)) return { error: 'host-here' };
-    if (r.token !== token) return { error: 'not-a-player' };
-    this.rooms.delete(code);
-    return { key: r.key };
-  }
-}
 
 describe('a standby director', () => {
   beforeEach(() => vi.useFakeTimers());

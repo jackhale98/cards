@@ -379,15 +379,26 @@ describe('a tournament’s rooms on the relay', () => {
     stranger.leave();
   });
 
-  it('a standby director takes over every room the director left its key in, and hosts them under its own key', async () => {
+  it('a standby director takes over every room the director left its key in (a table it hosted too), and hosts them under its own key', async () => {
     const rooms = ['EVBCDF', 'QRSTVW'];
+    // (a table the director hosted, people playing there)
+    const table = 'MNPQR';
+    const all = [...rooms, table];
     const backup = { key: newBackupKey(), token: newBackupKey() };
     const escrow = roomEscrow((code) => new RelayTransport(code, 'ws://relay.test'));
-    const hosts = rooms.map((code) => new RelayTransport(code, 'ws://relay.test', { hostKey: 'director-host-key' }));
+    const hosts = all.map((code) => new RelayTransport(code, 'ws://relay.test', { hostKey: 'director-host-key' }));
     await flush();
-    rooms.forEach((code, i) => escrow.deposit(code, hosts[i], backup.key, backup.token));
+    all.forEach((code, i) => escrow.deposit(code, hosts[i], backup.key, backup.token));
     await flush();
-    const copy = await sealSave({ v: 1, code: rooms[0], hostKey: 'director-host-key', desk: { rooms, tables: {} }, backup, at: 0 } as unknown as DirectorSave);
+    const copy = await sealSave({
+      v: 1,
+      code: rooms[0],
+      hostKey: 'director-host-key',
+      desk: { rooms, tables: {} },
+      director: { rooms: { 3: table } },
+      backup,
+      at: 0,
+    } as unknown as DirectorSave);
     const take = (token = backup.token) => takeOver({ code: rooms[0], blob: copy, token, escrow, hostKey: 'standby-host-key' });
     // the director's here: nothing to take
     expect(await take()).toEqual({ error: 'host-here' });
@@ -401,18 +412,22 @@ describe('a tournament’s rooms on the relay', () => {
     // (a fresh key for the next copies; the same link)
     expect(save.backup.token).toBe(backup.token);
     expect(save.backup.key).not.toBe(backup.key);
-    // both rooms are the standby's: it hosts them, and the old director, back, is turned away
+    // every room is the standby's: it hosts them, and the old director, back, is turned away
     const taken: string[] = [];
-    const mine = rooms.map((code) => {
+    const mine = all.map((code) => {
       const t = new RelayTransport(code, 'ws://relay.test', { hostKey: 'standby-host-key' });
       t.onTaken = () => taken.push(`standby ${code}`);
       return t;
     });
     await flush();
-    const back = new RelayTransport(rooms[1], 'ws://relay.test', { hostKey: 'director-host-key' });
-    back.onTaken = () => taken.push('director');
+    const back = [rooms[1], table].map((code) => {
+      const t = new RelayTransport(code, 'ws://relay.test', { hostKey: 'director-host-key' });
+      t.onTaken = () => taken.push(`director ${code}`);
+      return t;
+    });
     await flush();
-    expect(taken).toEqual(['director']);
+    expect(taken).toEqual([`director ${rooms[1]}`, `director ${table}`]);
     mine.forEach((t) => t.leave());
+    back.forEach((t) => t.leave());
   });
 });

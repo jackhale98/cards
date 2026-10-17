@@ -1,4 +1,6 @@
 import { addEntrant, currentRound, personalView, type Round, type TableRound } from '../../engine/events';
+import { open } from '../backup';
+import type { HostSnapshot } from '../host';
 import { isSecret, prove, same, signMove, type SignedMove } from '../eventCrypto';
 import { EVENT_PROTOCOL, MAX_COPY, type BoardShow, type EventInMsg, type EventOutMsg } from '../eventProtocol';
 import type { Director } from '../director';
@@ -14,7 +16,8 @@ import { ALIVE_EVERY_MS, type Escrow } from './standby';
  * screens show the event, and the phones hosting tables link up. One room (the event's code) to
  * start with; when it fills, newcomers are sent on to another (the relay seats 24 a room). The
  * desk decides who hosts each table, signs everyone's moves, and gets each move to its player:
- * straight, if they're here; else through the host of the table they're at.
+ * straight, if they're here; else through the host of the table they're at. A table whose host's
+ * phone goes quiet is taken over and hosted here, from the backup its host kept sending.
  */
 
 /** People in one of the director's rooms, at most (the relay seats 24: room for the director, and a screen or two). */
@@ -27,6 +30,15 @@ const RETIRE_MS = 120_000;
 const BOARD_EVERY_MS = 500;
 /** Showing the tables live, the screens move on to the next one this often. */
 export const LIVE_TURN_MS = 15_000;
+/**
+ * A table whose host has said nothing for this long (its link says it's still here every 15
+ * seconds) is taken over here: about when the relay would let a player take it over.
+ */
+export const TABLE_QUIET_MS = 45_000;
+/** While tables are played on phones, the desk looks for a quiet one this often… */
+const QUIET_CHECK_MS = 5000;
+/** …and, failing to take one over (its host is still there, as the relay sees it), tries again after this long. */
+const ADOPT_AGAIN_MS = 15_000;
 
 type Want = { kind: 'back' } | { kind: 'link'; round: number; table: number };
 interface Peer {
@@ -37,6 +49,8 @@ interface Peer {
   table?: RemoteTable;
   /** The last personal view sent (sent again only when it changes). */
   you?: string;
+  /** A phone at a table: it hears where to go next, but not the board. */
+  quiet?: boolean;
 }
 interface Room {
   code: string;
@@ -80,6 +94,8 @@ export class Desk implements RemoteDesk {
       backup?: { key: string; token: string; escrow: Escrow };
       /** A standby has linked up (and wants a copy). */
       onStandby?: () => void;
+      /** The relay's escrow, and this director's claim on rooms there (`open` makes them with it): a quiet table is taken over with them. */
+      takeover?: { escrow: Escrow; hostKey: string };
     },
   ) {
     this.openRoom(o.code);
@@ -102,8 +118,11 @@ export class Desk implements RemoteDesk {
       this.send(room, peer, { t: 'evHere' });
     };
     room.transport.onPeerLeave = (peer) => {
-      room.peers.get(peer)?.table?.detach();
+      const p = room.peers.get(peer);
+      p?.table?.detach();
       room.peers.delete(peer);
+      // (a phone gone: the director's screen says so)
+      if (p?.kind === 'player' || p?.kind === 'table') this.o.onChange?.();
     };
     room.transport.onMessage = (raw, from) => this.receive(room, from, raw);
     return room;
@@ -119,6 +138,16 @@ export class Desk implements RemoteDesk {
     room.transport.send(msg, peer);
   }
 
+  /**
+   * The room of a table hosted here, which people play in: as its host, with the standby's key
+   * left in it (a standby taking over hosts the table there).
+   */
+  tableRoom(code: string): Transport {
+    const t = this.o.open(code);
+    if (this.o.backup) this.o.backup.escrow.deposit(code, t, this.o.backup.key, this.o.backup.token);
+    return t;
+  }
+
   // ---- incoming -----------------------------------------------------------------------------
 
   private receive(room: Room, peer: string, raw: Msg) {
@@ -127,6 +156,7 @@ export class Desk implements RemoteDesk {
     if (!msg || typeof msg !== 'object' || typeof msg.t !== 'string') return;
     const p = room.peers.get(peer) ?? { kind: 'new' as const };
     room.peers.set(peer, p);
+    if (p.kind === 'table' && p.table) p.table.heardAt = Date.now();
     const hello = msg.t === 'evJoin' || msg.t === 'evBack' || msg.t === 'evLink' || msg.t === 'evScreen' || msg.t === 'evStandby';
     if (hello) {
       if (msg.v !== EVENT_PROTOCOL)
@@ -146,6 +176,7 @@ export class Desk implements RemoteDesk {
       case 'evBack':
         if (typeof msg.cid !== 'string' || !this.o.registry.secretOf(msg.cid))
           return this.send(room, peer, { t: 'evRefused', why: 'You’re not signed up for this tournament' });
+        p.quiet = msg.quiet === true;
         return this.challenge(room, peer, p, msg.cid, { kind: 'back' });
       case 'evLink':
         if (typeof msg.cid !== 'string' || !this.o.registry.secretOf(msg.cid) || !Number.isInteger(msg.round) || !Number.isInteger(msg.table)) return;
@@ -155,6 +186,11 @@ export class Desk implements RemoteDesk {
       case 'evScreen':
         p.kind = 'screen';
         return this.sendBoard(room, peer);
+      case 'evQuiet':
+        if (p.kind !== 'player') return;
+        p.quiet = msg.on === true;
+        if (!p.quiet) this.sendBoard(room, peer);
+        return;
       case 'evStandby':
         if (!this.o.backup || typeof msg.token !== 'string' || !same(msg.token, this.o.backup.token))
           return this.send(room, peer, { t: 'evRefused', why: 'That standby link isn’t this tournament’s' });
@@ -180,6 +216,11 @@ export class Desk implements RemoteDesk {
         if (p.kind !== 'table' || !p.table?.featured || !msg.view || typeof msg.view !== 'object') return;
         p.table.live = msg.view;
         return this.boardSoon();
+      case 'evTableBackup':
+        if (p.kind !== 'table' || !p.table || typeof msg.blob !== 'string' || msg.blob.length > MAX_COPY || !Number.isInteger(msg.v)) return;
+        if (typeof msg.token !== 'string' || !msg.token || msg.token.length > 128) return;
+        p.table.backup = { blob: msg.blob, v: msg.v, token: msg.token };
+        return;
     }
   }
 
@@ -214,10 +255,16 @@ export class Desk implements RemoteDesk {
     if (want.kind === 'back') return this.welcome(room, peer, p, p.cid!);
     // a table's host: one of its players, at that table this round (whoever hosts it now: a takeover keeps the link)
     const t = this.remotes.get(want.table);
-    if (!t || t.round !== want.round || !t.members.includes(p.cid!)) return this.send(room, peer, { t: 'evRefused', why: 'That table has moved on' });
+    if (!t || t.round !== want.round || !t.members.includes(p.cid!)) {
+      // (hosted here now, its host's phone having gone quiet: that phone is back at it as a player, as the table itself tells it)
+      const here = this.o.director().link(want.table);
+      const adopted = here && !(here instanceof RemoteTable) && here.room && here.round === want.round;
+      return this.send(room, peer, { t: 'evRefused', why: adopted ? '' : 'That table has moved on' });
+    }
     p.kind = 'table';
     p.table = t;
     t.attach(room.transport, peer);
+    this.watchTables();
     this.send(room, peer, { t: 'evWelcome', you: personalView(this.event, p.cid!) });
   }
 
@@ -228,7 +275,8 @@ export class Desk implements RemoteDesk {
     const you = personalView(this.event, cid);
     p.you = JSON.stringify(you);
     this.send(room, peer, { t: 'evWelcome', you });
-    this.sendBoard(room, peer);
+    this.o.onChange?.();
+    if (!p.quiet) this.sendBoard(room, peer);
     const move = this.moveFor(cid);
     if (move) this.send(room, peer, { t: 'evMove', move });
   }
@@ -244,9 +292,10 @@ export class Desk implements RemoteDesk {
     if (!secret || !r) return null;
     const t = this.event.phase === 'done' ? undefined : r.tables.find((x) => x.seats.some((s) => s.member === cid));
     if (!t) return signMove(secret, { event: this.o.code, round: r.n, table: 0, room: this.o.code, host: false });
-    const remote = this.remotes.get(t.table);
-    if (!remote?.room || remote.round !== r.n) return null;
-    return signMove(secret, { event: this.o.code, round: r.n, table: t.table, room: remote.room, host: remote.hostCid === cid });
+    // (on a phone, or hosted here)
+    const link = this.o.director().link(t.table);
+    if (!link?.room || link.round !== r.n) return null;
+    return signMove(secret, { event: this.o.code, round: r.n, table: t.table, room: link.room, host: link instanceof RemoteTable && link.hostCid === cid });
   }
 
   // ---- the event ----------------------------------------------------------------------------
@@ -293,12 +342,64 @@ export class Desk implements RemoteDesk {
       const secret = this.o.registry.secretOf(cid);
       if (secret) this.deliver(cid, signMove(secret, { event: this.o.code, round: t.round, table: t.table, room: t.room, host: cid === host }));
     }
-    // (a host that never links up: the table goes to another of its players)
+    // (a host that never links up: the table goes to another of its players. One that linked up and
+    // then dropped is playing there: it's taken over here if it stays quiet, see adopt)
     const timer = setTimeout(() => {
       this.timers.delete(timer);
-      if (!t.link && this.remotes.get(t.table) === t && !this.closed) this.place(t);
+      if (t.heardAt < t.placedAt && this.remotes.get(t.table) === t && !this.closed) this.place(t);
     }, LINK_WAIT_MS);
     this.timers.add(timer);
+  }
+
+  // ---- a table whose host's phone goes quiet ------------------------------------------------
+
+  private quietTimer: ReturnType<typeof setInterval> | null = null;
+
+  /** While tables are played on phones (and this desk can take one over): look for a quiet one every so often. */
+  private watchTables() {
+    if (this.quietTimer || this.closed || !this.o.takeover) return;
+    this.quietTimer = setInterval(() => this.lookForQuiet(), QUIET_CHECK_MS);
+  }
+
+  private lookForQuiet() {
+    const r = currentRound(this.event);
+    const playing = [...this.remotes.values()].filter((t) => t.round === r?.n && !r.tables.find((x) => x.table === t.table)?.result);
+    if (!playing.length || this.closed) {
+      clearInterval(this.quietTimer!);
+      this.quietTimer = null;
+      return;
+    }
+    const now = Date.now();
+    for (const t of playing) if (t.backup && !t.adopting && now >= t.tryAfter && now - Math.max(t.heardAt, t.placedAt) >= TABLE_QUIET_MS) void this.adopt(t);
+  }
+
+  /**
+   * Take over a table whose host's phone has gone quiet (asleep in a pocket, say, or out of
+   * battery), as one of its players could: the relay hands over the key to the latest backup once
+   * the host has been gone a while. The table is hosted here from then on, in the same room, so its
+   * players' phones find it again by themselves; the host's phone, back, sits at it as a player.
+   */
+  private async adopt(t: RemoteTable) {
+    const how = this.o.takeover;
+    const backup = t.backup;
+    if (!how || !backup || !t.room) return;
+    t.adopting = true;
+    try {
+      const got = await how.escrow.takeover(t.room, how.hostKey, backup.token);
+      if (!got.key) {
+        // (a player at the table took it over first, or will: its new host links up with a backup of its own)
+        if ((got.error === 'no-backup' || got.error === 'not-a-player') && t.backup === backup) t.backup = null;
+        return;
+      }
+      const snap = await open<HostSnapshot>(backup.blob, got.key);
+      if (this.closed || this.remotes.get(t.table) !== t) return;
+      this.o.director().hostHere(t.table, snap, t.room);
+    } catch (e) {
+      console.warn('Couldn’t take the table over', e);
+    } finally {
+      t.adopting = false;
+      t.tryAfter = Date.now() + ADOPT_AGAIN_MS;
+    }
   }
 
   /**
@@ -317,24 +418,17 @@ export class Desk implements RemoteDesk {
     this.outbox = [];
     const hosts: (() => void)[] = [];
     const forwards = new Map<RemoteTable, { cid: string; move: SignedMove }[]>();
-    next: for (const [cid, move] of moves) {
+    // (each way it might reach them: straight, on the phone's own link; and, in case that link has
+    // gone quiet, through the host of the table they're at, or on the host's own link. A phone
+    // takes a move once.)
+    for (const [cid, move] of moves) {
       for (const room of this.rooms.values())
         for (const [peer, p] of room.peers) {
-          if (p.kind === 'player' && p.cid === cid) {
-            this.send(room, peer, { t: 'evMove', move });
-            continue next;
-          }
-          // (a table's host hears its own move on its link)
-          if (p.kind === 'table' && p.cid === cid) {
-            hosts.push(() => this.send(room, peer, { t: 'evMove', move }));
-            continue next;
-          }
+          if (p.kind === 'player' && p.cid === cid) this.send(room, peer, { t: 'evMove', move });
+          else if (p.kind === 'table' && p.cid === cid) hosts.push(() => this.send(room, peer, { t: 'evMove', move }));
         }
-      for (const t of [...this.retired, ...this.remotes.values()])
-        if (t.link && t.members.includes(cid)) {
-          forwards.set(t, [...(forwards.get(t) ?? []), { cid, move }]);
-          continue next;
-        }
+      const at = [...this.retired, ...this.remotes.values()].find((t) => t.link && t.members.includes(cid) && t.hostCid !== cid);
+      if (at) forwards.set(at, [...(forwards.get(at) ?? []), { cid, move }]);
     }
     for (const [t, list] of forwards) t.send({ t: 'evForward', moves: list });
     for (const send of hosts) send();
@@ -436,7 +530,7 @@ export class Desk implements RemoteDesk {
       this.o.onChange?.();
       for (const room of this.rooms.values())
         // (the screens, and the phones waiting here: signing up, a bye, knocked out, or the event over)
-        for (const [peer, p] of room.peers) if (p.kind === 'screen' || p.kind === 'standby' || p.kind === 'player') this.sendBoard(room, peer);
+        for (const [peer, p] of room.peers) if (p.kind === 'screen' || p.kind === 'standby' || (p.kind === 'player' && !p.quiet)) this.sendBoard(room, peer);
     }, BOARD_EVERY_MS);
   }
 
@@ -458,6 +552,12 @@ export class Desk implements RemoteDesk {
   /** The latest copy for the standby (sealed: see standby.ts). */
   private copy: { blob: string; at: number } | null = null;
   private aliveTimer: ReturnType<typeof setInterval> | null = null;
+
+  /** Whether `cid`'s phone is linked to the director now (signing up, waiting, or quietly, at a table). */
+  online(cid: string): boolean {
+    for (const room of this.rooms.values()) for (const p of room.peers.values()) if (p.kind === 'player' && p.cid === cid) return true;
+    return false;
+  }
 
   /** How many standbys are linked up. */
   standbys(): number {
@@ -491,14 +591,23 @@ export class Desk implements RemoteDesk {
     }, ALIVE_EVERY_MS);
   }
 
-  /** The progress of each table this round (for the tiles), wherever it's hosted. */
+  /**
+   * The progress of each table this round (for the tiles), wherever it's hosted, and whose phones
+   * there aren't linked to the director now (`off`, by name: asleep, closed, or out of reach).
+   */
   tiles() {
     const d = this.o.director();
     return new Map(
       (currentRound(this.event)?.tables ?? []).map((t) => {
-        const remote = this.remotes.get(t.table);
-        const tile = d.link(t.table)?.progress() ?? null;
-        return [t.table, { tile, linked: remote ? !!remote.link : true, room: remote?.room ?? null, host: remote?.hostCid ?? null, local: !remote }];
+        const link = d.link(t.table);
+        const remote = link instanceof RemoteTable ? link : null;
+        const tile = link?.progress() ?? null;
+        const off = t.result
+          ? []
+          : t.seats.flatMap((s) =>
+              s.member && !this.online(s.member) && !(remote?.link && remote.hostCid === s.member) ? [this.o.registry.members.get(s.member)?.name ?? '?'] : [],
+            );
+        return [t.table, { tile, linked: remote ? !!remote.link : true, room: link?.room ?? null, host: remote?.hostCid ?? null, local: !remote, off }];
       }),
     );
   }
@@ -520,6 +629,7 @@ export class Desk implements RemoteDesk {
     if (this.boardTimer) clearTimeout(this.boardTimer);
     if (this.liveTimer) clearInterval(this.liveTimer);
     if (this.aliveTimer) clearInterval(this.aliveTimer);
+    if (this.quietTimer) clearInterval(this.quietTimer);
     for (const t of this.timers) clearTimeout(t);
     for (const r of this.rooms.values()) r.transport.leave();
   }

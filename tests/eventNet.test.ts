@@ -80,8 +80,8 @@ describe('a tournament over the network', () => {
     await playOut(phones);
     expect(d.event.phase).toBe('between');
     expect(d.event.rounds[0].tables.every((t) => t.result)).toBe(true);
-    // round 2: everyone hears where to go through the host of the table they're at
-    expect(phones.every((p) => !p.link)).toBe(true);
+    // round 2: everyone hears where to go, on their own (quiet) link to the director and through the host of the table they're at
+    expect(phones.every((p) => p.link)).toBe(true);
     d.advance();
     await settle();
     expect(phones.every((p) => p.at?.round === 2)).toBe(true);

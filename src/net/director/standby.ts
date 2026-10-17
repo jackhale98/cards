@@ -107,6 +107,7 @@ export async function takeOver(o: { code: string; blob: string; token: string; e
   } catch {
     return { error: 'bad-copy' };
   }
-  for (const room of save.desk.rooms) if (room !== o.code) await o.escrow.takeover(room, o.hostKey, o.token);
+  // (and the rooms of tables the director hosted, which people play in)
+  for (const room of [...save.desk.rooms, ...Object.values(save.director.rooms ?? {})]) if (room !== o.code) await o.escrow.takeover(room, o.hostKey, o.token);
   return { ...save, hostKey: o.hostKey, backup: { key: newBackupKey(), token: save.backup.token }, at: Date.now() };
 }

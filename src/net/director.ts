@@ -24,14 +24,19 @@ export interface DirectorSnapshot {
   event: EventState;
   /** The round's tables hosted here, as their hosts saw them. */
   tables: Record<number, HostSnapshot>;
+  /** Of those, the ones people play at: the rooms they play in. */
+  rooms?: Record<number, string>;
   /** Waiting between rounds by the director's choice. */
   held?: boolean;
 }
 
 export interface DirectorOptions {
   event: EventState;
-  /** A link to a table of round `round` (restored from its snapshot, when the director is coming back). */
-  makeTable: (round: number, t: TableRound, restore?: HostSnapshot) => TableLink;
+  /**
+   * A link to a table of round `round`: restored from its snapshot (the director coming back, or
+   * taking over a table from its host's backup), and hosted here in `room` when people play there.
+   */
+  makeTable: (round: number, t: TableRound, o?: { restore?: HostSnapshot; room?: string }) => TableLink;
   /** The key that holds `member`'s seat at that table (each table gets only its own players' keys). */
   keyFor: (member: string, round: number, table: number) => string;
   /** The event's code, for the tables' lobbies. */
@@ -74,7 +79,7 @@ export class Director {
     const saved = this.o.restore;
     if (saved && r && this.event.phase !== 'registering' && this.event.phase !== 'done')
       for (const t of r.tables) {
-        const link = this.o.makeTable(r.n, t, saved.tables[t.table]);
+        const link = this.o.makeTable(r.n, t, { restore: saved.tables[t.table], room: saved.rooms?.[t.table] });
         this.listen(link, r, t);
         this.links.set(t.table, link);
         if (!saved.tables[t.table]) link.seat(this.tableFor(r, t));
@@ -128,6 +133,22 @@ export class Director {
     return this.links.get(table);
   }
 
+  /**
+   * A table played on a phone is hosted here from now on, from its host's backup (the phone went
+   * quiet: see Desk.adopt), in the room its players are in.
+   */
+  hostHere(table: number, restore: HostSnapshot, room: string) {
+    const r = currentRound(this.event);
+    const t = r?.tables.find((x) => x.table === table);
+    const was = this.links.get(table);
+    if (this.closed || !r || !t || !was) return;
+    const link = this.o.makeTable(r.n, t, { restore, room });
+    this.listen(link, r, t);
+    this.links.set(table, link);
+    was.close();
+    this.changed();
+  }
+
   /** Development and tests: one step of the event, the same every time: the first table with something to do, then the next round. */
   step(): boolean {
     for (const link of [...this.links.values()].sort((a, b) => a.table - b.table)) if (link.step()) return true;
@@ -140,11 +161,13 @@ export class Director {
 
   snapshot(): DirectorSnapshot {
     const tables: Record<number, HostSnapshot> = {};
+    const rooms: Record<number, string> = {};
     for (const [n, link] of this.links) {
       const s = link.snapshot();
       if (s) tables[n] = s;
+      if (s && link.room) rooms[n] = link.room;
     }
-    return { event: structuredClone(this.event), tables, ...(this.held ? { held: true } : {}) };
+    return { event: structuredClone(this.event), tables, ...(Object.keys(rooms).length ? { rooms } : {}), ...(this.held ? { held: true } : {}) };
   }
 
   close() {
