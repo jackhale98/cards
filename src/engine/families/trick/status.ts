@@ -87,7 +87,7 @@ export function trickStatus(g: TrickGame, s: S, viewer: number): GameStatus {
       : viewer === d.partner
         ? ` · you hold the ${cardOrJokerLabel(d.called)}: you're the partner`
         : ` · partner card ${cardOrJokerLabel(d.called)}`;
-  else if (auction && d.contract && d.maker != null && s.phase === 'play') {
+  else if (auction && d.contract && d.maker != null && s.phase === 'play' && !d.trump) {
     headline += d.contract.misere ? ` · ${contractLabel(d.contract)}` : ' · no trumps';
     if (d.jokerSuit) headline += ` · joker ${SUIT_SYMBOL[d.jokerSuit]}`;
     const lead = zone(s, 'trick').cards[0];

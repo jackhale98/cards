@@ -143,6 +143,10 @@
     padding: 0.3rem 0.6rem;
     border-radius: 999px;
   }
+  /* (a softer glow, inside the room the column leaves for it) */
+  .headline.side.mine {
+    box-shadow: 0 0 10px rgba(233, 196, 106, 0.4);
+  }
   .tip {
     display: block;
     overflow: hidden;

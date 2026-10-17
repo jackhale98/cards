@@ -68,6 +68,18 @@ describe('500', () => {
     expect(s.phase).toBe('auction');
   });
 
+  it('the headline names the trump suit, or says no trumps: never both', () => {
+    const s = g.setup(bots, 4, {});
+    s.phase = 'play';
+    s.turn = 0;
+    Object.assign(s.data, { trump: 'H', maker: 1, contract: { tricks: 6, suit: 'H', value: 100 }, trickNo: 2, handSize: 10, tricks: [0, 1, 1, 0] });
+    const suit = g.status(s, 0).headline!;
+    expect(suit).toContain('trumps ♥');
+    expect(suit).not.toContain('no trumps');
+    Object.assign(s.data, { trump: null, contract: { tricks: 6, suit: 'NT', value: 120 } });
+    expect(g.status(s, 0).headline).toContain('no trumps');
+  });
+
   it('the joker wins in no trumps and can only be played when void', () => {
     const s = g.setup(bots, 4, {});
     for (const z of Object.values(s.zones)) z.cards = [];

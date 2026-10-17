@@ -145,6 +145,10 @@
     gap: 4px;
     min-height: 0;
     overflow: hidden;
+    /* (room around the tip for its glow, which this box would otherwise cut square: given back
+       outside, so nothing moves; see TableStatus's .headline.side.mine) */
+    padding: 12px;
+    margin: -12px;
   }
   .me.side > .me-own {
     flex: none;
