@@ -1,6 +1,6 @@
 import type { ZoneState } from '../../engine/types';
 import { layoutZone, type Where } from './index';
-import { fanHeight } from './fan';
+import { fanGap, fanHeight } from './fan';
 import { FULL_HAND } from './spread';
 
 /**
@@ -12,6 +12,8 @@ import { FULL_HAND } from './spread';
 
 /** No card on the table narrower than this: below it the corner's rank and suit can't be read. */
 export const MIN_CW = 30;
+/** The least of a card in your hand that shows, to tap it (px). */
+export const TOUCH = 28;
 /** The last move's line under the headline (px, with the gap over it), until it's been measured. */
 export const LAST_H = 26;
 
@@ -128,10 +130,10 @@ export function handCw(i: { hand: number; handMode: boolean; stripShown: boolean
  * them than fit there (poker's fold, call, raise, all in on a phone) they run down beside your
  * hand as well. (Counted, not measured: where they go mustn't change how many fit.)
  */
-export function tallActions(i: { mainH: number; buttons: number; menu: boolean; track: boolean; handDone: boolean }): boolean {
+export function tallActions(i: { mainH: number; buttons: number; menu: boolean; track: boolean; replayHand: boolean }): boolean {
   if (!i.mainH) return false;
   const buttons = Math.min(i.buttons, 4) + (i.menu || i.buttons > 4 ? 1 : 0);
-  const extra = (i.track ? 64 : 0) + (i.handDone ? 48 : 0);
+  const extra = (i.track ? 64 : 0) + (i.replayHand ? 48 : 0);
   return buttons * 52 + extra > i.mainH;
 }
 
@@ -377,6 +379,8 @@ export interface FitInput {
   pileLabelH: number;
   /** Everyone's melds are on the table: your hand keeps its smallest size for them. */
   stripShown: boolean;
+  /** Your hand's fan: how many cards, and how wide it is with cards `cw` wide (measured). */
+  fan?: { n: number; width: (cw: number) => number };
   /** Something else in your hand's row (the buttons, beside it): the row is at least this tall. */
   bottomMinH?: number;
 }
@@ -384,6 +388,10 @@ export interface FitInput {
 /** Between the table's rows (seats, middle, hand) and between what's stacked in the middle. */
 const ROW_GAP = 4;
 const MAIN_GAP = 6;
+/** Hand mode pads the middle's top (`.table.handmode main`). */
+const HANDMODE_PAD = 4;
+/** Heights are measured in whole pixels, and a line of text is a fraction more: room for that. */
+const ROUNDING = 1;
 /** Over the last move's line: the middle's gap, less the line's -2px margin. */
 const LAST_GAP = MAIN_GAP - 2;
 
@@ -413,7 +421,7 @@ export function fitSizes(i: FitInput): { center: number; hand: number; lastFits:
     const main = i.tableH - i.headerH - 2 * ROW_GAP - Math.max(handHeight(handOf(hand), i), i.bottomMinH ?? 0);
     const above = i.headlineAbove ? i.headH + (last ? (i.lastH ? i.lastH + LAST_GAP : LAST_H) : 0) + MAIN_GAP : 0;
     const below = i.belowH ? i.belowH + MAIN_GAP : 0;
-    return main - above - below;
+    return main - above - below - (i.handMode ? HANDMODE_PAD : 0) - ROUNDING;
   };
   const fits = (k: number, last: boolean) => i.middle(Math.max(34, Math.round(wantCenter * k))) <= room(wantHand * k, last);
   let lastFits = i.headlineAbove;
@@ -439,6 +447,14 @@ export function fitSizes(i: FitInput): { center: number; hand: number; lastFits:
     const column = i.headH + 6 + (i.sideRecapH ? i.sideRecapH + 6 : 0) + i.meOwnH + 8;
     const row = i.tableH - i.headerH - 2 * ROW_GAP - column;
     hand = Math.max(0, Math.min(hand, (row - (fanHeight(1) - 1.4)) / 1.4));
+  }
+  // and no bigger than leaves each card a strip to tap: a long hand on a narrow screen fans tighter
+  // as its cards grow (never smaller than the hand's smallest; the height it gives back is the middle's)
+  if (i.fan && i.fan.n > 1 && !i.handEmpty && !i.pileOnly) {
+    const fan = i.fan;
+    const floor = handOf(0);
+    const tight = (h: number) => fanGap(fan.n, fan.width(handOf(h)), handOf(h)) < TOUCH;
+    while (handOf(hand) > floor && tight(hand)) hand = Math.min(hand, handOf(hand)) - 1;
   }
   const left = room(hand, lastFits) - i.middle(Math.max(34, Math.round(center)));
   // (`fits`: false when even the smallest cards don't, and the middle will be scaled to fit)

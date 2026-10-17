@@ -133,6 +133,12 @@
       return !!recap && !(showBanner && status.banner);
     },
     tappable,
+    get fanCount() {
+      return fanCards.length;
+    },
+    get asideByHand() {
+      return !!replay || actionsBesideHand || handMode || wideMiddle;
+    },
   });
   let tableClientH = $state(0);
   $effect(() => {
@@ -305,13 +311,13 @@
    * them than fit there (poker's fold, call, raise, all in on a phone) they run down beside your
    * hand as well. (Counted, not measured: where they go mustn't change how many fit.)
    */
-  const tallActions = $derived(
+  const tallActions = $derived.by(() =>
     size.tallActions({
       mainH: sz.mainH,
       buttons: view.actions.filter((a) => !a.menu).length,
       menu: view.actions.some((a) => a.menu),
       track: !!status.track,
-      handDone: !!view.handDone,
+      replayHand,
     }),
   );
   /**
@@ -354,6 +360,8 @@
   });
   let bannerHidden = $state<number | null>(null);
   const showBanner = $derived(!!status.banner && bannerHidden !== s.v);
+  /** Replay hand, over the buttons: when a hand is over and no result panel offers it (everyone folded, say). */
+  const replayHand = $derived(!!view.handDone && !(showBanner && status.banner) && !replay);
 
   // keep the screen awake while at the table
   $effect(() => keepAwake());
@@ -705,7 +713,7 @@
     <!-- bottom: my hand, info and actions -->
     <footer>
       <!-- bigger fanned cards tip further past the ends: keep them clear of the buttons -->
-      <div class="hand-wrap" style:padding-inline={handMode ? `${Math.round(sz.handCw * 0.3)}px` : undefined}>
+      <div class="hand-wrap" bind:clientWidth={sz.handW} style:padding-inline={handMode ? `${Math.round(sz.handCw * 0.3)}px` : undefined}>
         {#if myHandZone?.layout === 'stack'}
           <!-- a face-down pile instead of a hand (slap games): tap it to turn up your top card -->
           <Zone zone={myHandZone} cw={sz.handCw} {...zoneHooks(myHandZone)} place={false} />
@@ -729,11 +737,11 @@
         {/if}
       </div>
     </footer>
-    <aside bind:offsetHeight={sz.asideH}>
+    <aside bind:offsetHeight={sz.asideH} bind:offsetWidth={sz.asideW}>
       <ActionsColumn
         track={status.track}
         colorOf={(seat) => lobbySeat(seat)?.avatar?.color ?? seatColor(seat)}
-        replayHand={!!view.handDone && !(showBanner && status.banner) && !replay}
+        {replayHand}
         replay={replay ?? null}
         bar={actionBar}
       />

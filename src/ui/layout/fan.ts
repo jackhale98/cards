@@ -10,6 +10,21 @@ const EXTRA = 26;
 /** The height a fan of `cw`-wide cards takes. */
 export const fanHeight = (cw: number) => cw * ASPECT + EXTRA;
 
+/** How far apart a fan's cards are (what shows of each, to tap), and how far its outer cards lean past their own width. */
+function spacing(n: number, width: number, cw: number) {
+  const h = cw * ASPECT;
+  const mid = (n - 1) / 2;
+  const spread = Math.min(3.2, 26 / n);
+  // the outer cards' top corners reach past the card's own width as they lean: keep that inside
+  const lean = ((spread * mid) / 180) * Math.PI;
+  const reach = n > 1 ? Math.max(0, (cw / 2) * (Math.cos(lean) - 1) + PIVOT * h * Math.sin(lean)) : 0;
+  const room = width - 2 * reach;
+  return { spread, gap: Math.min(cw * 0.62, n > 1 ? (room - cw - 8) / (n - 1) : 0) };
+}
+
+/** What shows of each card in a fan of `n` `cw`-wide cards across `width` (where you tap it). */
+export const fanGap = (n: number, width: number, cw: number) => (n > 1 ? spacing(n, width, cw).gap : cw);
+
 /**
  * Your hand as a fan across `width`: overlapped as much as the width needs (and no more than
  * most of a card apart), the outer cards leaning out and dropping a little.
@@ -20,12 +35,7 @@ export function fan(ids: string[], width: number, cw: number): Placed {
   const placed: Placed = { w: width, h: n ? fanHeight(cw) : 0, spots: [] };
   if (!n || width <= 0) return placed;
   const mid = (n - 1) / 2;
-  const spread = Math.min(3.2, 26 / n);
-  // the outer cards' top corners reach past the card's own width as they lean: keep that inside
-  const lean = ((spread * mid) / 180) * Math.PI;
-  const reach = n > 1 ? Math.max(0, (cw / 2) * (Math.cos(lean) - 1) + PIVOT * h * Math.sin(lean)) : 0;
-  const room = width - 2 * reach;
-  const gap = Math.min(cw * 0.62, n > 1 ? (room - cw - 8) / (n - 1) : 0);
+  const { spread, gap } = spacing(n, width, cw);
   const left = (width - (cw + gap * (n - 1))) / 2;
   const top = placed.h - FOOT - h;
   placed.spots = ids.map((id, i) => {

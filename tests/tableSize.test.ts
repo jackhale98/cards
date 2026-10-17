@@ -1,3 +1,4 @@
+import { fanGap } from '../src/ui/layout/fan';
 import { describe, expect, it } from 'vitest';
 import type { GameModule, GameState, ZoneState } from '../src/engine/types';
 import { FULL_HAND, layoutZone, type Where } from '../src/ui/layout';
@@ -155,8 +156,8 @@ describe('the table’s sizes', () => {
   });
 
   it('puts the buttons beside your hand only when they don’t fit beside the middle', () => {
-    expect(size.tallActions({ mainH: 300, buttons: 2, menu: false, track: false, handDone: false })).toBe(false);
-    expect(size.tallActions({ mainH: 180, buttons: 4, menu: true, track: false, handDone: false })).toBe(true);
+    expect(size.tallActions({ mainH: 300, buttons: 2, menu: false, track: false, replayHand: false })).toBe(false);
+    expect(size.tallActions({ mainH: 180, buttons: 4, menu: true, track: false, replayHand: false })).toBe(true);
   });
 });
 
@@ -272,5 +273,32 @@ describe('the last move’s line', () => {
       if (two.center + two.hand < one.center + one.hand || two.spare < one.spare) gave++;
     }
     expect(gave).toBeGreaterThan(0);
+  });
+});
+
+describe('your hand, to tap', () => {
+  it('its cards grow only as far as leaves each one a strip to tap, never under the smallest hand', () => {
+    const m = MOMENTS[0];
+    const free = size.fitSizes(sizesInput(m, SCREENS.laptop));
+    const cw = (h: number) => size.handCw({ hand: h, handMode: false, stripShown: false, pileOnly: false });
+    for (const [n, width] of [
+      [8, 900],
+      [13, 520],
+      [18, 460],
+      [26, 300],
+    ]) {
+      const fit = size.fitSizes({ ...sizesInput(m, SCREENS.laptop), fan: { n, width: () => width } });
+      expect(fit.hand, `${n} in ${width}`).toBeLessThanOrEqual(free.hand);
+      const gap = fanGap(n, width, cw(fit.hand));
+      // (a strip to tap, or the smallest hand there is: a long hand on a narrow screen)
+      expect(gap >= size.TOUCH || cw(fit.hand) === cw(0), `${n} in ${width}: ${gap}px at ${cw(fit.hand)}`).toBe(true);
+    }
+    // (a few cards with room to spare: as big as before)
+    expect(size.fitSizes({ ...sizesInput(m, SCREENS.laptop), fan: { n: 5, width: () => 1000 } }).hand).toBe(free.hand);
+  });
+
+  it('the buttons count a Replay hand button only when there is one (no result panel offering it)', () => {
+    expect(size.tallActions({ mainH: 98, buttons: 1, menu: false, track: false, replayHand: false })).toBe(false);
+    expect(size.tallActions({ mainH: 98, buttons: 1, menu: false, track: false, replayHand: true })).toBe(true);
   });
 });

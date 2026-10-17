@@ -229,7 +229,9 @@ export async function screenProblems(page: Page): Promise<string[]> {
     root.querySelectorAll('.card:not(.back)').forEach((el) => {
       if (!shown(el)) return;
       const w = el.getBoundingClientRect().width;
-      if (w < 30)
+      // (under the smallest the table sizes a card, 30px: one sized at it can measure a hair under,
+      // drawn on the layer at its frame's sub-pixel scale)
+      if (w < 29.5)
         out.push(
           `hard to read: a face-up card ${Math.round(w)}px wide (${el.closest('header') ? 'in a seat' : inHand(el) ? 'in your hand' : 'on the table'}: ${el.getAttribute('aria-label')})`,
         );

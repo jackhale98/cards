@@ -30,6 +30,10 @@ export interface SizingIn {
   recapSide: boolean;
   /** A zone whose cards you can pick now: they spread out enough to tap (see Zone). */
   tappable: (z: ZoneState) => boolean;
+  /** The cards in your hand's fan. */
+  fanCount: number;
+  /** The buttons' column runs down beside your hand now (it's narrower for it). */
+  asideByHand: boolean;
 }
 
 /**
@@ -53,6 +57,9 @@ export class TableSizing {
   lastH = $state(0);
   /** The buttons' column: with everyone's melds on the table it sits in your hand's row, at its foot. */
   asideH = $state(0);
+  /** Your hand's row (inside it, hand mode pads the fan's ends: see Table), and the buttons' column. */
+  handW = $state(0);
+  asideW = $state(0);
   /** The pot, beside the middle's piles (it doesn't change size with the cards). */
   potW = $state(0);
   potH = $state(0);
@@ -188,6 +195,15 @@ export class TableSizing {
       pileLabelH: this.labels.lineH + 0.35 * 16,
       stripShown: i.strip.length > 0,
       bottomMinH: i.wideMiddle ? this.asideH : 0,
+      // (the hand's width with the buttons beside it, wherever they are now: they go there when the
+      // middle is short, and the middle's height depends on the hand's size, so a size that changed
+      // with where the buttons are could set them going back and forth)
+      fan: this.handW
+        ? {
+            n: i.fanCount,
+            width: (cw) => this.handW - (i.asideByHand ? 0 : this.asideW + 10) - (i.handMode ? 2 * Math.round(cw * 0.3) : 0),
+          }
+        : undefined,
     });
   }
   /**
