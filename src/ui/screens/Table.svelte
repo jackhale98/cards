@@ -815,8 +815,8 @@
     /* clip, not hidden: nothing (a focused button, a card scrolled into view) can shift the table sideways */
     overflow: clip;
   }
-  /* hand mode: the middle shrinks to the headline (and any pile you can tap); the hand grows */
-  /* the buttons beside the middle (mirroring you on the left), so your hand has the whole width;
+  /* hand mode: the middle shrinks to the headline (and any pile you can tap); the hand grows.
+     The buttons beside the middle (mirroring you on the left), so your hand has the whole width;
      but down beside the hand too when they don't fit there, in a replay (its controls are tall,
      and there's nothing to play) and in hand mode (the middle is only a line tall) */
   .table.tall-actions,
@@ -1046,7 +1046,6 @@
     flex-wrap: wrap;
     min-height: 0;
   }
-  /* everyone's melds: beside the piles, in one row that scrolls sideways when long */
   /* placed piles: a cross on a big screen, one tight row on a phone */
   .zones.cross {
     display: grid;
@@ -1124,7 +1123,6 @@
     background: color-mix(in srgb, var(--felt-3) 85%, transparent);
     box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.15);
   }
-  /* a table screen can't be scrolled: the melds wrap into rows instead (sized to fit: see stripFit) */
   /* (before the first meld: just its place, under the piles) */
   .strip-room {
     flex: 1 0 100%;
@@ -1142,6 +1140,7 @@
     min-width: 9rem;
     justify-content: center;
   }
+  /* a table screen can't be scrolled: the melds wrap into rows instead (sized to fit: see stripFit) */
   .table.display .strip {
     flex: 1 0 120%;
     flex-wrap: wrap;

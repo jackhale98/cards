@@ -1,3 +1,4 @@
+import { nextRandom, seedState } from '../src/engine/rng';
 import { readFileSync } from 'node:fs';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { TrickData } from '../src/engine/families/trick';
@@ -110,7 +111,18 @@ describe('Hard Spades bots bid from deals solved double dummy', () => {
     const rest = tg.deckCards.filter((c) => !mine.includes(c));
     for (let i = 0, k = 0; i < 4; i++) s.zones[`hand:${i}`].cards = (i === seat ? mine : rest.slice(k, (k += 13))).map((id) => ({ id }));
   };
-  const bid = (s: GameState<TrickData>, seat: number) => ddBid(tg, s, seat, (c) => quickTricks(c, 'S'), Math.random)!;
+  // (each bid from the same few deals, so two bids differ only by what the test changed: four
+  // random deals each made a bid move by one now and then on its own)
+  const bid = (s: GameState<TrickData>, seat: number) => {
+    const dice = { rng: seedState(11) };
+    return ddBid(
+      tg,
+      s,
+      seat,
+      (c) => quickTricks(c, 'S'),
+      () => nextRandom(dice),
+    )!;
+  };
 
   it('bids a strong hand high and a weak one low (never nil by mistake)', () => {
     const s = table();

@@ -60,6 +60,9 @@ src/net/exports/       the standard records a game can also be saved as: PBN (br
                        (Hold'em, Omaha); formats.ts says which game gets which
                        (and PHH, poker for PokerKit: written only for checking, see tools/)
 src/ui/screens/        Home, Lobby, Table, TvScreen;  src/ui/components/  the pieces
+src/ui/table/          the table screen's parts: its sheets and columns (components), what shows where
+                       (shown.ts), picking cards (selection), the sizes (sizing.svelte.ts over
+                       layout/table.ts, the pure arithmetic); Table.svelte puts them together
 src/ui/layout/         where each zone's cards go in its frame: pure functions, one per `layout` (fan, trick,
                        stack, spread, piles; index.ts picks); frames.svelte.ts, the frames zones register
 src/ui/components/CardLayer.svelte  draws every card on the table, one element each, eased from place to

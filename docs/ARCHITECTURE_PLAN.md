@@ -138,7 +138,7 @@ components that each own their CSS. Rules for the components:
       `centerCw`, `handCw`, `tallActions`/`tallFor`) into `table/sizing.svelte.ts`, a class built
       from a getter of its inputs; the DOM helpers (`fitHeight` guard, `fitSide`, `edgeFade`) into
       `table/actions.ts`. The `__sizes` development hook moves with it (4a's snapshot reads it).
-- [ ] 2e. Docs: CLAUDE.md's map lists `src/ui/table/`; this plan's log. Target: `Table.svelte`
+- [x] 2e. Docs: CLAUDE.md's map lists `src/ui/table/`; this plan's log. Target: `Table.svelte`
       under ~1000 lines (script ~300, markup ~250, CSS ~400: the table's grid and the middle).
 
 Order and why: 2.0 first, so every later step is checked by pictures, not by eye. Sheets first
@@ -213,3 +213,9 @@ Goal: one module per job behind the same `Host` API (no protocol change).
   field set in the constructor trips TypeScript ("used before its initialization"): use
   `$derived.by(() => expr)`. 1508 → 1256 lines (script 484, markup 315, CSS 457); pictures
   identical; full e2e 267 passed.
+- 2e: CLAUDE.md's map lists `src/ui/table/`. Phase 2 ends at 1256 lines, not under 1000: what's
+  left is the table's grid, the middle (piles, pot, strip) with its CSS, the flight anchors and
+  the sounds. The middle could be a component of its own later (another ~250 lines), but it
+  shares the most state with the sizing and the layer, so it stays for now. Also fixed on the
+  way: `tests/ddPlay.test.ts`'s Spades bid test drew its four sample deals with `Math.random`
+  and flaked now and then; it uses a seeded die now.
