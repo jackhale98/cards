@@ -200,6 +200,14 @@ export function parseHash(hash = location.hash): Route {
   return { name: 'home' };
 }
 
+/** Development builds: a table dealt from a fixed seed and/or held still (see Host's options). */
+function devTable(): { seed?: number; still?: boolean } {
+  if (!import.meta.env.DEV) return {};
+  const q = new URLSearchParams(location.search);
+  const seed = Number(q.get('seed'));
+  return { seed: q.has('seed') && Number.isFinite(seed) ? seed : undefined, still: q.has('still') };
+}
+
 function loadAvatar(): Avatar {
   try {
     const saved = cleanAvatar(JSON.parse(store.get('cards.avatar') ?? 'null'));
@@ -500,6 +508,9 @@ class App {
       night: split?.night,
       parent: split?.parent,
       game: split?.game,
+      // (development builds: `?seed=7` deals the same cards every time, `&still` keeps the bots
+      // and the table from moving, to put a moment on screen exactly)
+      ...devTable(),
     });
     host.onPings = (p) => (this.pings = p);
     host.onReact = (id, e) => (this.reaction = { id, e, at: Date.now() });

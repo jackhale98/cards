@@ -102,6 +102,9 @@ export class Host {
   state: GameState | null = null;
   private module: GameModule | null = null;
   private readonly brain: Brain;
+  /** Development and tests: every game dealt from this seed, and the table holding still (see opts). */
+  private readonly seed?: number;
+  private readonly still: boolean;
   /** Counts requests to the brain: an answer to an older one (the table has moved on) is ignored. */
   private thinking = 0;
   private history: GameState[] = [];
@@ -162,9 +165,18 @@ export class Host {
       brain?: Brain;
       /** A split-off table starts on the game (and settings) the table it came from was on. */
       game?: { id: string; options: Record<string, number | boolean> };
+      /**
+       * Development builds and tests only: deal every game from this seed (the same cards each
+       * time), and `still`, nothing moves by itself (no bots, no tricks collected), so a table can
+       * be put on screen exactly, to look at or compare.
+       */
+      seed?: number;
+      still?: boolean;
     } = {},
   ) {
     this.brain = opts.brain ?? inlineBrain();
+    this.seed = opts.seed;
+    this.still = !!opts.still;
     this.brain.onError = (e, game, phase) => {
       console.error(e);
       report('bot', e, { game, phase, action: 'think' });
@@ -774,7 +786,7 @@ export class Host {
     this.timer = null;
     const s = this.state;
     const module = this.module;
-    if (!s || !module) return;
+    if (!s || !module || this.still) return;
     if (module.realtime) return this.pumpRealtime(s, module);
     const sys = module.system?.(s);
     // (a move that can still be taken back: give its player a moment before the table moves on)
@@ -1273,7 +1285,7 @@ export class Host {
     this.gameRecord = new GameRecord(standardFormats(this.module.config));
     this.state = this.module.setup(
       players.map((s) => ({ name: s.name, bot: s.bot })),
-      randomSeed(),
+      this.seed ?? randomSeed(),
       { ...this.lobby.options },
     );
     delete this.lobby.scores;

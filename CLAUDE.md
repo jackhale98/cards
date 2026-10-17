@@ -23,6 +23,8 @@ pnpm -C relay check      # the relay's type check
 pnpm records             # bots play bridge and Hold'em into records/; then python tools/check_records.py records
 pnpm verify              # check + lint + format:check + test + build + relay check: run before you commit
 pnpm verify:all          # verify + e2e
+pnpm pictures            # a dozen games dealt from a fixed seed, held still (`?seed=7&still`, development only),
+                         # photographed; `--update-snapshots` first, then again after a change: nothing may differ
 AUDIT_GAMES=holdem,omaha pnpm audit:screens   # the screen audit (e2e/audit.spec.ts) for those games; `pnpm audit:screens`
                          # alone is every game (about an hour): run it when a change affects every table
 ```

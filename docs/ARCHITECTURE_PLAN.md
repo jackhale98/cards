@@ -100,7 +100,7 @@ components that each own their CSS. Rules for the components:
 
 ### Steps (each a commit: `pnpm verify`, full e2e, the picture check below)
 
-- [ ] 2.0 **A picture check for "nothing changed"** (pulled forward from 4a): development builds
+- [x] 2.0 **A picture check for "nothing changed"** (pulled forward from 4a): development builds
       take `?seed=…` so a table deals the same cards each time; a script (`e2e/pictures.spec.ts`,
       not in CI) deals each of a dozen games (one per layout: hearts, bridge, holdem, stud,
       rummy-500, canasta, kings-corners, cribbage, slapjack, spit, gin-rummy, palace) at a phone
@@ -188,3 +188,6 @@ Goal: one module per job behind the same `Host` API (no protocol change).
   `ui/labelMeasure.ts`), `fitSizes` (the table's height shared out from exact sizes), the middle's
   predicted height on `.zones` as `data-middle-h` for tests. Next: check predictions against the
   page in a browser (e2e/zzPredict.spec.ts, scratch).
+- 2.0 (branch `phase2`): `?seed=…&still` (Host options `seed`, `still`; development builds only) and
+  `pnpm pictures` (36 tests, 72 pictures: stable over repeated runs; a 1px change to the headline
+  shows). The menu's title has the table's random code: the spec writes a fixed one in first.

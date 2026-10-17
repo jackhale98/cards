@@ -16,3 +16,6 @@ __pycache__/
 
 # the screen audit's screenshots and findings (pnpm audit:screens)
 audit/
+
+# the picture check's "before" pictures (pnpm pictures)
+e2e/pictures.spec.ts-snapshots/
