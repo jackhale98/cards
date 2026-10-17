@@ -74,3 +74,15 @@ export function gridOrder(zones: ZoneState[]): ZoneState[] {
 export function playFromOf(middle: ZoneState[], selectable: Set<string> | null): ZoneState | null {
   return middle.find((z) => z.faceUpHand && z.cards.some((c) => selectable?.has(c.id))) ?? null;
 }
+
+/**
+ * A face-up hand you've played from while your own hand is empty (500's open misère: your own hand,
+ * laid down) stays in your hand's place between your turns, rather than going back to the middle
+ * each time it's someone else's turn. The zone that stays, after an update (null: none).
+ */
+export function keptPlayFrom(kept: string | null, middle: ZoneState[], selectable: Set<string> | null, own: number): string | null {
+  if (own) return null;
+  const up = middle.filter((z) => z.faceUpHand && z.cards.length);
+  if (kept && up.some((z) => z.id === kept)) return kept;
+  return up.find((z) => z.cards.some((c) => selectable?.has(c.id)))?.id ?? null;
+}

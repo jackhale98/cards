@@ -3,7 +3,7 @@ import type { ActionSpec, ZoneState } from '../src/engine/types';
 import { afterSwipe, afterTap, picking, zoneActionOf } from '../src/ui/table/selection.svelte';
 import { freshAfter } from '../src/ui/table/fresh';
 import { announceText, lastMoveOf, recapOf, soundFor } from '../src/ui/table/events';
-import { keptRoomAfter, middleZones, playFromOf, showdownZones, stripOrder, stripZonesOf } from '../src/ui/table/shown';
+import { keptPlayFrom, keptRoomAfter, middleZones, playFromOf, showdownZones, stripOrder, stripZonesOf } from '../src/ui/table/shown';
 import { RaceClock } from '../src/ui/table/race';
 import { ovalSeat } from '../src/ui/layout/table';
 
@@ -132,6 +132,19 @@ describe('which zones show where', () => {
     const all = Object.fromEntries(melds.map((z) => [z.id, z]));
     expect(stripZonesOf(all, new Set(['melds:1'])).map((z) => z.owner)).toEqual([0, 2, 3]);
   });
+  it('a face-up hand you play from with no hand of your own stays yours between turns (open misère)', () => {
+    const open = zone('dummy', ['2C', '3C'], { faceUpHand: true });
+    // (laid down, before your turn: in the middle, like any open hand)
+    expect(keptPlayFrom(null, [open], null, 0)).toBeNull();
+    // your turn: it's yours to play from, and stays so when it's someone else's turn
+    const kept = keptPlayFrom(null, [open], new Set(['2C']), 0);
+    expect(kept).toBe('dummy');
+    expect(keptPlayFrom(kept, [open], null, 0)).toBe('dummy');
+    // (with a hand of your own, bridge's declarer, it goes back to the middle between turns; and once it's empty)
+    expect(keptPlayFrom(kept, [open], null, 13)).toBeNull();
+    expect(keptPlayFrom(kept, [zone('dummy', [], { faceUpHand: true })], null, 0)).toBeNull();
+  });
+
   it('the dummy you play from is the face-up hand with a card you can pick', () => {
     const d = zone('dummy', ['2C'], { faceUpHand: true });
     expect(playFromOf([d], new Set(['2C']))).toBe(d);

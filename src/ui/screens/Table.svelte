@@ -290,9 +290,15 @@
   /**
    * A whole hand face up on the table that you're playing from now (bridge's dummy, for its
    * declarer): it takes your hand's place at the bottom, full size, and your own hand sits small in
-   * its place in the middle until it's your own turn again.
+   * its place in the middle until it's your own turn again. (One you play from with no hand of your
+   * own, 500's open misère, stays there between your turns: see keptPlayFrom.)
    */
-  const playFrom = $derived(display || you < 0 ? null : shown.playFromOf(centerZones, selectable));
+  let keptFrom = $state<string | null>(null);
+  $effect(() => {
+    const next = shown.keptPlayFrom(keptFrom, centerZones, selectable, myHand.length);
+    if (next !== keptFrom) keptFrom = next;
+  });
+  const playFrom = $derived(display || you < 0 ? null : (shown.playFromOf(centerZones, selectable) ?? centerZones.find((z) => z.id === keptFrom) ?? null));
   const fanCards = $derived(playFrom ? playFrom.cards : myHand);
   /**
    * Every card on the table is drawn by one layer (CardLayer.svelte): each zone and your hand lay
@@ -611,7 +617,8 @@
       use:fitHeight={{ display, onroom: (room) => sz.noteRoom(room) }}
       data-middle-h={sz.mainW ? Math.round(sz.middleAt(sz.centerCw)) : undefined}
     >
-      {#each shownCenter as z (playFrom?.id === z.id ? `mine:${z.id}` : z.id)}
+      <!-- (the face-up hand you play from sits in your hand's place, and your own hand in its place here: none, if it's empty) -->
+      {#each shownCenter.filter((z) => playFrom?.id !== z.id || myHand.length) as z (playFrom?.id === z.id ? `mine:${z.id}` : z.id)}
         <div
           class="zone-slot"
           in:fade={{ duration: z.faceUpHand || z.id === `hand:${you}` ? swapMs : 0, delay: z.faceUpHand || z.id === `hand:${you}` ? swapMs * 0.6 : 0 }}

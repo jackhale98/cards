@@ -206,6 +206,9 @@
     };
     const buried = new Set(Object.values(all).flatMap((f) => f.ids));
     const swapping = frames.calm !== calm;
+    // (the two hands trading places: your fan and the hand it trades with, in the middle; a card
+    // going anywhere else as they trade, the one just played to the trick, travels as usual)
+    const trading = new Set(['hand', calm, frames.calm, `hand:${you}`]);
     calm = frames.calm;
 
     const out: Shown[] = [];
@@ -223,7 +226,7 @@
       if (next) {
         // staying, or moving: the same element eases there
         const moved = next.frame !== c.frame;
-        if (moved && swapping && !still) {
+        if (moved && swapping && !still && trading.has(c.frame) && trading.has(next.frame)) {
           out.push({ ...c, frame: next.frame, at: { ...next.at, delay: 260 }, ms: 0, from: null, clip: next.clip, leaving: false, flying: false, swap: true });
           later(c.key, 600, () => settle(c.key, { swap: false }));
           continue;
