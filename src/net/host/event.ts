@@ -19,12 +19,19 @@ export interface EventSeat {
   key: string;
 }
 
+/** A bot playing for an entrant (an event against bots). */
+export interface BotSeat {
+  bot: true;
+  name: string;
+}
+const isMember = (m: EventSeat | BotSeat | null): m is EventSeat => !!m && !('bot' in m);
+
 export interface EventTable {
   /** What everyone at the table may know (it goes in the lobby). */
   info: LobbyEvent;
   game: { id: string; options: Record<string, number | boolean> };
-  /** Who sits where, in game-seat order: a member, or null for a bot. */
-  seats: (EventSeat | null)[];
+  /** Who sits where, in game-seat order: a member, a bot playing for an entrant (by its name), or null for a bot filling a gap. */
+  seats: (EventSeat | BotSeat | null)[];
   /** The game's private inputs (boards, chips): never in the lobby. */
   setup?: TableSetup;
   /** Deal from this seed (the director's, so an event can be replayed), else at random. */
@@ -61,17 +68,17 @@ export const EVENT_GRACE_MS = 90_000;
  * and sits out. Members show as away until they arrive; bots are named by their place.
  */
 export function eventSeats(t: EventTable, host: { cid: string; name: string; avatar?: Avatar }): LobbySeat[] {
-  const plays = t.seats.some((m) => m?.id === host.cid);
+  const plays = t.seats.some((m) => isMember(m) && m.id === host.cid);
   const seats: LobbySeat[] = plays ? [] : [{ id: host.cid, name: host.name, avatar: host.avatar, host: true, connected: true, screen: true, out: true }];
   const used = new Set(t.seats.map((m) => m?.name));
   const names = BOT_NAMES.filter((n) => !used.has(n));
   t.seats.forEach((m, i) => {
-    if (m?.id === host.cid) seats.push({ id: m.id, name: m.name, avatar: m.avatar ?? host.avatar, host: true, connected: true });
-    else if (m) seats.push({ id: m.id, name: m.name, avatar: m.avatar, connected: false });
+    if (isMember(m) && m.id === host.cid) seats.push({ id: m.id, name: m.name, avatar: m.avatar ?? host.avatar, host: true, connected: true });
+    else if (isMember(m)) seats.push({ id: m.id, name: m.name, avatar: m.avatar, connected: false });
     else
       seats.push({
         id: `bot:t${t.info.table}s${i}`,
-        name: names.shift() ?? `Bot ${i + 1}`,
+        name: m?.name ?? names.shift() ?? `Bot ${i + 1}`,
         avatar: { emoji: AVATAR_EMOJI[(i * 7 + 3) % AVATAR_EMOJI.length], color: AVATAR_COLORS[(i * 3 + 1) % AVATAR_COLORS.length] },
         bot: true,
         connected: true,

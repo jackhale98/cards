@@ -507,6 +507,11 @@ export function pinochleFamily(config: GameConfig): GameModule<PinochleData> {
       return null;
     },
 
+    sides: () => [
+      [0, 2],
+      [1, 3],
+    ],
+
     standings(s) {
       return placesFromScores(s.players.map((_, i) => s.data.scores[teamOf(i)]));
     },

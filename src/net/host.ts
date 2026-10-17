@@ -1003,7 +1003,7 @@ export class Host {
     delete this.lobby.takeBacks;
     delete this.lobby.scores;
     const mine = this.keys[me.id];
-    this.keys = Object.fromEntries(t.seats.filter((m) => !!m).map((m) => [m!.id, m!.key]));
+    this.keys = Object.fromEntries(t.seats.flatMap((m) => (m && 'key' in m ? [[m.id, m.key]] : [])));
     if (mine) this.keys[me.id] = mine;
     if (this.graceTimer) clearTimeout(this.graceTimer);
     this.graceTimer = setTimeout(() => {
@@ -1016,7 +1016,7 @@ export class Host {
     );
     this.broadcast();
     // anyone already here for one of these seats shows its key to take it (a client id alone is public)
-    const reserved = new Set(t.seats.map((m) => m?.id));
+    const reserved = new Set(t.seats.map((m) => (m && 'id' in m ? m.id : null)));
     for (const [peer, cid] of this.peers)
       if (reserved.has(cid) && cid !== me.id) this.transport?.send({ t: 'view', view: { ...this.viewFor(null), who: true } }, peer);
   }

@@ -239,6 +239,8 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
       };
     },
 
+    sides: (n) => teamsFor(g, n),
+
     standings(s) {
       return placesFromScores(
         s.players.map((_, i) => s.data.scores[teamOf(g, s, i)]),

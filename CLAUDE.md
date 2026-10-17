@@ -46,6 +46,8 @@ src/engine/            pure TS: no DOM, no network, no UI
   lib/                 betting, pokerEval, trickTaking, passing, melds, cribbageScore, teams,
                        realtime (the speed games), canastaCards
   bots/search.ts       Monte Carlo search bots any family can plug into
+  events/              tournaments: Swiss, round robin, knockout (pairing.ts), standings, what screens
+                       and phones may see (view.ts); lib/duplicate.ts is duplicate bridge's arithmetic
 src/games/<id>/game.json   a game = a family plus parameters (schemas/game.schema.json)
 src/engine/schema.gen.ts   the game.json types, generated from the schema (pnpm gen:types; never edit)
 src/games/index.ts     registry: game files load with the app (GameInfo), rules only when picked
@@ -56,6 +58,8 @@ src/net/host.ts        the authoritative host: seats and keys, checking and appl
                        tonight's tally), backups (host handoff), lobby (who plays, lobby buttons),
                        records, limits, event (a tournament table: seats the director assigns, held
                        between hands, results reported)
+src/net/director.ts    a tournament's director: runs the event, seats each round's tables (director/tables.ts:
+                       hosted on this device, or by a player there), hears results;  eventCrypto.ts its secrets
 src/net/brain.ts       where bots think: botWorker.ts (a Web Worker) in the app, inline in tests;
                        shareBrain, one brain taking turns between several tables
 src/net/client.ts      a player's (or TV's) connection to the host

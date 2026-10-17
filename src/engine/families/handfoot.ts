@@ -567,6 +567,8 @@ export function handFootFamily(config: GameConfig): GameModule<HandFootData> {
       return null;
     },
 
+    sides: (n) => [...Array(teamCount(n)).keys()].map((t) => [...Array(n).keys()].filter((i) => (partners(n) ? i % 2 : i) === t)),
+
     standings(s) {
       return placesFromScores(s.players.map((_, i) => s.data.scores[teamOf(s, i)]));
     },

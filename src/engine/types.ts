@@ -302,6 +302,11 @@ export interface GameModule<D = any> {
    * game night tally. Without it, the winners are first and everyone else shares second.
    */
   standings?(s: GameState<D>): number[];
+  /**
+   * The sides at a table of `players` (partners share a side): `[[0, 2], [1, 3]]` is two pairs
+   * sitting opposite. Without it, everyone plays for themselves. A tournament pairs sides.
+   */
+  sides?(players: number): number[][];
   /** A tournament's change to the table (new blinds), made by the host between hands only. */
   adjust?(s: GameState<D>, change: TableChange): void;
   /** What a tournament table reports (public information only): board results, chips. */

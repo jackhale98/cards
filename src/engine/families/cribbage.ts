@@ -638,6 +638,8 @@ export function cribbageFamily(config: GameConfig): GameModule<CribData> {
       };
     },
 
+    sides: (n) => teamsFor(n),
+
     standings(s) {
       return placesFromScores(s.players.map((_, i) => s.data.scores[teamOf(s, i)]));
     },

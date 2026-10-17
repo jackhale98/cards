@@ -1,6 +1,9 @@
 import { bidOf, bridgeScore, type BridgeContract } from '../contracts';
 import type { Hand } from './hands';
 import { estimate, SPREAD } from './tricks';
+import { imps } from '../../../lib/duplicate';
+
+export { imps };
 
 /**
  * Choosing a contract: for each hand partner might hold, the estimated tricks in each strain,
@@ -84,15 +87,6 @@ export interface Choice {
   /** A bid, or 'P' to leave the contract where it is. */
   call: number | 'P';
   ev: number;
-}
-
-/** International Match Points for a difference in score (the WBF scale). */
-const IMP_STEPS = [20, 50, 90, 130, 170, 220, 270, 320, 370, 430, 500, 600, 750, 900, 1100, 1300, 1500, 1750, 2000, 2250, 2500, 3000, 3500, 4000];
-export function imps(diff: number): number {
-  const a = Math.abs(diff);
-  let n = 0;
-  while (n < IMP_STEPS.length && a >= IMP_STEPS[n]) n++;
-  return diff < 0 ? -n : n;
 }
 
 /** Each contract's score for every number of tricks, by its strain's place in the estimates. */

@@ -709,6 +709,8 @@ export function canastaFamily(config: GameConfig): GameModule<CanastaData> {
       return null;
     },
 
+    sides: (n) => fixedSides(n),
+
     standings(s) {
       return placesFromScores(s.players.map((_, i) => scoreOf(s, i)));
     },
