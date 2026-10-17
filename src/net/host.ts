@@ -23,9 +23,10 @@ import {
   type View,
   REACTIONS,
 } from './protocol';
-import { seal } from './backup';
+
 import { Hands, noteScores, tally } from './host/history';
 import { Bots } from './host/bots';
+import { Backups } from './host/backups';
 import type { ExportFormat } from './exports/formats';
 import { pingsMoved, VERSION_PATHS, wire } from './host/wire';
 import { cleanNightGame, standardFormats } from './host/records';
@@ -60,9 +61,6 @@ import {
   TAKE_BACK_MS,
   SCREEN_SOUND,
   STAND_IN,
-  BACKUP_EVERY_MS,
-  BACKUP_SOON_MS,
-  BACKUP_HOLDERS,
   HELLO_GAP_MS,
   IDENTITIES_PER_MINUTE,
   TABLE_MAX,
@@ -119,20 +117,8 @@ export class Host {
   onLocalError: (msg: string) => void = () => {};
   /** Called after every change with a serialisable snapshot (for resume-after-refresh). */
   onPersist: (snap: HostSnapshot) => void = () => {};
-  /** Host handoff: the key players' backups are sealed with (held by the relay), if any. */
-  private backupKey?: string;
-  /** Given to players with their backups: the relay lets only someone holding it take over. */
-  private takeoverToken?: string;
-  private backupTimer: ReturnType<typeof setTimeout> | null = null;
-  /** When the queued backup goes, and when the last one went. */
-  private backupDue = 0;
-  private backupAt = 0;
-  private backedUp = -1;
-  /** Who holds the latest backup (client ids). */
-  private holders: string[] = [];
-  /** The phase, and the cards on the trick, at the last broadcast: their change marks a trick or hand ending. */
-  private seenPhase?: string;
-  private seenTrick = 0;
+  /** Host handoff: sealed backups held by two players (see host/backups.ts). */
+  private readonly backups: Backups;
   private closed = false;
 
   constructor(
@@ -161,6 +147,7 @@ export class Host {
     } = {},
   ) {
     this.seed = opts.seed;
+    // (the bots and the backups see the table as it is when they look: getters onto this host)
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const self = this;
     this.bots = new Bots(
@@ -181,8 +168,30 @@ export class Host {
       opts.brain,
       !!opts.still,
     );
-    this.backupKey = opts.backupKey;
-    this.takeoverToken = opts.takeoverToken;
+    this.backups = new Backups({
+      get transport() {
+        return self.transport;
+      },
+      get state() {
+        return self.state;
+      },
+      get lobby() {
+        return self.lobby;
+      },
+      get keys() {
+        return self.keys;
+      },
+      get v() {
+        return self.v;
+      },
+      get peers() {
+        return self.peers;
+      },
+      get displays() {
+        return self.displays;
+      },
+    });
+    this.backups.configure(opts.backupKey, opts.takeoverToken);
     this.keys = { ...(restore?.keys ?? {}) };
     if (host.key) this.keys[host.cid] = host.key;
     if (restore) {
@@ -244,8 +253,7 @@ export class Host {
   attach(transport: Transport, backup: { backupKey?: string; takeoverToken?: string } = {}) {
     if (this.closed || this.transport) return;
     this.transport = transport;
-    this.backupKey = backup.backupKey;
-    this.takeoverToken = backup.takeoverToken;
+    this.backups.configure(backup.backupKey, backup.takeoverToken);
     this.wire(transport);
   }
 
@@ -1102,7 +1110,7 @@ export class Host {
     this.closed = true;
     this.bots.stop();
     for (const peer of [...this.helloPace.keys()]) this.forget(peer);
-    if (this.backupTimer) clearTimeout(this.backupTimer);
+    this.backups.stop();
     if (this.heartbeat) clearInterval(this.heartbeat);
     this.transport?.leave();
   }
@@ -1159,7 +1167,7 @@ export class Host {
       }
     }
     this.onPersist({ lobby: this.lobby, state: this.state, keys: this.keys });
-    this.queueBackup();
+    this.backups.queue();
   }
 
   /**
@@ -1217,59 +1225,6 @@ export class Host {
     this.syncedAt.set(peer, Date.now());
     this.sentViews.delete(peer);
     this.sendView(peer, wire(this.viewFor(this.displays.has(peer) ? null : cid)));
-  }
-
-  // ---- host handoff -----------------------------------------------------------------------
-
-  /**
-   * Queue a backup: soon after a trick or a hand ends, or when someone new must hold one (a holder
-   * has gone); otherwise within BACKUP_EVERY_MS of the last.
-   */
-  private queueBackup() {
-    if (!this.transport || !this.backupKey) return;
-    const s = this.state;
-    const trick = s?.zones.trick?.cards.length ?? 0;
-    const ended = !!s && (s.phase !== this.seenPhase || (this.seenTrick > 0 && trick === 0));
-    this.seenPhase = s?.phase;
-    this.seenTrick = trick;
-    const newHolder = this.backupHolders().some(([cid]) => !this.holders.includes(cid));
-    const now = Date.now();
-    const due = ended || newHolder ? now + BACKUP_SOON_MS : Math.max(now, this.backupAt + BACKUP_EVERY_MS);
-    if (this.backupTimer) {
-      if (this.backupDue <= due) return;
-      clearTimeout(this.backupTimer);
-    }
-    this.backupDue = due;
-    this.backupTimer = setTimeout(() => {
-      this.backupTimer = null;
-      void this.sendBackup();
-    }, due - now);
-  }
-
-  /**
-   * The players to hold backups, and the connection to send each one's on: seated people who could
-   * take over (not bots, not table screens), connected now. Those already holding one come first, so
-   * a backup isn't passed around; then in seat order.
-   */
-  private backupHolders(): [string, string][] {
-    const reach = new Map<string, string>();
-    for (const [peer, cid] of this.peers) if (!this.displays.has(peer) && !reach.has(cid)) reach.set(cid, peer);
-    const people = this.lobby.seats.filter((x) => !x.bot && !x.host && reach.has(x.id)).map((x) => x.id);
-    const order = [...people.filter((c) => this.holders.includes(c)), ...people.filter((c) => !this.holders.includes(c))];
-    return order.slice(0, BACKUP_HOLDERS).map((cid) => [cid, reach.get(cid)!]);
-  }
-
-  private async sendBackup() {
-    const v = this.v;
-    const to = this.backupHolders();
-    // (nothing new: only a new holder needs it)
-    const fresh = v === this.backedUp ? to.filter(([cid]) => !this.holders.includes(cid)) : to;
-    this.backupAt = Date.now();
-    if (!fresh.length) return;
-    const blob = await seal({ lobby: this.lobby, state: this.state, keys: this.keys }, this.backupKey!);
-    this.backedUp = v;
-    this.holders = to.map(([cid]) => cid);
-    for (const [, peer] of fresh) this.transport?.send({ t: 'backup', blob, v, token: this.takeoverToken }, peer);
   }
 }
 
