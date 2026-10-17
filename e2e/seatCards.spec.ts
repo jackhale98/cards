@@ -97,7 +97,7 @@ test('in a game with a trick, each seat shows the card they put in it, and a bac
   }
 });
 
-test('you can slide the row of players along to look, and once you let go it eases back', async ({ page }) => {
+test('you can slide the row of players along: it stays where you leave it, and goes to whoever’s turn it is next', async ({ page }) => {
   // (six at the table on a small phone: more players than fit)
   await page.setViewportSize({ width: 667, height: 375 });
   await page.goto('/?net=local&seed=7&still');
@@ -110,17 +110,42 @@ test('you can slide the row of players along to look, and once you let go it eas
   await cardsLanded(page);
   const row = page.getByRole('group', { name: 'The other players' });
   const scrolled = () => row.evaluate((el) => Math.round(el.scrollLeft));
-  const wide = await row.evaluate((el) => el.scrollWidth > el.clientWidth);
-  expect(wide).toBe(true);
+  const ends = await row.evaluate((el) => ({ wide: el.scrollWidth > el.clientWidth, max: Math.round(el.scrollWidth - el.clientWidth) }));
+  expect(ends.wide).toBe(true);
   const was = await scrolled();
-  // (from a seat in view, slide toward the side with more to see)
-  const seat = (await page.locator('.seat-slot').nth(1).boundingBox())!;
+  // (from a seat in view, drag toward the side with more to see, all the way to its end)
   const toward = was > 0 ? 1 : -1;
+  const end = toward > 0 ? 0 : ends.max;
+  const seat = (await page.locator('.seat-slot').nth(1).boundingBox())!;
   await page.mouse.move(seat.x + seat.width / 2, seat.y + seat.height / 2);
   await page.mouse.down();
-  await page.mouse.move(seat.x + seat.width / 2 + toward * 160, seat.y + seat.height / 2, { steps: 8 });
-  const held = await scrolled();
-  expect(Math.abs(held - was)).toBeGreaterThan(60);
+  await page.mouse.move(seat.x + seat.width / 2 + toward * 600, seat.y + seat.height / 2, { steps: 12 });
   await page.mouse.up();
-  await expect.poll(scrolled, { timeout: 3000 }).toBe(was);
+  expect(await scrolled()).toBe(end);
+  // let go, it stays there: no bounce back
+  await page.waitForTimeout(1200);
+  expect(await scrolled()).toBe(end);
+  // a wheel or a trackpad (a phone: its own swipe) scrolls it the same way, and it stays
+  await row.hover();
+  await page.mouse.wheel(toward * 120, 0);
+  await expect.poll(scrolled).not.toBe(end);
+  const left = await scrolled();
+  await page.waitForTimeout(1200);
+  expect(await scrolled()).toBe(left);
+  // the turn moves on to another player: the row goes to them
+  const turnOf = () => page.evaluate(() => JSON.parse((window as unknown as { __snapshot: () => string }).__snapshot()).snap?.state?.turn as number);
+  const now = await turnOf();
+  for (let i = 0; i < 40; i++) {
+    await advance(page, 1);
+    const t = await turnOf();
+    if (t !== now && t > 0) break;
+  }
+  const next = await turnOf();
+  expect(next).toBeGreaterThan(0);
+  const seen = async () => {
+    const r = (await row.boundingBox())!;
+    const s = (await page.locator(`.seat[data-seat="${next}"]`).boundingBox())!;
+    return s.x >= r.x - 1 && s.x + s.width <= r.x + r.width + 1;
+  };
+  await expect.poll(seen, { timeout: 3000 }).toBe(true);
 });
