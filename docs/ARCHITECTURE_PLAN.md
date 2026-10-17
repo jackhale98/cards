@@ -133,7 +133,7 @@ components that each own their CSS. Rules for the components:
       the recap, your name, chips and hint), `SeatsBar` (the header's seats: the row that scrolls
       to whoever's turn it is, the TV's oval, reactions button and bar), `ActionsColumn` (the
       race to the target, Replay hand, the action bar or the replay's controls).
-- [ ] 2d. **Sizing into one place**: everything sizing reads and works out (the measured chrome,
+- [x] 2d. **Sizing into one place**: everything sizing reads and works out (the measured chrome,
       `middleAt`, `fitWith`, the reservation choice, `growTo`, the strip's hold, `stripSpace`,
       `centerCw`, `handCw`, `tallActions`/`tallFor`) into `table/sizing.svelte.ts`, a class built
       from a getter of its inputs; the DOM helpers (`fitHeight` guard, `fitSide`, `edgeFade`) into
@@ -206,3 +206,10 @@ Goal: one module per job behind the same `Host` API (no protocol change).
   every pile needs are one `zoneHooks(z)`, the action bar's one `actionBar` object. The table's
   mode classes (`.table.display .headline`) became the component's own (`.headline.display`),
   placed after the rules they used to outrank. 2075 → 1508 lines; pictures identical.
+- 2d: `table/sizing.svelte.ts` (`TableSizing`: the measured chrome as `$state` fields the page binds
+  to, every size as a derived; its inputs an object of getters built once by the table) and
+  `table/actions.ts` (`fitHeight`, `edgeFade`). `tallActions`/`tallFor` stay in the table: they
+  decide where the buttons go, not a size. A class field `$derived(expr)` that reads a private
+  field set in the constructor trips TypeScript ("used before its initialization"): use
+  `$derived.by(() => expr)`. 1508 → 1256 lines (script 484, markup 315, CSS 457); pictures
+  identical; full e2e 267 passed.
