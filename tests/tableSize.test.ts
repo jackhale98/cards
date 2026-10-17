@@ -181,6 +181,27 @@ describe('the middle, laid out exactly', () => {
     expect(size.labelLines(z)).toEqual(['Stock · 1']);
   });
 
+  it('in one tight row (Kings Corners on a phone), a label wraps as the page wraps it: each line measured whole', () => {
+    // (as with letter spacing: a whole line measures a little less than its words one by one, and
+    // that little decided a break in a wider font)
+    const spaced: size.Labels = { lineH: 14, width: (t) => t.length * 7 + 6 };
+    const z = { ...pile('deck', 'Stock'), cards: Array.from({ length: 20 }, (_, i) => ({ id: `?d.${i}` })) } as ZoneState;
+    const h = size.middleHeight({
+      zones: [z],
+      // (a label at most 1.5 cards wide: 36px)
+      cwOf: () => 24,
+      whereOf: (_z, cw) => where(cw),
+      mainW: 600,
+      vw: 800,
+      rem: 16,
+      labels: spaced,
+      cross: false,
+      rowFit: true,
+    });
+    // "Stock" over "· 20" (34px whole, though its words add up to 40): two lines, not three
+    expect(h).toBeCloseTo(layoutZone(z, where(24)).h + 2 * 0.7 * 16 * 1.15 + 0.35 * 16);
+  });
+
   it('wraps piles that don’t fit across onto another row', () => {
     const zones = Array.from({ length: 6 }, (_, i) => pile(`p${i}`));
     const one = size.middleHeight({

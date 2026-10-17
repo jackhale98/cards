@@ -41,7 +41,8 @@ export function labelMeasure(): Labels {
       if (w == null) {
         const el = element();
         el.textContent = text;
-        w = el.offsetWidth;
+        // (to the fraction of a pixel: the browser wraps a line by its exact width)
+        w = el.getBoundingClientRect().width;
         widths.set(key, w);
       }
       return w;

@@ -187,18 +187,20 @@ export function labelLines(z: ZoneState): string[] {
   return [z.layout === 'stack' && !z.cascade ? `${z.label} · ${z.cards.length}` : z.label];
 }
 
-/** How many lines `text` takes wrapped at spaces within `maxW`. */
+/**
+ * How many lines `text` takes wrapped at spaces within `maxW`. (Each line measured whole, as the
+ * browser does: words measured one by one and added up are off by a pixel here and there, which
+ * in a wider font decided a line's break.)
+ */
 function wrapped(text: string, maxW: number, labels: Labels): number {
-  const words = text.split(' ');
-  const space = labels.width('a b') - labels.width('ab');
   let lines = 1;
-  let w = 0;
-  for (const word of words) {
-    const ww = labels.width(word);
-    if (w && w + space + ww > maxW) {
+  let line = '';
+  for (const word of text.split(' ')) {
+    const next = line ? `${line} ${word}` : word;
+    if (line && labels.width(next) > maxW) {
       lines++;
-      w = ww;
-    } else w += (w ? space : 0) + ww;
+      line = word;
+    } else line = next;
   }
   return lines;
 }
