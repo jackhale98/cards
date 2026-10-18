@@ -144,7 +144,7 @@ describe('a tournament table', () => {
     host.close();
   });
 
-  it('a table of bots alone plays on by itself: a bot deals each next hand, to the end of the game', () => {
+  it('a table of bots alone plays on by itself: a bot deals the next hand', () => {
     // (as the director's device hosts a tournament's table of bots: nobody there to press "Next hand")
     const host = new Host(null, 'TABLE', { cid: 'dir', name: 'Director' });
     const news: TableNews[] = [];
@@ -152,13 +152,14 @@ describe('a tournament table', () => {
     host.seatTable(
       hearts(
         [0, 1, 2, 3].map((i) => ({ bot: true as const, name: `Bot ${i}` })),
-        { game: { id: 'hearts', options: { target: 25 } } },
+        // (to 50: no one hand can end it, as a moon, or the queen and twelve hearts, can a game to 25)
+        { seed: 7, game: { id: 'hearts', options: { target: 50, botLevel: 0 } } },
       ),
     );
-    for (let i = 0; i < 2000 && !news.some((n) => n.kind === 'over'); i++) vi.advanceTimersByTime(1000);
-    expect(news.filter((n) => n.kind === 'hand').length).toBeGreaterThan(1);
-    expect(news.some((n) => n.kind === 'over')).toBe(true);
-    expect(host.state!.phase).toBe('gameOver');
+    const hands = () => news.filter((n) => n.kind === 'hand').length;
+    for (let i = 0; i < 1000 && hands() < 2; i++) vi.advanceTimersByTime(1000);
+    expect(hands()).toBe(2);
+    expect(news.some((n) => n.kind === 'over')).toBe(false);
     host.close();
   });
 

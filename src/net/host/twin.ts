@@ -26,13 +26,15 @@ export interface TwinSaved {
 
 /**
  * Who plays at the other table: whoever is sitting out here and connected (the first two partners,
- * North and South), and bots in the seats left.
+ * North and South), and bots in the seats left. Each seat there is held by its player's key; one
+ * who arrived a moment ago may not have shown it yet (it comes in a second hello), and then the
+ * first there with their id takes the seat, as in the lobby, and their key holds it from then on.
  */
 export function twinSeats(seats: LobbySeat[], keys: Record<string, string>, count: number): (EventSeat | BotSeat)[] {
-  const people = seats.filter((s) => s.out && !s.bot && !s.host && !s.screen && s.connected && keys[s.id]).slice(0, count);
+  const people = seats.filter((s) => s.out && !s.bot && !s.host && !s.screen && s.connected).slice(0, count);
   const order = count === 4 ? [0, 2, 1, 3] : Array.from({ length: count }, (_, i) => i);
   const out: (EventSeat | BotSeat)[] = Array.from({ length: count }, () => ({ bot: true, name: '' }));
-  people.forEach((p, i) => (out[order[i]] = { id: p.id, name: p.name, ...(p.avatar ? { avatar: p.avatar } : {}), key: keys[p.id] }));
+  people.forEach((p, i) => (out[order[i]] = { id: p.id, name: p.name, ...(p.avatar ? { avatar: p.avatar } : {}), key: keys[p.id] ?? '' }));
   return out;
 }
 

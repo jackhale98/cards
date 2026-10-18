@@ -205,4 +205,61 @@ describe('duplicate in a room', () => {
     expect(host.otherTable).toBeNull();
     host.close();
   });
+
+  /** Five here (Di sitting out), each with a seat's key; `wait`: how long after Di arrives the game is dealt. */
+  async function five(wait: number) {
+    const net = network();
+    const host = new Host(net.open('ROOMS', 'host-peer'), 'ROOMS', { cid: 'h', name: 'Hana', key: 'hk' }, undefined, {
+      still: true,
+      seed: 4,
+      twin: { open: (code) => net.open(code, `twin-host-${code}`) },
+    });
+    duplicate(host);
+    const moves: Record<string, HostMsg[]> = {};
+    const transports: Record<string, MemTransport> = {};
+    const join = (id: string, code = 'ROOMS', ms = 1000) => {
+      const t = (transports[id] = net.open(code));
+      const c = new Client(t, id, id.toUpperCase(), undefined, false, `key-${id}`);
+      c.onMove = (m) => (moves[id] = [...(moves[id] ?? []), m as HostMsg]);
+      vi.advanceTimersByTime(ms);
+      return c;
+    };
+    const clients: Record<string, Client> = {};
+    for (const id of ['ann', 'bo', 'cy']) clients[id] = join(id);
+    clients.di = join('di', 'ROOMS', wait);
+    host.start();
+    await vi.advanceTimersByTimeAsync(0);
+    return { host, moves, clients, join, transports };
+  }
+
+  it('someone who arrived a moment before the deal (their key not shown yet) still plays at the other table', async () => {
+    // (a phone says hello to everyone before it knows the host, so its seat's key comes in a second hello, a moment later)
+    const { host, moves, clients, join } = await five(1);
+    const other = host.otherTable!;
+    const move = moves.di?.[0] as Extract<HostMsg, { t: 'move' }>;
+    expect(move).toMatchObject({ t: 'move', code: other.lobby.code });
+    clients.di.close();
+    clients.di = join('di', move.code);
+    // (the first there with her id takes her seat, as in the lobby, and her key holds it from then on)
+    expect(other.lobby.seats.find((s) => s.id === 'di')).toMatchObject({ connected: true });
+    expect(other.state!.players[0].name).toBe('DI');
+    host.close();
+  });
+
+  it('the move back reaches someone the other table had lost track of (a phone too busy to answer for a while)', async () => {
+    const { host, moves, clients, join, transports } = await five(1000);
+    const other = host.otherTable!;
+    const move = moves.di[0] as Extract<HostMsg, { t: 'move' }>;
+    clients.di.close();
+    clients.di = join('di', move.code);
+    expect(other.lobby.seats.find((s) => s.id === 'di')).toMatchObject({ connected: true });
+    // Di's phone hears the table but can't answer: the other table counts her gone
+    transports.di.send = () => {};
+    vi.advanceTimersByTime(40_000);
+    expect(other.lobby.seats.find((s) => s.id === 'di')).toMatchObject({ connected: false });
+    playOut(host);
+    host.endGame();
+    expect(moves.di.at(-1)).toMatchObject({ t: 'move', code: 'ROOMS', back: true });
+    host.close();
+  });
 });

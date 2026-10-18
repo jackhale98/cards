@@ -925,6 +925,11 @@ export class Host {
     this.sendTo(cid, msg);
   }
 
+  /** A message for everyone in this table's room, whether or not the heartbeat still counts them (the room closing). */
+  tellAll(msg: HostMsg) {
+    this.transport?.send(msg);
+  }
+
   setOption(id: string, value: number | boolean) {
     if (this.event) return;
     this.lobby.options[id] = value;
@@ -1289,7 +1294,8 @@ export class Host {
     const twin = this.twin;
     if (!twin) return;
     this.twin = null;
-    for (const p of twin.seats) if ('key' in p) twin.host.tell(p.id, { t: 'move', code: this.lobby.code, back: true });
+    // (to everyone in its room: a phone too busy to answer for a while has been counted gone there, but still hears it)
+    twin.host.tellAll({ t: 'move', code: this.lobby.code, back: true });
     // (the moves get away first)
     setTimeout(() => twin.host.close(), 500);
   }

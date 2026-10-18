@@ -57,6 +57,8 @@ test('passing is asked about too', async ({ page }) => {
   await page.getByRole('button', { name: 'Pass', exact: true }).click();
   const ask = page.getByRole('dialog', { name: 'Confirm your call' });
   await expect(ask).toContainText('Pass');
+  // (the keyboard is in the question once it's up: Confirm, ready for Enter, and Escape to go back)
+  await expect(ask.getByRole('button', { name: 'Confirm' })).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(ask).toBeHidden();
   expect(await said(page)).toBe(before);
