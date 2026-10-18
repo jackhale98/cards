@@ -4,6 +4,7 @@ import { resolveAction } from '../../engine/redact';
 import type { Action, GameModule, GameState } from '../../engine/types';
 import { inlineBrain, type Brain, type Pick, type Thought } from '../brain';
 import { report } from '../reports';
+import { BOTS_DEAL_MS } from './limits';
 
 /** What the bots play at: the host's table, as it is now, and how a move is made there. */
 export interface BotTable {
@@ -66,6 +67,13 @@ export class Bots {
     const grace = this.t.grace(s);
     if (sys) {
       this.timer = setTimeout(() => this.t.system(sys, module), sys.delay + grace);
+      return;
+    }
+    // between hands at a table of bots alone (a tournament's, on the director's device; or everyone
+    // there away): nobody would deal the next hand, so a bot does, after a moment to see that one
+    const dealer = s.players.every((p) => p.bot) ? s.players.find((p) => module.actions(s, p.seat).some((a) => a.type === 'next')) : undefined;
+    if (dealer) {
+      this.timer = setTimeout(() => this.move(module, { seat: dealer.seat, action: { type: 'next' } }), BOTS_DEAL_MS + grace);
       return;
     }
     if (!module.bot) return;

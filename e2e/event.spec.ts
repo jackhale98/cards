@@ -103,4 +103,10 @@ test('a Swiss of Gin: sign up by code, sent to a table, two rounds, the final st
   // everyone back at the event, with the standings
   for (const p of phones) await expect(p.getByText("That's the tournament!")).toBeVisible({ timeout: 20_000 });
   await expect(tv.locator('.standings li:not(.head)')).toHaveCount(2);
+  // the standings' numbers line up under their headings, row after row
+  const rights = await director
+    .locator('.standings li:not(.more)')
+    .evaluateAll((rows) => rows.map((li) => [...li.querySelectorAll('.num')].map((n) => Math.round(n.getBoundingClientRect().right))));
+  expect(rights[0].length).toBeGreaterThanOrEqual(2);
+  for (const row of rights.slice(1)) expect(row).toEqual(rights[0]);
 });

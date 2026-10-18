@@ -60,7 +60,8 @@
   }
   li {
     display: grid;
-    grid-template-columns: 1.8em auto 1fr 3em 2.4em auto;
+    /* (each row is a grid of its own: the numbers' columns are fixed widths, so they line up) */
+    grid-template-columns: 1.8em auto 1fr 3.4em 2.4em 3.6em;
     align-items: center;
     gap: 0.6em;
     padding: 0.35em 0.6em;
@@ -70,10 +71,13 @@
   .head {
     background: none;
     padding-block: 0;
-    font-size: 0.75em;
     color: var(--ink-faint);
     text-transform: uppercase;
     letter-spacing: 0.08em;
+  }
+  /* (the headings small, but not the row: its columns are measured in its own type size, as every row's are) */
+  .head span {
+    font-size: 0.75em;
   }
   .me {
     background: rgba(233, 196, 106, 0.16);

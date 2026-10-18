@@ -37,6 +37,8 @@ export const IDENTITIES_PER_MINUTE = 3;
 export const REPLAY_HANDS = 5;
 /** The phases a hand ends in, across the families. */
 export const END_PHASES = new Set(['handOver', 'roundOver', 'gameOver']);
+/** At a table of bots alone, a bot deals the next hand after this long (a moment to see how that one went). */
+export const BOTS_DEAL_MS = 4000;
 export const REPLAY_STEPS = 600;
 /** Most moments kept across all the replay hands (each is a whole game state: memory adds up). */
 export const REPLAY_TOTAL = 1200;
