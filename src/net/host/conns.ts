@@ -216,9 +216,9 @@ export class Conns {
    * move changes a few dozen bytes of a view of several kilobytes, which matters to players on a
    * phone's data); otherwise the whole view. False when nothing they can see has changed.
    * (`view` is a copy, as sent: a view shares the lobby and game with the host, which change in
-   * place, and the next patch is worked out against it.)
+   * place, and the next patch is worked out against it. `size`: its length as JSON.)
    */
-  sendView(peer: string, view: View): boolean {
+  sendView(peer: string, view: View, size = JSON.stringify(view).length): boolean {
     const prev = this.sentViews.get(peer);
     if (prev && prev.hid === view.hid && view.v > prev.v) {
       // (the version number is the patch's own `v`: the player sets it, it isn't sent twice more)
@@ -228,7 +228,7 @@ export class Conns {
       if (!ops.length) return false;
       this.sentViews.set(peer, view);
       this.sentAt.set(peer, Date.now());
-      if (JSON.stringify(ops).length < JSON.stringify(view).length * 0.6) {
+      if (JSON.stringify(ops).length < size * 0.6) {
         this.send({ t: 'patch', hid: view.hid, base: prev.v, v: view.v, ops }, peer);
         return true;
       }

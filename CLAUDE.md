@@ -22,6 +22,8 @@ pnpm test:e2e            # Playwright against a dev server on :4173 (PW_CHROMIUM
                          # CI also runs the main flows in WebKit (Safari's engine): PW_WEBKIT=1 locally
 pnpm -C relay check      # the relay's type check
 pnpm records             # bots play bridge and Hold'em into records/; then python tools/check_records.py records
+pnpm load                # how big a tournament one director runs: phones and tables simulated against the relay's
+                         # limits (tests/load.bench.test.ts; FORMATS=mtt TABLES=16 for one; PROFILE=1 for a CPU profile)
 pnpm verify              # check + lint + format:check + test + build + relay check: run before you commit
 pnpm verify:all          # verify + e2e
 pnpm pictures            # a dozen games dealt from a fixed seed, held still (`?seed=7&still`, development only),
@@ -102,6 +104,7 @@ tools/                 Python checks with other people's programs: endplay (brid
 relay/src/index.ts     Worker + Durable Object per table: signalling, fallback relay, takeover, reports
 tests/                 vitest (tests/netHarness.ts: an in-memory network)    e2e/  Playwright
 docs/ADDING_A_GAME.md  how to add a game: read it before touching families or game.json
+docs/SCALE.md          how big a tournament runs well, measured (pnpm load), and what would need changing for more
 ```
 
 ## Rules that keep the game fair and working

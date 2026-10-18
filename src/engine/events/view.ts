@@ -172,12 +172,13 @@ function bracket(e: EventState): BracketRound[] {
   return out;
 }
 
-export function personalView(e: EventState, member: string): EventPersonal {
+/** Where `member` stands. `rows`: the standings, when they're to hand (worked out once for everyone). */
+export function personalView(e: EventState, member: string, rows: StandingRow[] = standings(e)): EventPersonal {
   const x = e.entrants.find((y) => y.members.includes(member));
   const r = e.rounds.at(-1);
   const t = r?.tables.find((y) => y.seats.some((s) => s.member === member));
   const seat = t ? t.seats.findIndex((s) => s.member === member) : -1;
-  const row = x ? standings(e).find((y) => y.entrant === x.id) : undefined;
+  const row = x ? rows.find((y) => y.entrant === x.id) : undefined;
   return {
     entrant: x?.id ?? null,
     name: x?.name ?? null,

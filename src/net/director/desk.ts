@@ -1,13 +1,15 @@
-import { addEntrant, currentRound, isDuplicate, personalView, showable, startProblem, type Round, type TableRound } from '../../engine/events';
+import { addEntrant, currentRound, isDuplicate, personalView, showable, standings, startProblem, type Round, type TableRound } from '../../engine/events';
 import { open } from '../backup';
 import type { HostSnapshot } from '../host';
 import { isSecret, prove, same, signMove, type SignedMove } from '../eventCrypto';
-import { EVENT_PROTOCOL, MAX_COPY, type BoardShow, type EventInMsg, type EventOutMsg } from '../eventProtocol';
+import { EVENT_PROTOCOL, MAX_COPY, type BoardBody, type BoardShow, type EventInMsg, type EventOutMsg } from '../eventProtocol';
+import { diff, type Op } from '../patch';
 import type { Director } from '../director';
 import type { EventSeat } from '../host/event';
 import { cleanAvatar, makeRoomCode, type Msg } from '../protocol';
 import type { Transport } from '../transport';
 import type { Registry } from './registry';
+import { Pacer } from './pacer';
 import { RemoteTable, type RemoteDesk } from './remote';
 import { ALIVE_EVERY_MS, type Escrow } from './standby';
 
@@ -22,12 +24,20 @@ import { ALIVE_EVERY_MS, type Escrow } from './standby';
 
 /** People in one of the director's rooms, at most (the relay seats 24: room for the director, and a screen or two). */
 export const ROOM_PEERS = 20;
+/**
+ * …and in the event's own room, once there are others: it's the door everyone comes in by (signing
+ * up, finding their table again, a table's host linking up each round), so it keeps room for them.
+ * A full room turns a phone away until it tries again, a while later.
+ */
+export const DOOR_PEERS = 10;
 /** A table whose host hasn't linked up after this long is handed to another of its players. */
 export const LINK_WAIT_MS = 60_000;
 /** A round's tables stay reachable this long after the next is seated (moves still reaching their players). */
 const RETIRE_MS = 120_000;
 /** The screens hear of changes at most this often. */
 const BOARD_EVERY_MS = 500;
+/** A board patch has at most this many changes (a phone takes up to 5000: see patch.ts). */
+const PATCH_OPS = 2000;
 /** Showing the tables live, the screens move on to the next one this often. */
 export const LIVE_TURN_MS = 15_000;
 /**
@@ -49,15 +59,25 @@ interface Peer {
   table?: RemoteTable;
   /** The last personal view sent (sent again only when it changes). */
   you?: string;
-  /** A phone waiting here: the last board sent it (likewise). */
-  board?: string;
+  /** The last board sent (a screen's, or a phone's waiting here): the next is a patch on it, if that's smaller. */
+  sent?: Board;
+  /** When it last asked for the whole board again (see evResync). */
+  resyncAt?: number;
   /** A phone at a table: it hears where to go next, but not the board. */
   quiet?: boolean;
+}
+/** A board as it goes out: its version (each different board the next), what's in it, and its size. */
+interface Board {
+  v: number;
+  body: BoardBody;
+  json: string;
 }
 interface Room {
   code: string;
   transport: Transport;
   peers: Map<string, Peer>;
+  /** What the director sends there, within the relay's rate. */
+  out: Pacer;
 }
 
 export interface DeskSaved {
@@ -112,7 +132,8 @@ export class Desk implements RemoteDesk {
   // ---- rooms ------------------------------------------------------------------------------
 
   private openRoom(code: string): Room {
-    const room: Room = { code, transport: this.o.open(code), peers: new Map() };
+    const transport = this.o.open(code);
+    const room: Room = { code, transport, peers: new Map(), out: new Pacer(transport) };
     this.rooms.set(code, room);
     if (this.o.backup) this.o.backup.escrow.deposit(code, room.transport, this.o.backup.key, this.o.backup.token);
     room.transport.onPeerJoin = (peer) => {
@@ -130,14 +151,15 @@ export class Desk implements RemoteDesk {
     return room;
   }
 
-  /** A room with space for one more (a new one, when they're all full). */
+  /** A room besides the door with space for one more (a new one, when they're all full). */
   private roomWithSpace(): Room {
-    for (const r of this.rooms.values()) if (r.peers.size < ROOM_PEERS) return r;
+    for (const r of this.rooms.values()) if (r.code !== this.o.code && r.peers.size < ROOM_PEERS) return r;
     return this.openRoom(makeRoomCode());
   }
 
+  /** A message to one device: now, if this room's connection is within the relay's rate, else in its turn. */
   private send(room: Room, peer: string, msg: EventOutMsg) {
-    room.transport.send(msg, peer);
+    room.out.send(msg, peer);
   }
 
   /**
@@ -163,13 +185,11 @@ export class Desk implements RemoteDesk {
     if (hello) {
       if (msg.v !== EVENT_PROTOCOL)
         return this.send(room, peer, { t: 'evRefused', why: 'This tournament runs on another version of Lamplight: reload the page', reload: true });
-      // (this room is full: on to one with space)
-      if (p.kind === 'new' && room.peers.size > ROOM_PEERS) {
+      // (this room is full, or the door is busy: on to one with space)
+      if (p.kind === 'new' && room.peers.size > (room.code === this.o.code ? DOOR_PEERS : ROOM_PEERS)) {
         const other = this.roomWithSpace();
-        if (other !== room) {
-          room.peers.delete(peer);
-          return this.send(room, peer, { t: 'evRoom', code: other.code });
-        }
+        room.peers.delete(peer);
+        return this.send(room, peer, { t: 'evRoom', code: other.code });
       }
     }
     switch (msg.t) {
@@ -187,18 +207,26 @@ export class Desk implements RemoteDesk {
         return this.proved(room, peer, p, msg.mac);
       case 'evScreen':
         p.kind = 'screen';
-        return this.sendBoard(room, peer);
+        return this.sendBoard(room, peer, p, this.screenBoard());
       case 'evQuiet':
         if (p.kind !== 'player') return;
         p.quiet = msg.on === true;
-        delete p.board;
-        if (!p.quiet) this.sendPhoneBoard(room, peer, p, this.phoneBoard());
+        delete p.sent;
+        if (!p.quiet) this.sendBoard(room, peer, p, this.phoneBoard());
+        return;
+      case 'evResync':
+        // (once a second at most: each is a whole board)
+        if (!p.sent || Date.now() - (p.resyncAt ?? 0) < 1000) return;
+        p.resyncAt = Date.now();
+        delete p.sent;
+        if (p.kind === 'screen' || p.kind === 'standby') return this.sendBoard(room, peer, p, this.screenBoard());
+        if (p.kind === 'player' && !p.quiet) this.sendBoard(room, peer, p, this.phoneBoard());
         return;
       case 'evStandby':
         if (!this.o.backup || typeof msg.token !== 'string' || !same(msg.token, this.o.backup.token))
           return this.send(room, peer, { t: 'evRefused', why: 'That standby link isn’t this tournament’s' });
         p.kind = 'standby';
-        this.sendBoard(room, peer);
+        this.sendBoard(room, peer, p, this.screenBoard());
         if (this.copy) this.send(room, peer, { t: 'evBackup', ...this.copy });
         this.alive();
         this.o.onStandby?.();
@@ -270,7 +298,7 @@ export class Desk implements RemoteDesk {
     }
     p.kind = 'table';
     p.table = t;
-    t.attach(room.transport, peer);
+    t.attach((m) => this.send(room, peer, m), peer);
     this.watchTables();
     this.send(room, peer, { t: 'evWelcome', you: personalView(this.event, p.cid!) });
   }
@@ -283,8 +311,8 @@ export class Desk implements RemoteDesk {
     p.you = JSON.stringify(you);
     this.send(room, peer, { t: 'evWelcome', you });
     this.o.onChange?.();
-    delete p.board;
-    if (!p.quiet) this.sendPhoneBoard(room, peer, p, this.phoneBoard());
+    delete p.sent;
+    if (!p.quiet) this.sendBoard(room, peer, p, this.phoneBoard());
     const move = this.moveFor(cid);
     if (move) this.send(room, peer, { t: 'evMove', move });
   }
@@ -543,22 +571,34 @@ export class Desk implements RemoteDesk {
 
   // ---- out to the screens and phones -------------------------------------------------------
 
-  /** Something changed: the screens (soon), and anyone whose own place changed (now). */
+  /**
+   * Something changed: soon, the screens, and anyone whose own place changed. Soon, not at once: when
+   * many tables finish together, everyone hears once (the relay passes on so many messages a second
+   * from each connection, and a room of phones each told of every table's result would be over).
+   */
   changed() {
     // (the table shown live may have finished, or a new round begun)
     this.featureNext();
     this.o.onChange?.();
+    this.youDue = true;
+    this.boardSoon();
+  }
+  private youDue = false;
+
+  /** Everyone linked here: where they stand, if that's changed (the standings worked out once for them all). */
+  private sendYou() {
+    this.youDue = false;
+    const rows = standings(this.event);
     for (const room of this.rooms.values())
       for (const [peer, p] of room.peers) {
         if (p.kind !== 'player' || !p.cid) continue;
-        const you = personalView(this.event, p.cid);
+        const you = personalView(this.event, p.cid, rows);
         const json = JSON.stringify(you);
         if (json !== p.you) {
           p.you = json;
           this.send(room, peer, { t: 'evYou', you });
         }
       }
-    this.boardSoon();
   }
 
   private boardSoon() {
@@ -566,39 +606,72 @@ export class Desk implements RemoteDesk {
     this.boardTimer = setTimeout(() => {
       this.boardTimer = null;
       this.o.onChange?.();
-      const phones = this.phoneBoard();
+      if (this.youDue) this.sendYou();
+      // (each board made once, for everyone it goes to; a patch worked out once for all who had the same one before)
+      let phones: Board | null = null;
+      let screens: Board | null = null;
+      const patches = new Map<string, { ops: Op[]; json: string } | null>();
       for (const room of this.rooms.values())
         for (const [peer, p] of room.peers) {
-          if (p.kind === 'screen' || p.kind === 'standby') this.sendBoard(room, peer);
+          if (p.kind === 'screen' || p.kind === 'standby') this.sendBoard(room, peer, p, (screens ??= this.screenBoard()), patches);
           // (the phones waiting here: signing up, a bye, knocked out, or the event over)
-          else if (p.kind === 'player' && !p.quiet) this.sendPhoneBoard(room, peer, p, phones);
+          else if (p.kind === 'player' && !p.quiet) this.sendBoard(room, peer, p, (phones ??= this.phoneBoard()), patches);
         }
     }, BOARD_EVERY_MS);
   }
 
   /** What a phone waiting here shows: the event and who's in it (not the tables' progress, nor a table live). */
-  private phoneBoard() {
-    const msg: EventOutMsg = { t: 'evBoard', board: this.o.director().view, people: this.o.registry.people() };
-    return { msg, json: JSON.stringify(msg) };
-  }
-  /** …sent to a phone when it has changed. */
-  private sendPhoneBoard(room: Room, peer: string, p: Peer, b: { msg: EventOutMsg; json: string }) {
-    if (p.board === b.json) return;
-    p.board = b.json;
-    this.send(room, peer, b.msg);
+  private phoneBoard(): Board {
+    return this.made('phones', { board: this.o.director().view, people: this.o.registry.people() });
   }
 
-  private sendBoard(room: Room, peer: string) {
+  /** What the screens show: the event, its tables' progress, and a table live, if one's being shown. */
+  private screenBoard(): Board {
     const d = this.o.director();
     const live = this.featured != null && showable(this.event, this.featured) ? (d.link(this.featured)?.view() ?? null) : null;
-    this.send(room, peer, {
-      t: 'evBoard',
+    return this.made('screens', {
       board: d.view,
       people: this.o.registry.people(),
       tiles: [...this.tiles()].map(([table, t]) => ({ table, tile: t.tile })),
       live: live ? { table: this.featured!, view: live } : null,
       show: this.show,
     });
+  }
+
+  /** The board of this kind as it goes out: the last one again if nothing's changed, else the next version. */
+  private made(kind: 'phones' | 'screens', body: BoardBody): Board {
+    const json = JSON.stringify(body);
+    const last = this.lastBoards.get(kind);
+    if (last?.json === json) return last;
+    // (as it arrives: what's undefined isn't there, so a patch on it fits what the device has)
+    const board = { v: ++this.boardV, body: JSON.parse(json) as BoardBody, json };
+    this.lastBoards.set(kind, board);
+    return board;
+  }
+  private lastBoards = new Map<'phones' | 'screens', Board>();
+  /** Boards' versions (from somewhere random: a standby that takes over doesn't start where this desk did). */
+  private boardV = Math.floor(Math.random() * 2 ** 30);
+
+  /**
+   * A board to one device, unless it has it already: what's changed since its last one, if that's
+   * smaller (`patches`: those worked out already, from each board to this one), else the whole of it.
+   */
+  private sendBoard(room: Room, peer: string, p: Peer, b: Board, patches = new Map<string, { ops: Op[]; json: string } | null>()) {
+    const had = p.sent;
+    if (had?.v === b.v) return;
+    p.sent = b;
+    if (had) {
+      const key = `${had.v}>${b.v}`;
+      if (!patches.has(key)) {
+        const ops = diff(had.body, b.body);
+        const json = JSON.stringify(ops);
+        // (a patch that's nearly the whole board, or too many changes to take at once, goes as the whole board)
+        patches.set(key, ops.length <= PATCH_OPS && json.length < b.json.length / 2 ? { ops, json } : null);
+      }
+      const patch = patches.get(key);
+      if (patch) return this.send(room, peer, { t: 'evBoardPatch', base: had.v, v: b.v, ops: patch.ops });
+    }
+    this.send(room, peer, { t: 'evBoard', v: b.v, ...b.body });
   }
 
   // ---- a standby director ------------------------------------------------------------------
@@ -651,6 +724,9 @@ export class Desk implements RemoteDesk {
    */
   tiles() {
     const d = this.o.director();
+    // (who's linked, gathered once: a big event has hundreds of phones to look through)
+    const online = new Set<string>();
+    for (const room of this.rooms.values()) for (const p of room.peers.values()) if (p.kind === 'player' && p.cid) online.add(p.cid);
     return new Map(
       (currentRound(this.event)?.tables ?? []).map((t) => {
         const link = d.link(t.table);
@@ -661,7 +737,7 @@ export class Desk implements RemoteDesk {
         const off = t.result
           ? []
           : t.seats.flatMap((s) =>
-              s.member && !this.online(s.member) && !(remote?.link && remote.hostCid === s.member) ? [this.o.registry.members.get(s.member)?.name ?? '?'] : [],
+              s.member && !online.has(s.member) && !(remote?.link && remote.hostCid === s.member) ? [this.o.registry.members.get(s.member)?.name ?? '?'] : [],
             );
         return [t.table, { tile, linked: remote ? !!remote.link : true, room: link?.room ?? null, host: remote?.hostCid ?? null, local: !remote, off }];
       }),
@@ -687,6 +763,9 @@ export class Desk implements RemoteDesk {
     if (this.aliveTimer) clearInterval(this.aliveTimer);
     if (this.quietTimer) clearInterval(this.quietTimer);
     for (const t of this.timers) clearTimeout(t);
-    for (const r of this.rooms.values()) r.transport.leave();
+    for (const r of this.rooms.values()) {
+      r.out.close();
+      r.transport.leave();
+    }
   }
 }

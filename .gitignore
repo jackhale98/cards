@@ -12,6 +12,7 @@ playwright-report
 # agent workspaces
 .claude/worktrees/
 records/
+load/
 __pycache__/
 
 # the screen audit's screenshots and findings (pnpm audit:screens)

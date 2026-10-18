@@ -1,6 +1,7 @@
 import type { EventPersonal, EventPublic } from '../engine/events';
 import { checkMove, prove, type SignedMove } from './eventCrypto';
-import { BOARD_SHOWS, EVENT_PROTOCOL, MAX_COPY, type BoardShow, type EventOutMsg, type EventPerson, type TableTile } from './eventProtocol';
+import { BOARD_SHOWS, EVENT_PROTOCOL, MAX_COPY, type BoardBody, type BoardShow, type EventOutMsg, type EventPerson, type TableTile } from './eventProtocol';
+import { apply } from './patch';
 import { cleanMove } from './director/clean';
 import { isValidCode, type Avatar, type Msg, type View } from './protocol';
 import type { Transport } from './transport';
@@ -53,6 +54,8 @@ export class EventLink {
   private closed = false;
   /** At a table: no board, only moves. */
   private quiet = false;
+  /** The board as it came, and its version (the next may be a patch on it). */
+  private got: { v: number; body: BoardBody } | null = null;
 
   constructor(
     private readonly open: (code: string) => Transport,
@@ -81,6 +84,12 @@ export class EventLink {
     if (this.director && this.welcomed && !this.screen) this.transport.send({ t: 'evQuiet', on }, this.director);
   }
 
+  /** The director's room this link is in (the event's own, or another it was sent on to). */
+  get room() {
+    return this.code;
+  }
+  private code = '';
+
   /** This link's own id in the director's room (tests). */
   get selfId() {
     return this.transport.selfId;
@@ -89,6 +98,8 @@ export class EventLink {
   private join(code: string) {
     this.director = null;
     this.welcomed = false;
+    this.got = null;
+    this.code = code;
     this.transport = this.open(code);
     this.retry();
     // (our relay vouches for the director; elsewhere it says it's here, and only then do we say who we are)
@@ -97,9 +108,10 @@ export class EventLink {
     };
     this.transport.onPeerLeave = (peer) => {
       if (peer !== this.director) return;
-      // (the director gone: a new one, or the same back, is greeted again when it's here)
+      // (the director gone: a new one, or the same back, is greeted again when it's here; its boards start afresh)
       this.director = null;
       this.welcomed = false;
+      this.got = null;
       this.retry();
     };
     this.transport.onMessage = (raw, from) => this.receive(raw, from);
@@ -157,17 +169,25 @@ export class EventLink {
       case 'evYou':
         this.you = msg.you;
         return this.onChange();
-      case 'evBoard':
+      case 'evBoard': {
         // (a screen is welcomed by the board itself)
         this.welcomed = true;
-        this.board = {
-          board: msg.board,
-          people: Array.isArray(msg.people) ? msg.people : [],
-          tiles: Array.isArray(msg.tiles) ? msg.tiles : [],
-          live: msg.live ?? null,
-          show: BOARD_SHOWS.includes(msg.show!) ? msg.show! : 'turn',
-        };
+        const { t: _t, v, ...body } = msg;
+        this.got = typeof v === 'number' ? { v, body } : null;
+        this.showBoard(body);
         return this.onChange();
+      }
+      case 'evBoardPatch': {
+        // (on the board we have: if it doesn't fit, as after a board lost on the way, the whole one again)
+        const next = this.got && msg.base === this.got.v && typeof msg.v === 'number' ? apply(this.got.body, msg.ops) : null;
+        if (!next || typeof next !== 'object') {
+          this.got = null;
+          return this.transport.send({ t: 'evResync' }, from);
+        }
+        this.got = { v: msg.v, body: next };
+        this.showBoard(next);
+        return this.onChange();
+      }
       case 'evMove':
         if (isOurMove(this.id, msg.move)) this.onMove(cleanMove(msg.move)!);
         return;
@@ -179,6 +199,16 @@ export class EventLink {
         this.transport.leave();
         return this.join(msg.code);
     }
+  }
+
+  private showBoard(b: BoardBody) {
+    this.board = {
+      board: b.board,
+      people: Array.isArray(b.people) ? b.people : [],
+      tiles: Array.isArray(b.tiles) ? b.tiles : [],
+      live: b.live ?? null,
+      show: BOARD_SHOWS.includes(b.show!) ? b.show! : 'turn',
+    };
   }
 
   /** Partnership games: who we'd like to partner (null: nobody). */

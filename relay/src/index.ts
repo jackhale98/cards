@@ -114,7 +114,8 @@ export default {
     if (secret !== null && !SECRET.test(secret)) return new Response('Bad secret', { status: 400 });
     const host = url.searchParams.get('host');
     if (host !== null && !HOST_KEY.test(host)) return new Response('Bad host key', { status: 400 });
-    // (a game night's phones share one address, and reconnect now and then: the limit is generous)
+    // (a game night's phones share one address, and reconnect now and then, and a tournament's all
+    // move to their next tables at once: the limit is generous, see wrangler.jsonc)
     if (env.CONNECTS && !(await env.CONNECTS.limit({ key: req.headers.get('CF-Connecting-IP') ?? 'unknown' })).success)
       return new Response('Too many connections — try again in a minute', { status: 429 });
     return env.ROOMS.get(env.ROOMS.idFromName(m[1])).fetch(req);

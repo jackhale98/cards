@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { newBackupKey } from '../src/net/backup';
+import { Pacer, SENDS_PER_SECOND } from '../src/net/director/pacer';
 import { RemoteTable } from '../src/net/director/remote';
 import type { EventOutMsg } from '../src/net/eventProtocol';
 import { LocalTable } from '../src/net/director/tables';
 import { sealSave, takeOver, type DirectorSave } from '../src/net/director/standby';
 import { CODE, director, FakeEscrow, Net, Phone, playOut, settle } from './eventHarness';
+import { MemTransport } from './netHarness';
 import './games';
 
 /**
@@ -28,7 +30,8 @@ describe('a tournament that keeps going when phones don’t', () => {
     // at their tables, every phone is still linked to the director (quietly: no board while they play)
     expect(phones.every((p) => p.link && (p.host || p.client))).toBe(true);
     expect(phones.every((p) => desk.online(p.id.cid))).toBe(true);
-    const boards = (cid: string) => net.log.filter((x) => x.msg.t === 'evBoard' && x.to === phones.find((p) => p.id.cid === cid)?.link?.selfId).length;
+    const boards = (cid: string) =>
+      net.log.filter((x) => (x.msg.t === 'evBoard' || x.msg.t === 'evBoardPatch') && x.to === phones.find((p) => p.id.cid === cid)?.link?.selfId).length;
     const before = boards('bo');
     await playOut(phones);
     expect(boards('bo')).toBe(before);
@@ -54,7 +57,8 @@ describe('a tournament that keeps going when phones don’t', () => {
     const host = phones.find((p) => p.host)!;
     // (a table shown live on the screens)
     desk.feature(1);
-    const boards = () => net.log.filter((x) => x.msg.t === 'evBoard' && x.to === bye.link?.selfId).map((x) => x.msg as Extract<EventOutMsg, { t: 'evBoard' }>);
+    const boards = () =>
+      net.log.filter((x) => (x.msg.t === 'evBoard' || x.msg.t === 'evBoardPatch') && x.to === bye.link?.selfId).map((x) => x.msg as EventOutMsg);
     const before = boards().length;
     expect(before).toBeGreaterThan(0);
     // the table plays on (its tile changes, and the screens' live view): nothing the waiting phone shows
@@ -67,9 +71,60 @@ describe('a tournament that keeps going when phones don’t', () => {
     // its result: the standings change, and the phone hears it
     await playOut(phones);
     expect(boards().length).toBeGreaterThan(before);
-    expect(boards().every((b) => !b.live && !b.tiles)).toBe(true);
+    // (whole, or what's changed: never a table's progress or a table live)
+    expect(
+      boards().every((b) =>
+        b.t === 'evBoard' ? !b.live && !b.tiles : b.t === 'evBoardPatch' && b.ops.every((op) => op[1][0] !== 'live' && op[1][0] !== 'tiles'),
+      ),
+    ).toBe(true);
+    expect(bye.link!.board).toMatchObject({ live: null, tiles: [] });
     phones.forEach((p) => p.leaveTable());
     desk.close();
+  });
+
+  it('a waiting phone hears what’s changed on the board, not the whole of it each time, and the whole board again if it missed some', async () => {
+    const net = new Net();
+    const { desk, registry } = director(net);
+    const phones = ['Ann', 'Bo', 'Cy', 'Di', 'Ed', 'Flo', 'Gus', 'Hal', 'Ivy'].map((n) => new Phone(net, n));
+    await settle();
+    const ann = phones[0];
+    const toAnn = (t: string) => net.log.filter((x) => x.msg.t === t && x.to === ann.link?.selfId).map((x) => x.msg);
+    const whole = toAnn('evBoard').length;
+    // one more signs up: Ann hears who, as a change to the board she has
+    phones.push(new Phone(net, 'Jo'));
+    await settle();
+    const patches = toAnn('evBoardPatch');
+    expect(patches.length).toBeGreaterThan(0);
+    expect(toAnn('evBoard')).toHaveLength(whole);
+    expect(Math.max(...patches.map((m) => JSON.stringify(m).length))).toBeLessThan(JSON.stringify(ann.link!.board).length / 4);
+    const people = () => JSON.parse(JSON.stringify(registry.people()));
+    expect(ann.link!.board!.people).toEqual(people());
+    // a board lost on the way: the next change doesn't fit what she has, so she asks for the whole board again
+    (ann.link as unknown as { got: { v: number } }).got.v -= 1;
+    registry.addBot();
+    desk.changed();
+    await settle();
+    expect(net.log.filter((x) => x.msg.t === 'evResync')).toHaveLength(1);
+    expect(toAnn('evBoard')).toHaveLength(whole + 1);
+    expect(ann.link!.board!.people).toEqual(people());
+    phones.forEach((p) => p.leaveTable());
+    desk.close();
+  });
+
+  it('the director never sends more a second on a connection than the relay passes on: the rest wait their turn, in order', async () => {
+    const sent: { at: number; n: number }[] = [];
+    const t = { send: (msg: { n: number }) => sent.push({ at: Date.now(), n: msg.n }) } as unknown as MemTransport;
+    const out = new Pacer(t);
+    // (a round's moves and everyone's places, all at once, then a straggler a moment later)
+    for (let n = 0; n < SENDS_PER_SECOND * 2 + 50; n++) out.send({ t: 'evAlive', n } as never, 'p');
+    await vi.advanceTimersByTimeAsync(300);
+    out.send({ t: 'evAlive', n: 999 } as never, 'p');
+    expect(sent).toHaveLength(SENDS_PER_SECOND);
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(sent.map((x) => x.n)).toEqual([...Array.from({ length: SENDS_PER_SECOND * 2 + 50 }, (_, i) => i), 999]);
+    // (in any second, never more than the rate)
+    for (const x of sent) expect(sent.filter((y) => y.at >= x.at && y.at < x.at + 1000).length).toBeLessThanOrEqual(SENDS_PER_SECOND);
+    out.close();
   });
 
   /** One table, its game a few moves in, hosted on a phone whose table backups go to "the relay" (and the director). */

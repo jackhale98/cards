@@ -528,7 +528,12 @@ describe('connection health', () => {
     }
     const spy = vi.spyOn(host, 'viewFor');
     host.broadcast();
-    // the host's own, and the guest's (once, for two connections)
+    // the guest's (once, for two connections); nothing here shows the host's own
+    expect(spy.mock.calls.map((c) => c[0])).toEqual(['g']);
+    // the host's own too, when this device shows it
+    spy.mockClear();
+    host.onLocalView = () => {};
+    host.broadcast();
     expect(spy.mock.calls.map((c) => c[0])).toEqual(['h', 'g']);
     host.close();
   });

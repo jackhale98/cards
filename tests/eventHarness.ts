@@ -99,7 +99,8 @@ export class Phone {
       this.host = new Host(t, m.room, { cid, name }, undefined, backup);
       if (this.escrow) this.escrow.deposit(m.room, t, backup.backupKey!, backup.takeoverToken!);
       this.host.expectTable({ code: CODE, name: 'Swiss', round: m.round, table: m.table });
-      this.uplink = new Uplink(this.net.open, CODE, this.host, { cid, secret, round: m.round, table: m.table });
+      // (as the app does: through the room its link to the director is in)
+      this.uplink = new Uplink(this.net.open, this.link?.room ?? CODE, this.host, { cid, secret, round: m.round, table: m.table });
       this.uplink.onMove = (mv) => this.go(mv);
     } else {
       this.client = new Client(this.net.open(m.room), cid, name, undefined, false, seatKeyFor(secret, CODE, m.round, m.table));

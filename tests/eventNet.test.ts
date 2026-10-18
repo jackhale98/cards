@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { standings } from '../src/engine/events';
-import { ROOM_PEERS } from '../src/net/director/desk';
+import { DOOR_PEERS, ROOM_PEERS } from '../src/net/director/desk';
 import { Registry } from '../src/net/director/registry';
 import { LocalTable } from '../src/net/director/tables';
 import { newSecret, prove, signMove } from '../src/net/eventCrypto';
@@ -376,13 +376,15 @@ describe('a tournament over the network', () => {
     screen.close();
   });
 
-  it('when the first room fills, newcomers are sent on to another', async () => {
+  it('the event’s own room keeps space for newcomers: past the first few, everyone is sent on to another, and another when that fills', async () => {
     const net = new Net();
     const { desk, registry } = director(net);
-    const phones = Array.from({ length: ROOM_PEERS + 4 }, (_, i) => new Phone(net, `P${i}`));
+    const phones = Array.from({ length: ROOM_PEERS + DOOR_PEERS + 4 }, (_, i) => new Phone(net, `P${i}`));
     await settle(6000);
     expect(registry.people()).toHaveLength(phones.length);
-    expect(net.buses.size).toBe(2);
+    expect(net.buses.size).toBe(3);
+    // (the director, and the phones it kept there)
+    expect(net.buses.get(CODE)!.members.size).toBe(DOOR_PEERS + 1);
     desk.close();
     phones.forEach((p) => p.link?.close());
   });

@@ -116,7 +116,8 @@ export class Host {
   /** Round-trip times by seat, for the local UI. */
   onPings: (pings: (number | null)[]) => void = () => {};
   private v = 0;
-  onLocalView: (v: View) => void = () => {};
+  /** This device's own view, after every change (null: nobody here looks: a tournament's table on the director's device). */
+  onLocalView: ((v: View) => void) | null = null;
   onLocalError: (msg: string) => void = () => {};
   /** Called after every change with a serialisable snapshot (for resume-after-refresh). */
   onPersist: (snap: HostSnapshot) => void = () => {};
@@ -1420,17 +1421,21 @@ export class Host {
     this.lobby.displays = screens.size + (this.hostScreen ? 1 : 0);
     this.lobby.spectators = new Set([...this.peers.values()].filter((c) => !seated.has(c) && !screens.has(c))).size;
     if (this.state) this.state.v = this.v;
-    this.onLocalView(this.viewFor(this.hostCid));
+    this.onLocalView?.(this.viewFor(this.hostCid));
     if (this.transport) {
-      // one view per person (or table screen), sent on one of the networks that reach them
-      const views = new Map<string | null, View>();
+      // one view per person (or table screen), sent on one of the networks that reach them; each
+      // made as it goes over the wire once (its size is known then, for whether a patch is smaller)
+      const views = new Map<string | null, { view: View; size: number }>();
       for (const cid of new Set(this.peers.values())) {
         const peer = this.conns.route(cid);
         if (!peer) continue;
         const who = this.displays.has(peer) ? null : cid;
         let view = views.get(who);
-        if (!view) views.set(who, (view = wire(this.viewFor(who))));
-        this.conns.sendView(peer, view);
+        if (!view) {
+          const json = JSON.stringify(this.viewFor(who));
+          views.set(who, (view = { view: JSON.parse(json) as View, size: json.length }));
+        }
+        this.conns.sendView(peer, view.view, view.size);
       }
     }
     this.persist();

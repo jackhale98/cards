@@ -22,6 +22,7 @@
     "test:quick": "vitest run --exclude tests/search.test.ts --exclude tests/bots.test.ts",
     "test:watch": "vitest",
     "records": "SELFPLAY=1 vitest run tests/selfplay.bench.test.ts",
+    "load": "LOAD=1 vitest run tests/load.bench.test.ts --silent=false",
     "test:e2e": "playwright test",
     "pictures": "PICTURES=1 playwright test e2e/pictures.spec.ts --project=dev --reporter=line",
     "audit:screens": "AUDIT=1 playwright test e2e/audit.spec.ts --project=dev --reporter=line",

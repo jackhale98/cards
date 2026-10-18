@@ -2,6 +2,7 @@ import type { EventPersonal, EventPublic } from '../engine/events';
 import type { OtherResult, TableChange } from '../engine/types';
 import type { SignedMove } from './eventCrypto';
 import type { EventTable, TableNews } from './host/event';
+import type { Op } from './patch';
 import type { Avatar, View } from './protocol';
 
 /**
@@ -11,7 +12,7 @@ import type { Avatar, View } from './protocol';
  */
 
 /** Bumped when these messages change: a phone or table on another version is asked to reload. */
-export const EVENT_PROTOCOL = 2;
+export const EVENT_PROTOCOL = 3;
 
 /** A table's progress, for its tile on the screens: whether it's dealt, hands played, who's still to come, and the game's own totals. */
 export interface TableTile {
@@ -76,7 +77,18 @@ export type EventInMsg =
    */
   | { t: 'evTableBackup'; blob: string; v: number; token: string }
   /** From a table's host: it's still here (when it has had nothing else to say for a while). */
-  | { t: 'evAlive' };
+  | { t: 'evAlive' }
+  /** A board patch didn't fit the board this device has: the whole board again. */
+  | { t: 'evResync' };
+
+/** What the screens show (see evBoard). */
+export interface BoardBody {
+  board: EventPublic;
+  people: EventPerson[];
+  tiles?: { table: number; tile: TableTile | null }[];
+  live?: { table: number; view: View } | null;
+  show?: BoardShow;
+}
 
 /** From the director. */
 export type EventOutMsg =
@@ -89,15 +101,16 @@ export type EventOutMsg =
   /** This room is full: that one instead. */
   | { t: 'evRoom'; code: string }
   | { t: 'evYou'; you: EventPersonal }
-  /** The event as the screens show it (and the people signed up, before it starts); `live`: a table being featured. */
-  | {
-      t: 'evBoard';
-      board: EventPublic;
-      people: EventPerson[];
-      tiles?: { table: number; tile: TableTile | null }[];
-      live?: { table: number; view: View } | null;
-      show?: BoardShow;
-    }
+  /**
+   * The event as the screens show it (and the people signed up, before it starts); `live`: a table
+   * being featured. `v`: this board's version, which the next can be a patch on.
+   */
+  | ({ t: 'evBoard'; v?: number } & BoardBody)
+  /**
+   * What's changed since the board this device last had (version `base`): a hand at a poker table
+   * moves a few stacks of a board that can run to a couple of hundred kilobytes.
+   */
+  | { t: 'evBoardPatch'; base: number; v: number; ops: Op[] }
   /** Go to this table. */
   | { t: 'evMove'; move: SignedMove }
   /** To a table's host: the table, who sits where (with their seats' keys), and what to deal. */

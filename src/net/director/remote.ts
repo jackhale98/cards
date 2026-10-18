@@ -3,7 +3,6 @@ import type { OtherResult, TableChange } from '../../engine/types';
 import type { EventOutMsg, TableTile } from '../eventProtocol';
 import type { EventTable, TableNews } from '../host/event';
 import type { View } from '../protocol';
-import type { Transport } from '../transport';
 import type { TableLink } from './tables';
 
 /** How a remote table reaches the director's desk (see desk.ts). */
@@ -25,8 +24,8 @@ export class RemoteTable implements TableLink {
   hostCid: string | null = null;
   /** Players asked to host it so far (another is asked if one never links up). */
   tried: string[] = [];
-  /** Its host's link: the director room it's in, and its peer there. */
-  link: { transport: Transport; peer: string } | null = null;
+  /** Its host's link: how to reach it, in the director's room it's in (paced with the rest: see Desk.send), and its peer there. */
+  link: { send: (msg: EventOutMsg) => void; peer: string } | null = null;
   seating: EventTable | null = null;
   tile: TableTile | null = null;
   live: View | null = null;
@@ -68,8 +67,8 @@ export class RemoteTable implements TableLink {
   }
 
   /** Its host's phone has linked up (or again, after a reload or a takeover). */
-  attach(transport: Transport, peer: string) {
-    this.link = { transport, peer };
+  attach(send: (msg: EventOutMsg) => void, peer: string) {
+    this.link = { send, peer };
     this.heardAt = Date.now();
     if (this.seating) this.send({ t: 'evSeat', table: this.seating });
     if (this.held) this.send({ t: 'evHold', on: true });
@@ -81,7 +80,7 @@ export class RemoteTable implements TableLink {
   }
 
   send(msg: EventOutMsg) {
-    this.link?.transport.send(msg, this.link.peer);
+    this.link?.send(msg);
   }
 
   hold(on: boolean) {

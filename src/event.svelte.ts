@@ -258,7 +258,9 @@ export class Events {
     const e = this.entry(info.code);
     if (!e) return null;
     const open = await eventRooms(this.app.net);
-    const up = new Uplink((c) => open(c), info.code, host, { cid: e.cid, secret: e.secret, round: info.round, table: info.table });
+    // (through the room this phone's link to the director is in: the event's own is everyone's way in, and every table's host links up at once)
+    const via = this.link && this.phoneFor === info.code ? this.link.room : info.code;
+    const up = new Uplink((c) => open(c), via, host, { cid: e.cid, secret: e.secret, round: info.round, table: info.table });
     up.onMove = (m) => this.follow(m);
     up.onRefused = (why) => why && this.app.say(why);
     this.uplink = up;
