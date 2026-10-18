@@ -148,6 +148,9 @@ export class Uplink {
         this.featured = !!msg.on;
         if (this.featured) this.progress(true);
         return;
+      case 'evCompare':
+        // (checked there: see Host.compare)
+        return this.host.compare(Array.isArray(msg.others) ? msg.others : []);
       case 'evForward':
         if (!Array.isArray(msg.moves)) return;
         for (const x of msg.moves.slice(0, 32)) {

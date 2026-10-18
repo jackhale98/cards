@@ -339,6 +339,11 @@ export interface GameModule<D = any> {
   /** Duplicate: the boards this game plays (for the other table to play too). */
   boards?(s: GameState<D>): Board[] | null;
   /**
+   * The settings that play this game duplicate (each board compared with other tables'), for the
+   * tournaments that play it so (pairs and teams: see engine/events/duplicate.ts).
+   */
+  duplicate?: Record<string, number>;
+  /**
    * A finished game's own score for each player (by game seat), when it adds up from game to game
    * over a night (duplicate compared with another table or par: IMPs). Null: places only.
    */

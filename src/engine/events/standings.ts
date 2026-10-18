@@ -1,3 +1,4 @@
+import { duplicateStandings, isDuplicate } from './duplicate';
 import type { EventState, StandingRow, TableRound } from './types';
 
 /**
@@ -5,7 +6,8 @@ import type { EventState, StandingRow, TableRound } from './types';
  * ahead of and a half for each they tied with (3 / 2 / 1 / 0 at a table of four, 1 / 0 for two;
  * a bot filling a gap counts as a side). Then, for equal points, Swiss looks at the points of
  * everyone each has played (the strength of their opposition), then the game's own score where it
- * keeps one per player, then wins, and last the draw made when the event started.
+ * keeps one per player, then wins, and last the draw made when the event started. Duplicate
+ * bridge ranks its own way (see duplicate.ts).
  */
 
 /** Each side's result at a finished table: who, their place, points, and score (when the game keeps one per player). */
@@ -40,6 +42,7 @@ export function meetings(e: EventState): Map<string, Map<string, number>> {
 }
 
 export function standings(e: EventState): StandingRow[] {
+  if (isDuplicate(e)) return duplicateStandings(e);
   const rows = new Map<string, StandingRow & { against: Set<string>; scored: boolean }>(
     e.entrants.map((x) => [
       x.id,

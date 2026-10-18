@@ -15,6 +15,8 @@ export interface Member {
   avatar?: Avatar;
   secret: string;
   partner?: string;
+  /** Duplicate teams: someone whose pair they'd like on their team. */
+  team?: string;
   /** A bot the director put in (a whole side: in a partnership game, a pair of bots). No secret, no phone. */
   bot?: boolean;
 }
@@ -55,7 +57,10 @@ export class Registry {
   }
 
   remove(id: string) {
-    for (const m of this.members.values()) if (m.partner === id) delete m.partner;
+    for (const m of this.members.values()) {
+      if (m.partner === id) delete m.partner;
+      if (m.team === id) delete m.team;
+    }
     this.members.delete(id);
   }
 
@@ -71,6 +76,14 @@ export class Registry {
     else delete m.partner;
   }
 
+  /** Duplicate teams: `id`'s pair would like `other`'s on their team (null: nobody in particular). The director sets it. */
+  setTeam(id: string, other: string | null) {
+    const m = this.members.get(id);
+    if (!m || m.bot || other === id || (other && !this.person(other))) return;
+    if (other) m.team = other;
+    else delete m.team;
+  }
+
   /** Someone signed up who isn't a bot. */
   private person(id: string): boolean {
     const m = this.members.get(id);
@@ -84,6 +97,7 @@ export class Registry {
       name: m.name,
       ...(m.avatar ? { avatar: m.avatar } : {}),
       ...(m.partner ? { partner: m.partner } : {}),
+      ...(m.team ? { team: m.team } : {}),
       ...(m.bot ? { bot: true } : {}),
     }));
   }
@@ -91,9 +105,18 @@ export class Registry {
   /**
    * The tournament's entrants: one each, or, two to a side, partnerships: those who asked for each
    * other first, then the rest paired at random, and anyone left over with a bot for a partner.
-   * Each bot the director put in is a side of its own.
+   * Each bot the director put in is a side of its own. Duplicate teams (`teams`): the partnerships
+   * two by two (see teamsOf), and each bot a whole team.
    */
-  entrants(perSide: number, dice: { rng: RngState }): Entrant[] {
+  entrants(perSide: number, dice: { rng: RngState }, teams = false): Entrant[] {
+    if (teams)
+      return [
+        ...this.teamsOf(
+          this.entrants(perSide, dice).filter((x) => !x.bot),
+          dice,
+        ),
+        ...this.botSides(perSide * 2),
+      ];
     const all = [...this.members.values()].filter((m) => !m.bot);
     const bots = this.botSides(perSide);
     if (perSide === 1) return [...all.map((m) => ({ id: m.id, name: m.name, members: [m.id], names: [m.name] })), ...bots];
@@ -119,6 +142,37 @@ export class Registry {
     );
     for (let i = 0; i < rest.length; i += 2) pair(rest[i], rest[i + 1] ?? null);
     return [...out, ...bots];
+  }
+
+  /**
+   * Duplicate teams of four: two partnerships each, those asked for (a member of one pair asked for
+   * someone in the other) first, then the rest at random, and a pair left over with a pair of bots.
+   */
+  private teamsOf(pairs: Entrant[], dice: { rng: RngState }): Entrant[] {
+    const out: Entrant[] = [];
+    const used = new Set<Entrant>();
+    const team = (a: Entrant, b: Entrant | null) => {
+      used.add(a);
+      if (b) used.add(b);
+      const names = [...(a.names ?? []), ...(b?.names ?? ['Bot', 'Bot'])];
+      out.push({
+        id: b ? `${a.id}+${b.id}` : a.id,
+        name: b ? `${names.slice(0, 3).join(', ')} & ${names[3]}` : `${a.name} and two bots`,
+        members: [...a.members, ...(b?.members ?? [BOT_MEMBER, BOT_MEMBER])],
+        names,
+      });
+    };
+    const wants = (a: Entrant, b: Entrant) => a.members.some((m) => !!m && b.members.includes(this.members.get(m)?.team ?? '\0'));
+    for (const a of pairs) {
+      const b = pairs.find((x) => x !== a && !used.has(x) && (wants(a, x) || wants(x, a)));
+      if (!used.has(a) && b) team(a, b);
+    }
+    const rest = shuffle(
+      pairs.filter((x) => !used.has(x)),
+      dice,
+    );
+    for (let i = 0; i < rest.length; i += 2) team(rest[i], rest[i + 1] ?? null);
+    return out;
   }
 
   /** The bots' sides: in a partnership game, each bot's partner is another bot, with a name of its own. */

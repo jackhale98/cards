@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Client } from '../src/net/client';
 import { bidOf } from '../src/engine/families/trick/contracts';
+import { addEntrant, createEvent, recordReport, startEvent } from '../src/engine/events';
+import { eventPbn } from '../src/net/exports/eventPbn';
 import { recordFormats } from '../src/net/exports/formats';
 import { callText, pbn } from '../src/net/exports/pbn';
 import { phh } from '../src/net/exports/phh';
@@ -415,5 +417,64 @@ describe('saving a game in its standard record', { timeout: 30_000 }, () => {
       expect(h.hero_player_id).toBe(1);
       host.close();
     });
+  });
+});
+
+describe('a duplicate tournament’s results as PBN', () => {
+  /** A pairs event of four pairs, one round of two boards: table 1 plays both, table 2 only the first so far. */
+  function event(format: 'pairs' | 'teams') {
+    const e = createEvent(
+      { name: 'Club night', format, game: { id: 'bridge', options: {} }, seats: 4, sides: GAMES.bridge.sides!(4)!, host: 'director', rounds: 1, boards: 2 },
+      3,
+    );
+    for (let i = 0; i < (format === 'teams' ? 2 : 4); i++)
+      addEntrant(e, { id: `e${i}`, name: `Pair ${i}`, members: Array.from({ length: format === 'teams' ? 4 : 2 }, (_, j) => `p${i}.${j}`) });
+    startEvent(e);
+    const [t1, t2] = e.rounds[0].tables;
+    const [b1, b2] = t1.setup!.boards!;
+    const made = { contract: '4S', declarer: 0, tricks: 10, ns: 420 };
+    const down = { contract: '3NTX', declarer: 1, tricks: 7, ns: 200 };
+    recordReport(e, 1, t1.table, {
+      boards: [
+        { n: b1.n, ...made },
+        { n: b2.n, contract: null, declarer: null, tricks: null, ns: 0 },
+      ],
+    });
+    recordReport(e, 1, t2.table, { boards: [{ n: b1.n, ...down }] });
+    return { e, t1, t2, b1, b2 };
+  }
+
+  it('each board every table has played: its deal, every table’s result and matchpoints; then the standings', () => {
+    const { e, t1, b1, b2 } = event('pairs');
+    const text = eventPbn(e, new Date(2026, 9, 17));
+    expect(text.startsWith('% PBN 2.1\r\n% EXPORT\r\n')).toBe(true);
+    // (board 2 is still to be played at table 2: not written)
+    expect(text.match(/\[Board "(\d+)"\]/g)).toEqual([`[Board "${b1.n}"]`]);
+    expect(text).not.toContain(b2.hands.map((h) => h.join('')).join(''));
+    expect(text).toContain(`[Deal "N:${b1.hands.map((h) => handText(h)).join(' ')}"]`);
+    expect(text).toContain('[Vulnerable "None"]');
+    expect(text).toContain('[Scoring "MP"]');
+    const row = (t: number) => text.split('\r\n').find((l) => l.startsWith(`${t} `));
+    // table 1: 4♠ by North, ten tricks, +420, beats table 2's +200: both matchpoints to North–South
+    const id = (x: string | null) => e.entrants.findIndex((y) => y.id === x) + 1;
+    expect(row(1)).toBe(`1 ${id(t1.seats[0].entrant)} ${id(t1.seats[1].entrant)} 4S N 10 420 2 0`);
+    expect(row(2)).toMatch(/^2 \d \d 3NTX E 7 200 0 2$/);
+    expect(text).toContain('[TotalScoreTable "Rank\\2R;PairId\\2R;TotalPercentage\\6R;TotalScoreMP\\5R;Names\\40L"]');
+    expect(text).toMatch(/\r\n1 \d 100\.00 2 "Pair \d"\r\n/);
+  });
+
+  it('teams: each table’s swing in IMPs, and the teams’ IMPs', () => {
+    const { e } = event('teams');
+    const text = eventPbn(e, new Date(2026, 9, 17));
+    expect(text).toContain('[Scoring "IMP"]');
+    // +420 here, +200 at the other table: 220 to this table's North–South team, 6 IMPs
+    expect(text).toMatch(/\r\n1 \d \d 4S N 10 420 6 -6\r\n2 \d \d 3NTX E 7 200 -6 6\r\n/);
+    // (the match isn't over: no team has IMPs yet)
+    expect(text).toMatch(/\r\n1 \d 0 "Pair \d"\r\n1 \d 0 "Pair \d"\r\n/);
+  });
+
+  it('nothing to save before any board has been played everywhere', () => {
+    const e = createEvent({ name: 'X', format: 'pairs', game: { id: 'bridge', options: {} }, seats: 4, sides: GAMES.bridge.sides!(4)!, host: 'director' }, 1);
+    expect(eventPbn(e, new Date())).toBe('');
   });
 });

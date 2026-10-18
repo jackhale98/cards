@@ -8,7 +8,8 @@ import type { TableReport, TableSetup } from '../types';
  * the public views leave out (see view.ts).
  */
 
-export type FormatId = 'swiss' | 'roundRobin' | 'knockout';
+/** How entrants meet; `pairs` and `teams` are duplicate bridge's (see duplicate.ts). */
+export type FormatId = 'swiss' | 'roundRobin' | 'knockout' | 'pairs' | 'teams';
 
 export interface EventConfig {
   name: string;
@@ -18,8 +19,10 @@ export interface EventConfig {
   seats: number;
   /** Who partners whom at a table (each side is one entrant): `[[0, 2], [1, 3]]`, or one seat each. */
   sides: number[][];
-  /** Swiss: how many rounds (round robin and knockout go on until they're done). */
+  /** Swiss and duplicate: how many rounds (round robin and knockout go on until they're done). */
   rounds?: number;
+  /** Duplicate: boards a round. */
+  boards?: number;
   /** Knockout with more than two sides at a table: how many go through from each (1 or 2). */
   advance?: number;
   /** Who hosts the tables: a player at each, or the director's device. */
@@ -29,7 +32,7 @@ export interface EventConfig {
 export interface Entrant {
   id: string;
   name: string;
-  /** Who plays for this entrant, one per seat of a side (people's ids); none for a bot entrant. */
+  /** Who plays for this entrant, one per seat of a side (people's ids; a duplicate team, two sides' worth); none for a bot entrant. */
   members: string[];
   /** Each member's own name, as they signed up (the entrant's is "Ann & Bo"). */
   names?: string[];
@@ -50,6 +53,8 @@ export interface TableSeat {
 export interface TableRound {
   /** Numbered from 1 within the round. */
   table: number;
+  /** Duplicate teams: the match it's half of (the match's other table has the same). */
+  match?: number;
   seats: TableSeat[];
   /** Private: the seed its game is dealt from, and its private inputs. Never in a public view. */
   seed: number;
@@ -86,10 +91,11 @@ export interface StandingRow {
   name: string;
   /** 1 = first; equals share a rank. */
   rank: number;
+  /** What ranks them: points from places (or matches, duplicate teams); duplicate pairs, a percentage. */
   points: number;
   played: number;
   wins: number;
-  /** The game's own score, added up (games that keep one per player). */
+  /** The game's own score, added up (games that keep one per player); duplicate pairs, matchpoints; teams, IMPs. */
   score: number | null;
   /** Swiss tiebreak: the points of everyone they've played. */
   opponents: number;

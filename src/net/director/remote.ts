@@ -1,5 +1,5 @@
 import type { TableRound } from '../../engine/events';
-import type { TableChange } from '../../engine/types';
+import type { OtherResult, TableChange } from '../../engine/types';
 import type { EventOutMsg, TableTile } from '../eventProtocol';
 import type { EventTable, TableNews } from '../host/event';
 import type { View } from '../protocol';
@@ -32,6 +32,8 @@ export class RemoteTable implements TableLink {
   live: View | null = null;
   featured = false;
   private held = false;
+  /** Duplicate teams: the other table's results so far (sent again when its host links up). */
+  private others: OtherResult[] = [];
   /** When it was placed (its host has a while to link up). */
   placedAt = 0;
   /** When its host's link last said anything. */
@@ -72,6 +74,7 @@ export class RemoteTable implements TableLink {
     if (this.seating) this.send({ t: 'evSeat', table: this.seating });
     if (this.held) this.send({ t: 'evHold', on: true });
     if (this.featured) this.send({ t: 'evFeature', on: true });
+    if (this.others.length) this.send({ t: 'evCompare', others: this.others });
   }
   detach() {
     this.link = null;
@@ -92,6 +95,10 @@ export class RemoteTable implements TableLink {
   }
   standInFor(seat: number) {
     this.send({ t: 'evStandIn', seat });
+  }
+  compare(others: OtherResult[]) {
+    this.others = others;
+    this.send({ t: 'evCompare', others });
   }
   feature(on: boolean) {
     this.featured = on;

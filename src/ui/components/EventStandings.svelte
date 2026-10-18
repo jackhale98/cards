@@ -12,8 +12,10 @@
     /** Show only this many (the rest: "+ n more"). */
     max?: number;
     knockout?: boolean;
+    /** What the numbers are, when not points and the game's score (duplicate: a percentage and matchpoints, or points and IMPs). */
+    units?: { points: string; score: string };
   }
-  let { rows, people, me = null, max = Infinity, knockout = false }: Props = $props();
+  let { rows, people, me = null, max = Infinity, knockout = false, units }: Props = $props();
 
   const looks = $derived(new Map(people.map((p) => [p.id, p])));
   /** An entrant's people: one, or a partnership ("a+b"). */
@@ -25,8 +27,8 @@
 
 <ol class="standings" aria-label="Standings">
   <li class="head" aria-hidden="true">
-    <span></span><span></span><span class="name">Player</span><span class="num">{knockout ? 'Won' : 'Pts'}</span><span class="num">Pl</span>
-    {#if scored}<span class="num">Score</span>{/if}
+    <span></span><span></span><span class="name">Player</span><span class="num">{units?.points ?? (knockout ? 'Won' : 'Pts')}</span><span class="num">Pl</span>
+    {#if scored}<span class="num">{units?.score ?? 'Score'}</span>{/if}
   </li>
   {#each shown as r (r.entrant)}
     <li class:me={r.entrant === me} class:out={r.out || (knockout && r.alive === false)}>

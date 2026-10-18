@@ -9,14 +9,16 @@
   import EventBracket from '../components/EventBracket.svelte';
   import EventStandings from '../components/EventStandings.svelte';
   import EventTiles from '../components/EventTiles.svelte';
+  import EventTraveller from '../components/EventTraveller.svelte';
   import Loader from '../components/Loader.svelte';
-  import { BOARD_TURN_MS, boardRem, standingsRows } from '../layout/event';
+  import { BOARD_PAD_X_REM, BOARD_TURN_MS, boardRem, standingsRows, TILE_GAP_REM, TRAVELLER_REM, travellerColumns } from '../layout/event';
 
   /**
    * A tournament on a big screen (a TV, the director's laptop): while people sign up, the code to
    * join and who's in; then what the director chooses: turn about, the round's tables, the
-   * standings and (a knockout) the bracket, or just one of them, or the tables live, one after
-   * another (and any table the director picks, live); at the end, the final standings.
+   * standings, and the bracket (a knockout) or the travellers of the boards every table has played
+   * (duplicate), or just one of them, or the tables live, one after another (and any table the
+   * director picks, live); at the end, the final standings.
    */
   interface Props {
     code: string;
@@ -39,20 +41,29 @@
   const names = $derived(new Map((board?.entrants ?? []).map((x) => [x.id, x.name])));
   const game = $derived(board ? getGame(board.game.id) : null);
   const knockout = $derived(board?.format === 'knockout');
-  const FORMAT: Record<string, string> = { swiss: 'Swiss', roundRobin: 'Round robin', knockout: 'Knockout' };
+  const FORMAT: Record<string, string> = { swiss: 'Swiss', roundRobin: 'Round robin', knockout: 'Knockout', pairs: 'Pairs', teams: 'Teams' };
+  /** Duplicate: the latest boards every table has played, as many as fit across. */
+  const travellers = $derived((board?.travellers ?? []).slice(-travellerColumns(w - 2 * BOARD_PAD_X_REM * rem, rem)));
 
   // the views it turns between (a timer only while there's more than one)
-  type Showing = 'join' | 'tables' | 'standings' | 'bracket' | 'live';
+  type Showing = 'join' | 'tables' | 'standings' | 'bracket' | 'travellers' | 'live';
   const views = $derived.by((): Showing[] => {
     if (!board || board.phase === 'registering') return ['join'];
-    const overview: Showing[] = ['tables', 'standings', ...(knockout ? (['bracket'] as const) : [])];
+    const extra: Showing[] = knockout ? ['bracket'] : travellers.length ? ['travellers'] : [];
+    const overview: Showing[] = ['tables', 'standings', ...extra];
     if (board.phase === 'done')
-      return show === 'bracket' && knockout ? ['bracket'] : show === 'standings' || !knockout ? ['standings'] : ['standings', 'bracket'];
+      return show === 'bracket' || show === 'travellers'
+        ? extra.length
+          ? extra
+          : ['standings']
+        : show === 'standings'
+          ? ['standings']
+          : ['standings', ...extra];
     // (a table live, when there is one: the director picked it, or the screens show the tables live)
     if (show === 'live') return live ? ['live'] : ['tables'];
     if (show === 'turn') return [...(live ? (['live'] as const) : []), ...overview];
     if (live) return ['live'];
-    return [show === 'bracket' && !knockout ? 'tables' : show];
+    return [(show === 'bracket' || show === 'travellers') && !extra.includes(show) ? 'tables' : show];
   });
   let turn = $state(0);
   $effect(() => {
@@ -93,7 +104,7 @@
     {#if bar}<div class="live-bar">{@render bar()}</div>{/if}
   </div>
 {:else}
-  <main class="board">
+  <main class="board" style:padding-inline="{BOARD_PAD_X_REM}rem">
     <header>
       <div class="title">
         <span class="eyebrow">{game?.config.name ?? ''} · {board ? FORMAT[board.format] : ''}</span>
@@ -106,7 +117,7 @@
             >{board.phase === 'between'
               ? 'Next round shortly'
               : board.phase === 'playing'
-                ? `${board.tables.filter((t) => !t.places).length} tables playing`
+                ? `${board.tables.filter((t) => !t.done).length} tables playing`
                 : ''}</span
           >
         {/if}
@@ -142,9 +153,13 @@
       <EventTiles tables={board.tables} {tiles} {names} />
       {#if board.byes.length}<p class="byes">Bye this round: {board.byes.map((b) => names.get(b) ?? b).join(', ')}</p>{/if}
     {:else if showing === 'standings'}
-      <EventStandings rows={board.standings} {people} {knockout} max={standingsRows(h - 8 * rem, rem)} />
+      <EventStandings rows={board.standings} {people} {knockout} units={board.units} max={standingsRows(h - 8 * rem, rem)} />
     {:else if showing === 'bracket' && board.bracket}
       <EventBracket bracket={board.bracket} {names} />
+    {:else if showing === 'travellers'}
+      <div class="travellers" style:--traveller="{TRAVELLER_REM}rem" style:--gap="{TILE_GAP_REM}rem">
+        {#each travellers as t (t.n)}<EventTraveller {t} {names} />{/each}
+      </div>
     {/if}
     {#if bar}<div class="bar">{@render bar()}</div>{/if}
   </main>
@@ -155,7 +170,7 @@
     position: absolute;
     inset: 0;
     overflow: auto;
-    padding: 1.2rem 1.6rem;
+    padding-block: 1.2rem;
     display: flex;
     flex-direction: column;
     gap: 1rem;
@@ -195,6 +210,12 @@
     place-content: center;
     justify-items: center;
     color: var(--ink-dim);
+  }
+  .travellers {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--traveller)), 1fr));
+    gap: var(--gap);
+    align-items: start;
   }
   .signup {
     flex: 1;

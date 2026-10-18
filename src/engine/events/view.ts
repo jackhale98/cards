@@ -1,10 +1,12 @@
+import { boardAt, boardsPerRound, isDuplicate, travellers, type Traveller } from './duplicate';
 import { tableSizes } from './pairing';
 import { standings } from './standings';
 import type { EventState, FormatId, StandingRow, TableRound } from './types';
 
 /**
  * What everyone may see of a tournament (the screens, and every player): the standings, the
- * round's tables and the bracket. Never a table's deal or its private inputs.
+ * round's tables and the bracket. Never a table's deal or its private inputs; in duplicate, nothing
+ * of a board (how it went, its hands) until every table has played it.
  */
 export interface EventPublic {
   name: string;
@@ -15,15 +17,25 @@ export interface EventPublic {
   phase: EventState['phase'];
   /** The round being played or just played (0 before the start). */
   round: number;
-  /** Swiss: the rounds it will play. */
+  /** Swiss and duplicate: the rounds it will play. */
   rounds?: number;
+  /** Duplicate: boards a round. */
+  boards?: number;
+  /** What the standings' numbers are, when not points and the game's score (duplicate pairs: a percentage and matchpoints). */
+  units?: { points: string; score: string };
   entrants: { id: string; name: string; bot?: boolean; out?: boolean }[];
   standings: StandingRow[];
-  /** The round's tables: each side's entrant (null: a bot filling the gap), and places once it's done. */
-  tables: { table: number; sides: (string | null)[]; places?: number[] }[];
+  /**
+   * The round's tables: each side's entrant (null: a bot filling the gap), and once it's done, places
+   * (not in duplicate, where a table's result means something only beside the others'). Duplicate:
+   * the board it's on; teams, its match.
+   */
+  tables: { table: number; sides: (string | null)[]; done?: boolean; places?: number[]; board?: number; match?: number }[];
   byes: string[];
   /** Knockout: every round, table by table, and who went through; then the rounds to come (`later`). */
   bracket?: BracketRound[];
+  /** Duplicate: the round's boards every table has played, each with every table's result and its hands. */
+  travellers?: Traveller[];
 }
 
 /**
@@ -57,6 +69,7 @@ const sidesOf = (e: EventState, seats: { entrant: string | null }[]) => e.config
 export function publicView(e: EventState): EventPublic {
   const r = e.rounds.at(-1);
   const rows = standings(e);
+  const dup = isDuplicate(e);
   return {
     name: e.config.name,
     format: e.config.format,
@@ -64,16 +77,29 @@ export function publicView(e: EventState): EventPublic {
     perSide: e.config.sides[0]?.length ?? 1,
     phase: e.phase,
     round: r?.n ?? 0,
-    ...(e.config.format === 'swiss' && e.config.rounds ? { rounds: e.config.rounds } : {}),
+    ...((e.config.format === 'swiss' || dup) && e.config.rounds ? { rounds: e.config.rounds } : {}),
+    ...(dup ? { boards: boardsPerRound(e) } : {}),
+    ...(e.config.format === 'pairs'
+      ? { units: { points: '%', score: 'MPs' } }
+      : e.config.format === 'teams'
+        ? { units: { points: 'Pts', score: 'IMPs' } }
+        : {}),
     entrants: e.entrants.map((x) => ({ id: x.id, name: x.name, ...(x.bot ? { bot: true } : {}), ...(x.out ? { out: true } : {}) })),
     standings: rows,
-    tables: (r?.tables ?? []).map((t) => ({
-      table: t.table,
-      sides: sidesOf(e, t.seats),
-      ...(t.result ? { places: e.config.sides.map((side) => t.result!.places[side[0]]) } : {}),
-    })),
+    tables: (r?.tables ?? []).map((t) => {
+      const board = dup && r ? boardAt(r, t) : null;
+      return {
+        table: t.table,
+        sides: sidesOf(e, t.seats),
+        ...(t.result ? { done: true } : {}),
+        ...(t.result && !dup ? { places: e.config.sides.map((side) => t.result!.places[side[0]]) } : {}),
+        ...(board != null ? { board } : {}),
+        ...(t.match ? { match: t.match } : {}),
+      };
+    }),
     byes: r?.byes ?? [],
     ...(e.config.format === 'knockout' ? { bracket: bracket(e) } : {}),
+    ...(dup && r ? { travellers: travellers(e, r) } : {}),
   };
 }
 

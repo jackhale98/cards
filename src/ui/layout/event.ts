@@ -17,6 +17,15 @@ export function tileColumns(width: number, rem: number, tables: number): number 
   return Math.max(1, Math.min(Math.max(1, tables), fit));
 }
 
+/** The board's padding at its sides (rem). */
+export const BOARD_PAD_X_REM = 1.6;
+
+/** A board's traveller is this many rem wide at the least. */
+export const TRAVELLER_REM = 24;
+
+/** How many boards' travellers fit across `width` px (the latest ones show; at least one). */
+export const travellerColumns = (width: number, rem: number) => Math.max(1, Math.floor((width + TILE_GAP_REM * rem) / ((TRAVELLER_REM + TILE_GAP_REM) * rem)));
+
 /** Standings rows that fit `height` px (a row is about 2.4rem; the rest wait for the next page). */
 export const standingsRows = (height: number, rem: number) => Math.max(4, Math.floor(height / (2.4 * rem)));
 

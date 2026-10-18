@@ -9,6 +9,9 @@ Reads the files tests/selfplay.bench.test.ts writes (see tools/README.md):
   deals, in IMPs.
 - Hold'em (PHH), with PokerKit: every action is replayed through PokerKit's rules, strictly (it
   must be legal as written), and every player must finish with the chips we gave them.
+- Duplicate tournaments (event-*.pbn), with endplay: every table's score on each board is scored
+  again from its contract, declarer and tricks; the matchpoints (pairs) or IMPs (teams) are worked
+  out again from the scores; and the standings again from those.
 
 Exits non-zero if any record is wrong. Strength figures are reported, not judged.
 
@@ -144,6 +147,81 @@ def check_bridge(folder: str) -> dict:
         },
         "matches": matches,
     }
+
+
+def _event_contract(row: dict) -> str | None:
+    """A score table row's contract as endplay writes it ("4SNX-1"); None when passed out."""
+    if row["Contract"] == "Pass":
+        return None
+    m = re.fullmatch(r"([1-7])(NT|[SHDC])(X{0,2})", row["Contract"])
+    if not m:
+        return "?"
+    level, strain, dbl = int(m.group(1)), m.group(2), m.group(3)
+    over = int(row["Result"]) - level - 6
+    return f"{level}{strain}{row['Declarer']}{dbl}{'=' if over == 0 else f'{over:+d}'}"
+
+
+def check_events(folder: str) -> dict:
+    """Duplicate tournaments' results: each table's score, the matchpoints or IMPs, the standings."""
+    from endplay.parsers import pbn
+    from endplay.types import Contract
+
+    out = {}
+    for path in sorted(glob.glob(f"{folder}/event-*.pbn")):
+        name = os.path.basename(path)
+        with open(path) as f:
+            boards = pbn.load(f)
+        teams = boards[0].info["Scoring"] == "IMP"
+        got: dict[str, float] = defaultdict(float)
+        top: dict[str, float] = defaultdict(float)
+        rows_seen = 0
+        for b in boards:
+            table = b.info["ScoreTable"]
+            heads = [h["name"] for h in table["headers"]]
+            rows = [dict(zip(heads, r)) for r in table["rows"]]
+            rows_seen += len(rows)
+            where = f"{name} board {b.board_num}"
+            for r in rows:
+                c = _event_contract(r)
+                ns = 0 if c is None else Contract(c).score(b.vul) * (1 if r["Declarer"] in "NS" else -1)
+                if ns != int(r["Score_NS"]):
+                    fail(where, f"table {r['Table']}: {c} scores {ns} for North-South, not {r['Score_NS']}")
+            scores = [int(r["Score_NS"]) for r in rows]
+            if teams:
+                by = {int(r["Table"]): r for r in rows}
+                for r in rows:
+                    t = int(r["Table"])
+                    other = by.get(t + 1 if t % 2 else t - 1)
+                    want = imps(int(r["Score_NS"]) - int(other["Score_NS"])) if other else None
+                    if want is not None and (int(r["IMP_NS"]) != want or int(r["IMP_EW"]) != -want):
+                        fail(where, f"table {r['Table']}: {want} IMPs to North-South, not {r['IMP_NS']}")
+                    # (a match's swing is on both its tables' rows: each team's, where it sat North-South)
+                    if want is not None:
+                        got[r["TeamId_NS"]] += want
+            else:
+                t = 2 * (len(rows) - 1)
+                for r, x in zip(rows, scores):
+                    mp = sum(2 if x > y else 1 if x == y else 0 for y in scores) - 1
+                    if int(r["MP_NS"]) != mp or int(r["MP_EW"]) != t - mp:
+                        fail(where, f"table {r['Table']}: {mp} matchpoints to North-South, not {r['MP_NS']}")
+                    got[r["PairId_NS"]] += mp
+                    got[r["PairId_EW"]] += t - mp
+                    top[r["PairId_NS"]] += t
+                    top[r["PairId_EW"]] += t
+        total = boards[-1].info["TotalScoreTable"]
+        heads = [h["name"] for h in total["headers"]]
+        for r in total["rows"]:
+            row = dict(zip(heads, r))
+            who = row["TeamId" if teams else "PairId"]
+            if teams:
+                if int(row["TotalScoreIMP"]) != round(got[who]):
+                    fail(name, f"team {who}: {got[who]} IMPs in all, not {row['TotalScoreIMP']}")
+            else:
+                pct = round(100 * got[who] / top[who], 2) if top[who] else 0
+                if abs(float(row["TotalPercentage"]) - pct) > 0.005 or int(row["TotalScoreMP"]) != got[who]:
+                    fail(name, f"pair {who}: {got[who]} matchpoints, {pct}%, not {row['TotalScoreMP']}, {row['TotalPercentage']}%")
+        out[name] = {"boards": len(boards), "results": rows_seen, "entrants": len(total["rows"])}
+    return out
 
 
 def _start(board, contract):
@@ -337,8 +415,10 @@ def check_poker(folder: str) -> dict:
 def main() -> int:
     folder = sys.argv[1] if len(sys.argv) > 1 else "records"
     report = {}
-    if glob.glob(f"{folder}/*.pbn"):
+    if glob.glob(f"{folder}/bridge-*.pbn"):
         report["bridge"] = check_bridge(folder)
+    if glob.glob(f"{folder}/event-*.pbn"):
+        report["events"] = check_events(folder)
     if os.path.exists(f"{folder}/bridge-bidding.jsonl"):
         report["bridge_bidding"] = check_bidding(f"{folder}/bridge-bidding.jsonl")
     if glob.glob(f"{folder}/*.phh"):

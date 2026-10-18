@@ -1,4 +1,4 @@
-import type { TableChange } from '../../engine/types';
+import type { OtherResult, TableChange } from '../../engine/types';
 import type { Brain } from '../brain';
 import { Host, type HostSnapshot } from '../host';
 import type { TableTile } from '../eventProtocol';
@@ -21,6 +21,8 @@ export interface TableLink {
   adjust(change: TableChange): string | null;
   /** A bot for a player who isn't here (their game seat), until they're back. */
   standInFor(seat: number): void;
+  /** Duplicate teams: the other table of its match's results so far (see Host.compare; a repeat is ignored). */
+  compare(others: OtherResult[]): void;
   /** News from the table (each hand, the game's end, a hold reached). */
   onNews: (news: TableNews) => void;
   /** The table as a screen shows it (null: not to hand here). */
@@ -83,6 +85,9 @@ export class LocalTable implements TableLink {
   }
   standInFor(seat: number) {
     this.host.standInFor(seat);
+  }
+  compare(others: OtherResult[]) {
+    this.host.compare(others);
   }
   view() {
     return this.host.viewFor(null);

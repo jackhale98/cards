@@ -1,5 +1,5 @@
 import type { EventPersonal, EventPublic } from '../engine/events';
-import type { TableChange } from '../engine/types';
+import type { OtherResult, TableChange } from '../engine/types';
 import type { SignedMove } from './eventCrypto';
 import type { EventTable, TableNews } from './host/event';
 import type { Avatar, View } from './protocol';
@@ -30,16 +30,19 @@ export interface EventPerson {
   name: string;
   avatar?: Avatar;
   partner?: string;
+  /** Duplicate teams: someone whose pair they'd like on their team. */
+  team?: string;
   /** A bot the director put in. */
   bot?: boolean;
 }
 
 /**
- * What the screens show, as the director chooses: the tables, the standings and (a knockout) the
- * bracket in turn, or just one of them, or the tables live, one after another.
+ * What the screens show, as the director chooses: the tables, the standings, and the bracket (a
+ * knockout) or the travellers (duplicate) in turn, or just one of them, or the tables live, one
+ * after another.
  */
-export type BoardShow = 'turn' | 'tables' | 'standings' | 'bracket' | 'live';
-export const BOARD_SHOWS: readonly BoardShow[] = ['turn', 'tables', 'standings', 'bracket', 'live'];
+export type BoardShow = 'turn' | 'tables' | 'standings' | 'bracket' | 'travellers' | 'live';
+export const BOARD_SHOWS: readonly BoardShow[] = ['turn', 'tables', 'standings', 'bracket', 'travellers', 'live'];
 
 /** A standby's copy, at most (the relay passes on up to 512 KB a message). */
 export const MAX_COPY = 480_000;
@@ -104,6 +107,8 @@ export type EventOutMsg =
   | { t: 'evStandIn'; seat: number }
   /** Send the table's screen view while it's featured (or stop). */
   | { t: 'evFeature'; on: boolean }
+  /** Duplicate teams: the results at the other table of its match, on the boards they've played (see Host.compare). */
+  | { t: 'evCompare'; others: OtherResult[] }
   /** Pass these moves on to the players at the table (each signed for its player: see eventCrypto). */
   | { t: 'evForward'; moves: { cid: string; move: SignedMove }[] }
   | { t: 'evAck'; id: number }

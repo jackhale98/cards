@@ -1,4 +1,4 @@
-import { addEntrant, currentRound, personalView, type Round, type TableRound } from '../../engine/events';
+import { addEntrant, currentRound, isDuplicate, personalView, showable, startProblem, type Round, type TableRound } from '../../engine/events';
 import { open } from '../backup';
 import type { HostSnapshot } from '../host';
 import { isSecret, prove, same, signMove, type SignedMove } from '../eventCrypto';
@@ -314,8 +314,9 @@ export class Desk implements RemoteDesk {
     if (e.phase !== 'registering') return 'Already started';
     const perSide = e.config.sides[0]?.length ?? 1;
     e.entrants = [];
-    for (const x of this.o.registry.entrants(perSide, e)) addEntrant(e, x);
-    if (!this.o.director().start()) return 'At least two to start';
+    for (const x of this.o.registry.entrants(perSide, e, e.config.format === 'teams')) addEntrant(e, x);
+    const why = startProblem(e);
+    if (why || !this.o.director().start()) return why ?? 'At least two to start';
     return null;
   }
 
@@ -493,11 +494,15 @@ export class Desk implements RemoteDesk {
     this.boardSoon();
   }
 
-  /** The table to show live now (`turn`: time to move on to the next one still playing). */
+  /**
+   * The table to show live now (`turn`: time to move on to the next one still playing). In
+   * duplicate, only a table on a board every other table has played (see showable): the room
+   * would see how it goes.
+   */
   private featureNext(turn = false) {
-    let next = this.pinned;
+    let next = this.pinned != null && showable(this.event, this.pinned) ? this.pinned : null;
     if (next == null && this.show === 'live') {
-      const playing = (currentRound(this.event)?.tables ?? []).filter((t) => !t.result).map((t) => t.table);
+      const playing = (currentRound(this.event)?.tables ?? []).filter((t) => !t.result && showable(this.event, t.table)).map((t) => t.table);
       const at = this.featured != null ? playing.indexOf(this.featured) : -1;
       next = at >= 0 && !turn ? this.featured : (playing.find((t) => t > (this.featured ?? 0)) ?? playing[0] ?? null);
       if (this.event.phase === 'done' && this.liveTimer) {
@@ -569,7 +574,7 @@ export class Desk implements RemoteDesk {
 
   private sendBoard(room: Room, peer: string) {
     const d = this.o.director();
-    const live = this.featured != null ? (d.link(this.featured)?.view() ?? null) : null;
+    const live = this.featured != null && showable(this.event, this.featured) ? (d.link(this.featured)?.view() ?? null) : null;
     this.send(room, peer, {
       t: 'evBoard',
       board: d.view,
@@ -634,7 +639,9 @@ export class Desk implements RemoteDesk {
       (currentRound(this.event)?.tables ?? []).map((t) => {
         const link = d.link(t.table);
         const remote = link instanceof RemoteTable ? link : null;
-        const tile = link?.progress() ?? null;
+        const progress = link?.progress() ?? null;
+        // (duplicate: no scores on a tile, where a table still to play those boards could see them)
+        const tile = progress && isDuplicate(this.event) ? { ...progress, totals: null } : progress;
         const off = t.result
           ? []
           : t.seats.flatMap((s) =>

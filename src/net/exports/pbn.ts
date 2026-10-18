@@ -33,7 +33,7 @@ const SEAT = ['N', 'E', 'S', 'W'];
 const RANKS = 'AKQJT98765432';
 
 /** One hand in PBN: spades, hearts, diamonds and clubs, highest first ("AKJ.T9.-.Q8"…; void: empty). */
-function handText(cards: string[]): string {
+export function handText(cards: string[]): string {
   return ['S', 'H', 'D', 'C']
     .map((suit) =>
       cards
@@ -52,7 +52,7 @@ export const callText = (call: Call) => (typeof call === 'number' ? `${Math.floo
 /** A card in PBN's play section: suit then rank ("SK", "HT"). */
 const cardText = (id: string) => `${id[1]}${id[0]}`;
 /** PBN is Latin-1 text: names in plain letters (accents dropped, anything else "?"), no quotes. */
-const ascii = (t: string) =>
+export const ascii = (t: string) =>
   t
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')

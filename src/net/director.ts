@@ -1,7 +1,10 @@
 import {
   currentRound,
+  isDuplicate,
   nextRound,
+  otherTable,
   publicView,
+  recordReport,
   recordResult,
   startEvent,
   type EventPublic,
@@ -11,6 +14,7 @@ import {
 } from '../engine/events';
 import type { HostSnapshot } from './host';
 import type { BotSeat, EventSeat, EventTable, TableNews } from './host/event';
+import { cleanReport } from './director/clean';
 import type { TableLink } from './director/tables';
 
 /**
@@ -84,6 +88,7 @@ export class Director {
         this.links.set(t.table, link);
         if (!saved.tables[t.table]) link.seat(this.tableFor(r, t));
       }
+    if (r && this.event.phase === 'playing') for (const t of r.tables) this.share(r, t);
     if (this.event.phase === 'between') this.schedule();
   }
   private resumed = false;
@@ -146,6 +151,7 @@ export class Director {
     this.listen(link, r, t);
     this.links.set(table, link);
     was.close();
+    this.share(r, t);
     this.changed();
   }
 
@@ -213,8 +219,16 @@ export class Director {
       const i = x.members.indexOf(s.member);
       return { id: s.member, name: x.names?.[i] ?? x.name, key: this.o.keyFor(s.member, r.n, t.table) };
     });
+    const other = otherTable(r, t);
+    // (duplicate: where these boards are compared)
+    const note =
+      e.config.format === 'teams' && other
+        ? `Teams: your teammates play these boards at table ${other.table}`
+        : e.config.format === 'pairs'
+          ? 'Pairs: every table plays these boards'
+          : undefined;
     return {
-      info: { code: this.o.code, name: e.config.name, round: r.n, table: t.table },
+      info: { code: this.o.code, name: e.config.name, round: r.n, table: t.table, ...(note ? { note } : {}) },
       game: e.config.game,
       seats,
       seed: t.seed,
@@ -223,12 +237,36 @@ export class Director {
     };
   }
 
-  /** News from a table: its result goes in; the round may be done. */
+  /** News from a table: how it's going (each hand), or its result; the round may be done. */
   private news(round: number, table: number, n: TableNews) {
-    if (this.closed || n.kind !== 'over') return;
-    const done = recordResult(this.event, round, table, n.result, n.result.report);
+    if (this.closed) return;
+    const r = currentRound(this.event);
+    const t = r?.n === round ? r.tables.find((x) => x.table === table) : undefined;
+    if (n.kind === 'hand') {
+      const report = cleanReport(n.report);
+      if (!r || !t || !report || !recordReport(this.event, round, table, report)) return;
+      this.share(r, t);
+      return this.changed();
+    }
+    if (n.kind !== 'over') return;
+    const done = recordResult(this.event, round, table, n.result, cleanReport(n.result.report));
     if (done) this.schedule();
     this.changed();
+  }
+
+  /**
+   * Duplicate teams: a table's results so far to the other table of its match, and theirs to it
+   * (each table takes only boards it has played itself: see Host.compare).
+   */
+  private share(r: Round, t: TableRound) {
+    const o = isDuplicate(this.event) ? otherTable(r, t) : undefined;
+    if (!o) return;
+    const tell = (to: TableRound, from: TableRound) => {
+      const boards = from.report?.boards ?? [];
+      if (boards.length) this.links.get(to.table)?.compare(boards.map((b) => ({ ...b, at: `Table ${from.table}` })));
+    };
+    tell(o, t);
+    tell(t, o);
   }
 
   /** Between rounds: on by itself after the pause, unless held. */

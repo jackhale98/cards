@@ -5,7 +5,7 @@
 
   /**
    * The round's tables as tiles: who's at each, how far it's got (still waiting for someone, hands
-   * played, the game's totals) and, once it's done, who finished where. With `onfeature`, a tap
+   * played or the board it's on, the game's totals) and, once it's done, who finished where. With `onfeature`, a tap
    * puts that table on the screens (`pinned`: the one that's there); `showing` is the table the
    * screens show live now. The director's own tiles say whose phones are off (`off`).
    */
@@ -27,13 +27,13 @@
   {#each tables as t (t.table)}
     {@const x = tileOf(t.table)}
     {@const tile = x?.tile ?? null}
-    <article class="tile panel" class:done={!!t.places} class:featured={showing === t.table} aria-label={`Table ${t.table}`}>
+    <article class="tile panel" class:done={!!t.done} class:featured={showing === t.table} aria-label={`Table ${t.table}`}>
       <header>
         <span class="eyebrow">Table {t.table}</span>
         <span class="state">
-          {#if t.places}Done{:else if x && x.linked === false && !tile}Setting up…{:else if tile?.waiting.length}Waiting for {tile.waiting.join(
+          {#if t.done}Done{:else if x && x.linked === false && !tile}Setting up…{:else if tile?.waiting.length}Waiting for {tile.waiting.join(
               ', ',
-            )}{:else if tile?.started}Hand
+            )}{:else if tile?.started && t.board != null}Board {t.board}{:else if tile?.started}Hand
             {tile.hands + 1}{:else}Starting…{/if}
         </span>
       </header>
@@ -45,13 +45,13 @@
           </li>
         {/each}
       </ul>
-      {#if tile?.totals && !t.places}
+      {#if tile?.totals && !t.done}
         <p class="totals">{tile.totals.map((r) => `${r.name} ${r.total}`).join(' · ')}</p>
       {/if}
-      {#if x?.off?.length && !t.places}
+      {#if x?.off?.length && !t.done}
         <p class="off">{x.off.length === 1 ? `${x.off[0]}’s phone is off` : `Phones off: ${x.off.join(', ')}`}</p>
       {/if}
-      {#if onfeature && !t.places}
+      {#if onfeature && !t.done}
         <button class="btn quiet feature" onclick={() => onfeature?.(pinned === t.table ? null : t.table)}
           >{pinned === t.table ? 'Stop showing' : 'Show on screens'}</button
         >

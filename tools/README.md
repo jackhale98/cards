@@ -6,7 +6,10 @@ check what happened:
 - **[endplay](https://endplay.readthedocs.io/)** reads the bridge games (PBN). It checks every card
   against its own rules and our result against its count of the tricks. Its double-dummy solver
   (Bo Haglund's DDS, what bridge software uses) shows how many tricks each bot level threw
-  away, compared with perfect play when every card is known.
+  away, compared with perfect play when every card is known. It also reads two duplicate
+  tournaments of bots (pairs and teams, `event-*.pbn`, the results file a director saves): each
+  table's score is worked out again from its contract and tricks, then the matchpoints or IMPs
+  from the scores, and the standings from those.
 - **[PokerKit](https://pokerkit.readthedocs.io/)** (University of Toronto) replays every Hold'em
   hand (PHH) through its own rules. Every action has to be legal as written, and everyone has to
   finish with the chips we gave them: blinds, minimum raises, all-ins, side pots and showdowns.

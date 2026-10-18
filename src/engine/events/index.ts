@@ -1,13 +1,15 @@
 import { nextRandom, seedState, shuffle, type Seed } from '../rng';
 import type { GameConfig, TableReport } from '../types';
+import { dealRound, duplicateMin, duplicateRounds, isDuplicate, seatPairs, seatTeams } from './duplicate';
 import { knockout, knockoutAdvance, knockoutOrder, roundRobin, roundRobinOrder, swiss, swissRounds, type Pairing } from './pairing';
 import { standings } from './standings';
-import type { Entrant, EventConfig, EventState, FormatId, Round, TableSeat } from './types';
+import type { Entrant, EventConfig, EventState, FormatId, Round, TableRound, TableSeat } from './types';
 
 export * from './types';
 export { standings } from './standings';
 export { personalView, publicView, type BracketRound, type EventPersonal, type EventPublic } from './view';
 export { bracketSeeds, swissRounds, tableSizes } from './pairing';
+export { BOARDS_PER_ROUND, boardAt, duplicateRounds, isDuplicate, otherTable, showable, type Traveller } from './duplicate';
 
 /**
  * A tournament's course, as plain functions over its state: take entrants, start (the draw and the
@@ -15,34 +17,50 @@ export { bracketSeeds, swissRounds, tableSizes } from './pairing';
  * The director (src/net/director.ts) seats the tables and reports back; this decides everything else.
  */
 
-const FORMATS: Record<FormatId, { pair: (e: EventState) => Pairing | null; start?: (e: EventState) => void; after?: (e: EventState) => void }> = {
+interface Format {
+  pair: (e: EventState) => Pairing | null;
+  start?: (e: EventState) => void;
+  after?: (e: EventState) => void;
+  /** The round's tables from its pairing (else a table each, see seatTable). */
+  seat?: (e: EventState, tables: (string | null)[][]) => TableRound[];
+}
+
+const FORMATS: Record<FormatId, Format> = {
   // (how many rounds is settled at the start: everyone knows, and a withdrawal doesn't change it)
   swiss: { pair: swiss, start: (e) => void (e.config.rounds ??= swissRounds(e.entrants.length, e.config.sides.length)) },
   roundRobin: { pair: roundRobin, start: (e) => (e.order = roundRobinOrder(e)) },
   knockout: { pair: knockout, start: (e) => (e.order = knockoutOrder(e)), after: knockoutAdvance },
+  // (duplicate: pairs and teams meet as in a Swiss, ranked by their own standings: see duplicate.ts)
+  pairs: { pair: swiss, start: (e) => void (e.config.rounds ??= duplicateRounds(false, e.entrants.length)), seat: seatPairs },
+  teams: { pair: swiss, start: (e) => void (e.config.rounds ??= duplicateRounds(true, e.entrants.length)), seat: seatTeams },
 };
 
 /**
  * The formats a game can be played in: Swiss and knockout for any game with a result; round robin
- * only with two sides a table (everyone meets everyone).
+ * only with two sides a table (everyone meets everyone); and a game played duplicate (bridge: its
+ * module's `duplicate`), as pairs or teams.
  */
-export function formatsFor(config: GameConfig, sides: number[][]): FormatId[] {
+export function formatsFor(config: GameConfig, sides: number[][], duplicate = false): FormatId[] {
   if (config.rules.family === 'free') return [];
-  return sides.length === 2 ? ['swiss', 'roundRobin', 'knockout'] : ['swiss', 'knockout'];
+  if (sides.length !== 2) return ['swiss', 'knockout'];
+  return ['swiss', 'roundRobin', 'knockout', ...(duplicate && sides.every((s) => s.length === 2) ? (['pairs', 'teams'] as const) : [])];
 }
 
 export function createEvent(config: EventConfig, seed: Seed): EventState {
   return { config: structuredClone(config), entrants: [], rounds: [], phase: 'registering', rng: seedState(seed) };
 }
 
-/** How many people play for one entrant: a side's seats. */
+/** How many people play for one side at a table: its seats. */
 export const sideSize = (e: EventState) => e.config.sides[0]?.length ?? 1;
+/** How many people play for one entrant: a side, or a duplicate team's two. */
+export const entrantSize = (e: EventState) => sideSize(e) * (e.config.format === 'teams' ? 2 : 1);
 
-/** Someone (or a partnership) signs up. Null: done; else why not. */
+/** Someone (or a partnership, or a team) signs up. Null: done; else why not. */
 export function addEntrant(e: EventState, x: Entrant): string | null {
   if (e.phase !== 'registering') return 'The tournament has started';
   if (!x.id || e.entrants.some((y) => y.id === x.id)) return 'Already signed up';
-  if (!x.bot && x.members.length !== sideSize(e)) return sideSize(e) === 2 ? 'Sign up as a pair' : 'Sign up one at a time';
+  const size = entrantSize(e);
+  if (!x.bot && x.members.length !== size) return size === 4 ? 'Sign up as a team of four' : size === 2 ? 'Sign up as a pair' : 'Sign up one at a time';
   // (an empty member is a bot partnering someone left without a partner)
   const people = x.members.filter(Boolean);
   const taken = new Set(e.entrants.flatMap((y) => y.members).filter(Boolean));
@@ -62,7 +80,10 @@ export function withdraw(e: EventState, id: string) {
 /** Why the event can't start yet (null: it can). */
 export function startProblem(e: EventState): string | null {
   if (e.phase !== 'registering') return 'Already started';
-  if (e.entrants.filter((x) => !x.out).length < 2) return 'At least two to start';
+  const n = e.entrants.filter((x) => !x.out).length;
+  if (n < 2) return 'At least two to start';
+  if (isDuplicate(e) && n < duplicateMin(e.config.format === 'teams'))
+    return e.config.format === 'teams' ? 'At least two teams to start' : 'At least four pairs to start: two tables to compare';
   return null;
 }
 
@@ -93,9 +114,14 @@ export function nextRound(e: EventState): Round | null {
     const round: Round = {
       n: e.rounds.length + 1,
       byes: p.byes,
-      tables: p.tables.map((sides, i) => seatTable(e, sides, i + 1)),
+      tables: f.seat ? f.seat(e, p.tables) : p.tables.map((sides, i) => seatTable(e, sides, i + 1)),
       ...(p.order ? { order: p.order } : {}),
     };
+    if (isDuplicate(e) && round.tables.length) {
+      // (every table plays the round's boards; a team's two tables hear each other's results as they go)
+      const boards = dealRound(e, round.n);
+      for (const t of round.tables) t.setup = { boards: structuredClone(boards), ...(e.config.format === 'teams' ? { compared: true } : {}) };
+    }
     e.rounds.push(round);
     if (round.tables.length) {
       e.phase = 'playing';
@@ -132,6 +158,20 @@ export function recordResult(e: EventState, round: number, table: number, result
   if (r.tables.some((x) => !x.result)) return false;
   e.phase = 'between';
   FORMATS[e.config.format].after?.(e);
+  return true;
+}
+
+/**
+ * A table's report as it goes (each hand): what it has played so far (duplicate: each board's
+ * result, which the standings and the travellers count once every table has played the board).
+ * True when it's news.
+ */
+export function recordReport(e: EventState, round: number, table: number, report: TableReport): boolean {
+  const r = currentRound(e);
+  const t = r?.tables.find((x) => x.table === table);
+  if (!r || r.n !== round || !t || t.result || e.phase !== 'playing') return false;
+  if (JSON.stringify(t.report) === JSON.stringify(report)) return false;
+  t.report = structuredClone(report);
   return true;
 }
 

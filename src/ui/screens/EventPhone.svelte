@@ -3,12 +3,14 @@
   import { getGame } from '../../games';
   import AvatarBadge from '../components/AvatarBadge.svelte';
   import EventStandings from '../components/EventStandings.svelte';
+  import EventTraveller from '../components/EventTraveller.svelte';
   import Loader from '../components/Loader.svelte';
 
   /**
    * A phone in a tournament, away from a table: signing up (and, in a partnership game, choosing
-   * a partner), then waiting (a bye, knocked out, between tables), and at the end, the standings.
-   * At a table the phone shows the table, as at any other; the director sends it there.
+   * a partner), then waiting (a bye, knocked out, between tables), and at the end, the standings
+   * (duplicate: and the round's boards, every table's result on each). At a table the phone shows
+   * the table, as at any other; the director sends it there.
    */
   const ev = $derived(app.events.phone);
   const board = $derived(ev?.board ?? null);
@@ -20,7 +22,8 @@
   // a partnership game: everyone signs up with a partner
   const pairs = $derived((board?.perSide ?? 1) > 1);
   const askedMe = $derived(people.filter((p) => p.partner === me && mine?.partner !== p.id));
-  const FORMAT: Record<string, string> = { swiss: 'Swiss', roundRobin: 'Round robin', knockout: 'Knockout' };
+  const FORMAT: Record<string, string> = { swiss: 'Swiss', roundRobin: 'Round robin', knockout: 'Knockout', pairs: 'Pairs', teams: 'Teams' };
+  const names = $derived(new Map((board?.entrants ?? []).map((x) => [x.id, x.name])));
 </script>
 
 <main class="event-phone">
@@ -80,14 +83,23 @@
       {:else if you.out}
         <p>You've withdrawn: your results so far stand.</p>
       {:else if you.bye}
-        <p><b>A bye this round</b> ({board.format === 'swiss' ? 'it counts as a win' : 'you sit this one out'}). You'll be sent to your table for the next.</p>
+        <p>
+          <b>A bye this round</b> ({board.format === 'swiss' || board.format === 'teams' ? 'it counts as a win' : 'you sit this one out'}). You'll be sent to
+          your table for the next.
+        </p>
       {:else if board.format === 'knockout' && board.standings.find((r) => r.entrant === you.entrant)?.alive === false}
         <p>You're out of the knockout. Thanks for playing: watch the bracket on the screen.</p>
       {:else}
         <p>Round {board.round}: your table's on its way.</p>
       {/if}
     </section>
-    <EventStandings rows={board.standings} {people} me={you.entrant} knockout={board.format === 'knockout'} />
+    <EventStandings rows={board.standings} {people} me={you.entrant} knockout={board.format === 'knockout'} units={board.units} />
+    {#if board.travellers?.length}
+      <section class="travellers" aria-label="Travellers">
+        <span class="eyebrow">Round {board.round}: every table's result</span>
+        {#each board.travellers as t (t.n)}<EventTraveller {t} {names} />{/each}
+      </section>
+    {/if}
     <button class="btn quiet" onclick={() => app.go('/')}>Leave</button>
   {/if}
 </main>
@@ -116,6 +128,11 @@
   }
   .note {
     padding: 0.8rem 1rem;
+  }
+  .travellers {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
   }
   .note p {
     margin: 0 0 0.4rem;

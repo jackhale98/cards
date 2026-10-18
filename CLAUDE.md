@@ -48,7 +48,9 @@ src/engine/            pure TS: no DOM, no network, no UI
                        realtime (the speed games), canastaCards, duplicate (boards, IMPs, matchpoints)
   bots/search.ts       Monte Carlo search bots any family can plug into
   events/              tournaments, pure: formats (Swiss, round robin, knockout: pairing.ts), standings,
-                       what the screens and each player see (view.ts); the event is plain JSON too
+                       what the screens and each player see (view.ts); the event is plain JSON too;
+                       duplicate.ts, duplicate bridge's pairs (matchpoints) and teams (IMPs): every table
+                       on the round's boards, nothing of a board shown until every table has played it
 src/games/<id>/game.json   a game = a family plus parameters (schemas/game.schema.json)
 src/engine/schema.gen.ts   the game.json types, generated from the schema (pnpm gen:types; never edit)
 src/games/index.ts     registry: game files load with the app (GameInfo), rules only when picked
@@ -78,7 +80,8 @@ src/net/backup.ts      sealed backups for host handoff;  night.ts game-night tal
 src/net/gameRecord.ts  the whole game move by move, saved as CSV (each player gets only their own cards)
 src/net/exports/       the standard records a game can also be saved as: PBN (bridge), Open Hand History
                        (Hold'em, Omaha); formats.ts says which game gets which
-                       (and PHH, poker for PokerKit: written only for checking, see tools/)
+                       (and PHH, poker for PokerKit: written only for checking, see tools/);
+                       eventPbn.ts, a duplicate tournament's results (every table's, each board)
 src/ui/screens/        Home, Lobby, Table, TvScreen; EventDirector, EventBoard (a tournament on a big
                        screen), EventPhone, EventStandby;  src/ui/components/  the pieces
 src/ui/table/          the table screen's parts: its sheets and columns (components), what shows where

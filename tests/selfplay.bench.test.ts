@@ -1,6 +1,8 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { it } from 'vitest';
-import { familyRules, type Action, type GameModule, type GameState } from '../src/engine/types';
+import { familyRules, type Action, type GameModule, type GameState, type TableSetup } from '../src/engine/types';
+import { addEntrant, createEvent, nextRound, recordReport, recordResult, startEvent } from '../src/engine/events';
+import { eventPbn } from '../src/net/exports/eventPbn';
 import type { TrickData } from '../src/engine/families/trick';
 import { phh } from '../src/net/exports/phh';
 import { pbn } from '../src/net/exports/pbn';
@@ -14,7 +16,9 @@ import { loadDds } from '../src/engine/bots/dds';
 /**
  * Bots playing each other at chosen levels, written out as PBN (bridge) and PHH (Hold'em) with
  * every card shown, for tools/check_records.py to check with programs that aren't ours: endplay
- * (bridge's double-dummy solver) and PokerKit. See tools/README.md.
+ * (bridge's double-dummy solver) and PokerKit. See tools/README.md. And two duplicate tournaments
+ * of bots (pairs and teams), each written as its results (event-*.pbn): every table's result on
+ * each board, and the standings, for endplay to score again.
  *
  *   SELFPLAY=1 DEALS=12 HANDS=200 npx vitest run tests/selfplay.bench.test.ts
  *
@@ -27,6 +31,8 @@ const END = new Set(['handOver', 'roundOver', 'gameOver']);
 
 interface Played {
   record: GameRecord;
+  /** The game as it ended. */
+  state: GameState;
   /** Each seat's chips at the end (poker). */
   chips: number[];
   /** Poker heads-up: the moment both were all in with board cards still to come, if they were. */
@@ -45,12 +51,14 @@ function play(
   hands: number,
   options: Record<string, number | boolean>,
   formats: Record<string, HandFormat<unknown>>,
+  table?: TableSetup,
 ): Played {
   const defaults = Object.fromEntries((g.config.options ?? []).map((o) => [o.id, o.default]));
   let s: GameState = g.setup(
     names.map((name) => ({ name, bot: true })),
     seed,
     { ...defaults, ...options },
+    table,
   );
   const record = new GameRecord(formats);
   const ended = (x: GameState) => END.has(x.phase) || !!g.status(x, 0).banner;
@@ -101,7 +109,7 @@ function play(
     g.apply(next, move.seat, move.action);
     commit(next, move);
   }
-  return { record, chips: s.players.map((p) => p.chips), allIn };
+  return { record, state: s, chips: s.players.map((p) => p.chips), allIn };
 }
 
 const pairs = LEVELS.flatMap((a) => LEVELS.map((b) => [a, b]));
@@ -114,7 +122,7 @@ it.skipIf(!process.env.SELFPLAY)(
     mkdirSync(OUT, { recursive: true });
     const deals = Number(process.env.DEALS ?? 12);
     const hands = Number(process.env.HANDS ?? 200);
-    const games = (process.env.GAMES ?? 'bridge,holdem').split(',');
+    const games = (process.env.GAMES ?? 'bridge,holdem,events').split(',');
 
     // bridge: North-South at one level, East-West at another, the same deals for every pairing
     if (games.includes('bridge')) {
@@ -130,6 +138,45 @@ it.skipIf(!process.env.SELFPLAY)(
         const body = out.map((f, i) => (i ? f.replace(/^% PBN 2\.1\r\n% EXPORT\r\n\r\n/, '') : f.replace(/\r\n$/, ''))).join('\r\n\r\n');
         writeFileSync(`${OUT}/bridge-ns${ns}-ew${ew}.pbn`, body + '\r\n');
         process.stderr.write(`bridge NS ${ns} v EW ${ew}: ${deals} deals\n`);
+      }
+    }
+
+    // duplicate tournaments of bots: every table on the round's boards, each table's bots at levels
+    // of their own (so the tables' results differ), then the tournament's results as PBN
+    if (games.includes('events')) {
+      const g = GAMES.bridge;
+      for (const [format, entrants, rounds, boards] of [
+        ['pairs', 6, 3, 3],
+        ['teams', 4, 2, 4],
+      ] as const) {
+        const e = createEvent(
+          {
+            name: `Bots ${format}`,
+            format,
+            game: { id: 'bridge', options: { ...g.duplicate } },
+            seats: 4,
+            sides: g.sides!(4)!,
+            host: 'director',
+            rounds,
+            boards,
+          },
+          7,
+        );
+        for (let i = 0; i < entrants; i++) addEntrant(e, { id: `b${i}`, name: `Bots ${i}`, members: [], bot: true });
+        startEvent(e);
+        while (e.phase === 'playing') {
+          const r = e.rounds.at(-1)!;
+          for (const t of r.tables) {
+            const [a, b] = [t.table % 3, (t.table + 1) % 3];
+            const { state } = play(g, ['North', 'East', 'South', 'West'], t.seed, [a, b, a, b], boards, { ...g.duplicate }, {}, { boards: t.setup!.boards });
+            const report = g.report!(state);
+            recordReport(e, r.n, t.table, report);
+            recordResult(e, r.n, t.table, { places: [0, 1, 0, 1] }, report);
+          }
+          nextRound(e);
+        }
+        writeFileSync(`${OUT}/event-${format}.pbn`, eventPbn(e, new Date()));
+        process.stderr.write(`duplicate ${format}: ${e.rounds.length} rounds of ${boards} boards\n`);
       }
     }
 

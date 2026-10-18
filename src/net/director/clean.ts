@@ -1,7 +1,7 @@
 import { isEventCode, isValidCode, cleanAvatar } from '../protocol';
 import type { SignedMove } from '../eventCrypto';
 import type { BotSeat, EventSeat, EventTable } from '../host/event';
-import type { Board, OtherResult, TableSetup } from '../../engine/types';
+import type { Board, BoardResult, OtherResult, TableReport, TableSetup } from '../../engine/types';
 import { TABLE_MAX } from '../host/limits';
 
 /**
@@ -56,16 +56,42 @@ function cleanSetup(s: unknown): TableSetup | undefined | null {
   return out;
 }
 
+/** A board's result at a duplicate table, checked (null: not a sensible one). */
+function cleanBoardResult(r: unknown): BoardResult | null {
+  if (!r || typeof r !== 'object') return null;
+  const x = r as Record<string, unknown>;
+  if (!int(x.n, 1, 999) || !int(x.ns, -10_000, 10_000)) return null;
+  if (x.contract === null && x.declarer === null && x.tricks === null) return { n: x.n, contract: null, declarer: null, tricks: null, ns: x.ns };
+  if (!(typeof x.contract === 'string' && /^[1-7](NT|S|H|D|C)X{0,2}$/.test(x.contract) && int(x.declarer, 0, 3) && int(x.tricks, 0, 13))) return null;
+  return { n: x.n, contract: x.contract, declarer: x.declarer, tricks: x.tricks, ns: x.ns };
+}
+
 /** Other tables' results on a duplicate table's boards (see Host.compare), checked: the sensible ones. */
 export function cleanOthers(list: unknown): OtherResult[] {
   if (!Array.isArray(list)) return [];
   const out: OtherResult[] = [];
   for (const r of list.slice(0, 256)) {
-    if (!r || typeof r !== 'object' || !int(r.n, 1, 999) || !int(r.ns, -10_000, 10_000) || !text(r.at, 24)) continue;
-    const passed = r.contract === null && r.declarer === null && r.tricks === null;
-    if (!passed && !(typeof r.contract === 'string' && /^[1-7](NT|S|H|D|C)X{0,2}$/.test(r.contract) && int(r.declarer, 0, 3) && int(r.tricks, 0, 13))) continue;
-    out.push({ n: r.n, contract: r.contract, declarer: r.declarer, tricks: r.tricks, ns: r.ns, at: r.at });
+    const b = cleanBoardResult(r);
+    if (b && text((r as OtherResult).at, 24)) out.push({ ...b, at: (r as OtherResult).at });
   }
+  return out;
+}
+
+/** A tournament table's report (see GameModule.report), checked: what's sensible of it. */
+export function cleanReport(r: unknown): TableReport | undefined {
+  if (!r || typeof r !== 'object') return undefined;
+  const x = r as Record<string, unknown>;
+  const out: TableReport = {};
+  if (Array.isArray(x.boards)) {
+    // (one result a board)
+    const boards = x.boards
+      .slice(0, 64)
+      .map(cleanBoardResult)
+      .filter((b): b is BoardResult => !!b);
+    out.boards = boards.filter((b, i) => boards.findIndex((y) => y.n === b.n) === i);
+  }
+  if (Array.isArray(x.stacks) && x.stacks.length <= TABLE_MAX && x.stacks.every((c) => int(c, 0, 1e12))) out.stacks = [...x.stacks];
+  if (int(x.hand, 0, 1e6)) out.hand = x.hand;
   return out;
 }
 

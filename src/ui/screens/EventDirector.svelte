@@ -1,12 +1,13 @@
 <script lang="ts">
   import { app, inviteUrl } from '../../app.svelte';
-  import { swissRounds } from '../../engine/events';
+  import { BOARDS_PER_ROUND, duplicateRounds, swissRounds } from '../../engine/events';
   import { GAME_LIST, getGame } from '../../games';
   import type { BoardShow } from '../../net/eventProtocol';
   import AvatarBadge from '../components/AvatarBadge.svelte';
   import EventBracket from '../components/EventBracket.svelte';
   import EventStandings from '../components/EventStandings.svelte';
   import EventTiles from '../components/EventTiles.svelte';
+  import EventTraveller from '../components/EventTraveller.svelte';
   import Loader from '../components/Loader.svelte';
   import StandbySheet from '../components/StandbySheet.svelte';
   import TvSheet from '../components/TvSheet.svelte';
@@ -24,14 +25,20 @@
   const game = $derived(c ? getGame(c.game.id) : null);
   const names = $derived(new Map((board?.entrants ?? []).map((x) => [x.id, x.name])));
   const pairs = $derived((board?.perSide ?? 1) > 1);
-  const FORMAT: Record<string, string> = { swiss: 'Swiss', roundRobin: 'Round robin', knockout: 'Knockout' };
+  /** Duplicate bridge: pairs or teams (see engine/events/duplicate.ts). */
+  const duplicate = $derived(c?.format === 'pairs' || c?.format === 'teams');
+  const teams = $derived(c?.format === 'teams');
+  const FORMAT: Record<string, string> = { swiss: 'Swiss', roundRobin: 'Round robin', knockout: 'Knockout', pairs: 'Pairs', teams: 'Teams' };
   const SHOWS: { id: BoardShow; label: string }[] = [
     { id: 'turn', label: 'Turn about' },
     { id: 'tables', label: 'Tables' },
     { id: 'standings', label: 'Standings' },
     { id: 'bracket', label: 'Bracket' },
+    { id: 'travellers', label: 'Travellers' },
     { id: 'live', label: 'Tables live' },
   ];
+  /** Who's in someone's pair (the partner they asked for), for choosing the pairs on their team. */
+  const pairOf = (id: string) => [id, d?.people.find((p) => p.id === id)?.partner].filter(Boolean);
   const games = GAME_LIST.filter((g) => g.config.id !== 'freetable');
   /** Directing from a phone (a touch screen, small): hosting every table here is a lot to ask of it. */
   const onPhone = typeof matchMedia === 'function' && matchMedia('(pointer: coarse) and (max-width: 900px)').matches;
@@ -56,9 +63,16 @@
   function start() {
     error = app.events.start() ?? '';
   }
-  const rounds = $derived(
-    c ? (c.rounds ?? swissRounds(Math.max(2, Math.ceil((d?.people.length ?? 2) / Math.max(1, board?.perSide ?? 1))), c.sides.length)) : 0,
+  /** The entrants those signed up so far would make: people in pairs or teams of four, and each bot a whole one. */
+  const entrants = $derived(
+    Math.max(
+      2,
+      Math.ceil((d?.people.filter((p) => !p.bot).length ?? 0) / Math.max(1, (board?.perSide ?? 1) * (teams ? 2 : 1))) +
+        (d?.people.filter((p) => p.bot).length ?? 0),
+    ),
   );
+  const rounds = $derived(c ? (c.rounds ?? (duplicate ? duplicateRounds(teams, entrants) : swissRounds(entrants, c.sides.length))) : 0);
+  const boards = $derived(c?.boards ?? BOARDS_PER_ROUND[teams ? 'teams' : 'pairs']);
 </script>
 
 {#if tv && d}<TvSheet table={d.code} onclose={() => (tv = false)} />{/if}
@@ -127,13 +141,23 @@
                 {/each}
               </span>
             </div>
-            {#if c.format === 'swiss'}
+            {#if c.format === 'swiss' || duplicate}
               <div class="opt">
                 <span>Rounds</span>
                 <span class="stepper">
                   <button onclick={() => app.events.setConfig({ rounds: Math.max(1, rounds - 1) })} aria-label="Fewer rounds">−</button>
                   <b>{rounds}</b>
                   <button onclick={() => app.events.setConfig({ rounds: rounds + 1 })} aria-label="More rounds">+</button>
+                </span>
+              </div>
+            {/if}
+            {#if duplicate}
+              <div class="opt">
+                <span>Boards a round</span>
+                <span class="stepper">
+                  <button onclick={() => app.events.setConfig({ boards: Math.max(1, boards - 1) })} aria-label="Fewer boards">−</button>
+                  <b>{boards}</b>
+                  <button onclick={() => app.events.setConfig({ boards: boards + 1 })} aria-label="More boards">+</button>
                 </span>
               </div>
             {/if}
@@ -145,7 +169,7 @@
                 </span>
               </div>
             {/if}
-            {#each game.config.options ?? [] as o (o.id)}
+            {#each (game.config.options ?? []).filter((o) => !d.fixed.includes(o.id)) as o (o.id)}
               <div class="opt">
                 <span>{o.label}</span>
                 {#if o.choices}
@@ -185,7 +209,13 @@
               </span>
             </div>
             <p class="small">
-              {c.seats} at a table{pairs ? ', in pairs' : ''}.
+              {#if teams}
+                Teams of four: two pairs, one North–South at one table, the other East–West at another, on the same boards; won on IMPs.
+              {:else if duplicate}
+                Every table plays the same boards; each pair's score is compared with everyone's sitting their way, in matchpoints.
+              {:else}
+                {c.seats} at a table{pairs ? ', in pairs' : ''}.
+              {/if}
               {#if c.host === 'director'}
                 Every table is hosted here: keep this device awake and plugged in.{onPhone
                   ? ' A laptop is better: a phone that sleeps stops every table at once.'
@@ -215,6 +245,12 @@
                       {#each d.people.filter((q) => q.id !== p.id && !q.bot) as q (q.id)}<option value={q.id}>{q.name}</option>{/each}
                     </select>
                   {/if}
+                  {#if teams && !p.bot}
+                    <select value={p.team ?? ''} onchange={(e) => app.events.team(p.id, e.currentTarget.value || null)} aria-label={`${p.name}'s team`}>
+                      <option value="">Any team</option>
+                      {#each d.people.filter((q) => !q.bot && !pairOf(p.id).includes(q.id)) as q (q.id)}<option value={q.id}>With {q.name}</option>{/each}
+                    </select>
+                  {/if}
                   <button class="x" onclick={() => app.events.remove(p.id)} aria-label={`Remove ${p.name}`}>×</button>
                 </li>
               {/each}
@@ -232,7 +268,7 @@
             <span class="eyebrow">{board.phase === 'done' ? 'Final standings' : `Round ${board.round}${board.rounds ? ` of ${board.rounds}` : ''}`}</span>
             <p>
               {#if board.phase === 'playing'}
-                {board.tables.filter((t) => t.places).length} of {board.tables.length} tables done
+                {board.tables.filter((t) => t.done).length} of {board.tables.length} tables done
               {:else if board.phase === 'between'}
                 Every table's done. {d.holding ? 'Held: the next round waits for you.' : 'The next round starts shortly.'}
               {:else}
@@ -255,12 +291,17 @@
                 }}>Close the tournament</button
               >
             {/if}
+            {#if duplicate && board.phase !== 'playing'}
+              <button class="btn" onclick={() => app.events.saveResults()} title="Every board's results, and the standings, as PBN (bridge programs read it)"
+                >Save the results</button
+              >
+            {/if}
           </div>
         </section>
         <div class="opt shows">
           <span>Screens show</span>
           <span class="seg">
-            {#each SHOWS.filter((x) => (x.id !== 'bracket' || board.bracket) && (board.phase !== 'done' || !['tables', 'live'].includes(x.id))) as x (x.id)}
+            {#each SHOWS.filter((x) => (x.id !== 'bracket' || board.bracket) && (x.id !== 'travellers' || board.travellers) && (board.phase !== 'done' || !['tables', 'live'].includes(x.id))) as x (x.id)}
               <button class:on={d.show === x.id} onclick={() => app.events.show(x.id)}>{x.label}</button>
             {/each}
           </span>
@@ -270,9 +311,14 @@
           {#if board.byes.length}<p class="small">Bye this round: {board.byes.map((b) => names.get(b) ?? b).join(', ')}</p>{/if}
         {/if}
         <div class="cols">
-          <section><EventStandings rows={board.standings} people={d.people} knockout={board.format === 'knockout'} /></section>
+          <section><EventStandings rows={board.standings} people={d.people} knockout={board.format === 'knockout'} units={board.units} /></section>
           {#if board.bracket}<section><EventBracket bracket={board.bracket} {names} /></section>{/if}
         </div>
+        {#if board.travellers?.length}
+          <section class="travellers" aria-label="Travellers">
+            {#each board.travellers as t (t.n)}<EventTraveller {t} {names} hands={false} />{/each}
+          </section>
+        {/if}
       {/if}
     {/if}
   </main>
@@ -336,7 +382,8 @@
     gap: 0.5rem;
     flex-wrap: wrap;
   }
-  .cols {
+  .cols,
+  .travellers {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
     gap: 1rem;

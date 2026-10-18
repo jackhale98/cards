@@ -275,6 +275,10 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
 
     boards: (s) => s.data.boards ?? null,
 
+    // (duplicate scoring; compared, in a tournament, with the other tables, not with anyone in the
+    // room; the tournament deals the boards, so how many deals is its to say)
+    ...(g.bridgeBids ? { duplicate: { style: 2, compare: 2, deals: 4 } } : {}),
+
     nightScore(s) {
       if (!s.data.compared) return null;
       const totals = impTotals(s);

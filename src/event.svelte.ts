@@ -1,4 +1,4 @@
-import { createEvent, formatsFor, type EventConfig, type EventPersonal, type EventPublic, type FormatId } from './engine/events';
+import { createEvent, formatsFor, isDuplicate, type EventConfig, type EventPersonal, type EventPublic, type FormatId } from './engine/events';
 import { getGame, loadRules, rulesFor } from './games';
 import { randomSeed } from './engine/rng';
 import { shareBrain, type Brain } from './net/brain';
@@ -15,6 +15,7 @@ import type { Host } from './net/host';
 import { Uplink } from './net/host/uplink';
 import { makeEventCode, makeRoomCode, type Avatar, type LobbyEvent, type View } from './net/protocol';
 import { eventRooms, type TransportKind } from './net/transport';
+import { EXPORT_FILE } from './net/exports/formats';
 
 /**
  * Tournaments on this device: a phone's place in one (its identity, kept so a reload or a new tab
@@ -106,6 +107,8 @@ export interface Directing {
   holding: boolean;
   /** What can be played, for the setup. */
   formats: FormatId[];
+  /** The game's settings the format decides (duplicate's scoring), not the director. */
+  fixed: string[];
   config: EventConfig;
   /** The table the director asked the screens to show; the one they're showing live now. */
   pinned: number | null;
@@ -408,11 +411,14 @@ export class Events {
     const n = g.config.players.recommended ?? g.config.players.min;
     const seats = g.config.players.counts && !g.config.players.counts.includes(n) ? g.config.players.counts.at(-1)! : n;
     const sides = rulesFor(game)?.sides?.(seats) ?? Array.from({ length: seats }, (_, i) => [i]);
-    const formats = formatsFor(g.config, sides);
+    const duplicate = rulesFor(game)?.duplicate;
+    const formats = formatsFor(g.config, sides, !!duplicate);
+    const format = formats.includes(base.format) ? base.format : formats[0];
+    const options = Object.fromEntries((g.config.options ?? []).map((o) => [o.id, o.default]));
     return {
       name: base.name,
-      format: formats.includes(base.format) ? base.format : formats[0],
-      game: { id: game, options: Object.fromEntries((g.config.options ?? []).map((o) => [o.id, o.default])) },
+      format,
+      game: { id: game, options: { ...options, ...(isDuplicate({ config: { format } as EventConfig }) ? duplicate : {}) } },
       seats,
       sides,
       host: 'player',
@@ -428,12 +434,26 @@ export class Events {
     Object.assign(d.director.event.config, { ...c, rounds: d.director.event.config.rounds, host: d.director.event.config.host });
     d.director.onChange();
   }
-  /** Before the start: the format, a setting of the game, the event's name, Swiss's rounds, a knockout's advancing, who hosts the tables. */
-  setConfig(change: Partial<Pick<EventConfig, 'format' | 'name' | 'rounds' | 'advance' | 'host'>> & { option?: { id: string; value: number | boolean } }) {
+  /**
+   * Before the start: the format, a setting of the game, the event's name, how many rounds (Swiss
+   * and duplicate) and boards a round (duplicate), a knockout's advancing, who hosts the tables.
+   */
+  setConfig(
+    change: Partial<Pick<EventConfig, 'format' | 'name' | 'rounds' | 'boards' | 'advance' | 'host'>> & { option?: { id: string; value: number | boolean } },
+  ) {
     const d = this.dir;
     if (!d || d.director.event.phase !== 'registering') return;
     const c = d.director.event.config;
-    if (change.format && formatsFor(getGame(c.game.id).config, c.sides).includes(change.format)) c.format = change.format;
+    const duplicate = rulesFor(c.game.id)?.duplicate;
+    if (change.format && change.format !== c.format && formatsFor(getGame(c.game.id).config, c.sides, !!duplicate).includes(change.format)) {
+      c.format = change.format;
+      // (duplicate: the game played so; its tables hosted here, unless the director says, so no phone holds the boards)
+      if (isDuplicate(d.director.event)) {
+        c.game.options = { ...c.game.options, ...duplicate };
+        c.host = 'director';
+      }
+    }
+    if (change.boards !== undefined) c.boards = change.boards > 0 ? Math.min(16, Math.round(change.boards)) : undefined;
     if (typeof change.name === 'string') c.name = change.name.trim().slice(0, 40) || c.name;
     if (change.rounds !== undefined) c.rounds = change.rounds > 0 ? Math.min(20, Math.round(change.rounds)) : undefined;
     if (change.advance !== undefined) c.advance = Math.max(1, Math.min(2, Math.round(change.advance)));
@@ -479,6 +499,31 @@ export class Events {
     if (was) d.registry.setPartner(was, null);
     d.registry.setPartner(a, b);
     if (b) d.registry.setPartner(b, a);
+    d.director.onChange();
+  }
+  /** Duplicate: the results so far as PBN (each board's every result, and the standings), saved to this device. */
+  saveResults() {
+    const d = this.dir;
+    if (!d || !isDuplicate(d.director.event)) return;
+    const e = d.director.event;
+    void import('./net/exports/eventPbn').then(({ eventPbn }) => {
+      const text = eventPbn(e, new Date());
+      if (!text) return this.app.say('No board has been played at every table yet');
+      const slug =
+        e.config.name
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-|-$/g, '') || 'tournament';
+      const name = `lamplight-${slug}-${new Date().toISOString().slice(0, 10)}.pbn`;
+      void import('./ui/saveFile').then((m) => m.saveFile(name, text, EXPORT_FILE.pbn.type));
+    });
+  }
+
+  /** Duplicate teams: `a`'s pair would like `b`'s on their team (set by the director, before the start). */
+  team(a: string, b: string | null) {
+    const d = this.dir;
+    if (!d || d.director.event.phase !== 'registering') return;
+    d.registry.setTeam(a, b);
     d.director.onChange();
   }
   /** Someone off the list (before the start), or withdrawn (after). */
@@ -531,7 +576,8 @@ export class Events {
         return { table: t.table, tile: x?.tile ?? null, linked: !!x?.linked, host: x?.host ?? null, local: x?.local ?? false, off: x?.off ?? [] };
       }),
       holding: d.director.holding,
-      formats: formatsFor(getGame(e.config.game.id).config, e.config.sides),
+      formats: formatsFor(getGame(e.config.game.id).config, e.config.sides, !!rulesFor(e.config.game.id)?.duplicate),
+      fixed: isDuplicate(e) ? Object.keys(rulesFor(e.config.game.id)?.duplicate ?? {}) : [],
       config: structuredClone(e.config),
       pinned: d.desk.pinned,
       featured: d.desk.featured,
