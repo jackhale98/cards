@@ -183,8 +183,8 @@ of the poker.
   little. At 64 tables it's busy under 1% of the time, and a table's host phone a fraction of 1%.
 - **Tables on the director's device** (duplicate and poker by default, or by choice): each move at
   one of them costs the director a few milliseconds here: about 3 for four players, 8 for nine.
-  At 64 tables each making a move a second, a laptop is busy an eighth to a fifth (Hearts, bridge) to a third
-  (poker, while every table is full) of the time; people play slower than that. It pauses for up to
+  At 64 tables each making a move a second, a laptop is busy an eighth (Hearts) to a fifth (bridge)
+  of the time, and a third for poker while every table is full; people play slower than that. It pauses for up to
   0.4 seconds when poker tables are re-seated. A phone directing should keep to 16 or so
   tables on itself, and leave the rest on players' phones.
 - **The save** is under 1 MB at 64 tables on the director (each table's game is in it). The browser

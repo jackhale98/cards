@@ -19,12 +19,12 @@
   const lobby = () => (lobbyP ??= import('./ui/screens/Lobby.svelte'));
   const table = () => (tableP ??= import('./ui/screens/Table.svelte'));
   const tv = () => (tvP ??= import('./ui/screens/TvScreen.svelte'));
-  // (a tournament's screens: only for those in one)
+  // (a tournament's screens, and its code: only for those in one)
   const eventPhone = () => import('./ui/screens/EventPhone.svelte');
   const eventDirector = () => import('./ui/screens/EventDirector.svelte');
   const eventStandby = () => import('./ui/screens/EventStandby.svelte');
   const eventBoard = () => import('./ui/screens/EventBoard.svelte');
-  const screen = $derived(app.events.screen);
+  const screen = $derived(app.events?.screen);
   $effect(() => {
     const later = () => {
       void lobby();
@@ -79,11 +79,11 @@
 {:else if route.name === 'tv'}
   {#await tv()}{@render waiting()}{:then m}<m.default />{/await}
 {:else if route.name === 'event'}
-  {#await eventPhone()}{@render waiting()}{:then m}<m.default />{/await}
+  {#await Promise.all([eventPhone(), app.loadEvents()])}{@render waiting()}{:then [m]}<m.default />{/await}
 {:else if route.name === 'direct'}
-  {#await eventDirector()}{@render waiting()}{:then m}<m.default />{/await}
+  {#await Promise.all([eventDirector(), app.loadEvents()])}{@render waiting()}{:then [m]}<m.default />{/await}
 {:else if route.name === 'standby'}
-  {#await eventStandby()}{@render waiting()}{:then m}<m.default />{/await}
+  {#await Promise.all([eventStandby(), app.loadEvents()])}{@render waiting()}{:then [m]}<m.default />{/await}
 {:else if route.name === 'display' && isEventCode(route.code)}
   {#await eventBoard()}{@render waiting()}{:then m}
     <m.default

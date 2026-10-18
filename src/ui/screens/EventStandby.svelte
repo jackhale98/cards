@@ -2,12 +2,15 @@
   import { app } from '../../app.svelte';
   import EventBoard from './EventBoard.svelte';
 
+  // (a tournament's code is loaded before its screens show: see App.svelte)
+  const events = app.events!;
+
   /**
    * A standby director's screen: the tournament's board, as on any screen, and a bar saying how
    * fresh its copy of the tournament is. If the director's device goes quiet, the bar offers to
    * take over directing (the copy opens only then, with the key the relay hands over).
    */
-  const s = $derived(app.events.standby);
+  const s = $derived(events.standby);
   const age = (ms: number) => (ms < 60_000 ? `${Math.max(1, Math.round(ms / 1000))}s` : `${Math.round(ms / 60_000)} min`);
 </script>
 
@@ -17,7 +20,7 @@
       <div class="standby panel" role="status">
         {#if s.quiet}
           <p><b>The director’s device has gone quiet.</b> Take over to keep the tournament going.</p>
-          <button class="btn primary" disabled={s.taking || s.copyAge == null} onclick={() => app.events.takeOverDirecting()}
+          <button class="btn primary" disabled={s.taking || s.copyAge == null} onclick={() => events.takeOverDirecting()}
             >{s.taking ? 'Taking over…' : 'Take over directing'}</button
           >
         {:else}

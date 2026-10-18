@@ -6,13 +6,16 @@
   import EventTraveller from '../components/EventTraveller.svelte';
   import Loader from '../components/Loader.svelte';
 
+  // (a tournament's code is loaded before its screens show: see App.svelte)
+  const events = app.events!;
+
   /**
    * A phone in a tournament, away from a table: signing up (and, in a partnership game, choosing
    * a partner), then waiting (a bye, knocked out, between tables), and at the end, the standings
    * (duplicate: and the round's boards, every table's result on each). At a table the phone shows
    * the table, as at any other; the director sends it there.
    */
-  const ev = $derived(app.events.phone);
+  const ev = $derived(events.phone);
   const board = $derived(ev?.board ?? null);
   const you = $derived(ev?.you ?? null);
   const game = $derived(board ? getGame(board.game.id) : null);
@@ -65,7 +68,7 @@
               class="person"
               class:on={mine?.partner === p.id}
               class:asked={p.partner === me}
-              onclick={() => app.events.partner(mine?.partner === p.id ? null : p.id)}
+              onclick={() => events.partner(mine?.partner === p.id ? null : p.id)}
             >
               <AvatarBadge avatar={p.avatar} name={p.name} size={28} />
               <span>{p.name}</span>

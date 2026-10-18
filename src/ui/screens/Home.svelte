@@ -56,7 +56,7 @@
   function direct() {
     if (!name.trim()) return askForName();
     commitName();
-    app.go(`/direct/${app.events.create(app.recentGames[0])}`);
+    void app.loadEvents().then((events) => app.go(`/direct/${events.create(app.recentGames[0])}`));
   }
   // (development builds: loading a debug snapshot)
   let snapshotOpen = $state(false);

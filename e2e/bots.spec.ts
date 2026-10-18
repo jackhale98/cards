@@ -3,9 +3,9 @@ import { expect, test } from '@playwright/test';
 /**
  * The host's bots think in a background worker (src/net/botWorker.ts), so a bot thinking hard
  * never makes the host's screen stutter; and each game's rules are only downloaded when it's
- * picked. Both checked in a real browser.
+ * picked, and tournaments' code only by those in one. Checked in a real browser.
  */
-test("bots think in a worker, and a game's rules load only when it's picked", async ({ page }) => {
+test("bots think in a worker, a game's rules load only when it's picked, and a tournament's not at a game night", async ({ page }) => {
   const scripts: string[] = [];
   page.on('request', (r) => r.resourceType() === 'script' && scripts.push(r.url()));
   await page.setViewportSize({ width: 852, height: 393 });
@@ -31,4 +31,11 @@ test("bots think in a worker, and a game's rules load only when it's picked", as
   expect(page.workers().some((w) => w.url().includes('botWorker'))).toBe(true);
   await expect(page.locator('.hand .slot')).toHaveCount(13, { timeout: 15_000 });
   await expect(page.locator('.headline, .status').first()).not.toContainText('Pass 3', { timeout: 15_000 });
+  // nothing of tournaments came down: the events, their link, the director, their screens (the host
+  // checks a duplicate table's results with director/clean.ts, and keeps it)
+  expect(
+    scripts.filter((u) =>
+      /src\/(event\.svelte|engine\/events\/|net\/(eventLink|eventCrypto|eventProtocol|sha256|host\/uplink|director(?!\/clean))|ui\/screens\/Event)/.test(u),
+    ),
+  ).toEqual([]);
 });

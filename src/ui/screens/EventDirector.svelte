@@ -14,12 +14,15 @@
   import { keepAwake } from '../wakeLock';
   import EventBoard from './EventBoard.svelte';
 
+  // (a tournament's code is loaded before its screens show: see App.svelte)
+  const events = app.events!;
+
   /**
    * The director's desk, on the device running a tournament (usually a laptop by the TV): the
    * event's settings and who has signed up, then each round's tables and the standings, the round
    * moving on by itself when every table is done (or held), and the board for the screens.
    */
-  const d = $derived(app.events.directing);
+  const d = $derived(events.directing);
   const board = $derived(d?.board ?? null);
   const c = $derived(d?.config ?? null);
   const game = $derived(c ? getGame(c.game.id) : null);
@@ -70,7 +73,7 @@
   });
 
   function start() {
-    error = app.events.start() ?? '';
+    error = events.start() ?? '';
   }
   /** The entrants those signed up so far would make: people in pairs or teams of four, and each bot a whole one. */
   const entrants = $derived(
@@ -115,7 +118,7 @@
               value={c.name}
               maxlength="40"
               aria-label="Tournament name"
-              onchange={(e) => app.events.setConfig({ name: e.currentTarget.value })}
+              onchange={(e) => events.setConfig({ name: e.currentTarget.value })}
             />
           {:else}
             <h1>{c.name}</h1>
@@ -138,7 +141,7 @@
           <section class="panel setup">
             <label class="opt">
               <span>Game</span>
-              <select value={c.game.id} onchange={(e) => app.events.setGame(e.currentTarget.value)} aria-label="Game">
+              <select value={c.game.id} onchange={(e) => events.setGame(e.currentTarget.value)} aria-label="Game">
                 {#each games as g (g.config.id)}<option value={g.config.id}>{g.config.name}</option>{/each}
               </select>
             </label>
@@ -146,7 +149,7 @@
               <span>Format</span>
               <span class="seg">
                 {#each d.formats as f (f)}
-                  <button class:on={c.format === f} onclick={() => app.events.setConfig({ format: f })}>{FORMAT[f]}</button>
+                  <button class:on={c.format === f} onclick={() => events.setConfig({ format: f })}>{FORMAT[f]}</button>
                 {/each}
               </span>
             </div>
@@ -154,9 +157,9 @@
               <div class="opt">
                 <span>Rounds</span>
                 <span class="stepper">
-                  <button onclick={() => app.events.setConfig({ rounds: Math.max(1, rounds - 1) })} aria-label="Fewer rounds">−</button>
+                  <button onclick={() => events.setConfig({ rounds: Math.max(1, rounds - 1) })} aria-label="Fewer rounds">−</button>
                   <b>{rounds}</b>
-                  <button onclick={() => app.events.setConfig({ rounds: rounds + 1 })} aria-label="More rounds">+</button>
+                  <button onclick={() => events.setConfig({ rounds: rounds + 1 })} aria-label="More rounds">+</button>
                 </span>
               </div>
             {/if}
@@ -164,17 +167,17 @@
               <div class="opt">
                 <span>Seats a table</span>
                 <span class="stepper">
-                  <button onclick={() => app.events.setConfig({ seats: c.seats - 1 })} aria-label="Fewer seats">−</button>
+                  <button onclick={() => events.setConfig({ seats: c.seats - 1 })} aria-label="Fewer seats">−</button>
                   <b>{c.seats}</b>
-                  <button onclick={() => app.events.setConfig({ seats: c.seats + 1 })} aria-label="More seats">+</button>
+                  <button onclick={() => events.setConfig({ seats: c.seats + 1 })} aria-label="More seats">+</button>
                 </span>
               </div>
               <div class="opt">
                 <span>Minutes a blind level</span>
                 <span class="stepper">
-                  <button onclick={() => app.events.setConfig({ minutes: (c.minutes ?? LEVEL_MINUTES) - 1 })} aria-label="Shorter levels">−</button>
+                  <button onclick={() => events.setConfig({ minutes: (c.minutes ?? LEVEL_MINUTES) - 1 })} aria-label="Shorter levels">−</button>
                   <b>{c.minutes ?? LEVEL_MINUTES}</b>
-                  <button onclick={() => app.events.setConfig({ minutes: (c.minutes ?? LEVEL_MINUTES) + 1 })} aria-label="Longer levels">+</button>
+                  <button onclick={() => events.setConfig({ minutes: (c.minutes ?? LEVEL_MINUTES) + 1 })} aria-label="Longer levels">+</button>
                 </span>
               </div>
             {/if}
@@ -182,9 +185,9 @@
               <div class="opt">
                 <span>Boards a round</span>
                 <span class="stepper">
-                  <button onclick={() => app.events.setConfig({ boards: Math.max(1, boards - 1) })} aria-label="Fewer boards">−</button>
+                  <button onclick={() => events.setConfig({ boards: Math.max(1, boards - 1) })} aria-label="Fewer boards">−</button>
                   <b>{boards}</b>
-                  <button onclick={() => app.events.setConfig({ boards: boards + 1 })} aria-label="More boards">+</button>
+                  <button onclick={() => events.setConfig({ boards: boards + 1 })} aria-label="More boards">+</button>
                 </span>
               </div>
             {/if}
@@ -192,7 +195,7 @@
               <div class="opt">
                 <span>Through from each table</span>
                 <span class="seg">
-                  {#each [1, 2] as n (n)}<button class:on={(c.advance ?? 1) === n} onclick={() => app.events.setConfig({ advance: n })}>{n}</button>{/each}
+                  {#each [1, 2] as n (n)}<button class:on={(c.advance ?? 1) === n} onclick={() => events.setConfig({ advance: n })}>{n}</button>{/each}
                 </span>
               </div>
             {/if}
@@ -202,28 +205,26 @@
                 {#if o.choices}
                   <span class="seg">
                     {#each o.choices as ch, i (ch)}
-                      <button class:on={Number(c.game.options[o.id]) === i} onclick={() => app.events.setConfig({ option: { id: o.id, value: i } })}
-                        >{ch}</button
-                      >
+                      <button class:on={Number(c.game.options[o.id]) === i} onclick={() => events.setConfig({ option: { id: o.id, value: i } })}>{ch}</button>
                     {/each}
                   </span>
                 {:else if o.type === 'number'}
                   <span class="stepper">
                     <button
-                      onclick={() => app.events.setConfig({ option: { id: o.id, value: Math.max(o.min ?? 0, Number(c.game.options[o.id]) - (o.step ?? 1)) } })}
+                      onclick={() => events.setConfig({ option: { id: o.id, value: Math.max(o.min ?? 0, Number(c.game.options[o.id]) - (o.step ?? 1)) } })}
                       >−</button
                     >
                     <b>{c.game.options[o.id]}</b>
                     <button
-                      onclick={() =>
-                        app.events.setConfig({ option: { id: o.id, value: Math.min(o.max ?? 1e9, Number(c.game.options[o.id]) + (o.step ?? 1)) } })}>+</button
+                      onclick={() => events.setConfig({ option: { id: o.id, value: Math.min(o.max ?? 1e9, Number(c.game.options[o.id]) + (o.step ?? 1)) } })}
+                      >+</button
                     >
                   </span>
                 {:else}
                   <input
                     type="checkbox"
                     checked={!!c.game.options[o.id]}
-                    onchange={(e) => app.events.setConfig({ option: { id: o.id, value: e.currentTarget.checked } })}
+                    onchange={(e) => events.setConfig({ option: { id: o.id, value: e.currentTarget.checked } })}
                   />
                 {/if}
               </div>
@@ -231,8 +232,8 @@
             <div class="opt">
               <span>Tables hosted on</span>
               <span class="seg">
-                <button class:on={c.host !== 'director'} onclick={() => app.events.setConfig({ host: 'player' })}>Players’ phones</button>
-                <button class:on={c.host === 'director'} onclick={() => app.events.setConfig({ host: 'director' })}>This device</button>
+                <button class:on={c.host !== 'director'} onclick={() => events.setConfig({ host: 'player' })}>Players’ phones</button>
+                <button class:on={c.host === 'director'} onclick={() => events.setConfig({ host: 'director' })}>This device</button>
               </span>
             </div>
             <p class="small">
@@ -270,24 +271,24 @@
                     >{p.name}{#if p.bot}<em>{pairs ? 'a pair of bots' : 'bot'}</em>{/if}</span
                   >
                   {#if pairs && !p.bot}
-                    <select value={p.partner ?? ''} onchange={(e) => app.events.pair(p.id, e.currentTarget.value || null)} aria-label={`${p.name}'s partner`}>
+                    <select value={p.partner ?? ''} onchange={(e) => events.pair(p.id, e.currentTarget.value || null)} aria-label={`${p.name}'s partner`}>
                       <option value="">No partner yet</option>
                       {#each d.people.filter((q) => q.id !== p.id && !q.bot) as q (q.id)}<option value={q.id}>{q.name}</option>{/each}
                     </select>
                   {/if}
                   {#if teams && !p.bot}
-                    <select value={p.team ?? ''} onchange={(e) => app.events.team(p.id, e.currentTarget.value || null)} aria-label={`${p.name}'s team`}>
+                    <select value={p.team ?? ''} onchange={(e) => events.team(p.id, e.currentTarget.value || null)} aria-label={`${p.name}'s team`}>
                       <option value="">Any team</option>
                       {#each d.people.filter((q) => !q.bot && !pairOf(p.id).includes(q.id)) as q (q.id)}<option value={q.id}>With {q.name}</option>{/each}
                     </select>
                   {/if}
-                  <button class="x" onclick={() => app.events.remove(p.id)} aria-label={`Remove ${p.name}`}>×</button>
+                  <button class="x" onclick={() => events.remove(p.id)} aria-label={`Remove ${p.name}`}>×</button>
                 </li>
               {/each}
             </ul>
             {#if error}<p class="warn-text">{error}</p>{/if}
             <div class="row">
-              <button class="btn" onclick={() => app.events.addBot()}>Add a bot</button>
+              <button class="btn" onclick={() => events.addBot()}>Add a bot</button>
               <button class="btn primary big" disabled={d.people.length < 2} onclick={start}>Start the tournament</button>
             </div>
           </section>
@@ -317,21 +318,21 @@
           </div>
           <div class="row">
             {#if board.phase === 'between'}
-              <button class="btn primary" onclick={() => app.events.advance()}
+              <button class="btn primary" onclick={() => events.advance()}
                 >{board.format === 'swiss' && board.round === board.rounds ? 'Finish' : 'Next round now'}</button
               >
-              <button class="btn" onclick={() => app.events.hold(!d.holding)}>{d.holding ? 'Carry on' : 'Hold'}</button>
+              <button class="btn" onclick={() => events.hold(!d.holding)}>{d.holding ? 'Carry on' : 'Hold'}</button>
             {:else if board.phase === 'done'}
               <button
                 class="btn"
                 onclick={() => {
-                  app.events.endDirecting(true);
+                  events.endDirecting(true);
                   app.go('/');
                 }}>Close the tournament</button
               >
             {/if}
             {#if duplicate && board.phase !== 'playing'}
-              <button class="btn" onclick={() => app.events.saveResults()} title="Every board's results, and the standings, as PBN (bridge programs read it)"
+              <button class="btn" onclick={() => events.saveResults()} title="Every board's results, and the standings, as PBN (bridge programs read it)"
                 >Save the results</button
               >
             {/if}
@@ -341,12 +342,12 @@
           <span>Screens show</span>
           <span class="seg">
             {#each SHOWS.filter((x) => (x.id !== 'bracket' || board.bracket) && (x.id !== 'travellers' || board.travellers) && (board.phase !== 'done' || !['tables', 'live'].includes(x.id))) as x (x.id)}
-              <button class:on={d.show === x.id} onclick={() => app.events.show(x.id)}>{x.label}</button>
+              <button class:on={d.show === x.id} onclick={() => events.show(x.id)}>{x.label}</button>
             {/each}
           </span>
         </div>
         {#if board.phase !== 'done'}
-          <EventTiles tables={board.tables} tiles={d.tiles} {names} pinned={d.pinned} showing={d.featured} onfeature={(t) => app.events.feature(t)} />
+          <EventTiles tables={board.tables} tiles={d.tiles} {names} pinned={d.pinned} showing={d.featured} onfeature={(t) => events.feature(t)} />
           {#if board.byes.length}<p class="small">Bye this round: {board.byes.map((b) => names.get(b) ?? b).join(', ')}</p>{/if}
         {/if}
         <div class="cols">

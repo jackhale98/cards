@@ -19,7 +19,7 @@ import {
   type View,
 } from './net/protocol';
 import type { SignedMove } from './net/eventCrypto';
-import { Events } from './event.svelte';
+import type { Events } from './event.svelte';
 import type { MultiTransport, NetworkStatus } from './net/multiTransport';
 import type { LocalTransport } from './net/localTransport';
 import type { RelayTransport } from './net/relayTransport';
@@ -294,29 +294,40 @@ class App {
   /** When this device started trying to join the current table (for the "Finding table" screen). */
   joinStarted = $state(0);
   cid = clientId();
-  /** Tournaments on this device (see event.svelte.ts). */
-  readonly events: Events = new Events({
-    get cid() {
-      return app.cid;
-    },
-    get name() {
-      return app.name;
-    },
-    get avatar() {
-      return app.avatar;
-    },
-    get net() {
-      return app.net;
-    },
-    go: (hash) => this.go(hash),
-    say: (text) => this.say(text),
-    becomeId: (cid) => this.becomeId(cid),
-    inUse,
-    sit: (m, key) => this.sit(m, key),
-    brain: () => this.brain,
-    still: !!devTable().still,
-    seed: devTable().seed,
-  });
+  /**
+   * Tournaments on this device (see event.svelte.ts): loaded the first time one is needed (a
+   * tournament's route, or a move or table from one), so a game night's phones never fetch them.
+   */
+  events = $state.raw<Events | null>(null);
+  private eventsLoading: Promise<Events> | null = null;
+  loadEvents(): Promise<Events> {
+    return (this.eventsLoading ??= import('./event.svelte').then(({ Events }) => {
+      const events = new Events({
+        get cid() {
+          return app.cid;
+        },
+        get name() {
+          return app.name;
+        },
+        get avatar() {
+          return app.avatar;
+        },
+        get net() {
+          return app.net;
+        },
+        go: (hash) => this.go(hash),
+        say: (text) => this.say(text),
+        becomeId: (cid) => this.becomeId(cid),
+        inUse,
+        sit: (m, key) => this.sit(m, key),
+        brain: () => this.brain,
+        still: !!devTable().still,
+        seed: devTable().seed,
+      });
+      this.events = events;
+      return events;
+    }));
+  }
   readonly net: TransportKind = (['local', 'relay', 'public'] as const).find((k) => k === new URLSearchParams(location.search).get('net')) ?? 'p2p';
 
   host: Host | null = null;
@@ -403,17 +414,17 @@ class App {
     // (a tournament: its screens and phones talk to its director, not to a table)
     const event = r.name === 'event' || r.name === 'direct' || r.name === 'standby' || (r.name === 'display' && isEventCode(r.code));
     // (a tournament's phone keeps its link to the director at its tables: see keepEventLink)
-    if (r.name !== 'event' && r.name !== 'room') this.events.closePhone();
-    if (r.name !== 'standby') this.events.closeStandby();
-    if (!(r.name === 'display' && event)) this.events.closeScreen();
+    if (r.name !== 'event' && r.name !== 'room') this.events?.closePhone();
+    if (r.name !== 'standby') this.events?.closeStandby();
+    if (!(r.name === 'display' && event)) this.events?.closeScreen();
     if (r.name === 'home' || r.name === 'tv' || event) this.leave(false);
-    if (r.name === 'event') return this.events.openPhone(r.code);
-    if (r.name === 'standby') return this.events.openStandby(r.code, r.token);
+    if (r.name === 'event') return (await this.loadEvents()).openPhone(r.code);
+    if (r.name === 'standby') return (await this.loadEvents()).openStandby(r.code, r.token);
     if (r.name === 'direct') {
-      if (!(await this.events.openDirector(r.code))) this.say('That tournament isn’t on this device');
+      if (!(await (await this.loadEvents()).openDirector(r.code))) this.say('That tournament isn’t on this device');
       return;
     }
-    if (event) return this.events.openScreen(r.code);
+    if (event) return (await this.loadEvents()).openScreen(r.code);
     if (r.name === 'home' || r.name === 'tv') return;
     if (this.currentCode === r.code) return;
     this.leave(false);
@@ -448,7 +459,7 @@ class App {
     ev?: SignedMove;
   }) {
     // (a tournament's move, passed on by this table's host: checked with our secret before we go)
-    if (m.ev) return this.events.follow(m.ev);
+    if (m.ev) return void this.loadEvents().then((e) => e.follow(m.ev!));
     const from = this.currentCode;
     if (!from || m.code === from) return;
     if (m.back && m.night) this.returning = { to: m.code, from, night: m.night };
@@ -689,7 +700,7 @@ class App {
     this.pendingEventTable = null;
     if (ev) host.expectTable(ev.info);
     const info = ev?.info ?? restore?.event?.table.info;
-    if (info) void this.events.linkTable(host, info);
+    if (info) void this.loadEvents().then((e) => e.linkTable(host, info));
     if (restore) host.resume();
     else {
       const look = this.savedLook;
@@ -776,8 +787,8 @@ class App {
    */
   private keepEventLink() {
     const ev = this.host?.lobby.event ?? this.view?.lobby.event;
-    if (ev) void this.events.openPhone(ev.code, true);
-    else if (this.events.phoneCode && (this.host || this.view)) this.events.closePhone();
+    if (ev) void this.loadEvents().then((e) => e.openPhone(ev.code, true));
+    else if (this.events?.phoneCode && (this.host || this.view)) this.events.closePhone();
   }
 
   private startWatching() {
@@ -871,7 +882,7 @@ class App {
     if (seatId && seatId !== this.cid) this.becomeId(seatId, key);
     this.forgetSaved();
     // (a tournament's table: its link to the director goes with the hosting)
-    this.events.closeUplink();
+    this.events?.closeUplink();
     this.host?.close();
     this.host = null;
     this.transport = null;
@@ -1023,7 +1034,7 @@ class App {
   leave(clearSaved = true) {
     if (this.watch) clearInterval(this.watch);
     this.watch = null;
-    this.events.closeUplink();
+    this.events?.closeUplink();
     this.host?.close();
     this.client?.close();
     this.transport = null;
@@ -1052,7 +1063,7 @@ if (import.meta.env.DEV)
   Object.assign(window, {
     __snapshot: () => app.debugSnapshot(),
     __loadSnapshot: (text: string) => app.loadSnapshot(text),
-    __eventStep: (n: number) => app.events.stepEvent(n),
-    __eventAdvance: () => app.events.advance(),
-    __eventClock: (minutes: number) => app.events.clockOn(minutes * 60_000),
+    __eventStep: (n: number) => app.events?.stepEvent(n) ?? 0,
+    __eventAdvance: () => app.events?.advance(),
+    __eventClock: (minutes: number) => app.events?.clockOn(minutes * 60_000),
   });

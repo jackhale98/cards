@@ -76,7 +76,8 @@ src/net/director.ts    a tournament's director: runs the event, seats each round
                        relay's escrow)
 src/net/eventCrypto.ts each phone's secret: signed moves between tables, seat keys (sha256.ts: HMAC);
                        eventProtocol.ts the director's messages; eventLink.ts a phone's (or TV's) link
-src/event.svelte.ts    the app's side of tournaments: a phone signing up, a screen, directing
+src/event.svelte.ts    the app's side of tournaments: a phone signing up, a screen, directing; loaded only
+                       when one is in use (app.loadEvents: a game night's phones never fetch it)
 src/net/client.ts      a player's (or TV's) connection to the host
 src/net/protocol.ts    every message between devices
 src/net/*Transport.ts  relay (ours), trystero (public WebRTC networks), local, multi (several at once)
