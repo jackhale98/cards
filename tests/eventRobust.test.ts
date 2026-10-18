@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { newBackupKey } from '../src/net/backup';
-import { Pacer, SENDS_PER_SECOND } from '../src/net/director/pacer';
+import { BYTES_PER_SECOND, Pacer, SENDS_PER_SECOND } from '../src/net/director/pacer';
 import { RemoteTable } from '../src/net/director/remote';
 import type { EventOutMsg } from '../src/net/eventProtocol';
 import { LocalTable } from '../src/net/director/tables';
@@ -124,6 +124,23 @@ describe('a tournament that keeps going when phones don’t', () => {
     expect(sent.map((x) => x.n)).toEqual([...Array.from({ length: SENDS_PER_SECOND * 2 + 50 }, (_, i) => i), 999]);
     // (in any second, never more than the rate)
     for (const x of sent) expect(sent.filter((y) => y.at >= x.at && y.at < x.at + 1000).length).toBeLessThanOrEqual(SENDS_PER_SECOND);
+    out.close();
+  });
+
+  it('…nor more bytes: a whole board for each of a dozen phones just knocked out waits its turn', async () => {
+    const sent: { at: number; size: number }[] = [];
+    const t = { send: (msg: unknown) => sent.push({ at: Date.now(), size: JSON.stringify(msg).length }) } as unknown as MemTransport;
+    const out = new Pacer(t);
+    const board = { t: 'evBoard', pad: 'x'.repeat(150_000) };
+    for (let i = 0; i < 12; i++) out.send(board as never, `p${i}`);
+    expect(sent.length).toBe(Math.floor(BYTES_PER_SECOND / JSON.stringify(board).length));
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(sent).toHaveLength(12);
+    for (const x of sent) expect(sent.filter((y) => y.at >= x.at && y.at < x.at + 1000).reduce((n, y) => n + y.size, 0)).toBeLessThanOrEqual(BYTES_PER_SECOND);
+    // (one bigger than a second's bytes still goes, on its own)
+    out.send({ t: 'evBoard', pad: 'x'.repeat(BYTES_PER_SECOND) } as never, 'p');
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(sent).toHaveLength(13);
     out.close();
   });
 

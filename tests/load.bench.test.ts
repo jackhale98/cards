@@ -32,7 +32,7 @@ import { GAMES } from './games';
  *   connections opened a minute from the venue's one address (CONNECTS, in wrangler.jsonc).
  *
  *   pnpm load                              (every format at 4, 8, 16, 32 and 64 tables)
- *   FORMATS=mtt TABLES=8,16 pnpm load
+ *   FORMATS=mtt TABLES=8,16 MINUTES=5 pnpm load
  *
  * Results go to load/load.json and a table on the console; docs/SCALE.md reads them. With PROFILE=1,
  * each run's CPU profile too (load/<format>-<tables>.cpuprofile: open it in Chrome's DevTools).
@@ -41,6 +41,8 @@ import { GAMES } from './games';
 const OUT = process.env.OUT ?? 'load';
 const TABLES = (process.env.TABLES ?? '4,8,16,32,64').split(',').map(Number);
 const FORMATS = (process.env.FORMATS ?? 'swiss,swiss-here,pairs,mtt').split(',');
+/** Play this many minutes at most (each format has its own length otherwise). */
+const MINUTES = Number(process.env.MINUTES) || Infinity;
 /** The relay's limits (relay/src/index.ts; connections a minute from one address, as relay/wrangler.jsonc sets it). */
 const RELAY = {
   peers: 24,
@@ -59,14 +61,15 @@ const clock = () => Number(hrtime()) / 1e6;
 class Meter {
   private stack: { who: string; start: number; inner: number }[] = [];
   spent = new Map<string, number>();
-  /** Each actor's longest single task (a message handled, a timer, a move). */
+  /** Each actor's longest single task (a message handled, a timer, a move), and what it was. */
   longest = new Map<string, number>();
+  longestWhat = new Map<string, string>();
   /** The director's time in each second of the game's clock. */
   seconds: number[] = [0];
   get current() {
     return this.stack.at(-1)?.who ?? 'driver';
   }
-  run<T>(who: string, fn: () => T): T {
+  run<T>(who: string, fn: () => T, what = ''): T {
     const top = this.stack.at(-1);
     if (top?.who === who) return fn();
     const frame = { who, start: clock(), inner: 0 };
@@ -78,7 +81,10 @@ class Meter {
       const total = clock() - frame.start;
       const own = total - frame.inner;
       this.spent.set(who, (this.spent.get(who) ?? 0) + own);
-      if (own > (this.longest.get(who) ?? 0)) this.longest.set(who, own);
+      if (own > (this.longest.get(who) ?? 0)) {
+        this.longest.set(who, own);
+        this.longestWhat.set(who, what);
+      }
       if (who === 'director') this.seconds[this.seconds.length - 1] += own;
       if (top) top.inner += total;
     }
@@ -96,7 +102,11 @@ function attribute(meter: Meter) {
     (set: (...a: never[]) => unknown) =>
     (fn: (...a: unknown[]) => void, ms?: number, ...args: unknown[]) => {
       const who = meter.current;
-      return (set as (f: () => void, ms?: number) => unknown)(() => meter.run(who, () => fn(...args)), ms);
+      // (what a timer is: the start of its code)
+      return (set as (f: () => void, ms?: number) => unknown)(
+        () => meter.run(who, () => fn(...args), `timer: ${String(fn).replace(/\s+/g, ' ').slice(0, 90)}`),
+        ms,
+      );
     };
   g.setTimeout = wrap(was.setTimeout) as never;
   g.setInterval = wrap(was.setInterval) as never;
@@ -250,7 +260,7 @@ class LoadNet {
       } else to_.push(m);
     }
     setTimeout(() => {
-      for (const m of to_) if (!m.left) this.meter.run(m.owner, () => m.onMessage(JSON.parse(wire), t.selfId));
+      for (const m of to_) if (!m.left) this.meter.run(m.owner, () => m.onMessage(JSON.parse(wire), t.selfId), `message: ${kind}`);
     }, 0);
   }
 
@@ -350,7 +360,7 @@ interface Result {
   /** Each round's moves: the longest anyone took to reach their table, and anyone two minutes on and still not there. */
   seating: { longest: number; late: number };
   /** The director's main thread: share of the time busy, its busiest second, its longest task, its time a move. */
-  director: { busy: number; peakSecond: number; longest: number; perMove: number };
+  director: { busy: number; peakSecond: number; longest: number; longestWhat: string; perMove: number };
   /** The busiest phone (hosting a table, when they do). */
   phone: { busy: number; longest: number };
   save: { bytes: number; sealed: number; fits: boolean };
@@ -466,7 +476,7 @@ async function run(format: string, tables: number): Promise<Result> {
   const want = new Map<string, { table: number; round: number; since: number; late?: boolean }>();
   const seating = { longest: 0, late: 0 };
   let round = 0;
-  for (let sec = 0; sec < f.minutes * 60 && d.event.phase !== 'done'; sec++) {
+  for (let sec = 0; sec < Math.min(f.minutes, MINUTES) * 60 && d.event.phase !== 'done'; sec++) {
     const r = d.event.rounds.at(-1);
     if (r && r.n !== round) {
       round = r.n;
@@ -478,7 +488,7 @@ async function run(format: string, tables: number): Promise<Result> {
       if (t.result) continue;
       const link = d.link(t.table);
       if (link instanceof LocalTable) {
-        if (meter.run('director', () => link.step())) moves++;
+        if (meter.run('director', () => link.step(), 'a move')) moves++;
       } else if (link instanceof RemoteTable) {
         const host = byCid.get(link.hostCid ?? '')?.host;
         if (host?.state && meter.run(`phone:${host.lobby.seats.find((x) => x.host)?.name}`, () => host.step())) moves++;
@@ -517,6 +527,7 @@ async function run(format: string, tables: number): Promise<Result> {
       busy: directorMs / (secs * 1000),
       peakSecond: Math.max(...meter.seconds),
       longest: meter.longest.get('director') ?? 0,
+      longestWhat: meter.longestWhat.get('director') ?? '',
       perMove: directorMs / Math.max(1, moves),
     },
     phone: { busy: ofPhones(meter.spent) / (secs * 1000), longest: ofPhones(meter.longest) },
@@ -571,7 +582,7 @@ it.skipIf(!process.env.LOAD)(
           console.log(
             `${format} × ${tables} tables (${r.people} phones, ${r.minutes} min, ${r.rounds} rounds, ${r.moves} moves)\n` +
               `  signing up: longest ${secs(r.signUp.longest)}, ${r.signUp.missing} not in; to their tables: longest ${secs(r.seating.longest)}, ${r.seating.late} late\n` +
-              `  director: ${pct(r.director.busy)} busy, busiest second ${ms(r.director.peakSecond)}, longest task ${ms(r.director.longest)}, ${r.director.perMove.toFixed(2)} ms a move; busiest phone ${pct(r.phone.busy)} (longest ${ms(r.phone.longest)})\n` +
+              `  director: ${pct(r.director.busy)} busy, busiest second ${ms(r.director.peakSecond)}, longest task ${ms(r.director.longest)} (${r.director.longestWhat}), ${r.director.perMove.toFixed(2)} ms a move; busiest phone ${pct(r.phone.busy)} (longest ${ms(r.phone.longest)})\n` +
               `  save ${kb(r.save.bytes)}, sealed ${kb(r.save.sealed)}${r.save.fits ? '' : ' (too big for the standby)'}\n` +
               `  ${Math.round(r.traffic.perSecond)} msgs/s, ${kb(r.traffic.bytesPerSecond)}/s; busiest connection ${r.traffic.sockN} msgs/s (${r.traffic.sockNAt}: ${JSON.stringify(r.traffic.sockNWhat)}), ` +
               `${kb(r.traffic.sockBytes)}/s; busiest room ${kb(r.traffic.roomBytes)}/s; ${r.traffic.dropped} dropped; ${r.traffic.peers} peers, ${r.traffic.refused} refused (longest wait ${secs(r.traffic.longestWait)}); ${r.traffic.connectsPerMinute} connections in a minute (the relay allows ${RELAY.connects})`,

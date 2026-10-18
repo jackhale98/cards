@@ -22,10 +22,10 @@
   ],
   // new connections per address a minute: slows anyone trying table codes to find live tables. A
   // venue's phones share one address, and at a tournament every phone joins its next table at once
-  // (and each table's host links up to the director): a round of 64 tables of nine opens about 650
-  // in a minute (docs/SCALE.md). (Workers rate limiting; the namespace id is any number unique to
-  // this account)
-  "ratelimits": [{ "name": "CONNECTS", "namespace_id": "1001", "simple": { "limit": 1200, "period": 60 } }],
+  // (and each table's host links up to the director): 64 tables of nine starting, just after the
+  // last of them signed up, open about 1200 in a minute (docs/SCALE.md). (Workers rate limiting;
+  // the namespace id is any number unique to this account)
+  "ratelimits": [{ "name": "CONNECTS", "namespace_id": "1001", "simple": { "limit": 2000, "period": 60 } }],
   "vars": {
     // sites allowed to connect (besides localhost); "*." allows any subdomain, e.g. Pages previews
     "ALLOWED_ORIGINS": "https://lamplight.cards,https://*.lamplight.cards,https://*.pages.dev",

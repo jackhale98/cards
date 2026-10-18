@@ -51,6 +51,11 @@ export class LocalTable implements TableLink {
   /** Anything changed at the table (the screens, if they're showing it). */
   onView: () => void = () => {};
   private snap: HostSnapshot | null = null;
+  /**
+   * Its tile, worked out once a change (undefined: due again). The screens ask for every table's
+   * at every change anywhere in the event, and a poker table's names every hand shown at a showdown.
+   */
+  private tile: TableTile | null | undefined;
 
   constructor(
     readonly round: number,
@@ -66,6 +71,7 @@ export class LocalTable implements TableLink {
     this.host.onTable = (n) => this.onNews(n);
     this.host.onPersist = (s) => {
       this.snap = s;
+      this.tile = undefined;
       this.onView();
     };
     if (opts.restore) {
@@ -95,7 +101,8 @@ export class LocalTable implements TableLink {
     return this.host.viewFor(null);
   }
   progress() {
-    return this.host.tile();
+    if (this.tile === undefined) this.tile = this.host.tile();
+    return this.tile;
   }
   idle() {
     return !this.host.state;
