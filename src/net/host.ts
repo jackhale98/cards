@@ -1125,9 +1125,12 @@ export class Host {
    * change the blinds), or lets it carry on. Reaching the hold is news for the director.
    */
   hold(on: boolean) {
-    if (!this.event || this.event.held === on) return;
+    if (!this.event) return;
+    const was = this.event.held;
     this.event.held = on;
+    // (held already, and asked again: said again, as the director may have reloaded since)
     if (on && this.state && END_PHASES.has(this.state.phase)) this.onTable({ kind: 'held' });
+    if (was === on) return;
     this.broadcast();
     if (!on) this.bots.pump();
   }

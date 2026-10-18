@@ -99,6 +99,8 @@ export class Director {
     if (r && this.event.phase === 'playing') for (const t of r.tables) this.share(r, t);
     if (this.event.phase === 'between') this.schedule();
     this.clock();
+    // (poker: a re-seat it was waiting for when it went, planned again: the tables held then say so again)
+    if (isMtt(this.event)) this.plan();
   }
   private resumed = false;
 

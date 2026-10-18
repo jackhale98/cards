@@ -69,4 +69,35 @@ describe('multi-table poker on one device', () => {
     expect(d.view.mtt).toMatchObject({ left: 1, of: 18 });
     d.close();
   }, 120_000);
+
+  it('the director back after a reload while tables are held to be re-seated: they’re re-seated, and it plays on', () => {
+    vi.useFakeTimers();
+    const e = botEvent(12, 6, 4);
+    const a = director(e);
+    a.start();
+    // (table 2 into its first hand, then table 1 plays on alone until a re-seat waits for table 2
+    // to finish that hand)
+    for (let i = 0; i < 3; i++) a.link(2)!.step();
+    let steps = 0;
+    const waiting = () => {
+      const re = (a as unknown as { reseating: { tables: number[]; held: Set<number> } | null }).reseating;
+      return !!re && re.held.size > 0 && re.held.size < re.tables.length;
+    };
+    while (!waiting() && steps++ < 100_000 && e.phase === 'playing') {
+      a.step();
+      if (steps % 400 === 0) a.clockOn(10 * 60_000);
+    }
+    expect(waiting()).toBe(true);
+    const rounds = e.rounds.length;
+    const snap = structuredClone(a.snapshot());
+    a.close();
+    const b = director(snap.event, snap);
+    for (let i = 0; i < 100_000 && b.event.phase === 'playing'; i++) {
+      if (!b.step()) break;
+      if (i % 400 === 399) b.clockOn(10 * 60_000);
+    }
+    expect(b.event.phase).toBe('done');
+    expect(b.event.rounds.length).toBeGreaterThan(rounds);
+    b.close();
+  }, 120_000);
 });
