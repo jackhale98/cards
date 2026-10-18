@@ -39,9 +39,9 @@
       </header>
       <ul>
         {#each t.sides as s, i (i)}
-          <li class:first={t.places?.[i] === 0} class:bot={!s}>
+          <li class:first={t.places?.[i] === 0} class:bot={!s} class:out={t.chips?.[i] === 0}>
             <span class="who">{name(s)}</span>
-            {#if t.places}<span class="place">{ordinal(t.places[i])}</span>{/if}
+            {#if t.places}<span class="place">{ordinal(t.places[i])}</span>{:else if t.chips}<span class="place">{t.chips[i] ? t.chips[i] : 'out'}</span>{/if}
           </li>
         {/each}
       </ul>
@@ -109,6 +109,9 @@
   }
   li.first {
     color: var(--gold);
+  }
+  li.out {
+    opacity: 0.5;
   }
   li.bot {
     color: var(--ink-faint);

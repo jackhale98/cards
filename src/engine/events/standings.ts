@@ -1,4 +1,5 @@
 import { duplicateStandings, isDuplicate } from './duplicate';
+import { isMtt, mttStandings } from './mtt';
 import type { EventState, StandingRow, TableRound } from './types';
 
 /**
@@ -43,6 +44,7 @@ export function meetings(e: EventState): Map<string, Map<string, number>> {
 
 export function standings(e: EventState): StandingRow[] {
   if (isDuplicate(e)) return duplicateStandings(e);
+  if (isMtt(e)) return mttStandings(e);
   const rows = new Map<string, StandingRow & { against: Set<string>; scored: boolean }>(
     e.entrants.map((x) => [
       x.id,

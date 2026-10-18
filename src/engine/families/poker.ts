@@ -4,7 +4,7 @@ import * as bet from '../lib/betting';
 import { bestHand, bestWithHole, eval5, type HandValue } from '../lib/pokerEval';
 import { shuffle } from '../rng';
 import { createState, hand, ids, log, moveCards, moveTop, name, nextSeat, placesFromScores, resetDeck, zone } from '../state';
-import { familyRules, assertRule, type Action, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
+import { familyRules, assertRule, RuleError, type Action, type ActionSpec, type GameConfig, type GameModule, type GameState } from '../types';
 import { hardPokerMove, type Habit, type HardGame, type Move } from './pokerHard';
 /** This family's settings in game.json (generated from the schema). */
 export type { PokerRules } from '../schema.gen';
@@ -24,8 +24,11 @@ export interface PokerData {
   result: { lines: string[]; winners: number[] } | null;
   /** The hand each seat was knocked out in (null while still playing), for final placings. */
   bustedAt?: (number | null)[];
-  /** Draw poker: the ante, chips left in the pot from a deal everyone checked, who opened the betting, who has drawn. */
+  /** Draw poker: the ante, chips left in the pot from a deal everyone checked, who opened the betting, who has drawn. A tournament's Hold'em: everyone's ante before the blinds. */
   ante?: number;
+  /** A tournament table: each hand is dealt by itself, and each seat's chips as the hand began are kept (see report). */
+  tourney?: boolean;
+  before?: number[];
   carry?: number;
   opener?: number | null;
   drawn?: (number | null)[];
@@ -58,6 +61,16 @@ export function showingScore(cards: string[]): number {
 type S = GameState<PokerData>;
 
 const chipsOf = (s: S) => s.players.map((p) => p.chips);
+/** A tournament table deals the next hand by itself after this long. */
+export const TOURNEY_NEXT_MS = 4000;
+/** A tournament's blinds (and ante), checked. */
+function setBlinds(s: S, b: { sb: number; bb: number; ante?: number }) {
+  const ok = (x: unknown, min: number) => typeof x === 'number' && Number.isInteger(x) && x >= min;
+  if (!ok(b.bb, 1) || !ok(b.sb, 0) || b.sb > b.bb || (b.ante !== undefined && !ok(b.ante, 0))) throw new RuleError('Blinds that make sense');
+  s.data.sb = b.sb;
+  s.data.bb = b.bb;
+  s.data.ante = b.ante || undefined;
+}
 const writeChips = (s: S, chips: number[]) => chips.forEach((c, i) => (s.players[i].chips = c));
 
 export function pokerFamily(config: GameConfig): GameModule<PokerData> {
@@ -109,12 +122,19 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
       }
     }
 
+    d.before = chipsOf(s);
     if (draw) return startDrawHand(s);
     if (stud) return startStudHand(s);
     const headsUp = alive.length === 2;
     const sbSeat = headsUp ? d.button : nextSeat(s, d.button, skip);
     const bbSeat = nextSeat(s, sbSeat, skip);
     const chips = chipsOf(s);
+    // a tournament's ante: everyone puts it in before the blinds (in the pot, not a bet)
+    if (d.ante) {
+      for (const p of s.players) if (!out[p.seat]) bet.post(d.b, chips, p.seat, d.ante);
+      d.b.bets.fill(0);
+      d.b.currentBet = 0;
+    }
     bet.post(d.b, chips, sbSeat, d.sb);
     bet.post(d.b, chips, bbSeat, d.bb);
     d.b.currentBet = Math.max(d.b.currentBet, d.bb);
@@ -123,7 +143,7 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
     d.acted = s.players.map(() => null);
     d.acted[sbSeat] = `Small blind ${d.b.bets[sbSeat]}`;
     d.acted[bbSeat] = `Big blind ${d.b.bets[bbSeat]}`;
-    log(s, `Hand #${d.handNo}: ${name(s, sbSeat)} and ${name(s, bbSeat)} post blinds ${d.sb}/${d.bb}`);
+    log(s, `Hand #${d.handNo}: ${d.ante ? `everyone antes ${d.ante}; ` : ''}${name(s, sbSeat)} and ${name(s, bbSeat)} post blinds ${d.sb}/${d.bb}`);
 
     s.phase = 'betting';
     s.turn = nextActor(s, bbSeat);
@@ -412,7 +432,7 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
     botLevels: true,
     config,
 
-    setup(players, seed, options) {
+    setup(players, seed, options, table) {
       const bb = Number(draw ? (options.ante ?? config.chips!.ante ?? 10) : (options.bigBlind ?? config.chips!.bigBlind));
       // (stud: the smallest bet; the bring-in is half of it)
       const studAnte = stud ? Number(options.ante ?? config.chips!.ante ?? Math.max(1, Math.floor(bb / 5))) : 0;
@@ -434,8 +454,29 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
       });
       const stack = Number(options.stack ?? config.chips!.start);
       s.players.forEach((p) => (p.chips = stack));
+      // a tournament table: everyone's chips as they come to it, who has the button, the blinds now
+      if (table?.chips || table?.blinds || table?.button != null) {
+        if (draw || stud) throw new Error('Tournament tables are for flop games');
+        if (table.chips) {
+          if (table.chips.length !== players.length || table.chips.some((c) => !Number.isInteger(c) || c < 0)) throw new Error('A stack for every seat');
+          s.players.forEach((p, i) => (p.chips = table.chips![i]));
+        }
+        if (table.button != null) s.data.button = Math.max(0, Math.min(players.length - 1, table.button));
+        if (table.blinds) setBlinds(s, table.blinds);
+        s.data.tourney = true;
+      }
       startHand(s);
       return s;
+    },
+
+    // a tournament's blinds go up between hands (the next hand is dealt with them)
+    adjust(s, change) {
+      if (!s.data.tourney || draw || stud) throw new RuleError('Not a tournament table');
+      setBlinds(s, change.blinds);
+    },
+
+    report(s) {
+      return { hand: s.data.handNo, button: s.data.button, stacks: chipsOf(s), ...(s.data.before ? { before: [...s.data.before] } : {}) };
     },
 
     actions(s, seat) {
@@ -551,8 +592,10 @@ export function pokerFamily(config: GameConfig): GameModule<PokerData> {
     },
 
     system(s) {
-      // only bots left with chips: nobody can press "Deal next hand", so keep dealing
-      if (s.phase === 'handOver' && !s.players.some((p) => !p.bot && p.chips > 0)) return { delay: 2500, run: (s) => startHand(s) };
+      // only bots left with chips: nobody can press "Deal next hand", so keep dealing; at a
+      // tournament table the next hand is dealt by itself, as a dealer would (a moment to see this one)
+      if (s.phase === 'handOver' && (s.data.tourney || !s.players.some((p) => !p.bot && p.chips > 0)))
+        return { delay: s.data.tourney ? TOURNEY_NEXT_MS : 2500, run: (s) => startHand(s) };
       if (s.phase !== 'runout') return null;
       return {
         delay: 1100,

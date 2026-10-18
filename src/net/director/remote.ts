@@ -111,6 +111,9 @@ export class RemoteTable implements TableLink {
   progress() {
     return this.tile;
   }
+  idle() {
+    return !!this.tile && !this.tile.started;
+  }
   step() {
     return false;
   }

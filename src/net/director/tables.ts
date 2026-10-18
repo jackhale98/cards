@@ -29,6 +29,8 @@ export interface TableLink {
   view(): View | null;
   /** How far it's got, for its tile (null: not heard yet). */
   progress(): TableTile | null;
+  /** Nothing dealt (waiting for its players, or too few to play): as good as held. */
+  idle(): boolean;
   /** Development and tests: one step of its game (see Host.step). False: nothing to do. */
   step(): boolean;
   /** For the director's own snapshot (null: hosted elsewhere, which keeps its own). */
@@ -94,6 +96,9 @@ export class LocalTable implements TableLink {
   }
   progress() {
     return this.host.tile();
+  }
+  idle() {
+    return !this.host.state;
   }
   step() {
     // (a table that's waiting for its rules or its players deals as soon as it can)

@@ -1,4 +1,5 @@
 import { boardAt, boardsPerRound, isDuplicate, travellers, type Traveller } from './duplicate';
+import { isMtt, mttView, type MttView } from './mtt';
 import { tableSizes } from './pairing';
 import { standings } from './standings';
 import type { EventState, FormatId, StandingRow, TableRound } from './types';
@@ -21,21 +22,26 @@ export interface EventPublic {
   rounds?: number;
   /** Duplicate: boards a round. */
   boards?: number;
-  /** What the standings' numbers are, when not points and the game's score (duplicate pairs: a percentage and matchpoints). */
-  units?: { points: string; score: string };
+  /**
+   * What the standings' numbers are, when not points and the game's score (duplicate pairs: a
+   * percentage and matchpoints; poker: chips, and no games played).
+   */
+  units?: { points: string; score: string; played?: false };
   entrants: { id: string; name: string; bot?: boolean; out?: boolean }[];
   standings: StandingRow[];
   /**
    * The round's tables: each side's entrant (null: a bot filling the gap), and once it's done, places
    * (not in duplicate, where a table's result means something only beside the others'). Duplicate:
-   * the board it's on; teams, its match.
+   * the board it's on; teams, its match. Poker: each player's chips (0: out).
    */
-  tables: { table: number; sides: (string | null)[]; done?: boolean; places?: number[]; board?: number; match?: number }[];
+  tables: { table: number; sides: (string | null)[]; done?: boolean; places?: number[]; board?: number; match?: number; chips?: number[] }[];
   byes: string[];
   /** Knockout: every round, table by table, and who went through; then the rounds to come (`later`). */
   bracket?: BracketRound[];
   /** Duplicate: the round's boards every table has played, each with every table's result and its hands. */
   travellers?: Traveller[];
+  /** Multi-table poker: the blinds now and next, when they go up, how many are left and the average stack. */
+  mtt?: MttView;
 }
 
 /**
@@ -70,6 +76,7 @@ export function publicView(e: EventState): EventPublic {
   const r = e.rounds.at(-1);
   const rows = standings(e);
   const dup = isDuplicate(e);
+  const mtt = isMtt(e);
   return {
     name: e.config.name,
     format: e.config.format,
@@ -83,23 +90,28 @@ export function publicView(e: EventState): EventPublic {
       ? { units: { points: '%', score: 'MPs' } }
       : e.config.format === 'teams'
         ? { units: { points: 'Pts', score: 'IMPs' } }
-        : {}),
+        : mtt
+          ? { units: { points: 'Chips', score: '', played: false as const } }
+          : {}),
     entrants: e.entrants.map((x) => ({ id: x.id, name: x.name, ...(x.bot ? { bot: true } : {}), ...(x.out ? { out: true } : {}) })),
     standings: rows,
     tables: (r?.tables ?? []).map((t) => {
       const board = dup && r ? boardAt(r, t) : null;
       return {
         table: t.table,
-        sides: sidesOf(e, t.seats),
+        // (poker: everyone at the table, however many)
+        sides: mtt ? t.seats.map((s) => s.entrant) : sidesOf(e, t.seats),
         ...(t.result ? { done: true } : {}),
         ...(t.result && !dup ? { places: e.config.sides.map((side) => t.result!.places[side[0]]) } : {}),
         ...(board != null ? { board } : {}),
         ...(t.match ? { match: t.match } : {}),
+        ...(mtt && e.mtt ? { chips: t.seats.map((s) => (s.entrant ? (e.mtt!.chips[s.entrant] ?? 0) : 0)) } : {}),
       };
     }),
     byes: r?.byes ?? [],
     ...(e.config.format === 'knockout' ? { bracket: bracket(e) } : {}),
     ...(dup && r ? { travellers: travellers(e, r) } : {}),
+    ...(mtt && e.mtt ? { mtt: mttView(e) } : {}),
   };
 }
 

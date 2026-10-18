@@ -1,5 +1,6 @@
 import type { RngState } from '../rng';
 import type { TableReport, TableSetup } from '../types';
+import type { MttState } from './mtt';
 
 /**
  * A tournament: entrants (people, or partnerships that registered together) play rounds at
@@ -8,8 +9,8 @@ import type { TableReport, TableSetup } from '../types';
  * the public views leave out (see view.ts).
  */
 
-/** How entrants meet; `pairs` and `teams` are duplicate bridge's (see duplicate.ts). */
-export type FormatId = 'swiss' | 'roundRobin' | 'knockout' | 'pairs' | 'teams';
+/** How entrants meet; `pairs` and `teams` are duplicate bridge's (see duplicate.ts), `mtt` multi-table poker's (mtt.ts). */
+export type FormatId = 'swiss' | 'roundRobin' | 'knockout' | 'pairs' | 'teams' | 'mtt';
 
 export interface EventConfig {
   name: string;
@@ -23,6 +24,8 @@ export interface EventConfig {
   rounds?: number;
   /** Duplicate: boards a round. */
   boards?: number;
+  /** Multi-table poker: minutes a blind level. */
+  minutes?: number;
   /** Knockout with more than two sides at a table: how many go through from each (1 or 2). */
   advance?: number;
   /** Who hosts the tables: a player at each, or the director's device. */
@@ -55,6 +58,8 @@ export interface TableRound {
   table: number;
   /** Duplicate teams: the match it's half of (the match's other table has the same). */
   match?: number;
+  /** Multi-table poker: the table carries on from an earlier round (the one its game began in), its seats unchanged. */
+  carried?: number;
   seats: TableSeat[];
   /** Private: the seed its game is dealt from, and its private inputs. Never in a public view. */
   seed: number;
@@ -83,6 +88,8 @@ export interface EventState {
   rng: RngState;
   /** Round robin: the draw's order, which every round's pairings come from. Knockout: the bracket's slots (null: a bye). */
   order?: (string | null)[];
+  /** Multi-table poker: everyone's chips, who's out, the blind clock. */
+  mtt?: MttState;
 }
 
 /** One line of the standings. */

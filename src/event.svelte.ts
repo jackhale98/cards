@@ -1,4 +1,4 @@
-import { createEvent, formatsFor, isDuplicate, type EventConfig, type EventPersonal, type EventPublic, type FormatId } from './engine/events';
+import { createEvent, formatsFor, isDuplicate, isMtt, type EventConfig, type EventPersonal, type EventPublic, type FormatId } from './engine/events';
 import { getGame, loadRules, rulesFor } from './games';
 import { randomSeed } from './engine/rng';
 import { shareBrain, type Brain } from './net/brain';
@@ -370,6 +370,7 @@ export class Events {
         return local;
       },
       onRound: (r) => ref.desk?.round(r),
+      onOut: (m) => ref.desk?.out(m),
       restore: save?.director,
     });
     const desk = (ref.desk = new Desk({
@@ -413,7 +414,8 @@ export class Events {
     const sides = rulesFor(game)?.sides?.(seats) ?? Array.from({ length: seats }, (_, i) => [i]);
     const duplicate = rulesFor(game)?.duplicate;
     const formats = formatsFor(g.config, sides, !!duplicate);
-    const format = formats.includes(base.format) ? base.format : formats[0];
+    // (poker played as a multi-table tournament unless the director says)
+    const format = formats[0] === 'mtt' || !formats.includes(base.format) ? formats[0] : base.format;
     const options = Object.fromEntries((g.config.options ?? []).map((o) => [o.id, o.default]));
     return {
       name: base.name,
@@ -421,7 +423,8 @@ export class Events {
       game: { id: game, options: { ...options, ...(isDuplicate({ config: { format } as EventConfig }) ? duplicate : {}) } },
       seats,
       sides,
-      host: 'player',
+      // (duplicate and poker: the tables hosted here, so no phone holds another table's cards)
+      host: format === 'mtt' || isDuplicate({ config: { format } as EventConfig }) ? 'director' : 'player',
     };
   }
 
@@ -431,15 +434,20 @@ export class Events {
     if (!d || d.director.event.phase !== 'registering') return;
     const c = await this.configFor(game, d.director.event.config);
     if (!c || !this.dir) return;
-    Object.assign(d.director.event.config, { ...c, rounds: d.director.event.config.rounds, host: d.director.event.config.host });
+    // (a format of the game's own, poker's or duplicate's, brings its hosting with it)
+    const was = d.director.event.config;
+    Object.assign(was, { ...c, rounds: was.rounds, host: c.format === was.format ? was.host : c.host });
     d.director.onChange();
   }
   /**
    * Before the start: the format, a setting of the game, the event's name, how many rounds (Swiss
-   * and duplicate) and boards a round (duplicate), a knockout's advancing, who hosts the tables.
+   * and duplicate) and boards a round (duplicate), a knockout's advancing, who hosts the tables;
+   * poker's seats a table and minutes a blind level.
    */
   setConfig(
-    change: Partial<Pick<EventConfig, 'format' | 'name' | 'rounds' | 'boards' | 'advance' | 'host'>> & { option?: { id: string; value: number | boolean } },
+    change: Partial<Pick<EventConfig, 'format' | 'name' | 'rounds' | 'boards' | 'advance' | 'host' | 'seats' | 'minutes'>> & {
+      option?: { id: string; value: number | boolean };
+    },
   ) {
     const d = this.dir;
     if (!d || d.director.event.phase !== 'registering') return;
@@ -452,7 +460,16 @@ export class Events {
         c.game.options = { ...c.game.options, ...duplicate };
         c.host = 'director';
       }
+      // (poker: the tables hosted here too, so no phone holds another table's deck)
+      if (isMtt(d.director.event)) c.host = 'director';
     }
+    // (poker: as many to a table as the game seats, every seat a side of its own)
+    const players = getGame(c.game.id).config.players;
+    if (change.seats !== undefined && isMtt(d.director.event)) {
+      c.seats = Math.max(Math.max(2, players.min), Math.min(players.max, Math.round(change.seats)));
+      c.sides = Array.from({ length: c.seats }, (_, i) => [i]);
+    }
+    if (change.minutes !== undefined) c.minutes = Math.max(1, Math.min(60, Math.round(change.minutes)));
     if (change.boards !== undefined) c.boards = change.boards > 0 ? Math.min(16, Math.round(change.boards)) : undefined;
     if (typeof change.name === 'string') c.name = change.name.trim().slice(0, 40) || c.name;
     if (change.rounds !== undefined) c.rounds = change.rounds > 0 ? Math.min(20, Math.round(change.rounds)) : undefined;
@@ -543,6 +560,10 @@ export class Events {
     let i = 0;
     while (i < n && this.dir?.director.step()) i++;
     return i;
+  }
+  /** Development builds: poker's blind clock on by `ms`. */
+  clockOn(ms: number) {
+    this.dir?.director.clockOn(ms);
   }
 
   /** Close the tournament on this device (it's over, or set aside). */

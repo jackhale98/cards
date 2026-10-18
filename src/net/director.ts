@@ -1,6 +1,12 @@
 import {
+  blindsAt,
   currentRound,
   isDuplicate,
+  isMtt,
+  mttHand,
+  mttPlan,
+  mttReseat,
+  mttTick,
   nextRound,
   otherTable,
   publicView,
@@ -51,6 +57,8 @@ export interface DirectorOptions {
   grace?: number;
   /** A round has been seated (null: the event is over), for telling those without a table. */
   onRound?: (r: Round | null) => void;
+  /** Multi-table poker: these people have been knocked out (to the event's room, to watch the rest). */
+  onOut?: (members: string[]) => void;
   restore?: DirectorSnapshot;
 }
 
@@ -90,6 +98,7 @@ export class Director {
       }
     if (r && this.event.phase === 'playing') for (const t of r.tables) this.share(r, t);
     if (this.event.phase === 'between') this.schedule();
+    this.clock();
   }
   private resumed = false;
 
@@ -100,9 +109,10 @@ export class Director {
 
   /** The draw and the first round. False: not yet (see startProblem). */
   start(): boolean {
-    const r = startEvent(this.event);
+    const r = startEvent(this.event, Date.now());
     if (!r) return false;
     this.seatRound(r);
+    this.clock();
     this.changed();
     return true;
   }
@@ -179,22 +189,29 @@ export class Director {
   close() {
     this.closed = true;
     if (this.timer) clearTimeout(this.timer);
+    if (this.clockTimer) clearTimeout(this.clockTimer);
     this.closeTables();
   }
 
   // ---- the round's tables --------------------------------------------------------------------
 
   private seatRound(r: Round) {
-    // (the last round's tables close once the new ones are seated: players at them hear where to go next through them)
-    const last = [...this.links.values()];
+    // (the last round's tables close once the new ones are seated: players at them hear where to go
+    // next through them. A table carried on, its seats unchanged, keeps its link and its game)
+    const last = new Map(this.links);
     this.links.clear();
     for (const t of r.tables) {
-      const link = this.o.makeTable(r.n, t);
+      const kept = t.carried ? last.get(t.table) : undefined;
+      if (kept) last.delete(t.table);
+      const link = kept ?? this.o.makeTable(r.n, t);
       this.listen(link, r, t);
       this.links.set(t.table, link);
-      link.seat(this.tableFor(r, t));
+      if (!kept) {
+        link.seat(this.tableFor(r, t));
+        if (this.event.mtt) this.levels.set(t.table, this.event.mtt.level);
+      }
     }
-    for (const link of last) link.close();
+    for (const link of last.values()) link.close();
     this.o.onRound?.(r);
   }
 
@@ -240,6 +257,7 @@ export class Director {
   /** News from a table: how it's going (each hand), or its result; the round may be done. */
   private news(round: number, table: number, n: TableNews) {
     if (this.closed) return;
+    if (isMtt(this.event)) return this.mttNews(round, table, n);
     const r = currentRound(this.event);
     const t = r?.n === round ? r.tables.find((x) => x.table === table) : undefined;
     if (n.kind === 'hand') {
@@ -267,6 +285,95 @@ export class Director {
     };
     tell(o, t);
     tell(t, o);
+  }
+
+  // ---- multi-table poker (see engine/events/mtt.ts) ------------------------------------------
+
+  /** The tables held to be re-seated (null: none). */
+  private reseating: { tables: number[]; held: Set<number> } | null = null;
+  /** The blind level each table is playing (it takes a new one at its next hand). */
+  private levels = new Map<number, number>();
+  private clockTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /**
+   * A poker table's hand is over (or its game: one player left): everyone's chips, who's out, the
+   * blinds for its next hand; and, if the tables need re-seating, those tables held at their hand's
+   * end until they all are (then re-seated: see reseat).
+   */
+  private mttNews(round: number, table: number, n: TableNews) {
+    const e = this.event;
+    if (n.kind === 'held') {
+      if (this.reseating?.tables.includes(table)) this.reseating.held.add(table);
+      return this.reseat();
+    }
+    const report = cleanReport(n.kind === 'hand' ? n.report : n.result.report);
+    if (!report) return;
+    const out = mttHand(e, round, table, report);
+    const members = out.map((id) => e.entrants.find((x) => x.id === id)?.members[0]).filter((m): m is string => !!m);
+    if (members.length) this.o.onOut?.(members);
+    if (e.phase === 'done') {
+      this.closeTables();
+      this.clock();
+      this.o.onRound?.(null);
+      return this.changed();
+    }
+    // (the blinds went up: from this table's next hand)
+    const level = e.mtt!.level;
+    if ((this.levels.get(table) ?? -1) < level && !this.links.get(table)?.adjust({ blinds: blindsAt(e, level) })) this.levels.set(table, level);
+    this.plan();
+    this.changed();
+  }
+
+  /** Whether the tables need re-seating: if so, those to change are held at their hand's end. */
+  private plan() {
+    if (this.reseating || this.closed) return;
+    const tables = mttPlan(this.event);
+    if (!tables) return;
+    const re = (this.reseating = { tables, held: new Set<number>() });
+    // (a table at its hand's end already says so at once; one with nothing dealt is as good as held:
+    // waiting for its players, or with too few to play, as when everyone else there is out)
+    for (const t of tables) {
+      const link = this.links.get(t);
+      link?.hold(true);
+      if (!link || link.idle()) re.held.add(t);
+    }
+    this.reseat();
+  }
+
+  /** Every table to change is held: the new seats (a round), those tables dealt afresh, the rest carrying on. */
+  private reseat() {
+    const re = this.reseating;
+    if (!re || re.tables.some((t) => !re.held.has(t)) || this.event.phase !== 'playing') return;
+    this.reseating = null;
+    this.seatRound(mttReseat(this.event, re.tables));
+    this.changed();
+    // (more may need doing: someone knocked out meanwhile)
+    this.plan();
+  }
+
+  /** The blind clock: up a level when it's time (a timer only while the tournament is playing). */
+  private clock() {
+    if (this.clockTimer) clearTimeout(this.clockTimer);
+    this.clockTimer = null;
+    const m = this.event.mtt;
+    if (this.closed || !m || m.levelEnds == null || this.event.phase !== 'playing') return;
+    this.clockTimer = setTimeout(
+      () => {
+        this.clockTimer = null;
+        if (mttTick(this.event, Date.now())) this.changed();
+        this.clock();
+      },
+      Math.max(0, m.levelEnds - Date.now()),
+    );
+  }
+
+  /** Development and tests: the blind clock on by `ms`. */
+  clockOn(ms: number) {
+    const m = this.event.mtt;
+    if (!m || m.levelEnds == null) return;
+    m.levelEnds -= ms;
+    if (mttTick(this.event, Date.now())) this.changed();
+    this.clock();
   }
 
   /** Between rounds: on by itself after the pause, unless held. */

@@ -284,7 +284,11 @@ export interface OtherResult extends BoardResult {
 /** What a tournament table tells the director, all of it public: each board's result, everyone's chips. */
 export interface TableReport {
   boards?: BoardResult[];
+  /** Poker: each seat's chips after the hand, and before it (two knocked out in the same hand: the bigger stack finishes higher). */
   stacks?: number[];
+  before?: number[];
+  /** Poker: the seat that had the button. */
+  button?: number;
   /** Hands played so far. */
   hand?: number;
 }

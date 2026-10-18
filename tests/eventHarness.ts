@@ -163,6 +163,7 @@ export function director(
     code: CODE,
     pause: null,
     onRound: (r) => ref.desk!.round(r),
+    onOut: (m) => ref.desk!.out(m),
     keyFor: (m, round, table) => seatKeyFor(registry.secretOf(m)!, CODE, round, table),
     makeTable: (round, t, { restore, room } = {}) => {
       // (on one of its players' phones, unless the director hosts the tables, or this one now)

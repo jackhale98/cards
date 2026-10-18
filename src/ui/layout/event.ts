@@ -29,5 +29,8 @@ export const travellerColumns = (width: number, rem: number) => Math.max(1, Math
 /** Standings rows that fit `height` px (a row is about 2.4rem; the rest wait for the next page). */
 export const standingsRows = (height: number, rem: number) => Math.max(4, Math.floor(height / (2.4 * rem)));
 
+/** Poker: the board checks the time to the next blind level this often (ms): minutes are all it shows. */
+export const CLOCK_EVERY_MS = 15_000;
+
 /** How long the board shows each of its views before the next (ms). */
 export const BOARD_TURN_MS = 15_000;

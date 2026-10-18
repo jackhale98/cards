@@ -50,7 +50,9 @@ src/engine/            pure TS: no DOM, no network, no UI
   events/              tournaments, pure: formats (Swiss, round robin, knockout: pairing.ts), standings,
                        what the screens and each player see (view.ts); the event is plain JSON too;
                        duplicate.ts, duplicate bridge's pairs (matchpoints) and teams (IMPs): every table
-                       on the round's boards, nothing of a board shown until every table has played it
+                       on the round's boards, nothing of a board shown until every table has played it;
+                       mtt.ts, multi-table poker: the draw, chips and knockouts, tables kept even and
+                       broken up (each change of seats a round), the blind clock
 src/games/<id>/game.json   a game = a family plus parameters (schemas/game.schema.json)
 src/engine/schema.gen.ts   the game.json types, generated from the schema (pnpm gen:types; never edit)
 src/games/index.ts     registry: game files load with the app (GameInfo), rules only when picked

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { app, inviteUrl } from '../../app.svelte';
-  import { BOARDS_PER_ROUND, duplicateRounds, swissRounds } from '../../engine/events';
+  import { BOARDS_PER_ROUND, duplicateRounds, LEVEL_MINUTES, swissRounds } from '../../engine/events';
   import { GAME_LIST, getGame } from '../../games';
   import type { BoardShow } from '../../net/eventProtocol';
   import AvatarBadge from '../components/AvatarBadge.svelte';
@@ -28,7 +28,16 @@
   /** Duplicate bridge: pairs or teams (see engine/events/duplicate.ts). */
   const duplicate = $derived(c?.format === 'pairs' || c?.format === 'teams');
   const teams = $derived(c?.format === 'teams');
-  const FORMAT: Record<string, string> = { swiss: 'Swiss', roundRobin: 'Round robin', knockout: 'Knockout', pairs: 'Pairs', teams: 'Teams' };
+  const FORMAT: Record<string, string> = {
+    swiss: 'Swiss',
+    roundRobin: 'Round robin',
+    knockout: 'Knockout',
+    pairs: 'Pairs',
+    teams: 'Teams',
+    mtt: 'Multi-table',
+  };
+  /** Multi-table poker (see engine/events/mtt.ts). */
+  const mtt = $derived(c?.format === 'mtt');
   const SHOWS: { id: BoardShow; label: string }[] = [
     { id: 'turn', label: 'Turn about' },
     { id: 'tables', label: 'Tables' },
@@ -151,6 +160,24 @@
                 </span>
               </div>
             {/if}
+            {#if mtt}
+              <div class="opt">
+                <span>Seats a table</span>
+                <span class="stepper">
+                  <button onclick={() => app.events.setConfig({ seats: c.seats - 1 })} aria-label="Fewer seats">−</button>
+                  <b>{c.seats}</b>
+                  <button onclick={() => app.events.setConfig({ seats: c.seats + 1 })} aria-label="More seats">+</button>
+                </span>
+              </div>
+              <div class="opt">
+                <span>Minutes a blind level</span>
+                <span class="stepper">
+                  <button onclick={() => app.events.setConfig({ minutes: (c.minutes ?? LEVEL_MINUTES) - 1 })} aria-label="Shorter levels">−</button>
+                  <b>{c.minutes ?? LEVEL_MINUTES}</b>
+                  <button onclick={() => app.events.setConfig({ minutes: (c.minutes ?? LEVEL_MINUTES) + 1 })} aria-label="Longer levels">+</button>
+                </span>
+              </div>
+            {/if}
             {#if duplicate}
               <div class="opt">
                 <span>Boards a round</span>
@@ -209,7 +236,10 @@
               </span>
             </div>
             <p class="small">
-              {#if teams}
+              {#if mtt}
+                Everyone starts with the same chips at tables drawn at random; the blinds go up every {c.minutes ?? LEVEL_MINUTES} minutes. As players go out the
+                tables are kept even and broken up, down to the final table.
+              {:else if teams}
                 Teams of four: two pairs, one North–South at one table, the other East–West at another, on the same boards; won on IMPs.
               {:else if duplicate}
                 Every table plays the same boards; each pair's score is compared with everyone's sitting their way, in matchpoints.
@@ -265,9 +295,18 @@
       {:else}
         <section class="status">
           <div>
-            <span class="eyebrow">{board.phase === 'done' ? 'Final standings' : `Round ${board.round}${board.rounds ? ` of ${board.rounds}` : ''}`}</span>
+            <span class="eyebrow"
+              >{board.phase === 'done'
+                ? 'Final standings'
+                : board.mtt
+                  ? `Level ${board.mtt.level + 1}`
+                  : `Round ${board.round}${board.rounds ? ` of ${board.rounds}` : ''}`}</span
+            >
             <p>
-              {#if board.phase === 'playing'}
+              {#if board.phase === 'playing' && board.mtt}
+                {board.mtt.left} of {board.mtt.of} left, at {board.tables.length} table{board.tables.length === 1 ? '' : 's'} · blinds {board.mtt.blinds
+                  .sb}/{board.mtt.blinds.bb}{board.mtt.blinds.ante ? ` · ante ${board.mtt.blinds.ante}` : ''}
+              {:else if board.phase === 'playing'}
                 {board.tables.filter((t) => t.done).length} of {board.tables.length} tables done
               {:else if board.phase === 'between'}
                 Every table's done. {d.holding ? 'Held: the next round waits for you.' : 'The next round starts shortly.'}
@@ -311,7 +350,9 @@
           {#if board.byes.length}<p class="small">Bye this round: {board.byes.map((b) => names.get(b) ?? b).join(', ')}</p>{/if}
         {/if}
         <div class="cols">
-          <section><EventStandings rows={board.standings} people={d.people} knockout={board.format === 'knockout'} units={board.units} /></section>
+          <section>
+            <EventStandings rows={board.standings} people={d.people} knockout={board.format === 'knockout'} units={board.units} />
+          </section>
           {#if board.bracket}<section><EventBracket bracket={board.bracket} {names} /></section>{/if}
         </div>
         {#if board.travellers?.length}

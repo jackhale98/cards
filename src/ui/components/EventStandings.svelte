@@ -12,8 +12,8 @@
     /** Show only this many (the rest: "+ n more"). */
     max?: number;
     knockout?: boolean;
-    /** What the numbers are, when not points and the game's score (duplicate: a percentage and matchpoints, or points and IMPs). */
-    units?: { points: string; score: string };
+    /** What the numbers are, when not points and the game's score (duplicate: a percentage and matchpoints, or points and IMPs; poker: chips, and no games played). */
+    units?: { points: string; score: string; played?: false };
   }
   let { rows, people, me = null, max = Infinity, knockout = false, units }: Props = $props();
 
@@ -21,17 +21,19 @@
   /** An entrant's people: one, or a partnership ("a+b"). */
   const membersOf = (id: string) => id.split('+').map((m) => looks.get(m));
   const scored = $derived(rows.some((r) => r.score != null));
+  const played = $derived(units?.played !== false);
   const shown = $derived(rows.slice(0, max));
   const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 </script>
 
 <ol class="standings" aria-label="Standings">
   <li class="head" aria-hidden="true">
-    <span></span><span></span><span class="name">Player</span><span class="num">{units?.points ?? (knockout ? 'Won' : 'Pts')}</span><span class="num">Pl</span>
+    <span></span><span></span><span class="name">Player</span><span class="num">{units?.points ?? (knockout ? 'Won' : 'Pts')}</span>
+    {#if played}<span class="num">Pl</span>{:else}<span></span>{/if}
     {#if scored}<span class="num">{units?.score ?? 'Score'}</span>{/if}
   </li>
   {#each shown as r (r.entrant)}
-    <li class:me={r.entrant === me} class:out={r.out || (knockout && r.alive === false)}>
+    <li class:me={r.entrant === me} class:out={r.out || r.alive === false}>
       <span class="rank">{r.rank}</span>
       <span class="avs">
         {#each membersOf(r.entrant) as p, i (i)}<AvatarBadge avatar={p?.avatar} name={p?.name ?? r.name} size={26} />{/each}
@@ -39,8 +41,8 @@
       <span class="name"
         >{r.name}{#if r.out}<em> · withdrew</em>{/if}</span
       >
-      <span class="num pts">{knockout ? r.wins : fmt(r.points)}</span>
-      <span class="num">{r.played}</span>
+      <span class="num pts">{knockout ? r.wins : r.alive === false && !played ? 'Out' : fmt(r.points)}</span>
+      {#if played}<span class="num">{r.played}</span>{:else}<span></span>{/if}
       {#if scored}<span class="num">{r.score ?? '–'}</span>{/if}
     </li>
   {/each}

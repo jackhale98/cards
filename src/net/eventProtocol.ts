@@ -11,7 +11,7 @@ import type { Avatar, View } from './protocol';
  */
 
 /** Bumped when these messages change: a phone or table on another version is asked to reload. */
-export const EVENT_PROTOCOL = 1;
+export const EVENT_PROTOCOL = 2;
 
 /** A table's progress, for its tile on the screens: whether it's dealt, hands played, who's still to come, and the game's own totals. */
 export interface TableTile {

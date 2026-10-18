@@ -22,7 +22,15 @@
   // a partnership game: everyone signs up with a partner
   const pairs = $derived((board?.perSide ?? 1) > 1);
   const askedMe = $derived(people.filter((p) => p.partner === me && mine?.partner !== p.id));
-  const FORMAT: Record<string, string> = { swiss: 'Swiss', roundRobin: 'Round robin', knockout: 'Knockout', pairs: 'Pairs', teams: 'Teams' };
+  const FORMAT: Record<string, string> = {
+    swiss: 'Swiss',
+    roundRobin: 'Round robin',
+    knockout: 'Knockout',
+    pairs: 'Pairs',
+    teams: 'Teams',
+    mtt: 'Multi-table',
+  };
+  const ordinal = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : (['th', 'st', 'nd', 'rd'][n % 10] ?? 'th')}`;
   const names = $derived(new Map((board?.entrants ?? []).map((x) => [x.id, x.name])));
 </script>
 
@@ -89,6 +97,11 @@
         </p>
       {:else if board.format === 'knockout' && board.standings.find((r) => r.entrant === you.entrant)?.alive === false}
         <p>You're out of the knockout. Thanks for playing: watch the bracket on the screen.</p>
+      {:else if board.mtt && board.standings.find((r) => r.entrant === you.entrant)?.alive === false}
+        <p>
+          <b>You're out, in {ordinal(you.rank ?? 0)} place.</b> Thanks for playing: {board.mtt.left} left, at the blinds {board.mtt.blinds.sb}/{board.mtt.blinds
+            .bb}.
+        </p>
       {:else}
         <p>Round {board.round}: your table's on its way.</p>
       {/if}

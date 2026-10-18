@@ -206,3 +206,56 @@ describe('a showdown on the table', () => {
     throw new Error('no hand ended with everyone else folding');
   });
 });
+
+describe('a tournament table', () => {
+  type D = { handNo: number; button: number; sb: number; bb: number; ante?: number; b: bet.BettingState; before?: number[]; tourney?: boolean };
+  const players = (n: number) => Array.from({ length: n }, (_, i) => ({ name: `P${i}`, bot: true }));
+
+  it('starts from the tournament’s stacks, button and blinds, with everyone’s ante in first', async () => {
+    const { GAMES } = await import('./games');
+    const g = GAMES.holdem as GameModule<D>;
+    const chips = [1500, 900, 3000, 40, 2200];
+    const s = g.setup(players(5), 3, {}, { chips, button: 2, blinds: { sb: 50, bb: 100, ante: 10 } });
+    expect(s.data.button).toBe(2);
+    expect(s.data.before).toEqual(chips);
+    // seat 3 posts the small blind, seat 4 the big; everyone antes 10 first (seat 3 all in for 40)
+    expect(s.data.b.committed).toEqual([10, 10, 10, 40, 110]);
+    expect(s.players.map((p) => p.chips)).toEqual([1490, 890, 2990, 0, 2090]);
+    expect(s.data.b.currentBet).toBe(100);
+    expect(s.log.some((l) => /^Hand #1: everyone antes 10; P3 and P4 post blinds 50\/100$/.test(l.text))).toBe(true);
+    expect(g.report!(s)).toEqual({ hand: 1, button: 2, stacks: [1490, 890, 2990, 0, 2090], before: chips });
+  });
+
+  it('the blinds go up between hands; the next hand is dealt by itself', async () => {
+    const { GAMES } = await import('./games');
+    const g = GAMES.holdem as GameModule<D>;
+    let s = g.setup(players(3), 5, {}, { chips: [1000, 1000, 1000], button: 0, blinds: { sb: 10, bb: 20 } });
+    s.options.botLevel = 0;
+    for (let i = 0; i < 500 && s.phase !== 'handOver'; i++) {
+      const seat = s.players.find((p) => g.bot!(s, p.seat))?.seat;
+      const next = structuredClone(s);
+      if (seat == null) g.system!(s)!.run(next);
+      else g.apply(next, seat, g.bot!(s, seat)!);
+      s = next;
+    }
+    expect(s.phase).toBe('handOver');
+    g.adjust!(s, { blinds: { sb: 25, bb: 50, ante: 5 } });
+    const step = g.system!(s)!;
+    expect(step).toBeTruthy();
+    step.run(s);
+    expect(s.data.handNo ?? 0).toBeGreaterThan(0);
+    expect([s.data.sb, s.data.bb, s.data.ante]).toEqual([25, 50, 5]);
+    expect(Math.max(...s.data.b.bets)).toBe(50);
+    expect(() => g.adjust!(s, { blinds: { sb: 60, bb: 50 } })).toThrow();
+  });
+
+  it('only flop games: a draw game won’t take a tournament’s blinds', async () => {
+    const { GAMES } = await import('./games');
+    const draw = Object.values(GAMES).find((m) => m.config.rules.family === 'poker' && (m.config.rules as { draw?: unknown }).draw)!;
+    expect(() => draw.setup(players(4), 1, {}, { blinds: { sb: 5, bb: 10 } })).toThrow();
+    // (and an ordinary game of Hold'em still waits for someone to deal)
+    const { GAMES: all } = await import('./games');
+    const s = all.holdem.setup([{ name: 'Ann' }, { name: 'Bo', bot: true }], 1, {});
+    expect((s.data as D).tourney).toBeUndefined();
+  });
+});

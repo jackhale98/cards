@@ -11,7 +11,7 @@
   import EventTiles from '../components/EventTiles.svelte';
   import EventTraveller from '../components/EventTraveller.svelte';
   import Loader from '../components/Loader.svelte';
-  import { BOARD_PAD_X_REM, BOARD_TURN_MS, boardRem, standingsRows, TILE_GAP_REM, TRAVELLER_REM, travellerColumns } from '../layout/event';
+  import { BOARD_PAD_X_REM, BOARD_TURN_MS, boardRem, CLOCK_EVERY_MS, standingsRows, TILE_GAP_REM, TRAVELLER_REM, travellerColumns } from '../layout/event';
 
   /**
    * A tournament on a big screen (a TV, the director's laptop): while people sign up, the code to
@@ -41,7 +41,25 @@
   const names = $derived(new Map((board?.entrants ?? []).map((x) => [x.id, x.name])));
   const game = $derived(board ? getGame(board.game.id) : null);
   const knockout = $derived(board?.format === 'knockout');
-  const FORMAT: Record<string, string> = { swiss: 'Swiss', roundRobin: 'Round robin', knockout: 'Knockout', pairs: 'Pairs', teams: 'Teams' };
+  const FORMAT: Record<string, string> = {
+    swiss: 'Swiss',
+    roundRobin: 'Round robin',
+    knockout: 'Knockout',
+    pairs: 'Pairs',
+    teams: 'Teams',
+    mtt: 'Multi-table',
+  };
+
+  // poker: the blinds, and how long until they go up (the minutes, checked now and then while it plays)
+  const mtt = $derived(board?.phase === 'playing' ? (board.mtt ?? null) : null);
+  let now = $state(Date.now());
+  $effect(() => {
+    if (!mtt) return;
+    const t = setInterval(() => (now = Date.now()), CLOCK_EVERY_MS);
+    return () => clearInterval(t);
+  });
+  const blinds = (b: { sb: number; bb: number; ante?: number }) => `${b.sb}/${b.bb}${b.ante ? ` · ante ${b.ante}` : ''}`;
+  const minutesLeft = $derived(mtt?.levelEnds ? Math.max(0, Math.ceil((mtt.levelEnds - now) / 60_000)) : null);
   /** Duplicate: the latest boards every table has played, as many as fit across. */
   const travellers = $derived((board?.travellers ?? []).slice(-travellerColumns(w - 2 * BOARD_PAD_X_REM * rem, rem)));
 
@@ -98,7 +116,10 @@
   <div class="live">
     {#await tableP then m}<m.default view={live.view} display={true} replay={null} watching={true} />{/await}
     <div class="live-head panel">
-      <span><b>Table {live.table}</b> · {board?.name}</span>
+      <span
+        ><b>Table {live.table}</b> · {board?.name}{#if mtt}
+          · blinds {blinds(mtt.blinds)}{/if}</span
+      >
       {#if onclose}<button class="btn quiet" onclick={onclose}>Back to the desk</button>{/if}
     </div>
     {#if bar}<div class="live-bar">{@render bar()}</div>{/if}
@@ -111,7 +132,14 @@
         <h1>{board?.name ?? 'Tournament'}</h1>
       </div>
       <div class="round">
-        {#if board && board.phase !== 'registering'}
+        {#if mtt}
+          <span class="eyebrow">Level {mtt.level + 1} · blinds {blinds(mtt.blinds)}</span>
+          <span class="small"
+            >{mtt.left} of {mtt.of} left · average {mtt.average}{minutesLeft != null
+              ? ` · ${blinds(mtt.next)} in ${minutesLeft} min${minutesLeft === 1 ? '' : 's'}`
+              : ''}</span
+          >
+        {:else if board && board.phase !== 'registering'}
           <span class="eyebrow">{board.phase === 'done' ? 'Final' : `Round ${board.round}${board.rounds ? ` of ${board.rounds}` : ''}`}</span>
           <span class="small"
             >{board.phase === 'between'

@@ -1046,11 +1046,13 @@ class App {
 
 export const app = new App();
 // (development builds: the debug snapshot, for tests and by hand from the console; and a tournament
-// directed here stepped on, its tables hosted here and on to its next round, the same every time)
+// directed here stepped on, its tables hosted here and on to its next round, the same every time,
+// and its blind clock moved on)
 if (import.meta.env.DEV)
   Object.assign(window, {
     __snapshot: () => app.debugSnapshot(),
     __loadSnapshot: (text: string) => app.loadSnapshot(text),
     __eventStep: (n: number) => app.events.stepEvent(n),
     __eventAdvance: () => app.events.advance(),
+    __eventClock: (minutes: number) => app.events.clockOn(minutes * 60_000),
   });

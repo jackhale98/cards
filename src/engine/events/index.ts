@@ -1,6 +1,7 @@
 import { nextRandom, seedState, shuffle, type Seed } from '../rng';
-import type { GameConfig, TableReport } from '../types';
+import { familyRules, type GameConfig, type TableReport } from '../types';
 import { dealRound, duplicateMin, duplicateRounds, isDuplicate, seatPairs, seatTeams } from './duplicate';
+import { isMtt, mttStart } from './mtt';
 import { knockout, knockoutAdvance, knockoutOrder, roundRobin, roundRobinOrder, swiss, swissRounds, type Pairing } from './pairing';
 import { standings } from './standings';
 import type { Entrant, EventConfig, EventState, FormatId, Round, TableRound, TableSeat } from './types';
@@ -10,6 +11,7 @@ export { standings } from './standings';
 export { personalView, publicView, type BracketRound, type EventPersonal, type EventPublic } from './view';
 export { bracketSeeds, swissRounds, tableSizes } from './pairing';
 export { BOARDS_PER_ROUND, boardAt, duplicateRounds, isDuplicate, otherTable, showable, type Traveller } from './duplicate';
+export { blindsAt, isMtt, LEVEL_MINUTES, mttHand, mttPlan, mttReseat, mttTick, type MttView } from './mtt';
 
 /**
  * A tournament's course, as plain functions over its state: take entrants, start (the draw and the
@@ -33,15 +35,22 @@ const FORMATS: Record<FormatId, Format> = {
   // (duplicate: pairs and teams meet as in a Swiss, ranked by their own standings: see duplicate.ts)
   pairs: { pair: swiss, start: (e) => void (e.config.rounds ??= duplicateRounds(false, e.entrants.length)), seat: seatPairs },
   teams: { pair: swiss, start: (e) => void (e.config.rounds ??= duplicateRounds(true, e.entrants.length)), seat: seatTeams },
+  // (multi-table poker isn't played in rounds of pairings: it seats its own, see mtt.ts)
+  mtt: { pair: () => null },
 };
 
 /**
  * The formats a game can be played in: Swiss and knockout for any game with a result; round robin
- * only with two sides a table (everyone meets everyone); and a game played duplicate (bridge: its
- * module's `duplicate`), as pairs or teams.
+ * only with two sides a table (everyone meets everyone); a game played duplicate (bridge: its
+ * module's `duplicate`), as pairs or teams; and a flop poker game (Hold'em, Omaha) as a multi-table
+ * tournament, first (each table of a Swiss or a knockout plays a game to its end: a sit and go).
  */
 export function formatsFor(config: GameConfig, sides: number[][], duplicate = false): FormatId[] {
   if (config.rules.family === 'free') return [];
+  if (config.rules.family === 'poker') {
+    const R = familyRules(config, 'poker');
+    if (R.board.length && !R.draw && !R.stud) return ['mtt', 'swiss', 'knockout'];
+  }
   if (sides.length !== 2) return ['swiss', 'knockout'];
   return ['swiss', 'roundRobin', 'knockout', ...(duplicate && sides.every((s) => s.length === 2) ? (['pairs', 'teams'] as const) : [])];
 }
@@ -87,13 +96,14 @@ export function startProblem(e: EventState): string | null {
   return null;
 }
 
-/** The draw, then the first round. */
-export function startEvent(e: EventState): Round | null {
+/** The draw, then the first round (`now`: the director's clock, for poker's blinds). */
+export function startEvent(e: EventState, now = 0): Round | null {
   if (startProblem(e)) return null;
   shuffle(
     e.entrants.map((x) => x),
     e,
   ).forEach((x, i) => (x.draw = i));
+  if (isMtt(e)) return mttStart(e, now);
   FORMATS[e.config.format].start?.(e);
   return nextRound(e);
 }
@@ -103,7 +113,7 @@ export const currentRound = (e: EventState): Round | undefined => e.rounds.at(-1
 
 /** The next round's tables (or the end: null). Only between rounds, or at the start. */
 export function nextRound(e: EventState): Round | null {
-  if (e.phase === 'done' || e.phase === 'playing') return null;
+  if (e.phase === 'done' || e.phase === 'playing' || isMtt(e)) return null;
   const f = FORMATS[e.config.format];
   for (;;) {
     const p = f.pair(e);

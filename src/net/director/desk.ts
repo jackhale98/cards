@@ -298,12 +298,18 @@ export class Desk implements RemoteDesk {
     const secret = this.o.registry.secretOf(cid);
     const r = currentRound(this.event);
     if (!secret || !r) return null;
-    const t = this.event.phase === 'done' ? undefined : r.tables.find((x) => x.seats.some((s) => s.member === cid));
+    // (poker: someone knocked out is still in their table's seats until it's next re-seated)
+    const chips = this.event.mtt?.chips;
+    const t =
+      this.event.phase === 'done'
+        ? undefined
+        : r.tables.find((x) => x.seats.some((s) => s.member === cid && (!chips || (s.entrant != null && chips[s.entrant] > 0))));
     if (!t) return signMove(secret, { event: this.o.code, round: r.n, table: 0, room: this.o.code, host: false });
-    // (on a phone, or hosted here)
+    // (on a phone, or hosted here; a table carried on is in the round its game began)
     const link = this.o.director().link(t.table);
-    if (!link?.room || link.round !== r.n) return null;
-    return signMove(secret, { event: this.o.code, round: r.n, table: t.table, room: link.room, host: link instanceof RemoteTable && link.hostCid === cid });
+    const round = t.carried ?? r.n;
+    if (!link?.room || link.round !== round) return null;
+    return signMove(secret, { event: this.o.code, round, table: t.table, room: link.room, host: link instanceof RemoteTable && link.hostCid === cid });
   }
 
   // ---- the event ----------------------------------------------------------------------------
@@ -458,16 +464,17 @@ export class Desk implements RemoteDesk {
    * goes to the event's own room to wait, with the standings to look at.
    */
   round(r: Round | null) {
-    // (the round's tables are new: what the screens show live starts again)
-    this.pinned = null;
-    this.featured = null;
+    // (the round's tables are new: what the screens show live starts again, but for one carried on)
+    if (!r?.tables.some((t) => t.carried && t.table === this.pinned)) this.pinned = null;
+    if (!r?.tables.some((t) => t.carried && t.table === this.featured)) this.featured = null;
     this.featureNext();
     const seated = new Set(r?.tables.flatMap((t) => t.seats.map((s) => s.member)) ?? []);
     const n = r?.n ?? currentRound(this.event)?.n ?? 1;
     // (the people at a table hosted here go to its room; a table on a phone sends its own when it's placed)
     for (const t of r?.tables ?? []) {
       const link = this.o.director().link(t.table);
-      if (!link?.room || link instanceof RemoteTable) continue;
+      // (a table carried on: its players are there already)
+      if (!link?.room || link instanceof RemoteTable || t.carried) continue;
       for (const s of t.seats) {
         const secret = s.member ? this.o.registry.secretOf(s.member) : undefined;
         if (secret) this.deliver(s.member!, signMove(secret, { event: this.o.code, round: n, table: t.table, room: link.room, host: false }));
@@ -475,6 +482,15 @@ export class Desk implements RemoteDesk {
     }
     for (const m of this.o.registry.members.values())
       if (!m.bot && !seated.has(m.id)) this.deliver(m.id, signMove(m.secret, { event: this.o.code, round: n, table: 0, room: this.o.code, host: false }));
+  }
+
+  /** Multi-table poker: these people are out; to the event's room, to watch the rest of it. */
+  out(members: string[]) {
+    const n = currentRound(this.event)?.n ?? 1;
+    for (const cid of members) {
+      const secret = this.o.registry.secretOf(cid);
+      if (secret) this.deliver(cid, signMove(secret, { event: this.o.code, round: n, table: 0, room: this.o.code, host: false }));
+    }
   }
 
   /** Show a table live on the screens, whatever else they're showing (null: none). */
