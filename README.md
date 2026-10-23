@@ -4,12 +4,12 @@
 One person hosts, everyone else scans a QR code, and each phone shows that player's hand plus
 the middle of the table. It needs no accounts or app store, and there's no server to pay for.
 
-- **30 games, each a plain JSON config file** run by a family engine (trick-taking, poker, rummy,
+- **31 games, each a plain JSON config file** run by a family engine (trick-taking, poker, rummy,
   canasta, hand and foot, pinochle, climbing, palace, eights, corners, cribbage, blackjack, baccarat,
   cheat, go fish, slap, spit, spoons, free table):
   - _Poker:_ Texas Hold'em, Omaha, Five Card Draw (jacks-or-better option), Seven Card Stud (bring-in, up cards on the table).
   - _Casino:_ Blackjack (double, split, insurance, surrender option), Baccarat (Punto Banco).
-  - _Trick-taking:_ Contract Bridge (full auction, dummy; Chicago or rubber scoring; bots bid SAYC or two over one, each call explained), Euchre (bowers,
+  - _Trick-taking:_ Contract Bridge (full auction, dummy; Chicago, rubber or duplicate scoring; bots bid SAYC or two over one, each call explained), Euchre (bowers,
     going alone), 500 (Avondale bids, misère and open misère, kitty, joker), Hearts (moon shooter's choice), Oh Hell,
     Pinochle (auction, passing, meld), Setback (Pitch: High, Low, Jack, Game; smudge), Spades (nil, blind nil, bags), Whist (honours option).
   - _Rummy:_ Canasta (may I go out?, play after the stock), Gin Rummy, Hand and Foot, Rummy 500 (jokers, Rummy! calls).
@@ -20,6 +20,11 @@ the middle of the table. It needs no accounts or app store, and there's no serve
   secret partner with five), Euchre for 4 or 6, Canasta for 2–4 or 6, Hand and Foot for 2–6, Cribbage for
   2–4, and two decks for big tables of Cheat, Crazy Eights and Rummy 500. A game's `byPlayers` in
   game.json changes its deck and rules for a given number of players.
+- **Duplicate bridge in a room:** pick Duplicate scoring and each deal becomes a numbered board with its
+  dealer and vulnerability, scored in IMPs against **another table** (whoever is sitting out plays the same
+  boards at a second table, with bots in any empty seats; it runs on the host's device), against **par**
+  (perfect bidding and play with every card known, worked out by the double-dummy solver in a worker), or
+  **no one**.
 - **How to play** is in every table's menu: a few short lines on the goal, a turn, scoring and the
   end, plus the rules for the number of players seated. The tip at the top says what to do right now,
   and only legal moves are offered.
@@ -48,12 +53,22 @@ the middle of the table. It needs no accounts or app store, and there's no serve
   host taps **In / Out** to choose who plays; the rest watch, and whoever sat out plays the next game.
   **Split the table** sends a group off to a table of their own (one of their phones hosts it) with
   tonight's scoreboard, ready to deal the same game (or pick another), and **Everyone back** brings them home with their games added to the tally.
+- **Tournaments:** **Run a tournament** on the home screen makes a director of that device (usually a
+  laptop). Players join with a six-letter code, sign up, and are moved to their table each round. Formats:
+  Swiss, round robin, knockout, **duplicate bridge** as pairs (matchpoints) or teams (IMPs), and
+  **multi-table Hold'em / Omaha** (chips and knockouts, tables kept even and broken up, a blind clock).
+  Each table is hosted on one of its players' phones (if it goes quiet, the director takes over that
+  table) or on the director's device. A TV or tablet can show the standings as an event board, a second
+  device can be a **standby director** that takes over if the first stops, and the results save as a file
+  (duplicate: a PBN of every table's boards). A laptop directs 64 tables; the measurements are in
+  [docs/SCALE.md](docs/SCALE.md).
 - **Look back:** step through the last few hands as you saw them (replay), and save a whole game as a
-  spreadsheet (CSV, only your own cards), or as a bridge PBN file or poker Open Hand History.
+  spreadsheet (CSV, only your own cards), or as a bridge PBN file (Contract Bridge) or poker Open Hand
+  History (Hold'em and Omaha).
 - **Four-colour suits** (♣ green, ♦ blue) for anyone who wants them, from the table menu on each phone.
 - **Show playable cards** (on unless turned off): cards you can't use right now are shaded. Turn it off
   in the table menu to find your own moves; a tap on a card you can't play says so.
-- **Resilient:** a refreshed phone keeps its seat, and a refreshed host resumes the game.
+- **Resilient:** a refreshed phone keeps its seat, and a refreshed host resumes the game. Once visited, the app opens without a connection too (a service worker keeps it; each game's rules are kept after its first play).
 
 ## Showing the table on a TV
 
@@ -127,6 +142,12 @@ another player's hidden cards, so nobody can peek with dev tools.
 
 > Bluetooth isn't used: Web Bluetooth isn't available on iOS, and browsers can't advertise as a
 > Bluetooth device. An offline QR-code pairing mode is on the roadmap for the no-internet case.
+> (The app itself opens offline, but phones still need a network to find each other.)
+
+**Tournaments** use the same relay: the director has a room, each table has its own, and a phone proves
+who it is with a secret it gives the director once. Moves between tables are signed, a table's host is
+given only its own seats' keys, and a standby director's copy is sealed with a key the relay holds
+until the director has gone.
 
 ## Development
 
@@ -135,7 +156,11 @@ pnpm install
 pnpm dev          # http://localhost:5173
 pnpm test         # engine, rules, networking and schema tests
 pnpm test:quick   # the same without the slow bot-strength and bot-legality suites
-pnpm test:e2e     # every game dealt in a real browser at phone, laptop and TV sizes
+pnpm test:e2e     # every game dealt in a real browser at phone, laptop and TV sizes, plus the offline,
+                  # CSP and relay checks (WebKit too with PW_WEBKIT=1)
+pnpm records      # bots play bridge and Hold'em; python tools/check_records.py records checks them
+pnpm load         # how big a tournament one director runs (see docs/SCALE.md)
+pnpm gen:types    # regenerate the game.json types after changing the schema
 pnpm check        # type check
 pnpm lint         # ESLint;  pnpm format rewrites files with Prettier
 pnpm build        # static site in dist/
@@ -179,20 +204,26 @@ src/
                 validate (actions checked against what was offered)
     families/   one engine per kind of game (trick-taking, poker, rummy, canasta, cribbage,
                 slap, spit, spoons… see docs/ADDING_A_GAME.md), configured by game.json
-    lib/        betting (side pots), pokerEval, trickTaking, passing, melds, cribbageScore, teams, realtime, canastaCards
+    lib/        betting (side pots), pokerEval, trickTaking, passing, melds, cribbageScore, teams, realtime, canastaCards,
+                duplicate (boards, IMPs, matchpoints), par
+    events/     tournaments, pure: formats (Swiss, round robin, knockout, duplicate, multi-table poker), standings, views
     bots/       search: Monte Carlo sampling bots any family can use
   games/        one folder per game: game.json (+ optional rules.ts escape hatch); index.ts
                 is the registry, picker sections, search and How to play
   net/          host (authoritative), client, protocol; transports (relay, public WebRTC
-                networks, local, multi); backup (host handoff), night (game-night tally),
+                networks, local, multi); host/ (the host's parts, and twin: duplicate bridge's other table),
+                director + director/ and eventLink (tournaments), solver + pars (double-dummy par),
+                backup (host handoff), night (game-night tally),
                 cast and tvPair (TV), reports (anonymous error reports), brain + botWorker
-                (bots think off the main thread), gameRecord + exports/ (CSV, PBN, OHH)
+                (bots think off the main thread), gameRecord + exports/ (CSV, PBN, Open Hand History)
   ui/           Svelte 5 screens and components, motion, sound, looks
+  event.svelte.ts  the app's side of tournaments (loaded only when one is in use)
   app.svelte.ts app state and routing
 relay/          Cloudflare Worker + Durable Objects: the connection relay and error reports
 schemas/        JSON schema for game.json
 tests/          Vitest suites       e2e/   Playwright browser tests and the screen audit
-tools/          Python checks of our records with endplay (bridge) and PokerKit (poker)
+tools/          Python checks of our records with endplay (bridge) and PokerKit (poker); dds/ builds the solver
+docs/           adding a game, Chromecast, tournament scale (SCALE.md)
 ```
 
 Adding a game is usually a single JSON file. See **[docs/ADDING_A_GAME.md](docs/ADDING_A_GAME.md)**.
@@ -201,8 +232,8 @@ Adding a game is usually a single JSON file. See **[docs/ADDING_A_GAME.md](docs/
 
 1. ✅ Engine, Free Table, multiplayer, lobby, poker & trick-taking families, avatars
 2. ✅ Rummy family (Gin), ✅ Cribbage, ✅ Euchre, ✅ 500, ✅ Contract Bridge
-3. Polish: ✅ sounds, ✅ card backs and cloths (next: a back from your own photo), PWA offline install, offline QR pairing
-4. ✅ Remote play through the relay, ✅ host handoff; next: leaderboards, tournaments
+3. Polish: ✅ sounds, ✅ card backs and cloths (next: a back from your own photo), ✅ offline install (PWA), offline QR pairing
+4. ✅ Remote play through the relay, ✅ host handoff, ✅ tournaments; next: leaderboards
 
 ## License
 
