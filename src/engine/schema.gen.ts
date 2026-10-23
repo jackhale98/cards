@@ -70,7 +70,7 @@ export interface GameConfig {
     [k: string]: SizeOverrides;
   };
   /**
-   * Picker section (Poker, Casino, Trick-taking, Rummy, Shedding, Family, More). Defaults to one based on the rules family.
+   * Picker section (Poker, Casino, Trick-taking, Rummy, Shedding, Family, Speed, More). Defaults to one based on the rules family.
    */
   category?: string;
 }
