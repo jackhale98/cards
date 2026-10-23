@@ -47,7 +47,8 @@ src/engine/            pure TS: no DOM, no network, no UI
   families/            one engine per kind of game; index.ts loads them on demand (rules.family →
                        engine), traits.ts says which have bots / real-time play without loading them
   lib/                 betting, pokerEval, trickTaking, passing, melds, cribbageScore, teams,
-                       realtime (the speed games), canastaCards, duplicate (boards, IMPs, matchpoints)
+                       realtime (the speed games), canastaCards, duplicate (boards, IMPs, matchpoints),
+                       par (a bridge deal's par from the solver's table)
   bots/search.ts       Monte Carlo search bots any family can plug into
   events/              tournaments, pure: formats (Swiss, round robin, knockout: pairing.ts), standings,
                        what the screens and each player see (view.ts); the event is plain JSON too;
@@ -63,8 +64,9 @@ src/net/host.ts        the authoritative host: seats and keys, checking and appl
                        its parts in src/net/host/: conns (connections, heartbeat, views and patches),
                        bots (bots and automatic steps), history (replays, the game's record, scores,
                        tonight's tally), backups (host handoff), lobby (who plays, lobby buttons),
-                       records, limits; event (a tournament's table: the seats the director assigns,
-                       held between hands, its result) and uplink (that table's host's link to the director);
+                       records, limits, wire (views as sent, the latency lights); event (a tournament's
+                       table: the seats the director assigns, held between hands, its result) and uplink
+                       (that table's host's link to the director);
                        twin (duplicate bridge in a room: the other table, playing the same boards, hosted here)
 src/net/brain.ts       where bots think: botWorker.ts (a Web Worker) in the app, inline in tests;
                        shareBrain, one brain taking turns between several tables
@@ -73,7 +75,8 @@ src/net/director.ts    a tournament's director: runs the event, seats each round
                        a table whose host's phone goes quiet), registry, remote (a table a player hosts),
                        tables (one hosted here: bots only, every table when the director chooses, or one
                        taken over), standby (a second device's sealed copy, and taking over through the
-                       relay's escrow)
+                       relay's escrow), pacer (its sends kept within the relay's rates), clean (checks
+                       on every tournament message from the network)
 src/net/eventCrypto.ts each phone's secret: signed moves between tables, seat keys (sha256.ts: HMAC);
                        eventProtocol.ts the director's messages; eventLink.ts a phone's (or TV's) link
 src/event.svelte.ts    the app's side of tournaments: a phone signing up, a screen, directing; loaded only
