@@ -1,4 +1,4 @@
-import { dummyPoints, lengthPoints, levelOf, stopped, SUIT_AT, SUIT_NAME, SYMBOL, type Ctx, type HandInfo } from './auction';
+import { bidNo, dummyPoints, lengthPoints, levelOf, stopped, SUIT_AT, SUIT_NAME, SYMBOL, type Ctx, type HandInfo } from './auction';
 import { r, type Rule } from './rules';
 
 /**
@@ -731,7 +731,8 @@ const theirs = (c: Ctx) => {
 
 /** Opener, after partner's negative double (the other side passing). */
 const afterNegative: Rule[] = (() => {
-  const at = (c: Ctx) => /^1[CDHS] X$/.test(c.seq) && c.contested && !c.lastByUs && c.calls.at(-1)?.call === 'P';
+  // (negative doubles go up to 2♠: partner's double of anything higher is for penalties)
+  const at = (c: Ctx) => /^1[CDHS] X$/.test(c.seq) && c.contested && !c.lastByUs && c.calls.at(-1)?.call === 'P' && c.lastBid <= bidNo('2S') && !!theirs(c);
   const open = (c: Ctx) => c.seq[1];
   const unbid = (c: Ctx) => ['H', 'S'].filter((x) => x !== open(c) && x !== theirs(c));
   const out: Rule[] = [];

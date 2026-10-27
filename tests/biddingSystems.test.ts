@@ -299,6 +299,34 @@ describe('bidding systems: by the book (the calls EPBot and the SAYC booklet mak
     expect(bidFor('sayc', 'AQ2.K3.KQJ632.K2', ['1D', 'P', 'P', 'X'])).toBe('XX');
   });
 
+  it('answers a takeout double with a cue bid of their suit when it has game values', () => {
+    expect(bidFor('sayc', 'A32.K2.KQ32.Q432', ['1H', 'X', 'P'])).toBe('2H');
+  });
+
+  it('after an overcall, the opener’s rebid means what it would have without it (not in their suit)', () => {
+    expect(bidFor('sayc', 'KQ2.A.AQ95.QJ974', ['1C', 'P', '1H', '1S'])).toBe('2D');
+  });
+
+  it('reads partner’s double above 2♠ as for penalties, not negative: the opener doesn’t answer it by showing a suit', () => {
+    const auction = ['1S', '3D', 'X', 'P'];
+    const call = bidFor('sayc', 'AKJ32.K32.4.Q432', auction);
+    expect(call).not.toBe('4C');
+    expect(meaningOf('sayc', [...auction, call])).not.toMatch(/four or more/);
+  });
+
+  it('over 1NT, asks for aces with Gerber (4♣), and partner answers in steps', () => {
+    const asker = 'AK2.K2.AKQJ32.32';
+    expect(bidFor('sayc', asker, ['1N', 'P'])).toBe('4C');
+    expect(meaningOf('sayc', ['1N', 'P', '4C'])).toBe('Gerber: asks for aces');
+    expect(bidFor('sayc', 'K54.AQ4.AJ43.Q65', ['1N', 'P', '4C', 'P'])).toBe('4S');
+    // both aces there: the slam
+    expect(bidFor('sayc', asker, ['1N', 'P', '4C', 'P', '4S', 'P'])).toMatch(/^[67]/);
+  });
+
+  it('agrees trumps below game before asking for aces, when forced to game', () => {
+    expect(bidFor('sayc', 'KQJ2.A32.AKQ32.2', ['1S', 'P', '2N', 'P', '3C', 'P'])).toBe('3S');
+  });
+
   it('two over one: a passed hand’s two-level suit is natural and not forcing', () => {
     expect(bidFor('twoOverOne', '32.KQ3.32.AJ8632', ['P', 'P', '1S', 'P'])).toBe('2C');
     expect(bidFor('twoOverOne', '32.KQ3.32.AJ8632', ['1S', 'P'])).toBe('1N');

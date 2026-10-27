@@ -37,6 +37,15 @@ def call_name(c) -> str:
     return f"{c // 5 + 1}{STRAINS[c % 5]}"
 
 
+def our_call(c: str):
+    """BEN's and BBA's name for a call back to ours (the other way from call_name)."""
+    if c == "PASS":
+        return "P"
+    if c in ("X", "XX"):
+        return c
+    return (int(c[0]) - 1) * 5 + STRAINS.index(c[1])
+
+
 def stages(calls: list[str], dealer: int) -> list[str]:
     """Each call's stage of the auction, from the side that opened (see the module's comment)."""
     out = []
@@ -187,6 +196,7 @@ def main():
     ap.add_argument("--system", default="sayc", help="booklet (the ACBL booklet's SAYC), sayc or 21gf (BBA's cards), or a .bbsa file")
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--disagreements", help="write each call the two differ on here (JSON lines)")
+    ap.add_argument("--their-auctions", help="write the referee's own auctions here, as bridge-bidding.jsonl is written (for check_records.py)")
     args = ap.parse_args()
 
     from endplay import dds
@@ -200,6 +210,7 @@ def main():
     by_stage = defaultdict(lambda: {"calls": 0, "agree": 0, "active": 0, "active_agree": 0})
     ours_from_par, theirs_from_par, head = [], [], []
     differ = open(args.disagreements, "w") if args.disagreements else None
+    own_out = open(args.their_auctions, "w") if args.their_auctions else None
     for row in rows:
         dealer = SEATS.index(row["dealer"])
         ours = [call_name(c) for c in row["calls"]]
@@ -221,6 +232,8 @@ def main():
         own: list[str] = []
         while not auction_over(own) and len(own) < 100:
             own.append(ref.call((dealer + len(own)) % 4, list(own)))
+        if own_out:
+            own_out.write(json.dumps({**row, "calls": [our_call(c) for c in own], "contract": contract_of(own, dealer)}) + "\n")
         deal = Deal(row["deal"])
         ns_vul, ew_vul = row["vul"]
         vul = Vul.both if ns_vul and ew_vul else Vul.ns if ns_vul else Vul.ew if ew_vul else Vul.none
@@ -233,6 +246,8 @@ def main():
         head.append(abs(imps(mine - par)) - abs(imps(other - par)))
     if differ:
         differ.close()
+    if own_out:
+        own_out.close()
 
     n = max(1, len(rows))
     order = ["opening", "response", "opener rebid", "responder rebid", "later",

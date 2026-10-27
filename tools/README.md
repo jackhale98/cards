@@ -75,8 +75,8 @@ The same thousand deals (seeds 1–1000):
 | Bots bid     | IMPs from par a deal | Within 2 IMPs | Slams bid (made) | Grand slams bid |
 | ------------ | -------------------- | ------------- | ---------------- | --------------- |
 | Natural      | 5.59                 | 38%           | 12 (12)          | 0               |
-| SAYC         | 4.86                 | 44%           | 42 (31)          | 0               |
-| Two over one | 4.85                 | 44%           | 43 (31)          | 0               |
+| SAYC         | 4.82                 | 44%           | 41 (31)          | 0               |
+| Two over one | 4.83                 | 44%           | 40 (29)          | 0               |
 
 The systems lose most where double dummy finds a slam that bidding rarely could (about 1.2 IMPs a
 deal), then in games that go down (1.2), games missed (1.0) and part scores that go down (0.9).
@@ -144,19 +144,19 @@ chose the same call:
 | Opening                        | 86%                         | 87%   | 86%                               | 87%   |
 | First response                 | 70%                         | 75%   | 68%                               | 70%   |
 | Opener's rebid                 | 66%                         | 72%   | 66%                               | 70%   |
-| Responder's rebid              | 33%                         | 35%   | 39%                               | 41%   |
-| Later                          | 35%                         | 35%   | 36%                               | 34%   |
+| Responder's rebid              | 33%                         | 36%   | 39%                               | 42%   |
+| Later                          | 35%                         | 32%   | 36%                               | 30%   |
 | Response, they've bid          | 34%                         | 48%   | 32%                               | 48%   |
-| Opener's rebid, they've bid    | 24%                         | 26%   | 23%                               | 25%   |
-| Responder's rebid, they've bid | 24%                         | 24%   | 21%                               | 22%   |
-| Later, they've bid             | 14%                         | 16%   | 15%                               | 16%   |
+| Opener's rebid, they've bid    | 24%                         | 27%   | 23%                               | 26%   |
+| Responder's rebid, they've bid | 24%                         | 23%   | 21%                               | 22%   |
+| Later, they've bid             | 14%                         | 14%   | 15%                               | 14%   |
 | Defenders' first call          | 42%                         | 44%   | 40%                               | 42%   |
-| Defenders' later calls         | 17%                         | 18%   | 17%                               | 18%   |
+| Defenders' later calls         | 17%                         | 17%   | 17%                               | 17%   |
 
 | IMPs from par a deal | Ours: before | after | EPBot |
 | -------------------- | ------------ | ----- | ----- |
-| SAYC                 | 5.10         | 4.86  | 4.68  |
-| Two over one         | 5.12         | 4.85  | 4.53  |
+| SAYC                 | 5.10         | 4.82  | 4.68  |
+| Two over one         | 5.12         | 4.83  | 4.53  |
 
 Not every difference is ours to fix: some is EPBot's style (it makes weak twos on four points, and
 on five cards third in hand; it jump-shifts with 15), and some is where the booklet allows either
@@ -179,6 +179,21 @@ put right (each with a test in `tests/biddingSystems.test.ts`):
 - **Our overcalls:** weak jump overcalls; at the two level a good suit (over 1NT, six cards); after
   1♣ – pass – 1♥, both their suits counted (no unusual 2NT showing the opener's clubs).
 - **Two over one:** a passed hand's two-level suit isn't game forcing.
+- **Over their interference,** from the opener's rebid on, our calls keep their meaning while they've
+  only bid at the one or two level (not in their suit; no trumps with it stopped). Partner's double
+  above 2♠ is read as for penalties, not answered as a negative double. A cue bid answers a takeout
+  double with game values. The five level, in a fight, only when clearly better.
+- **Slams:** trumps agreed below game before Blackwood; Gerber (4♣) over 1NT and 2NT.
+
+Measured and left out, because par got worse (each tried alone against the rest): rules for
+advancing partner's overcall (raises, a cue-bid raise, no trumps, a new suit: 4.93 against 4.86),
+letting partner's penalty double stand (4.94), and reopening with any 18 points (4.92). The bidder's
+own judgment does better there for now.
+
+Where the rest of the gap is (`--their-auctions` writes EPBot's own auctions for
+`check_records.py`): on deals only one side bids, ours land nearer par than EPBot's (4.43 against
+4.64 IMPs a deal in SAYC); on contested deals, further (5.30 against 4.73). In two over one EPBot
+also bids more slams (65 to our 40) and misses fewer (0.97 IMPs a deal to our 1.23).
 
 Grading a person's bidding against our rules is close to trustworthy for openings and first
 responses; past opener's rebid, and in contested auctions, the calls are still mostly judgment.

@@ -1,4 +1,4 @@
-import { handInfo, type Ctx, type HandInfo } from './auction';
+import { handInfo, stopped, type Ctx, type HandInfo } from './auction';
 import type { Hand, Picture } from './hands';
 
 /**
@@ -48,10 +48,31 @@ export function fitsNeed(h: HandInfo, n: Need): boolean {
   return !n.balanced || h.balanced;
 }
 
-export const fits = (rule: Rule, h: HandInfo, c: Ctx) => fitsNeed(h, rule.need) && (!rule.also || rule.also(h, c));
+export const fits = (rule: Rule, h: HandInfo, c: Ctx) =>
+  fitsNeed(h, rule.need) && (!rule.also || rule.also(h, c)) && (!overThem(rule, c) || noTrumpsHeld(rule, h, c));
 
 export const appliesAt = (rule: Rule, c: Ctx, system: System) =>
-  (!rule.only || rule.only === system) && (typeof rule.at === 'string' ? !c.contested && c.seq === rule.at : rule.at(c));
+  (!rule.only || rule.only === system) && (typeof rule.at === 'string' ? c.seq === rule.at && (!c.contested || overThem(rule, c)) : rule.at(c));
+
+/** The suits the other side has bid. */
+const theirSuits = (c: Ctx) => c.theirBids.map((b) => b[1]).filter((x) => x !== 'N');
+
+/**
+ * An uncontested rule kept over their interference: from the opener's rebid on, after our opening,
+ * when all they've done is bid at the one or two level (no doubles), the same calls mean the same,
+ * except a call in their suit (a cue bid means something else). Responder's first call over an
+ * overcall has rules of its own.
+ */
+function overThem(rule: Rule, c: Ctx): boolean {
+  if (typeof rule.at !== 'string' || !c.contested || c.opened !== 'us' || rule.at.split(' ').length < 2) return false;
+  if (c.calls.some((x) => !x.ours && (x.call === 'X' || x.call === 'XX'))) return false;
+  if (c.theirBids.some((b) => Number(b[0]) > 2)) return false;
+  const call = callFor(rule, c);
+  return !!call && !theirSuits(c).includes(call[1]);
+}
+
+/** No trumps over their bids needs their suits stopped. */
+const noTrumpsHeld = (rule: Rule, h: HandInfo, c: Ctx) => callFor(rule, c)?.[1] !== 'N' || theirSuits(c).every((x) => stopped(h, x));
 
 export const callFor = (rule: Rule, c: Ctx) => (typeof rule.call === 'string' ? rule.call : rule.call(c));
 export const saysFor = (rule: Rule, c: Ctx) => (typeof rule.says === 'string' ? rule.says : rule.says(c));

@@ -164,6 +164,14 @@ const competitive: Rule[] = [
       r(at, (c) => cheapest(c, x), { hcp: [0, 8], [x]: [3, 13] }, `four or more ${word(x)} (or the longest), 0–8 points`, { also: longest }),
     ];
   }),
+  // answering a takeout double with game values: a cue bid of their suit, forcing
+  r(
+    (c) => c.seq === 'X' && !c.lastByUs && quietSince(c, c.partner) && !!theirSuit(c),
+    (c) => cheapest(c, theirSuit(c)!),
+    { hcp: [12, 37] },
+    'cue bid: game values, tell me more',
+    { forcing: 'round' },
+  ),
   // over their overcall of our opening: a negative double (four of an unbid major), or raises
   r(
     (c) =>
@@ -263,7 +271,13 @@ const queenAnswers: Rule[] = [
   ),
 ];
 
-const ALL: Rule[] = [...RULES, ...competitive, ...blackwood, ...queenAnswers];
+/** Gerber: 4♣ straight over partner's 1NT or 2NT asks for aces (4NT there asks for the top of the range). */
+const gerberAsked = (c: Ctx) => /^[12]N 4C$/.test(c.seq) && c.lastByUs && c.lastBid === bidNo('4C');
+const gerber: Rule[] = ['4D', '4H', '4S', '4N'].map((call, n) =>
+  r(gerberAsked, call, {}, `${ACES[n]} ace${n === 1 ? '' : 's'} (answering Gerber)`, { also: (h) => h.aces % 4 === n }),
+);
+
+const ALL: Rule[] = [...RULES, ...competitive, ...blackwood, ...queenAnswers, ...gerber];
 
 // ---- reading partner ---------------------------------------------------------------------------
 
@@ -343,6 +357,7 @@ export function readAuction(system: System, calls: { seat: number; call: Call }[
     else if (typeof x.call === 'number' && name === '4N' && isBlackwood(c.seq ? c.seq.split(' ') : []))
       notes.push(system === 'twoOverOne' ? 'Roman Key Card Blackwood: asks for key cards (the aces and the king of trumps)' : 'Blackwood: asks for aces');
     else if (typeof x.call === 'number' && name === '4N' && c.seq) notes.push('asks partner to bid slam with the top of their range');
+    else if (name === '4C' && /^[12]N$/.test(c.seq) && !c.contested) notes.push('Gerber: asks for aces');
     else notes.push(typeof x.call === 'number' ? 'to play' : x.call === 'X' ? 'for penalties' : '');
     if (x.seat === partner) {
       if (matching.length) pic = narrow(pic, matching, c, before);
@@ -351,6 +366,7 @@ export function readAuction(system: System, calls: { seat: number; call: Call }[
       // (no rule: it says where to play; nor does a game bid that forces nothing)
       placed = typeof x.call === 'number' && name !== '4N' && (!rule || (!rule.forcing && isGame(x.call)));
       if (rule && blackwood.includes(rule)) aces = ANSWERS[system][blackwood.indexOf(rule) % 4];
+      if (rule && gerber.includes(rule)) aces = ANSWERS.sayc[gerber.indexOf(rule)];
     } else {
       if (rule?.forcing === 'game') gameForced = true;
       forced = false;
@@ -400,9 +416,11 @@ export function systemCall(system: System, calls: { seat: number; call: Call }[]
   const seq = c.seq.split(' ');
   // (2: partner just answered; 4: partner answered, we asked for the queen, and partner said)
   const queenAsk = system === 'twoOverOne' && seq.at(-4) === '4N' && ['5C', '5D'].includes(seq.at(-3)!);
-  const asked = read.aces != null ? (seq.at(-2) === '4N' ? 2 : queenAsk ? 4 : 0) : 0;
+  // (Gerber: partner answered our 4♣ over their no trumps, with aces alone)
+  const gerberAnswered = seq.length === 3 && /^[12]N$/.test(seq[0]) && seq[1] === '4C';
+  const asked = read.aces != null ? (seq.at(-2) === '4N' || gerberAnswered ? 2 : queenAsk ? 4 : 0) : 0;
   if (asked) {
-    const rkc = system === 'twoOverOne';
+    const rkc = system === 'twoOverOne' && !gerberAnswered;
     const before = seq.slice(0, -asked);
     // (the suit partner counted the king and queen of)
     const trump = rkc ? agreedSuit(before) : null;
@@ -462,6 +480,8 @@ export function systemCall(system: System, calls: { seat: number; call: Call }[]
     (x, i) =>
       x.seat === me &&
       typeof x.call === 'number' &&
+      // (a raise below game to agree trumps on the way to a slam isn't a choice of contract)
+      isGame(x.call) &&
       !ALL.some(
         (rule) =>
           appliesAt(rule, contextFor(c.calls.slice(0, i), me, vul), system) && callFor(rule, contextFor(c.calls.slice(0, i), me, vul)) === callName(x.call),
@@ -475,6 +495,15 @@ export function systemCall(system: System, calls: { seat: number; call: Call }[]
   if (choice.call === 'P') return forcing ? (bestContract(odds(), vulUs, { above: c.lastBid, skip }).call as Call) : 'P';
   // partner just said where to play: leave it unless this is clearly better, in IMPs (and never a slam they chose)
   if (read.placed && ours != null && (overruled >= 1 || bidOf(ours).level >= 6 || impsAgainst(odds(), choice.call, ours, vulUs) < 1.5)) return 'P';
+  // a slam in a suit not yet agreed: agree it first, below game, while partner can't pass (forced
+  // to game), as a good player shows the fit before asking for aces
+  if (bidOf(choice.call).level >= 6 && read.gameForced && !c.contested) {
+    const strain = callName(choice.call)[1];
+    const agree = strain !== 'N' && agreedSuit(c.seq.split(' '), true) !== strain ? cheapest(c, strain) : null;
+    if (agree && !isGame(bidNo(agree))) return bidNo(agree);
+  }
+  // straight over partner's no trumps, ask for aces with Gerber (4NT would ask for the top of the range)
+  if (bidOf(choice.call).level >= 6 && /^[12]N$/.test(c.seq) && !c.contested && c.lastBid < bidNo('4C')) return bidNo('4C');
   // a slam: ask for aces on the way (unless 4NT is past, or would be a raise of no trumps)
   if (bidOf(choice.call).level >= 6 && c.lastBid < bidNo('4N') && !c.seq.includes('4N') && isBlackwood(c.seq.split(' '))) return bidNo('4N');
   return choice.call;
@@ -506,14 +535,16 @@ function compete(odds: Odds, c: Ctx, ours: number | null, vul: boolean, theirVul
     const ran = c.calls.some((x, i) => x.ours && typeof x.call === 'number' && c.calls.slice(0, i).some((y) => !y.ours && y.call === 'X'));
     if (ran) return call;
   }
+  // (the five level is where a misjudged sacrifice costs most: bid there only when clearly better)
+  const margin = (b: number) => 30 + (bidOf(b).level >= 5 ? 120 : 0);
   // (each bid valued as the other side would let it play: doubled when it fails)
   let best: Call = call;
-  let bestEv = pass + 30;
+  let bestEv = pass;
   // (no slams in a fight for the contract: there's no room to find out enough)
   for (let b = c.lastBid + 1; b < bidNo('6C'); b++) {
     if (b === bidNo('4N')) continue;
     const ev = evContested(odds, b, vul);
-    if (ev > bestEv) {
+    if (ev > pass + margin(b) && ev > bestEv) {
       best = b;
       bestEv = ev;
     }
