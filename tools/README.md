@@ -75,8 +75,8 @@ The same thousand deals (seeds 1–1000):
 | Bots bid     | IMPs from par a deal | Within 2 IMPs | Slams bid (made) | Grand slams bid |
 | ------------ | -------------------- | ------------- | ---------------- | --------------- |
 | Natural      | 5.59                 | 38%           | 12 (12)          | 0               |
-| SAYC         | 5.10                 | 42%           | 32 (26)          | 0               |
-| Two over one | 5.12                 | 42%           | 31 (24)          | 0               |
+| SAYC         | 4.86                 | 44%           | 42 (31)          | 0               |
+| Two over one | 4.85                 | 44%           | 43 (31)          | 0               |
 
 The systems lose most where double dummy finds a slam that bidding rarely could (about 1.2 IMPs a
 deal), then in games that go down (1.2), games missed (1.0) and part scores that go down (0.9).
@@ -135,43 +135,53 @@ Two measures:
 - **Deal by deal**: EPBot bids the whole deal itself, and both contracts are scored double dummy
   against par.
 
-The thousand deals (seeds 1–1000), as of October 2026. The figures are the share of calls where
-either bid something and both chose the same call:
+The thousand deals (seeds 1–1000), October 2026: before and after the rules were put right by
+what it showed (see below). The figures are the share of calls where either bid something and both
+chose the same call:
 
-| Stage                          | SAYC (booklet card) | Two over one (BBA's card) |
-| ------------------------------ | ------------------- | ------------------------- |
-| Opening                        | 86%                 | 86%                       |
-| First response                 | 70%                 | 68%                       |
-| Opener's rebid                 | 66%                 | 66%                       |
-| Responder's rebid              | 33%                 | 39%                       |
-| Later                          | 35%                 | 36%                       |
-| Response, they've bid          | 34%                 | 32%                       |
-| Opener's rebid, they've bid    | 24%                 | 23%                       |
-| Responder's rebid, they've bid | 24%                 | 21%                       |
-| Later, they've bid             | 14%                 | 15%                       |
-| Defenders' first call          | 42%                 | 40%                       |
-| Defenders' later calls         | 17%                 | 17%                       |
+| Stage                          | SAYC (booklet card): before | after | Two over one (BBA's card): before | after |
+| ------------------------------ | --------------------------- | ----- | --------------------------------- | ----- |
+| Opening                        | 86%                         | 87%   | 86%                               | 87%   |
+| First response                 | 70%                         | 75%   | 68%                               | 70%   |
+| Opener's rebid                 | 66%                         | 72%   | 66%                               | 70%   |
+| Responder's rebid              | 33%                         | 35%   | 39%                               | 41%   |
+| Later                          | 35%                         | 35%   | 36%                               | 34%   |
+| Response, they've bid          | 34%                         | 48%   | 32%                               | 48%   |
+| Opener's rebid, they've bid    | 24%                         | 26%   | 23%                               | 25%   |
+| Responder's rebid, they've bid | 24%                         | 24%   | 21%                               | 22%   |
+| Later, they've bid             | 14%                         | 16%   | 15%                               | 16%   |
+| Defenders' first call          | 42%                         | 44%   | 40%                               | 42%   |
+| Defenders' later calls         | 17%                         | 18%   | 17%                               | 18%   |
 
-| IMPs from par a deal | Ours | EPBot |
-| -------------------- | ---- | ----- |
-| SAYC                 | 5.10 | 4.68  |
-| Two over one         | 5.12 | 4.53  |
+| IMPs from par a deal | Ours: before | after | EPBot |
+| -------------------- | ------------ | ----- | ----- |
+| SAYC                 | 5.10         | 4.86  | 4.68  |
+| Two over one         | 5.12         | 4.85  | 4.53  |
 
-Where the two reach different results, EPBot's is nearer par more often (on 318 deals of the
-thousand in SAYC, ours on 231): 0.4–0.6 IMPs a deal. Disagreement isn't all our error: some is EPBot's own style
-(it opens more 11-point hands, and makes weak twos on five cards third in hand), and a few
-differences are conventions where the booklet allows either. But the patterns that recur are ours to
-fix:
+Not every difference is ours to fix: some is EPBot's style (it makes weak twos on four points, and
+on five cards third in hand; it jump-shifts with 15), and some is where the booklet allows either
+(2NT over 1♦ with 13–15 balanced, which EPBot rarely bids). What it found that was ours, and is now
+put right (each with a test in `tests/biddingSystems.test.ts`):
 
-- **Weak twos:** we open 2♦ on poor suits, on six-four hands with a four-card major, and with a void.
-- **Responses to 1♣:** we bid a four-card major over four diamonds; SAYC bids up the line (1♦).
-- **Missing conventions:** Texas transfers (4♦/4♥ over 1NT); 3-level responses to 1NT.
-- **Limit raises:** we jump to 3♠ over 1♠ with three trumps; EPBot bids a new suit first, or game.
-- **Once the other side bids:** agreement falls to a quarter or less. Most of those calls are
-  judgment in our bidder, with no rule behind them.
+- **Weak twos** on poor suits and with a four-card major beside them; a hand worth opening one
+  (Rule of 20) opened two; 11-point hands with aces and kings passed. Nothing after a weak two: now
+  raises, a new suit forcing, and 2NT asking (SAYC: a feature; two over one: Ogust).
+- **Over 1♣**, four-card suits up the line (1♦ with four diamonds and four spades); the opener's major
+  before raising diamonds; 1NT rather than a five-card minor again.
+- **Over 1NT**, Texas transfers. After Stayman with no fit, 4NT asks for the top of the range, not aces.
+- **Raises:** a limit raise with three trumps only when light; after Jacoby 2NT, a short suit shown at
+  any strength.
+- **Forcing bids passed:** a reverse; the fourth suit forces a round in SAYC (to game in two over one),
+  and support for responder's major comes before a stopper.
+- **Their overcall:** a cue bid is the strong raise, the jump raise weak; a new suit forcing; 1NT
+  with a stopper, but a negative double first with a four-card major (and never over 1NT). The opener,
+  when it comes back round, reopens with a double when short in their suit.
+- **Our overcalls:** weak jump overcalls; at the two level a good suit (over 1NT, six cards); after
+  1♣ – pass – 1♥, both their suits counted (no unusual 2NT showing the opener's clubs).
+- **Two over one:** a passed hand's two-level suit isn't game forcing.
 
-Grading a person's bidding against our rules is trustworthy for openings and first responses once
-these are fixed; past opener's rebid, and in contested auctions, it isn't yet.
+Grading a person's bidding against our rules is close to trustworthy for openings and first
+responses; past opener's rebid, and in contested auctions, the calls are still mostly judgment.
 
 ## DDS for the Hard bots in the partnership trick games
 

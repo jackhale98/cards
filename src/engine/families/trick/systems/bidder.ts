@@ -37,6 +37,10 @@ const theirSuit = (c: Ctx) => {
   return t && strainOf(t) !== 'N' && levelOf(t) <= 3 ? strainOf(t) : null;
 };
 const firstAction = (c: Ctx) => c.opened === 'them' && c.seq === '' && !!lastTheirs(c);
+/** Every suit the other side has bid (after 1♣ – pass – 1♥, both clubs and hearts are theirs). */
+const theirSuits = (c: Ctx) => c.theirBids.map(strainOf).filter((x) => x !== 'N');
+/** They've bid one suit only: what a cue bid, the unusual 2NT or a 1NT overcall are built on. */
+const oneSuit = (c: Ctx) => firstAction(c) && !!theirSuit(c) && theirSuits(c).length === 1;
 
 /** Their one-level opening is about to be passed out: we're in the balancing seat. */
 const balancing = (c: Ctx) =>
@@ -46,6 +50,11 @@ const unusual = (t: string) => ['C', 'D', 'H'].filter((x) => x !== t).slice(0, 2
 /** The suits a cue bid of their suit (Michaels) shows: both majors over a minor, else the other major and a minor. */
 const michaels = (t: string) => (t === 'C' || t === 'D' ? ['S', 'H'] : [t === 'S' ? 'H' : 'S']);
 const minor5 = (h: HandInfo) => h.L.C >= 5 || h.L.D >= 5;
+/** Two of the top four honours, or three of the top five: a suit worth bidding on little. */
+const decentSuit = (h: HandInfo, x: string) => {
+  const s = h.hand[SUIT_AT[x]];
+  return s.filter((v) => v >= 11).length >= 2 || s.filter((v) => v >= 10).length >= 3;
+};
 
 const competitive: Rule[] = [
   // in the balancing seat, a little lighter: partner is marked with some values
@@ -73,14 +82,14 @@ const competitive: Rule[] = [
   ),
   // two-suiters: the unusual 2NT and Michaels, five-five (strong hands start with a double or an overcall)
   r(
-    (c) => firstAction(c) && !!theirSuit(c) && levelOf(lastTheirs(c)!) === 1,
+    (c) => oneSuit(c) && levelOf(lastTheirs(c)!) === 1,
     '2N',
     { hcp: [7, 12] },
     (c) => `unusual 2NT: five or more ${word(unusual(theirSuit(c)!)[0])} and ${word(unusual(theirSuit(c)!)[1])}`,
     { also: (h, c) => unusual(theirSuit(c)!).every((x) => h.L[x] >= 5) },
   ),
   r(
-    (c) => firstAction(c) && !!theirSuit(c) && levelOf(lastTheirs(c)!) === 1,
+    (c) => oneSuit(c) && levelOf(lastTheirs(c)!) === 1,
     (c) => `2${theirSuit(c)}`,
     { hcp: [7, 12] },
     (c) => {
@@ -89,35 +98,51 @@ const competitive: Rule[] = [
     },
     { also: (h, c) => michaels(theirSuit(c)!).every((x) => h.L[x] >= 5) && (michaels(theirSuit(c)!).length === 2 || minor5(h)) },
   ),
-  r(
-    (c) => firstAction(c) && !!theirSuit(c) && levelOf(lastTheirs(c)!) === 1,
-    '1N',
-    { hcp: [15, 18], balanced: true },
-    '15–18 points, balanced, a stopper in their suit',
-    {
-      also: (h, c) => stopped(h, theirSuit(c)!),
-    },
-  ),
-  // a five-card suit, the longest (higher first between equals)
+  r((c) => oneSuit(c) && levelOf(lastTheirs(c)!) === 1, '1N', { hcp: [15, 18], balanced: true }, '15–18 points, balanced, a stopper in their suit', {
+    also: (h, c) => stopped(h, theirSuit(c)!),
+  }),
+  // a weak jump overcall: a decent six-card suit and not much else, a level higher than needed
+  ...SUITS.map((x) => {
+    const jump = (c: Ctx) => {
+      const b = cheapest(c, x);
+      return b && levelOf(b) <= 2 ? `${levelOf(b) + 1}${x}` : null;
+    };
+    return r(
+      (c) => firstAction(c) && !!theirSuit(c) && !theirSuits(c).includes(x) && levelOf(lastTheirs(c)!) === 1,
+      jump,
+      { hcp: [5, 10], [x]: [6, 7] },
+      `weak jump overcall: six or more ${word(x)}, 5–10 points`,
+      { also: (h) => decentSuit(h, x) },
+    );
+  }),
+  // a five-card suit, the longest (higher first between equals); at the two level a good one or six
+  // cards (over 1NT, six), since it may be doubled
   ...SUITS.map((x) =>
     r(
-      (c) => firstAction(c) && theirSuit(c) !== x && !!cheapest(c, x) && levelOf(cheapest(c, x)!) <= 2,
+      (c) => firstAction(c) && !theirSuits(c).includes(x) && !!cheapest(c, x) && levelOf(cheapest(c, x)!) <= 2,
       (c) => cheapest(c, x),
       { hcp: [8, 16], [x]: [5, 13] },
       (c) => `overcall: five or more ${word(x)}, ${levelOf(cheapest(c, x)!) === 1 ? '8–16' : '10–16'} points`,
       {
         also: (h, c) =>
-          (levelOf(cheapest(c, x)!) === 1 || h.hcp >= 10) &&
-          SUITS.every((y) => y === x || y === theirSuit(c) || h.L[y] < h.L[x] || (h.L[y] === h.L[x] && SUITS.indexOf(y) > SUITS.indexOf(x))),
+          (levelOf(cheapest(c, x)!) === 1 || (h.hcp >= 10 && (h.L[x] >= 6 || (!!theirSuit(c) && decentSuit(h, x))))) &&
+          SUITS.every((y) => y === x || theirSuits(c).includes(y) || h.L[y] < h.L[x] || (h.L[y] === h.L[x] && SUITS.indexOf(y) > SUITS.indexOf(x))),
       },
     ),
   ),
-  r((c) => firstAction(c) && !!theirSuit(c) && c.doubled === 0, 'X', { hcp: [12, 37] }, 'takeout: short in their suit, support for the others (or 17+)', {
-    also: (h, c) => {
-      const t = theirSuit(c)!;
-      return h.hcp >= 17 || (h.L[t] <= 2 && SUITS.every((y) => y === t || h.L[y] >= 3));
+  // (over two suits of theirs, short in both and support for the other two)
+  r(
+    (c) => firstAction(c) && !!theirSuit(c) && c.doubled === 0,
+    'X',
+    { hcp: [12, 37] },
+    (c) => (theirSuits(c).length > 1 ? 'takeout: the two unbid suits' : 'takeout: short in their suit, support for the others (or 17+)'),
+    {
+      also: (h, c) => {
+        const t = theirSuits(c);
+        return (h.hcp >= 17 && t.length === 1) || (t.every((x) => h.L[x] <= 2) && SUITS.every((y) => t.includes(y) || h.L[y] >= (t.length > 1 ? 4 : 3)));
+      },
     },
-  }),
+  ),
   r((c) => firstAction(c), 'P', {}, ''),
   // answering partner's takeout double (the other side passed): the longest other suit, a jump with 9–11
   ...SUITS.flatMap((x) => {
@@ -141,7 +166,14 @@ const competitive: Rule[] = [
   }),
   // over their overcall of our opening: a negative double (four of an unbid major), or raises
   r(
-    (c) => /^1[CDHS]$/.test(c.seq) && c.contested && !!lastTheirs(c) && c.lastBid <= bidNo('2S') && c.doubled === 0 && c.calls.at(-1)?.call !== 'P',
+    (c) =>
+      /^1[CDHS]$/.test(c.seq) &&
+      c.contested &&
+      !!lastTheirs(c) &&
+      strainOf(lastTheirs(c)!) !== 'N' &&
+      c.lastBid <= bidNo('2S') &&
+      c.doubled === 0 &&
+      c.calls.at(-1)?.call !== 'P',
     'X',
     { hcp: [6, 37] },
     (c) => `negative double: four or more of the unbid major${unbidMajors(c).length > 1 ? 's' : ''}`,
@@ -160,8 +192,13 @@ function blackwoodAsked(c: Ctx): boolean {
   if (ours.at(-1) !== '4N' || c.lastBid !== bidNo('4N') || !c.lastByUs) return false;
   return isBlackwood(ours.slice(0, -1));
 }
-/** 4NT after these calls of ours asks for aces; straight after a no-trump bid it's a raise, asking for the top of the range. */
-const isBlackwood = (before: string[]) => !!before.length && strainOf(before.at(-1)!) !== 'N';
+/**
+ * 4NT after these calls of ours asks for aces; straight after a no-trump bid it's a raise, asking for
+ * the top of the range, and so it is after our no-trump opening until a suit is agreed (1NT – 2♣ –
+ * 2♥ – 4NT: no fit found, so the same question).
+ */
+const isBlackwood = (before: string[]) =>
+  !!before.length && strainOf(before.at(-1)!) !== 'N' && !(['1N', '2N'].includes(before[0]) && !agreedSuit(before, true));
 /**
  * The suit our side has agreed (the last one both partners have bid), else the last suit bid: the
  * trumps Roman Key Card Blackwood counts the king and queen of.
@@ -303,8 +340,9 @@ export function readAuction(system: System, calls: { seat: number; call: Call }[
     const { rules: matching, before } = ahead(system, c, name);
     const rule = matching[0];
     if (rule) notes.push(saysFor(rule, c));
-    else if (typeof x.call === 'number' && name === '4N')
+    else if (typeof x.call === 'number' && name === '4N' && isBlackwood(c.seq ? c.seq.split(' ') : []))
       notes.push(system === 'twoOverOne' ? 'Roman Key Card Blackwood: asks for key cards (the aces and the king of trumps)' : 'Blackwood: asks for aces');
+    else if (typeof x.call === 'number' && name === '4N' && c.seq) notes.push('asks partner to bid slam with the top of their range');
     else notes.push(typeof x.call === 'number' ? 'to play' : x.call === 'X' ? 'for penalties' : '');
     if (x.seat === partner) {
       if (matching.length) pic = narrow(pic, matching, c, before);

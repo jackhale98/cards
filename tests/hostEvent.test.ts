@@ -142,7 +142,8 @@ describe('a tournament table', () => {
     expect(result.places).toContain(0);
     expect(result.scores).toHaveLength(4);
     host.close();
-  });
+    // (a whole game of bots: about four seconds alone, more on a busy machine)
+  }, 20_000);
 
   it('a table of bots alone plays on by itself: a bot deals the next hand', () => {
     // (as the director's device hosts a tournament's table of bots: nobody there to press "Next hand")

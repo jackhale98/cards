@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { TrickData } from '../src/engine/families/trick';
 import { callName, handInfo } from '../src/engine/families/trick/systems/auction';
-import { readAuction, systemCall } from '../src/engine/families/trick/systems/bidder';
+import { explainLast, readAuction, systemCall } from '../src/engine/families/trick/systems/bidder';
 import { handOf, mulberry, samplePartner, type Hand } from '../src/engine/families/trick/systems/hands';
 import { bestContract, type Odds } from '../src/engine/families/trick/systems/place';
 import type { System } from '../src/engine/families/trick/systems/rules';
@@ -195,4 +195,112 @@ describe('bidding systems: SAYC and two over one', () => {
         for (const e of s.log.slice(start)) if (/ bids /.test(e.text)) expect(e.text).toMatch(/\(.+\)$/);
       }
     });
+});
+
+/** What the last of `calls` (names, from seat 0, the dealer) means in the system. */
+const meaningOf = (system: System, calls: string[]) =>
+  explainLast(
+    system,
+    calls.map((c, i) => ({ seat: i % 4, call: toCall(c) })),
+    NONE,
+  );
+
+describe('bidding systems: by the book (the calls EPBot and the SAYC booklet make)', () => {
+  it('opens a weak two only with six cards of a decent suit, no four-card major on the side, and too little to open one', () => {
+    expect(bidFor('sayc', 'Q2.KQJ932.963.32', [])).toBe('2H');
+    // eleven points and six cards make twenty with the next suit: one of a suit
+    expect(bidFor('sayc', 'Q2.KQJ932.K63.32', [])).toBe('1H');
+    // five hearts, a poor suit, a side major: not a weak two
+    expect(bidFor('sayc', '5.AQJ42.T4.87532', [])).toBe('P');
+    expect(bidFor('sayc', '32.T98764.KQ3.32', [])).toBe('P');
+    expect(bidFor('sayc', 'J543.8.KQT653.63', [])).toBe('P');
+  });
+
+  it('answers a weak two: 2NT asks for a feature (SAYC) or the strength and suit (Ogust, two over one)', () => {
+    const asked = ['2S', 'P', '2N', 'P'];
+    expect(bidFor('sayc', 'KQJ932.A32.32.32', asked)).toBe('3H');
+    expect(bidFor('sayc', 'KQT932.32.432.32', asked)).toBe('3S');
+    expect(bidFor('twoOverOne', 'KQJ932.A32.32.32', asked)).toBe('3S');
+    expect(bidFor('twoOverOne', 'KQT932.32.432.32', asked)).toBe('3D');
+    // a fit and game values: game; four trumps and nothing more: three, to keep them out; three, pass
+    expect(bidFor('sayc', 'A32.AK32.KQ32.32', ['2S', 'P'])).toBe('4S');
+    expect(bidFor('sayc', 'A432.J32.5432.32', ['2S', 'P'])).toBe('3S');
+    expect(bidFor('sayc', 'A32.J32.5432.432', ['2S', 'P'])).toBe('P');
+  });
+
+  it('over 1♣, bids four-card suits up the line: 1♦ with four diamonds and four spades', () => {
+    expect(bidFor('sayc', 'Q865.JT.J653.A72', ['1C', 'P'])).toBe('1D');
+    expect(bidFor('sayc', 'Q8652.J.J653.A72', ['1C', 'P'])).toBe('1S');
+    // and the opener shows a four-card major before raising diamonds
+    expect(bidFor('sayc', '.KJ32.KQ32.AQ543', ['1C', 'P', '1D', 'P'])).toBe('1H');
+  });
+
+  it('makes a limit raise with three trumps only when light: with 11 high-card points, a new suit first', () => {
+    expect(bidFor('sayc', 'AQ3.QT3.87.KT532', ['1S', 'P'])).toBe('2C');
+    expect(bidFor('sayc', 'QT3.AT4.84.K8753', ['1S', 'P'])).toBe('3S');
+  });
+
+  it('over their overcall, a four-card major goes into a negative double before 1NT', () => {
+    expect(bidFor('sayc', 'Q84.K874.Q76.K54', ['1C', '1S'])).toBe('X');
+  });
+
+  it('rebids 1NT with a minimum and a five-card minor, rather than the minor again', () => {
+    expect(bidFor('sayc', 'A.973.KQT5.Q9763', ['1C', 'P', '1S', 'P'])).toBe('1N');
+  });
+
+  it('over 1NT, Texas: 4♦ with six hearts and game values, and the opener completes it', () => {
+    expect(bidFor('sayc', 'A7.AJT852.Q54.93', ['1N', 'P'])).toBe('4D');
+    expect(bidFor('sayc', 'AQ2.KJ3.Q632.K32', ['1N', 'P', '4D', 'P'])).toBe('4H');
+  });
+
+  it('after Jacoby 2NT, a minimum with a short suit shows it rather than jump to game', () => {
+    expect(bidFor('sayc', 'AQJ32.K3.Q632.2', ['1S', 'P', '2N', 'P'])).toBe('3C');
+  });
+
+  it('with 17+ and four spades over 1♥ – 1NT, reverses rather than bid a three-card minor', () => {
+    expect(bidFor('sayc', 'AKJ2.AQJ32.K32.2', ['1H', 'P', '1N', 'P'])).toBe('2S');
+  });
+
+  it('never passes a reverse: it forces for a round', () => {
+    expect(bidFor('sayc', 'KJ32.32.Q2.85432', ['1D', 'P', '1S', 'P', '2H', 'P'])).not.toBe('P');
+  });
+
+  it('answers the fourth suit with support for responder’s major first; it forces a round in SAYC, to game in two over one', () => {
+    expect(bidFor('sayc', 'AQ32.K32.KJ32.A2', ['1D', 'P', '1H', 'P', '1S', 'P', '2C', 'P'])).toBe('2H');
+    expect(meaningOf('sayc', ['1D', 'P', '1H', 'P', '1S', 'P', '2C'])).toMatch(/\(forcing\)$/);
+    expect(meaningOf('twoOverOne', ['1D', 'P', '1H', 'P', '1S', 'P', '2C'])).toMatch(/game forcing/);
+  });
+
+  it('4NT after 1NT and Stayman with no fit asks for the top of the range, not for aces', () => {
+    expect(meaningOf('sayc', ['1N', 'P', '2C', 'P', '2H', 'P', '4N'])).toMatch(/top of their range/);
+    // with a suit agreed it's Blackwood
+    expect(meaningOf('sayc', ['1N', 'P', '2D', 'P', '2H', 'P', '3H', 'P', '4N'])).toMatch(/Blackwood/);
+  });
+
+  it('over their overcall: a cue bid is the limit raise, the jump raise is weak, and a double of 1NT is not negative', () => {
+    expect(bidFor('sayc', 'K632.Q3.KJ32.932', ['1S', '2C'])).toBe('3C');
+    expect(bidFor('sayc', 'K6532.3.J8732.93', ['1S', '2C'])).toBe('3S');
+    expect(bidFor('sayc', 'KJ32.32.Q432.J32', ['1H', '1N'])).not.toBe('X');
+  });
+
+  it('after 1♣ – pass – 1♥, the unusual 2NT is not for the opener’s clubs', () => {
+    expect(bidFor('sayc', 'K2.32.KQJ32.QJ432', ['1C', 'P', '1H'])).not.toBe('2N');
+  });
+
+  it('overcalls: a weak jump with a decent six-card suit; at the two level only a good suit (over 1NT, six cards)', () => {
+    expect(bidFor('sayc', 'KQT975.32.J32.32', ['1C'])).toBe('2S');
+    expect(bidFor('sayc', 'A2.32.K8632.KJ32', ['1S'])).toBe('P');
+    expect(bidFor('sayc', 'K2.AJ932.Q32.Q32', ['1N'])).toBe('P');
+  });
+
+  it('when their overcall comes back round, the opener short in their suit reopens with a double', () => {
+    expect(bidFor('sayc', 'AKJ32.4.KQ32.Q32', ['1S', '2H', 'P', 'P'])).toBe('X');
+    // and with 16+, redoubles their double in the passout seat
+    expect(bidFor('sayc', 'AQ2.K3.KQJ632.K2', ['1D', 'P', 'P', 'X'])).toBe('XX');
+  });
+
+  it('two over one: a passed hand’s two-level suit is natural and not forcing', () => {
+    expect(bidFor('twoOverOne', '32.KQ3.32.AJ8632', ['P', 'P', '1S', 'P'])).toBe('2C');
+    expect(bidFor('twoOverOne', '32.KQ3.32.AJ8632', ['1S', 'P'])).toBe('1N');
+  });
 });
