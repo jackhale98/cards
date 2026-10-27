@@ -105,6 +105,74 @@ The weights go in `src/engine/families/trick/systems/tricks.ts`. On deals it was
 the estimate is within about a trick (an eight-card fit or better: typical error 1.07 tricks; no
 trumps with 20+ points: 1.23).
 
+## Bridge bidding against EPBot
+
+Par says how far the auctions land from perfect; it doesn't say whether a call is the one a good
+player of the system would make. For that, `compare_bidding.py` puts our bots' auctions next to
+EPBot's: the engine of Edward Piwowar's Bridge Bidding Analyzer (BBA), a strong rule-based bidder
+that plays from a convention card. It ships, built for Linux, in the checkout of
+[BEN](https://github.com/lorserker/ben) (GPL), with BBA's cards. Neither comes into the app.
+
+```bash
+git clone --depth 1 https://github.com/lorserker/ben ~/ben
+python -m venv ~/ben-venv && ~/ben-venv/bin/pip install "numpy>=2.0,<2.1" scipy colorama endplay==0.5.12
+SELFPLAY=1 GAMES=none BIDDING=1000 SYSTEM=1 OUT=records pnpm exec vitest run tests/selfplay.bench.test.ts
+BEN_HOME=~/ben ~/ben-venv/bin/python tools/compare_bidding.py records/bridge-bidding.jsonl --system booklet \
+  --disagreements records/differ.jsonl           # about five minutes
+```
+
+`--system booklet` is BBA's SAYC card with what the ACBL's SAYC booklet doesn't have switched off
+(BBA's own card plays SAYC with Bergen raises, inverted minors, splinters, Smolen, Lebensohl, Drury
+and key-card Blackwood); `sayc` and `21gf` are BBA's cards as they come. `--referee self` checks the
+tool: our own calls back, every one agrees.
+
+Two measures:
+
+- **Call by call**: at each point of our auction, the call EPBot makes there, given the same calls
+  before it, by stage of the auction. `active_agree` counts only the calls where either of them bid
+  something (both passing says little). `--disagreements` writes every call they differ on, with the
+  hand, for looking through.
+- **Deal by deal**: EPBot bids the whole deal itself, and both contracts are scored double dummy
+  against par.
+
+The thousand deals (seeds 1–1000), as of October 2026. The figures are the share of calls where
+either bid something and both chose the same call:
+
+| Stage                          | SAYC (booklet card) | Two over one (BBA's card) |
+| ------------------------------ | ------------------- | ------------------------- |
+| Opening                        | 86%                 | 86%                       |
+| First response                 | 70%                 | 68%                       |
+| Opener's rebid                 | 66%                 | 66%                       |
+| Responder's rebid              | 33%                 | 39%                       |
+| Later                          | 35%                 | 36%                       |
+| Response, they've bid          | 34%                 | 32%                       |
+| Opener's rebid, they've bid    | 24%                 | 23%                       |
+| Responder's rebid, they've bid | 24%                 | 21%                       |
+| Later, they've bid             | 14%                 | 15%                       |
+| Defenders' first call          | 42%                 | 40%                       |
+| Defenders' later calls         | 17%                 | 17%                       |
+
+| IMPs from par a deal | Ours | EPBot |
+| -------------------- | ---- | ----- |
+| SAYC                 | 5.10 | 4.68  |
+| Two over one         | 5.12 | 4.53  |
+
+Where the two reach different results, EPBot's is nearer par more often (on 318 deals of the
+thousand in SAYC, ours on 231): 0.4–0.6 IMPs a deal. Disagreement isn't all our error: some is EPBot's own style
+(it opens more 11-point hands, and makes weak twos on five cards third in hand), and a few
+differences are conventions where the booklet allows either. But the patterns that recur are ours to
+fix:
+
+- **Weak twos:** we open 2♦ on poor suits, on six-four hands with a four-card major, and with a void.
+- **Responses to 1♣:** we bid a four-card major over four diamonds; SAYC bids up the line (1♦).
+- **Missing conventions:** Texas transfers (4♦/4♥ over 1NT); 3-level responses to 1NT.
+- **Limit raises:** we jump to 3♠ over 1♠ with three trumps; EPBot bids a new suit first, or game.
+- **Once the other side bids:** agreement falls to a quarter or less. Most of those calls are
+  judgment in our bidder, with no rule behind them.
+
+Grading a person's bidding against our rules is trustworthy for openings and first responses once
+these are fixed; past opener's rebid, and in contested auctions, it isn't yet.
+
 ## DDS for the Hard bots in the partnership trick games
 
 The Hard bots play bridge's cards the way the strong bridge programs do: they deal the cards they

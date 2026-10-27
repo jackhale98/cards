@@ -104,7 +104,8 @@ src/ui/components/CardLayer.svelte  draws every card on the table, one element e
 src/app.svelte.ts      app state, routing, starting a host or client
 src/sw.js              the service worker (opens at once, and offline); vite.config.ts writes in its file list
 tools/                 Python checks with other people's programs: endplay (bridge, double dummy) and
-                       PokerKit replay the bots' games (pnpm records); README.md reads the strength report
+                       PokerKit replay the bots' games (pnpm records); compare_bidding.py, our bidding
+                       call by call against EPBot's (BBA); README.md reads the strength report
 relay/src/index.ts     Worker + Durable Object per table: signalling, fallback relay, takeover, reports
 tests/                 vitest (tests/netHarness.ts: an in-memory network)    e2e/  Playwright
 docs/ADDING_A_GAME.md  how to add a game: read it before touching families or game.json
