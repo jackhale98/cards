@@ -228,6 +228,10 @@
           "label": {
             "type": "string"
           },
+          "about": {
+            "type": "string",
+            "description": "A line under the option in the lobby: what it does, where How to play has no room for it (a practice mode, say)."
+          },
           "type": {
             "enum": ["number", "boolean"]
           },

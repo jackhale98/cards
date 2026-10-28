@@ -1,4 +1,5 @@
 <script lang="ts">
+  import SuitText from '../components/SuitText.svelte';
   import { marquee } from '../marquee';
   import { app, inviteUrl } from '../../app.svelte';
   import { CATEGORIES, categoryOf, GAME_LIST, getGame, GAMES, misfit, playersText, searchGames, startProblem } from '../../games';
@@ -131,10 +132,11 @@
 {#snippet optionList()}
   <div class="options">
     {#each game.config.options ?? [] as o (o.id)}
-      <label class="opt">
+      <!-- (many choices: the label above, the choices wrapping under it, rather than off the edge) -->
+      <label class="opt" class:stack={(o.choices?.length ?? 0) > 4}>
         <span>{o.label}</span>
         {#if o.choices}
-          <span class="seg">
+          <span class="seg" class:many={o.choices.length > 4}>
             {#each o.choices as c, i (c)}
               <button class:on={Number(lobby.options[o.id]) === i} disabled={!ctl} onclick={() => ctl?.setOption(o.id, i)}>{c}</button>
             {/each}
@@ -149,6 +151,7 @@
           <input type="checkbox" disabled={!ctl} checked={!!lobby.options[o.id]} onchange={(e) => ctl?.setOption(o.id, e.currentTarget.checked)} />
         {/if}
       </label>
+      {#if o.about}<p class="about"><SuitText text={o.about} /></p>{/if}
     {/each}
     {#if takeBackable}
       <!-- (the table's own setting, for any turn-by-turn game) -->
@@ -819,6 +822,12 @@
     gap: 0.6rem;
     margin-top: 0.7rem;
   }
+  /* (what an option does, under it, when How to play has no room for it) */
+  .about {
+    margin: -0.35rem 0 0;
+    font-size: 0.75rem;
+    color: var(--ink-faint);
+  }
   .opt {
     display: flex;
     align-items: center;
@@ -873,6 +882,18 @@
     height: 34px;
     font-size: 0.82rem;
     color: var(--ink-dim);
+  }
+  .opt.stack {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .seg.many {
+    display: flex;
+    flex-wrap: wrap;
+    border-radius: 14px;
+  }
+  .seg.many button {
+    flex: 1 1 auto;
   }
   .seg button.on {
     background: var(--gold);

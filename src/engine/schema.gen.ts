@@ -166,6 +166,10 @@ export interface ChipsConfig {
 export interface GameOption {
   id: string;
   label: string;
+  /**
+   * A line under the option in the lobby: what it does, where How to play has no room for it (a practice mode, say).
+   */
+  about?: string;
   type: 'number' | 'boolean';
   default: number | boolean;
   min?: number;

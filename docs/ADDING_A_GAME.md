@@ -134,6 +134,8 @@ need to play well and not be surprised:
 - Usually 4–8 lines of one or two short sentences each (`tests/howToPlay.test.ts` allows at most 13 lines of 260 characters at any table size).
 - Use the words on the game's buttons and tips, and card symbols (2♣, Q♠).
 - Say what the engine does. Where a rule depends on a lobby option, say "(a lobby option)".
+- An option that isn't a rule of the game (a practice mode, say) explains itself in its own `about`,
+  a line under it in the lobby (200 characters at most), rather than in How to play.
 - Rules for one table size (its deck, deal or partnerships) go in `byPlayers.<n>.rulesSummary`,
   shown after the main list only when that many play.
 

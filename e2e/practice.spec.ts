@@ -18,6 +18,8 @@ async function practiceTable(page: Page, topic: string) {
   await page.locator('[data-game="bridge"]').first().click();
   await page.getByRole('button', { name: 'Settings' }).click();
   await page.getByRole('button', { name: topic, exact: true }).click();
+  // (what it does, under it)
+  await expect(page.getByText('checked against the bots’ system', { exact: false })).toBeVisible();
   await page.keyboard.press('Escape');
   for (let i = 0; i < 3; i++) await page.click('text=+ Add bot');
   await page.click('.dealbar button.primary');
