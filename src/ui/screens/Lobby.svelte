@@ -132,25 +132,51 @@
 {#snippet optionList()}
   <div class="options">
     {#each game.config.options ?? [] as o (o.id)}
-      <!-- (many choices: the label above, the choices wrapping under it, rather than off the edge) -->
-      <label class="opt" class:stack={(o.choices?.length ?? 0) > 4}>
+      <!-- (a row, not a <label>: a label round a row of buttons names the first button after all of them) -->
+      <div class="opt">
         <span>{o.label}</span>
-        {#if o.choices}
-          <span class="seg" class:many={o.choices.length > 4}>
+        {#if o.choices && o.choices.length > 4}
+          <!-- (many choices: a list to pick from, rather than a row of buttons running off the edge) -->
+          <select
+            class="choose"
+            aria-label={o.label}
+            disabled={!ctl}
+            value={Number(lobby.options[o.id])}
+            onchange={(e) => ctl?.setOption(o.id, Number(e.currentTarget.value))}
+          >
+            {#each o.choices as c, i (c)}<option value={i}>{c}</option>{/each}
+          </select>
+        {:else if o.choices}
+          <span class="seg" role="group" aria-label={o.label}>
             {#each o.choices as c, i (c)}
-              <button class:on={Number(lobby.options[o.id]) === i} disabled={!ctl} onclick={() => ctl?.setOption(o.id, i)}>{c}</button>
+              <button
+                class:on={Number(lobby.options[o.id]) === i}
+                aria-pressed={Number(lobby.options[o.id]) === i}
+                disabled={!ctl}
+                onclick={() => ctl?.setOption(o.id, i)}>{c}</button
+              >
             {/each}
           </span>
         {:else if o.type === 'number'}
-          <span class="stepper">
-            <button disabled={!ctl} onclick={() => ctl?.setOption(o.id, Math.max(o.min ?? 0, Number(lobby.options[o.id]) - (o.step ?? 1)))}>−</button>
+          <span class="stepper" role="group" aria-label={o.label}>
+            <button aria-label="Fewer" disabled={!ctl} onclick={() => ctl?.setOption(o.id, Math.max(o.min ?? 0, Number(lobby.options[o.id]) - (o.step ?? 1)))}
+              >−</button
+            >
             <b>{lobby.options[o.id]}</b>
-            <button disabled={!ctl} onclick={() => ctl?.setOption(o.id, Math.min(o.max ?? 1e9, Number(lobby.options[o.id]) + (o.step ?? 1)))}>+</button>
+            <button aria-label="More" disabled={!ctl} onclick={() => ctl?.setOption(o.id, Math.min(o.max ?? 1e9, Number(lobby.options[o.id]) + (o.step ?? 1)))}
+              >+</button
+            >
           </span>
         {:else}
-          <input type="checkbox" disabled={!ctl} checked={!!lobby.options[o.id]} onchange={(e) => ctl?.setOption(o.id, e.currentTarget.checked)} />
+          <input
+            type="checkbox"
+            aria-label={o.label}
+            disabled={!ctl}
+            checked={!!lobby.options[o.id]}
+            onchange={(e) => ctl?.setOption(o.id, e.currentTarget.checked)}
+          />
         {/if}
-      </label>
+      </div>
       {#if o.about}<p class="about"><SuitText text={o.about} /></p>{/if}
     {/each}
     {#if takeBackable}
@@ -883,17 +909,22 @@
     font-size: 0.82rem;
     color: var(--ink-dim);
   }
-  .opt.stack {
-    flex-direction: column;
-    align-items: stretch;
+  .choose {
+    min-width: 0;
+    max-width: 60%;
+    height: 34px;
+    padding: 0 0.7rem;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--glass);
+    color: var(--ink);
+    font: inherit;
+    font-size: 0.82rem;
   }
-  .seg.many {
-    display: flex;
-    flex-wrap: wrap;
-    border-radius: 14px;
-  }
-  .seg.many button {
-    flex: 1 1 auto;
+  /* (the list itself is drawn by the system, often light: dark text on it) */
+  .choose option {
+    color: #10231c;
+    background: var(--card-face);
   }
   .seg button.on {
     background: var(--gold);

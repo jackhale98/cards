@@ -15,6 +15,8 @@ async function bridgeDuplicate(host: Page) {
   await host.locator('[data-game="bridge"]').first().click();
   await host.getByRole('button', { name: 'Settings' }).click();
   await host.getByRole('button', { name: 'Duplicate', exact: true }).first().click();
+  // (compared with another table: a table of bots, or whoever is sitting out; "No one" is the default)
+  await host.getByRole('button', { name: 'Another table', exact: true }).first().click();
   await host.keyboard.press('Escape');
 }
 

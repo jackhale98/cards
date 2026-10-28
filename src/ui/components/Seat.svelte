@@ -191,11 +191,13 @@
       transform: translateY(-50%) scale(0.95);
     }
   }
+  /* (over the avatar and name, at the pill's left end, clear of the seat's cards on its right; and
+     above the card layer, which draws those cards, so where a long label meets them it still reads) */
   .rel {
     position: absolute;
+    z-index: 5;
     top: -9px;
-    left: 50%;
-    transform: translateX(-50%);
+    left: 12px;
     padding: 1px 7px;
     border-radius: 6px;
     font-size: 0.7rem;

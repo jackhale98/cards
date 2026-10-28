@@ -30,7 +30,7 @@
       "id": "compare",
       "label": "Compare with (duplicate)",
       "type": "number",
-      "default": 0,
+      "default": 2,
       "min": 0,
       "max": 2,
       "step": 1,
