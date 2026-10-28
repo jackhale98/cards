@@ -59,6 +59,8 @@ export interface TrickData {
    */
   boards?: Board[];
   board?: number;
+  /** Bridge practice (the lobby's "Practice"): see practice.ts. */
+  practice?: Practice;
   results?: BoardResult[];
   others?: OtherResult[];
   compared?: boolean;
@@ -178,3 +180,23 @@ export function sequence(g: TrickGame, s: S): number[] {
 }
 /** Hands in a game played through `handSizes` once (`end.rounds`); otherwise no limit. */
 export const totalRounds = (g: TrickGame, s: S) => (g.R.end.rounds ? sequence(g, s).length : Infinity);
+
+/** A coach's note on one call: how it went by the system, in a few words (GameStatus.coach). */
+export interface CoachNote {
+  tone: 'good' | 'fair' | 'off' | 'info';
+  title: string;
+  lines: string[];
+}
+
+/**
+ * Bridge practice: the deal is dealt for the topic (to `student`, the first person at the table),
+ * and each person's first call is graded by the system's rules, privately (`notes`, by seat: see
+ * redactData). `undo` is where the auction stood before a graded call, for "Try again" while the
+ * auction lasts; `tally`, each person's book calls out of those graded this sitting.
+ */
+export interface Practice {
+  student: number;
+  notes: (CoachNote | null)[];
+  undo: (number | null)[];
+  tally: { book: number; graded: number }[];
+}

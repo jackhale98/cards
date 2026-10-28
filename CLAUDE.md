@@ -45,7 +45,9 @@ src/engine/            pure TS: no DOM, no network, no UI
   redact.ts            what each viewer may see: placeholders for unseen cards
   validate.ts          checkAction: an incoming action against the specs that were offered
   families/            one engine per kind of game; index.ts loads them on demand (rules.family →
-                       engine), traits.ts says which have bots / real-time play without loading them
+                       engine), traits.ts says which have bots / real-time play without loading them;
+                       trick/systems/ the bridge bidding systems (sayc.ts, the rules; bidder.ts; grade.ts,
+                       a person's call graded by the rules), trick/practice.ts bridge's practice deals
   lib/                 betting, pokerEval, trickTaking, passing, melds, cribbageScore, teams,
                        realtime (the speed games), canastaCards, duplicate (boards, IMPs, matchpoints),
                        par (a bridge deal's par from the solver's table)

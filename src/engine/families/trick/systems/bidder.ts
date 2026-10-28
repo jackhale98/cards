@@ -552,7 +552,13 @@ function compete(odds: Odds, c: Ctx, ours: number | null, vul: boolean, theirVul
   return best;
 }
 
-function legal(c: Ctx, call: Call): boolean {
+/** The rules that apply at this point of the auction for `me`, in the order the bidder tries them (for grading a person's call). */
+export function rulesHere(system: System, calls: { seat: number; call: Call }[], me: number, vul: [boolean, boolean]): { c: Ctx; rules: Rule[] } {
+  const c = contextFor(calls, me, vul);
+  return { c, rules: ALL.filter((x) => appliesAt(x, c, system)) };
+}
+
+export function legal(c: Ctx, call: Call): boolean {
   if (typeof call === 'number') return call > c.lastBid && call < 35;
   if (call === 'X') return c.lastBid >= 0 && !c.lastByUs && c.doubled === 0;
   if (call === 'XX') return c.lastByUs && c.doubled === 1;

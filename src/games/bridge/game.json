@@ -37,7 +37,17 @@
       "choices": ["Another table", "Par", "No one"]
     },
     { "id": "deals", "label": "Deals (Chicago, duplicate)", "type": "number", "default": 4, "min": 4, "max": 16, "step": 4 },
-    { "id": "system", "label": "Bots bid", "type": "number", "default": 1, "min": 0, "max": 2, "step": 1, "choices": ["Natural", "SAYC", "2/1"] }
+    { "id": "system", "label": "Bots bid", "type": "number", "default": 1, "min": 0, "max": 2, "step": 1, "choices": ["Natural", "SAYC", "2/1"] },
+    {
+      "id": "practice",
+      "label": "Practice bidding",
+      "type": "number",
+      "default": 0,
+      "min": 0,
+      "max": 6,
+      "step": 1,
+      "choices": ["Off", "Openings", "Answering 1♣ or 1♦", "Answering 1♥ or 1♠", "Answering 1NT or 2NT", "Answering 2♣ or a weak two", "Any of these"]
+    }
   ],
   "rulesSummary": [
     "Partners sit across, 13 cards each. Bid a contract with your partner, then make it, or stop the other side making theirs.",
@@ -52,6 +62,6 @@
     "Rubber (a lobby option): play until a side wins two games; winning one makes you vulnerable. The rubber is worth 700 (2–0) or 500 (2–1). Honours in one hand score too: four of A K Q J 10 of trumps 100, all five or four aces at NT 150. Most points wins.",
     "Duplicate (a lobby option): each deal is a numbered board that says who deals and who is vulnerable. Each board is scored alone: on top of the tricks, a game is worth 300 (500 vulnerable), a part score 50. Compared with no one, most points wins.",
     "Duplicate: each board, your score is compared with another table's in your seats (whoever is sitting out, or bots), or with par (perfect bidding and play, all cards known), in IMPs: 20 points is 1 IMP, 4000 is 24. Most IMPs wins.",
-    "Bots bid SAYC (Standard American Yellow Card), or two over one or a plain natural style (a lobby option). The log says what each bot call means. A bot partnering you takes your calls in the same system."
+    "Bots bid SAYC, two over one or plain natural (a lobby option); the log explains their calls, and a bot partner reads yours the same way. Practice bidding (a lobby option) deals for a topic and checks your first call against the system, privately."
   ]
 }

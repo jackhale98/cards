@@ -215,6 +215,11 @@ export interface GameStatus {
   pot?: number;
   /** Private hint for the viewer, e.g. "Two pair". */
   hint?: string;
+  /**
+   * A private note for the viewer on their last move (a coach, in a practice game): how it went,
+   * in a title and a line or two. `tone` colours it: good, fair, off, or just information.
+   */
+  coach?: { tone: 'good' | 'fair' | 'off' | 'info'; title: string; lines: string[] };
   scoreboard?: Scoreboard;
   /** A race-to-N score track (e.g. a cribbage board): one lane per player or team. */
   track?: { target: number; lanes: { label: string; seat: number; score: number; prev: number }[] };

@@ -28,6 +28,7 @@
   import ScoresSheet from '../table/ScoresSheet.svelte';
   import SaveSheet from '../table/SaveSheet.svelte';
   import ResultBanner from '../table/ResultBanner.svelte';
+  import Coach from '../table/Coach.svelte';
   import RotatePrompt from '../table/RotatePrompt.svelte';
   import { TableSettings } from '../table/settings.svelte';
   import * as shown from '../table/shown';
@@ -131,7 +132,7 @@
       return wideMiddle;
     },
     get recapBelow() {
-      return recapShown;
+      return recapShown || coachShown;
     },
     get recapSide() {
       return !!recap && !(showBanner && status.banner);
@@ -484,6 +485,8 @@
   const recap = $derived(view.handDone && !replay ? recapOf(history, status.banner?.lines) : null);
   /** The hand's summary under the middle's piles (on a phone on its side it's in the column instead). */
   const recapShown = $derived(!!recap && !side && !(showBanner && status.banner));
+  /** A coach's note on your last move (practice): in the hand summary's place, which it gives way to. */
+  const coachShown = $derived(!!status.coach && !display && !recapShown && !(showBanner && status.banner));
   /** Game night standings, shown when a game ends. */
   const tonight = $derived(nightTotals(view.lobby.night));
   const tonightUnit = $derived(nightUnit(view.lobby.night));
@@ -664,6 +667,8 @@
 
     {#if recapShown}
       <Recap recap={recap!} bind:h={sz.recapH} />
+    {:else if coachShown}
+      <Coach coach={status.coach!} bind:h={sz.recapH} />
     {/if}
     {#if showBanner && status.banner}
       <ResultBanner

@@ -6,6 +6,7 @@ import { assertRule, type Action, type Board } from '../../types';
 import { NAMEABLE, SAME_COLOUR } from './contracts';
 import { openerOf, suitOf } from './play';
 import { startPitch } from './pitch';
+import { practiceDeal, practiceTopic } from './practice';
 import { active, nextActive, partnersOf, teamOf, teamsFor } from './sides';
 import { duplicateBridge, rubberBridge, sequence, type S, type TrickGame } from './types';
 
@@ -51,6 +52,7 @@ export function startRound(g: TrickGame, s: S) {
   d.handSize = sizeForRound(g, s, d.round);
   const board = d.boards?.[d.round];
   if (board) dealBoard(s, board);
+  else if (practiceTopic(g, s)) practiceDeal(g, s);
   else deal(s, [{ to: 'hand', count: d.handSize }]);
   d.trump = R.trump && R.trump !== 'none' && R.trump !== 'turnUp' && R.trump !== 'chosen' && R.trump !== 'lastCard' && R.trump !== 'pitched' ? R.trump : null;
   if (g.pitchBids) startPitch(s);

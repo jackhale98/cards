@@ -1,4 +1,4 @@
-import { createState, nextSeat, placesFromScores } from '../../state';
+import { createState, log, name, nextSeat, placesFromScores } from '../../state';
 import { ownOnly } from '../../redact';
 import { botBudget, botLevel, easyMove, searchMove } from '../../bots/search';
 import { loadDds } from '../../bots/dds';
@@ -13,6 +13,7 @@ import { endRound, finishDuplicate, impTotals, waitingForOthers } from './scorin
 import { controller, teamOf, teamsFor } from './sides';
 import { trickStatus } from './status';
 import { applyPitchBid } from './pitch';
+import { gradePractice, practiceActions, retryPractice } from './practice';
 import { duplicateBridge, trickGame, type TrickData } from './types';
 import { setbackBid, setbackCard } from './setbackHard';
 import { dd500Bid, ddBid, ddBudget, ddCard, ddEuchreCall, ddGame } from './ddPlay';
@@ -85,11 +86,19 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
       return s;
     },
 
-    actions: (s, seat) => trickActions(g, s, seat),
+    actions: (s, seat) => [...trickActions(g, s, seat), ...practiceActions(s, seat)],
 
     apply(s, seat, a) {
       const d = s.data;
+      // (practice: a person's first call of the deal is graded as it's made)
+      if (d.practice) gradePractice(g, s, seat, a);
       switch (a.type) {
+        case 'practiceRetry':
+          return retryPractice(s, seat);
+        case 'practiceNew':
+          assertRule(!!d.practice && s.phase !== 'gameOver', 'Not a practice game');
+          log(s, `${name(s, seat)} asks for a new practice deal`, seat);
+          return startRound(g, s);
         case 'pass':
           return applyPass(g, s, seat, a);
         case 'unpass':
@@ -245,6 +254,8 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
         honours: s.phase === 'roundOver' || s.phase === 'gameOver' ? d.honours : null,
         // duplicate: the boards are nobody's to see (each hand is dealt from them)
         boards: undefined,
+        // practice: the coach's notes say what a hand holds; each is for its player alone
+        ...(d.practice ? { practice: { ...d.practice, notes: d.practice.notes.map((x, i) => (i === viewer ? x : null)) } } : {}),
         // Pitch: which cards are High, Low and Jack would say who holds what (or that a card
         // wasn't dealt), and so would who has them so far: only once the hand is scored
         ...(d.pitch && s.phase !== 'roundOver' && s.phase !== 'gameOver'
@@ -293,7 +304,17 @@ export function trickTakingFamily(config: GameConfig): GameModule<TrickData> {
       if (d.compared && s.phase === 'roundOver' && d.results.length >= (d.boards?.length ?? 0) && !waitingForOthers(s)) finishDuplicate(g, s);
     },
 
-    status: (s, viewer) => trickStatus(g, s, viewer),
+    status(s, viewer) {
+      const status = trickStatus(g, s, viewer);
+      const p = s.data.practice;
+      if (!p || viewer < 0 || s.players[viewer]?.bot) return status;
+      const t = p.tally[viewer];
+      return {
+        ...status,
+        ...(p.notes[viewer] ? { coach: p.notes[viewer]! } : {}),
+        ...(t?.graded && !status.hint ? { hint: `Practice: ${t.book} of ${t.graded} by the book` } : {}),
+      };
+    },
   };
   // (the search bot plays imagined deals out with this module's own rules)
   const search = trickSearch(g, module);
