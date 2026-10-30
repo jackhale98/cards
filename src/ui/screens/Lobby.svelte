@@ -5,6 +5,7 @@
   import { CATEGORIES, categoryOf, GAME_LIST, getGame, GAMES, misfit, playersText, searchGames, startProblem } from '../../games';
   import type { GameInfo } from '../../games';
   import type { View } from '../../net/protocol';
+  import { sidesOf } from '../../engine/families/traits';
   import AvatarBadge from '../components/AvatarBadge.svelte';
   import AvatarPicker from '../components/AvatarPicker.svelte';
   import GameIcon from '../components/GameIcon.svelte';
@@ -91,6 +92,27 @@
   const seatsMax = $derived(game.config.players.counts ? Math.max(...game.config.players.counts) : game.config.players.max);
   const playing = $derived(lobby.seats.filter((s) => !s.out).length);
   const sittingOut = $derived(lobby.seats.filter((s) => s.out && !s.screen).length);
+  // partnerships: the game's, at this many players (a size it seats), by where each player sits in
+  // the list; only when someone has a partner
+  const fits = $derived(
+    game.config.players.counts ? game.config.players.counts.includes(playing) : playing >= game.config.players.min && playing <= game.config.players.max,
+  );
+  const sides = $derived(fits ? sidesOf(game.config, playing) : []);
+  const partnered = $derived(sides.some((t) => t.length > 1));
+  /** Each row's team (by the order of those playing), or -1. */
+  const teamOfRow = $derived.by(() => {
+    let k = 0;
+    return lobby.seats.map((s) => {
+      if (s.out) return -1;
+      const at = k++;
+      return sides.findIndex((t) => t.includes(at));
+    });
+  });
+  const partnersLine = $derived.by(() => {
+    if (!partnered) return '';
+    const inPlay = lobby.seats.filter((s) => !s.out);
+    return sides.map((t) => t.map((k) => (inPlay[k]?.id === app.cid ? 'you' : inPlay[k]?.name)).join(' & ')).join(' · ');
+  });
   // splitting the table: anyone here but the host and bots can go
   const splittable = $derived(lobby.seats.filter((s) => !s.host && !s.bot && s.connected));
   let splitting = $state(false);
@@ -283,21 +305,34 @@
     {/if}
     <div class="block">
       <div class="head">
-        <div class="eyebrow">Playing · {playing}/{seatsMax}{sittingOut ? ` · ${sittingOut} sitting out` : ''}</div>
+        <div>
+          <div class="eyebrow">Playing · {playing}/{seatsMax}{sittingOut ? ` · ${sittingOut} sitting out` : ''}</div>
+          {#if partnered}<p class="partners">Partners: {partnersLine}{ctl ? ' (move players up or down to change them)' : ''}</p>{/if}
+        </div>
         {#if ctl && game.bot && playing < seatsMax}
           <button class="btn small-btn" onclick={() => ctl.addBot()}>+ Add bot</button>
         {/if}
       </div>
       <ul class="players" style:--row={ctl ? '16rem' : null}>
         {#each lobby.seats as seat, i (seat.id)}
-          <li class:me={i === mySeat} class:offline={!seat.connected} class:out={seat.out}>
-            {#if i === mySeat}
-              <button class="me-av" onclick={() => (picking = true)} aria-label="Change your avatar">
+          <li
+            class:me={i === mySeat}
+            class:offline={!seat.connected}
+            class:out={seat.out}
+            style:--team={partnered && teamOfRow[i] >= 0 ? `var(--team-${teamOfRow[i] + 1})` : null}
+          >
+            <span class="av">
+              {#if i === mySeat}
+                <button class="me-av" onclick={() => (picking = true)} aria-label="Change your avatar">
+                  <AvatarBadge avatar={seat.avatar} name={seat.name} seat={i} size={32} />
+                </button>
+              {:else}
                 <AvatarBadge avatar={seat.avatar} name={seat.name} seat={i} size={32} />
-              </button>
-            {:else}
-              <AvatarBadge avatar={seat.avatar} name={seat.name} seat={i} size={32} />
-            {/if}
+              {/if}
+              <!-- (on the avatar's corner: the row's name has no room to spare; the names are spelt out in the Partners line) -->
+              {#if partnered && teamOfRow[i] >= 0}<em class="team" aria-label="Team {teamOfRow[i] + 1}" title="Team {teamOfRow[i] + 1}">{teamOfRow[i] + 1}</em
+                >{/if}
+            </span>
             <span class="pname">
               <span class="ptext">{seat.name}</span>
               <!-- (you and the host: one tag, so a short name still fits on a phone) -->
@@ -875,6 +910,38 @@
   }
   .stepper button:disabled {
     opacity: 0.3;
+  }
+  /* (partners share a colour: a stripe down the row's left, and the tag) */
+  .players li[style*='--team'] {
+    box-shadow: inset 3px 0 0 var(--team);
+  }
+  .av {
+    position: relative;
+    display: inline-flex;
+    flex: none;
+  }
+  .team {
+    position: absolute;
+    right: -5px;
+    bottom: -4px;
+    min-width: 15px;
+    height: 15px;
+    padding: 0 3px;
+    border-radius: 999px;
+    font-style: normal;
+    font-size: 0.62rem;
+    font-weight: 800;
+    line-height: 15px;
+    text-align: center;
+    color: #1a1408;
+    background: var(--team);
+    box-shadow: 0 0 0 2px var(--felt-3);
+    pointer-events: none;
+  }
+  .partners {
+    margin: 0.15rem 0 0;
+    font-size: 0.75rem;
+    color: var(--ink-dim);
   }
   .players em.captain {
     color: var(--gold);

@@ -21,6 +21,10 @@
   --gold-deep: #c99a2e;
   --danger: #e76f51;
   --good: #7bd389;
+  /* partnerships, in the lobby: each team its own colour */
+  --team-1: var(--gold);
+  --team-2: #8ec5ff;
+  --team-3: var(--good);
   /* (follows the table cloth; older browsers, like some TVs, get a fixed tint) */
   --glass: rgba(10, 30, 24, 0.55);
   --glass-hi: rgba(255, 255, 255, 0.08);
