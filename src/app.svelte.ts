@@ -278,6 +278,32 @@ class App {
   name = $state(store.get('cards.name') ?? '');
   avatar = $state.raw<Avatar>(loadAvatar());
   view = $state.raw<View | null>(null);
+  /** A view that came in this frame after one already shown: it's shown next frame (see showView). */
+  private pendingView: View | null = null;
+  private viewFrame = 0;
+
+  /**
+   * One view a frame on screen, at a player's device. Each one shown is a whole update of the table:
+   * its cards measured and eased to their new places, what else moved slid there. Views that come
+   * from the host faster than the screen is drawn (a tournament's table played on quickly, catching
+   * up after a reconnect) show only the latest: on a slow phone, every one of hundreds took seconds,
+   * and it heard nothing else meanwhile. The first goes at once, so a move is never late; a hidden
+   * page, where frames don't come, takes each. (The host's own screen shows every view it makes.)
+   */
+  private showView(v: View) {
+    if (this.viewFrame && !document.hidden) {
+      this.pendingView = v;
+      return;
+    }
+    this.view = v;
+    if (typeof requestAnimationFrame !== 'function' || document.hidden) return;
+    this.viewFrame = requestAnimationFrame(() => {
+      this.viewFrame = 0;
+      const next = this.pendingView;
+      this.pendingView = null;
+      if (next) this.showView(next);
+    });
+  }
   isHost = $state(false);
   /** This device is opening its own table (its screen says so, not "Finding table"). */
   starting = $state(false);
@@ -750,7 +776,7 @@ class App {
     this.addNext = joined.addNext;
     const client = new Client(joined.transport, this.cid, this.name || 'Player', this.avatar, display, key);
     client.onView = (v) => {
-      this.view = v;
+      this.showView(v);
       this.noteRecord(v);
     };
     client.onError = (m) => this.say(m);
@@ -1046,6 +1072,10 @@ class App {
     else this.saveNow();
     this.host = null;
     this.client = null;
+    // (a view waiting for its frame is the old table's: not shown after it)
+    if (this.viewFrame) cancelAnimationFrame(this.viewFrame);
+    this.viewFrame = 0;
+    this.pendingView = null;
     this.view = null;
     this.closeReplay();
     this.isHost = false;

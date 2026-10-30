@@ -20,7 +20,15 @@ function element(): HTMLSpanElement {
 }
 
 const lines = new Map<string, number>();
-const rootSize = () => getComputedStyle(document.documentElement).fontSize;
+/**
+ * The root font size, which the labels scale with: set inline by the app (a table screen sizes
+ * everything to the screen), else the browser's own, read once. Not read with getComputedStyle each
+ * time: that makes the browser work out every style on the page first, and the table's sizes ask
+ * for it every time they're worked out, just as the card layer has moved every card (seconds of a
+ * slow phone's time at the end of a hand).
+ */
+let browserRoot = '';
+const rootSize = () => document.documentElement.style.fontSize || (browserRoot ||= getComputedStyle(document.documentElement).fontSize);
 
 export function labelMeasure(): Labels {
   return {
