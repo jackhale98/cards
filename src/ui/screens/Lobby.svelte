@@ -1023,6 +1023,20 @@
     border: 1px solid var(--line);
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
   }
+  /* a phone: docked to the screen's bottom edge, side to side, rather than floating above the page's
+     padding (a strip there showed the games through it and took room for nothing); its own padding
+     clears the home indicator */
+  @media (orientation: portrait), (max-width: 560px), (max-height: 500px) {
+    .dealbar {
+      bottom: calc(-12px - var(--safe-b));
+      margin: 0 calc(-14px - var(--safe-r)) calc(-12px - var(--safe-b)) calc(-14px - var(--safe-l));
+      padding: 0.5rem calc(0.6rem + var(--safe-r)) calc(0.5rem + var(--safe-b)) calc(0.8rem + var(--safe-l));
+      border-radius: 18px 18px 0 0;
+      border-width: 1px 0 0;
+      background: var(--felt-3);
+      box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.3);
+    }
+  }
   .dealbar .btn {
     flex: none;
     white-space: nowrap;
