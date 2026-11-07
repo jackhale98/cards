@@ -14,9 +14,11 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# (Ubuntu 24.04, not ubuntu-latest: that moved to 26.04, where our Playwright can't install its
+# browsers; move on together with a Playwright that supports it)
 jobs:
   check:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       # (the pnpm version comes from packageManager in package.json)
@@ -35,7 +37,7 @@ jobs:
   # the browser tests (every game stepped through at phone, laptop and TV sizes: e2e/gallery.spec.ts;
   # the flows people go through, in Chromium and WebKit), split four ways to run side by side
   e2e:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -78,7 +80,7 @@ jobs:
   # bots play bridge and Hold'em, and other people's programs check the records: endplay (bridge,
   # with a double-dummy solver) and PokerKit replay every deal and hand (see tools/README.md)
   records:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       # (the pnpm version comes from packageManager in package.json)
@@ -107,7 +109,7 @@ jobs:
           retention-days: 7
 
   relay:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: relay
