@@ -1,6 +1,7 @@
 import { mount } from 'svelte';
 import App from './App.svelte';
 import { watchErrors } from './net/reports';
+import { watchAppHeight } from './ui/appHeight';
 import { applyFourColour } from './ui/suits';
 import './theme/tokens.css';
 
@@ -25,6 +26,9 @@ window.addEventListener('vite:preloadError', (e) => {
 // on a Chromecast, which loads it fresh each time)
 if (import.meta.env.PROD && 'serviceWorker' in navigator && !new URLSearchParams(location.search).has('cast'))
   addEventListener('load', () => void navigator.serviceWorker.register('./sw.js').catch(() => {}));
+
+// the whole screen, as a Home Screen app on an iPhone should (see ui/appHeight.ts)
+watchAppHeight();
 
 // four-colour suits, if this device chose them
 applyFourColour();
