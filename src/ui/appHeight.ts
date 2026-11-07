@@ -30,13 +30,33 @@ export function fullHeight(v: Viewport): number | null {
   return v.innerH < h - 1 ? h : null;
 }
 
+/**
+ * The app's height as the page changes: once the page has come up short, the screen's height is
+ * kept until the phone is turned (its width changes). Stretched, iOS may report the page as full
+ * height, and dropping the stretch on that would bring the shortfall back, the app flicking
+ * between the two.
+ */
+export function heightKeeper(): (v: Viewport) => number | null {
+  let held: { w: number; h: number } | null = null;
+  return (v) => {
+    if (held && Math.abs(v.innerW - held.w) <= 1) return held.h;
+    const h = fullHeight(v);
+    held = h == null ? null : { w: v.innerW, h };
+    return h;
+  };
+}
+
 /** Keep `--app-h` (the app's height, in tokens.css) right as the page resizes and turns. */
 export function watchAppHeight() {
   const nav = navigator as Navigator & { standalone?: boolean };
   if (nav.standalone !== true) return;
   const root = document.documentElement;
+  const keep = heightKeeper();
+  let set: number | null = null;
   const fit = () => {
-    const h = fullHeight({ standalone: nav.standalone, innerW: innerWidth, innerH: innerHeight, screenW: screen.width, screenH: screen.height });
+    const h = keep({ standalone: nav.standalone, innerW: innerWidth, innerH: innerHeight, screenW: screen.width, screenH: screen.height });
+    if (h === set) return;
+    set = h;
     if (h == null) root.style.removeProperty('--app-h');
     else root.style.setProperty('--app-h', `${h}px`);
   };
