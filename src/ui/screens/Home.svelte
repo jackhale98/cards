@@ -80,7 +80,7 @@
           <b>Everyone else joins</b> by scanning the QR code, typing the five-letter table code, or tapping the invite link (it works from anywhere, not just the
           same room).
         </li>
-        <li><b>Your phone is your hand.</b> Turn it sideways: your cards at the bottom, the table in the middle. Each phone only ever gets its own cards.</li>
+        <li><b>Your cards are on your phone.</b> Turn it sideways: they're along the bottom, the table in the middle. No one else's phone ever sees them.</li>
         <li><b>Short of players?</b> Bots fill empty seats, Easy, Normal or Hard.</li>
         <li>
           <b>A game we don't have?</b> Pick <b>Free Table</b>, at the end of the game list: a real deck with no rules enforced. Deal, draw, play, pass and bet
@@ -185,7 +185,7 @@
       <div class="f f4"><Card id="JC" /></div>
     </div>
     <h1>Lamplight</h1>
-    <p class="tag">Pull up a chair. Your phone is your hand.</p>
+    <p class="tag">Pull up a chair. Your cards are on your phone.</p>
   </section>
 
   <section class="form panel">
@@ -413,6 +413,8 @@
     margin: 0.2rem 0 0;
     color: var(--ink-dim);
     max-width: 26rem;
+    /* (on a narrow phone, two even lines rather than one word left on its own) */
+    text-wrap: balance;
   }
   .form {
     background: rgba(26, 24, 14, 0.58);
