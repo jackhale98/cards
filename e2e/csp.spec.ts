@@ -86,3 +86,18 @@ test('Hard bridge bots load their double-dummy solver (WebAssembly) under the po
   expect(await page.evaluate(() => (globalThis as { __ddsReady?: boolean }).__ddsReady ?? false)).toBe(false);
   expect(await violations()).toEqual([]);
 });
+
+test('the landing page, about/, loads whole under the policy, and leads to the app', async ({ page }) => {
+  const violations = await watchCsp(page);
+  const res = await page.goto('/about/');
+  expect(res?.status()).toBe(200);
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('Everyone’s phone is their hand');
+  // every picture, loaded (they're lazy: scrolled to)
+  for (const img of await page.locator('img').all()) {
+    await img.scrollIntoViewIfNeeded();
+    await expect.poll(() => img.evaluate((i: HTMLImageElement) => i.complete && i.naturalWidth > 0)).toBe(true);
+  }
+  expect(await violations()).toEqual([]);
+  await page.getByRole('link', { name: 'Start a table' }).first().click();
+  await expect(page.locator('input[aria-label="Your name"]')).toBeVisible();
+});

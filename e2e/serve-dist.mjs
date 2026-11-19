@@ -30,6 +30,8 @@ createServer((req, res) => {
   const path = decodeURIComponent(new URL(req.url, 'http://x').pathname);
   let file = normalize(join(root, path));
   if (!file.startsWith(root)) return res.writeHead(403).end();
+  // (a folder's own page, as Pages serves about/ from about/index.html; anything else, the app)
+  if (existsSync(file) && statSync(file).isDirectory() && existsSync(join(file, 'index.html'))) file = join(file, 'index.html');
   if (!existsSync(file) || statSync(file).isDirectory()) file = join(root, 'index.html');
   const headers = { 'content-type': TYPES[extname(file)] ?? 'application/octet-stream' };
   for (const rule of rules.filter((r) => matches(r.pattern, path)))

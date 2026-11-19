@@ -104,6 +104,10 @@ src/ui/motion.ts       the slide of what isn't a card (labels, the pot) as the t
 src/ui/components/CardLayer.svelte  draws every card on the table, one element each, eased from place to
                        place; Zone.svelte / Hand.svelte are the frames (what you tap, in order)
 src/app.svelte.ts      app state, routing, starting a host or client
+about/index.html       the landing page (lamplight.cards/about/): plain HTML, no script, built beside the app;
+                       its pictures (about/img) are the app's own, taken by e2e/landing.spec.ts (LANDING=1);
+                       tests/landing.test.ts checks it names every game. The app stays at / (invites, QR codes
+                       and Home Screen installs open there)
 src/sw.js              the service worker (opens at once, and offline); vite.config.ts writes in its file list
 tools/                 Python checks with other people's programs: endplay (bridge, double dummy) and
                        PokerKit replay the bots' games (pnpm records); compare_bidding.py, our bidding

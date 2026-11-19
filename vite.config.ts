@@ -44,7 +44,8 @@ function serviceWorker(): Plugin {
       // the entry and the screens it fetches in the background once the home screen is up, with
       // everything they import (not what they load later, on demand)
       const roots = [
-        ...Object.keys(manifest).filter((k) => manifest[k].isEntry),
+        // (the app's page: not the landing page, about/, which a phone doesn't keep)
+        ...Object.keys(manifest).filter((k) => manifest[k].isEntry && !k.startsWith('about/')),
         'src/ui/screens/Lobby.svelte',
         'src/ui/screens/Table.svelte',
         'src/ui/screens/TvScreen.svelte',
@@ -86,7 +87,8 @@ export default defineConfig({
   plugins: [svelte(), serviceWorker()],
   define: { __APP_VERSION__: JSON.stringify(version()) },
   // (the manifest says which files the app itself needs: see serviceWorker)
-  build: { target: 'es2022', manifest: true },
+  // (and the landing page, about/: plain HTML, its pictures hashed into assets/ like the app's files)
+  build: { target: 'es2022', manifest: true, rollupOptions: { input: { main: 'index.html', about: 'about/index.html' } } },
   // (the bots' worker loads each game's rules when needed, like the app: that takes ES modules)
   worker: { format: 'es' },
   test: { include: ['tests/**/*.test.ts'], environment: 'node', setupFiles: ['tests/setup.ts'] },

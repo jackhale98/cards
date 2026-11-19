@@ -266,11 +266,10 @@
   {/if}
 
   <footer>
-    Devices link directly whenever they can, so on the same WiFi your game stays in the room. No accounts, no app store. · <a
-      href="https://github.com/jackhale98/cards"
-      target="_blank"
-      rel="noreferrer">Open source</a
+    Devices link directly whenever they can, so on the same WiFi your game stays in the room. No accounts, no app store. · <a href="./about/"
+      >What is Lamplight?</a
     >
+    · <a href="https://github.com/jackhale98/cards" target="_blank" rel="noreferrer">Open source</a>
     · <a href={bugReportLink()}>Report a bug</a>
     · <a href={gameRequestLink()}>Request a game</a>
     · <a href={SUPPORT_URL} target="_blank" rel="noreferrer">🍺 Support Lamplight</a>
