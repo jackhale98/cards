@@ -91,7 +91,7 @@ test('the landing page, about/, loads whole under the policy, and leads to the a
   const violations = await watchCsp(page);
   const res = await page.goto('/about/');
   expect(res?.status()).toBe(200);
-  await expect(page.getByRole('heading', { level: 1 })).toContainText('Everyone’s phone is their hand');
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('Everyone’s cards, on their own phone');
   // every picture, loaded (they're lazy: scrolled to)
   for (const img of await page.locator('img').all()) {
     await img.scrollIntoViewIfNeeded();
