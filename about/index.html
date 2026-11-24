@@ -12,10 +12,10 @@
     <link rel="canonical" href="https://lamplight.cards/about/" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Lamplight" />
-    <meta property="og:title" content="Lamplight · card night, with your cards on your phone" />
+    <meta property="og:title" content="Lamplight · cards on your phones, the table on your TV" />
     <meta
       property="og:description"
-      content="Pick a game, share a code, deal. Hearts, Spades, Hold'em, Canasta, Cribbage and more, round the table or far apart. Free, no app, no accounts."
+      content="Everyone's cards on their own phone, the table on your TV. Hearts, Spades, Hold'em, Canasta, Cribbage and more. Free, in the browser."
     />
     <meta property="og:url" content="https://lamplight.cards/about/" />
     <meta property="og:image" content="https://lamplight.cards/og.jpg" />
@@ -38,8 +38,11 @@
         --ink-dim: rgba(243, 239, 230, 0.8);
         --gold: #e9c46a;
         --gold-deep: #c99a2e;
+        --lamp: #fbe7b2;
         --line: rgba(243, 239, 230, 0.14);
-        --panel: rgba(7, 26, 20, 0.55);
+        --paper: #f7f1e3;
+        --paper-ink: #2b2418;
+        --red: #b3261e;
         --font-ui: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
         --font-card: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, 'Times New Roman', serif;
         color-scheme: dark;
@@ -47,23 +50,26 @@
       * {
         box-sizing: border-box;
       }
-      html {
-        scroll-behavior: smooth;
-      }
-      @media (prefers-reduced-motion: reduce) {
-        html {
-          scroll-behavior: auto;
-        }
-      }
       body {
         margin: 0;
         font-family: var(--font-ui);
         color: var(--ink);
+        /* the felt, darker toward the edges, under a lamp: a warm pool of light over the top of the page */
         background:
-          radial-gradient(ellipse 90% 60% at 50% 0%, var(--felt-1) 0%, var(--felt-2) 55%, var(--felt-3) 100%) no-repeat,
+          radial-gradient(ellipse 70% 42rem at 32% 0%, rgba(255, 196, 110, 0.16), transparent 70%),
+          radial-gradient(ellipse 110% 70rem at 50% 0%, var(--felt-1) 0%, var(--felt-2) 55%, var(--felt-3) 100%) no-repeat,
           var(--felt-3);
-        line-height: 1.55;
+        line-height: 1.6;
         -webkit-font-smoothing: antialiased;
+      }
+      /* the app's felt grain */
+      body::before {
+        content: '';
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        opacity: 0.06;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
       }
       a {
         color: var(--gold);
@@ -74,44 +80,37 @@
         height: auto;
       }
       .wrap {
-        width: min(1120px, 100% - 32px);
+        position: relative;
+        width: min(1080px, 100% - 32px);
         margin: 0 auto;
       }
       h1,
       h2,
       h3 {
         font-family: var(--font-card);
+        font-weight: 400;
         line-height: 1.15;
         margin: 0;
         text-wrap: balance;
       }
       h1 {
-        font-size: clamp(2.3rem, 6vw, 4rem);
+        font-size: clamp(2.2rem, 5.4vw, 3.6rem);
+        color: var(--lamp);
       }
       h2 {
-        font-size: clamp(1.7rem, 4vw, 2.6rem);
-      }
-      h3 {
-        font-size: 1.35rem;
+        font-size: clamp(1.6rem, 3.4vw, 2.3rem);
       }
       p {
-        margin: 0;
+        margin: 0 0 1em;
         text-wrap: pretty;
       }
-      .lead {
-        font-size: clamp(1.08rem, 2.2vw, 1.3rem);
+      .dim {
         color: var(--ink-dim);
-        max-width: 38rem;
       }
-      .kicker {
-        font-size: 0.78rem;
-        font-weight: 700;
-        letter-spacing: 0.16em;
-        text-transform: uppercase;
-        color: var(--gold);
+      .big {
+        font-size: clamp(1.08rem, 2vw, 1.22rem);
       }
 
-      /* the bar along the top */
       header.top {
         display: flex;
         align-items: center;
@@ -123,341 +122,305 @@
         display: flex;
         align-items: center;
         gap: 10px;
-        color: var(--ink);
+        color: var(--lamp);
         text-decoration: none;
         font-family: var(--font-card);
         font-size: 1.35rem;
-        font-weight: 700;
       }
       .brand img {
-        width: 34px;
-        height: 34px;
+        width: 32px;
+        height: 32px;
       }
-
-      /* buttons, as in the app */
       .btn {
         display: inline-flex;
         align-items: center;
         justify-content: center;
         min-height: 48px;
-        padding: 0 1.4rem;
+        padding: 0 1.5rem;
         border-radius: 999px;
-        border: 1px solid var(--line);
-        color: var(--ink);
-        background: rgba(243, 239, 230, 0.06);
-        font-weight: 600;
+        border: 0;
+        color: #2a1d05;
+        background: linear-gradient(180deg, #f2d27f, var(--gold-deep));
+        font-weight: 650;
         font-size: 1.02rem;
         text-decoration: none;
         white-space: nowrap;
       }
-      .btn.primary {
-        border: 0;
-        color: #2a1d05;
-        background: linear-gradient(180deg, #f2d27f, var(--gold-deep));
-        box-shadow: 0 8px 24px rgba(201, 154, 46, 0.25);
-      }
-      .btn:focus-visible {
+      .btn:focus-visible,
+      a:focus-visible {
         outline: 2px solid var(--gold);
         outline-offset: 3px;
       }
-      .top .btn {
-        min-height: 40px;
-        padding: 0 1.1rem;
-        font-size: 0.95rem;
-      }
-      .ctas {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 12px;
-        margin-top: 28px;
+      .top a:not(.brand) {
+        color: var(--ink);
+        font-weight: 600;
+        text-decoration: none;
+        padding: 8px 2px;
       }
 
-      /* the opening */
+      /* the opening: the words on the left, the TV and a phone in hand running off to the right */
       .hero {
         display: grid;
-        grid-template-columns: 1fr;
-        gap: 40px;
-        padding: 36px 0 64px;
+        gap: 36px;
+        padding: 24px 0 72px;
       }
-      .hero .lead {
-        margin-top: 18px;
+      .fan {
+        /* (the picture has room round the cards for their shadows) */
+        width: 210px;
+        margin: -10px 0 -40px -26px;
       }
-      .hero .note {
-        margin-top: 14px;
-        font-size: 0.92rem;
+      .hero h1 {
+        max-width: 16ch;
+      }
+      .hero .big {
+        margin-top: 20px;
+        max-width: 31rem;
+      }
+      .go {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px 18px;
+        margin-top: 26px;
+      }
+      .go span {
         color: var(--ink-dim);
+        font-size: 0.95rem;
       }
       @media (min-width: 900px) {
         .hero {
-          grid-template-columns: 1fr 1.15fr;
+          grid-template-columns: 0.85fr 1.15fr;
           align-items: center;
-          padding: 56px 0 88px;
+          gap: 48px;
+          padding: 40px 0 104px;
+        }
+        .hero .screens {
+          margin-right: -8vw;
         }
       }
 
-      /* a phone, on its side, and a TV: frames round the app's own pictures */
+      /* a phone and a TV, round the app's own pictures */
       .phone,
       .tv {
         position: relative;
-        background: #050d0a;
-        box-shadow:
-          0 30px 60px rgba(0, 0, 0, 0.45),
-          inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+        background: #040b08;
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
       }
       .phone {
-        border-radius: 34px;
-        padding: 12px;
-      }
-      .phone img {
-        border-radius: 24px;
-      }
-      .phone.tall {
-        max-width: min(320px, 70vw);
-        border-radius: 44px;
-      }
-      .phone.tall img {
-        border-radius: 32px;
-      }
-      .tv {
-        border-radius: 14px;
+        border-radius: 30px;
         padding: 10px;
       }
-      .tv img {
-        border-radius: 6px;
+      .phone img {
+        border-radius: 21px;
       }
-      .tv::after {
+      .phone.tall {
+        width: min(280px, 72vw);
+        border-radius: 40px;
+        padding: 11px;
+      }
+      .phone.tall img {
+        border-radius: 30px;
+      }
+      .tv {
+        border-radius: 12px;
+        padding: 9px;
+      }
+      .tv img {
+        border-radius: 5px;
+      }
+      .screens {
+        position: relative;
+        padding-bottom: 16%;
+      }
+      .screens .tv::after {
         /* the stand */
         content: '';
         position: absolute;
         left: 50%;
-        bottom: -18px;
-        width: 26%;
-        height: 18px;
+        bottom: -16px;
+        width: 24%;
+        height: 16px;
         transform: translateX(-50%);
         border-radius: 0 0 10px 10px;
-        background: linear-gradient(#0a1612, #050d0a);
-      }
-
-      section {
-        padding: 72px 0;
-        border-top: 1px solid var(--line);
-      }
-      .head {
-        max-width: 44rem;
-        margin-bottom: 40px;
-      }
-      .head .lead {
-        margin-top: 14px;
-      }
-
-      /* how it works: three steps */
-      .steps {
-        display: grid;
-        gap: 28px;
-        grid-template-columns: 1fr;
-        counter-reset: step;
-        list-style: none;
-        margin: 0;
-        padding: 0;
-      }
-      .steps li {
-        counter-increment: step;
-        padding: 22px 22px 24px;
-        border-radius: 22px;
-        background: var(--panel);
-        border: 1px solid var(--line);
-      }
-      .steps li::before {
-        content: counter(step);
-        display: grid;
-        place-items: center;
-        width: 40px;
-        height: 40px;
-        margin-bottom: 14px;
-        border-radius: 50%;
-        background: var(--gold);
-        color: #2a1d05;
-        font-family: var(--font-card);
-        font-size: 1.3rem;
-        font-weight: 700;
-      }
-      .steps p {
-        margin-top: 8px;
-        color: var(--ink-dim);
-      }
-      @media (min-width: 760px) {
-        .steps {
-          grid-template-columns: repeat(3, 1fr);
-        }
-      }
-      .split {
-        display: grid;
-        gap: 36px;
-        align-items: center;
-        grid-template-columns: 1fr;
-      }
-      .split .phone.tall {
-        margin: 0 auto;
-      }
-      @media (min-width: 900px) {
-        .split {
-          grid-template-columns: 1fr 1fr;
-          gap: 56px;
-        }
-        .split.flip > :first-child {
-          order: 2;
-        }
-      }
-      .points {
-        list-style: none;
-        margin: 22px 0 0;
-        padding: 0;
-        display: grid;
-        gap: 14px;
-      }
-      .points li {
-        padding-left: 30px;
-        position: relative;
-        color: var(--ink-dim);
-      }
-      .points li::before {
-        font-variant-emoji: text;
-        font-family: var(--font-card);
-        content: '♠\FE0E';
-        position: absolute;
-        left: 0;
-        top: 0;
-        color: var(--gold);
-      }
-      .points li:nth-child(4n + 2)::before {
-        content: '♥\FE0E';
-      }
-      .points li:nth-child(4n + 3)::before {
-        content: '♣\FE0E';
-      }
-      .points li:nth-child(4n + 4)::before {
-        content: '♦\FE0E';
-      }
-      .points b {
-        color: var(--ink);
-      }
-
-      /* the TV and a phone in hand */
-      .screens {
-        position: relative;
-        padding-bottom: 18%;
+        background: #040b08;
       }
       .screens .phone {
         position: absolute;
-        right: -2%;
+        left: 4%;
         bottom: 0;
-        width: 46%;
-        border-radius: 22px;
-        padding: 7px;
+        width: 44%;
+        border-radius: 20px;
+        padding: 6px;
+        transform: rotate(-3deg);
       }
       .screens .phone img {
-        border-radius: 15px;
+        border-radius: 14px;
       }
 
-      /* the games */
-      .games {
+      section {
+        padding: 64px 0;
+      }
+      .rule {
+        border: 0;
+        height: 1px;
+        margin: 0;
+        background: var(--line);
+      }
+      .two {
         display: grid;
-        gap: 18px;
-        grid-template-columns: 1fr;
+        gap: 32px;
+        align-items: center;
       }
-      @media (min-width: 640px) {
-        .games {
-          grid-template-columns: repeat(2, 1fr);
+      @media (min-width: 860px) {
+        .two {
+          grid-template-columns: auto 1fr;
+          gap: 64px;
         }
       }
-      @media (min-width: 980px) {
-        .games {
-          grid-template-columns: repeat(3, 1fr);
+      /* (one column: the words first, then the picture) */
+      @media (max-width: 859px) {
+        .two .phone.tall {
+          order: 2;
+          margin: 0 auto;
         }
       }
-      .games div {
-        padding: 20px 22px;
-        border-radius: 20px;
-        background: var(--panel);
-        border: 1px solid var(--line);
+      .two h2,
+      .evening h2,
+      .games h2,
+      .know h2 {
+        margin-bottom: 18px;
+      }
+      .text {
+        max-width: 36rem;
+      }
+
+      /* a few evenings: uneven, each its own shape */
+      .evening {
+        display: grid;
+        gap: 26px;
+        margin-top: 8px;
+      }
+      .evening + .evening {
+        margin-top: 64px;
+      }
+      .evening figure {
+        margin: 0;
+      }
+      .evening figcaption {
+        margin-top: 10px;
+        font-size: 0.88rem;
+        color: var(--ink-dim);
+      }
+      .evening .text p:first-child::first-line {
+        font-family: var(--font-card);
+      }
+      @media (min-width: 860px) {
+        .evening.wide {
+          grid-template-columns: 1.4fr 1fr;
+          align-items: center;
+          gap: 48px;
+        }
+        .evening.under .text {
+          margin-left: 10%;
+        }
+      }
+      .when {
+        display: block;
+        font-family: var(--font-card);
+        font-size: 1.35rem;
+        color: var(--lamp);
+        margin-bottom: 6px;
+      }
+
+      /* the games, written out on a card */
+      .games .card {
+        position: relative;
+        margin-top: 8px;
+        padding: 64px clamp(22px, 5vw, 64px) 64px;
+        border-radius: 22px;
+        background: var(--paper);
+        color: var(--paper-ink);
+        box-shadow: 0 1px 0 rgba(255, 255, 255, 0.6) inset;
+      }
+      .games .card::before,
+      .games .card::after {
+        /* the corners' index, as on a playing card */
+        content: '31\A♠\FE0E';
+        white-space: pre;
+        position: absolute;
+        font-family: var(--font-card);
+        font-size: 1.25rem;
+        line-height: 1.05;
+        text-align: center;
+        color: var(--paper-ink);
+      }
+      .games .card::before {
+        top: 14px;
+        left: 16px;
+      }
+      .games .card::after {
+        bottom: 14px;
+        right: 16px;
+        transform: rotate(180deg);
+      }
+      .games .cols {
+        columns: 3 15rem;
+        column-gap: 40px;
+      }
+      .games .group {
+        break-inside: avoid;
+        margin: 0 0 22px;
       }
       .games h3 {
-        font-size: 1.15rem;
-        color: var(--gold);
+        font-size: 1.2rem;
+        margin-bottom: 4px;
+      }
+      .games h3 .s {
+        font-variant-emoji: text;
+      }
+      .games .red {
+        color: var(--red);
       }
       .games ul {
         list-style: none;
-        margin: 10px 0 0;
+        margin: 0;
         padding: 0;
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-      }
-      .games li {
-        padding: 4px 12px;
-        border-radius: 999px;
-        background: rgba(243, 239, 230, 0.07);
-        font-size: 0.95rem;
-      }
-      .aside {
-        margin-top: 24px;
-        color: var(--ink-dim);
-      }
-
-      /* who it's for */
-      .uses {
-        display: grid;
-        gap: 18px;
-        grid-template-columns: 1fr;
-      }
-      @media (min-width: 760px) {
-        .uses {
-          grid-template-columns: repeat(2, 1fr);
-        }
-      }
-      @media (min-width: 1040px) {
-        .uses {
-          grid-template-columns: repeat(3, 1fr);
-        }
-      }
-      .uses article {
-        padding: 24px;
-        border-radius: 22px;
-        background: var(--panel);
-        border: 1px solid var(--line);
-      }
-      .uses .suit {
-        /* (a suit, never a picture of one) */
-        font-variant-emoji: text;
         font-family: var(--font-card);
-        font-size: 1.6rem;
-        line-height: 1;
-        color: var(--gold);
+        font-size: 1.08rem;
+        line-height: 1.55;
       }
-      .uses h3 {
-        margin-top: 12px;
-      }
-      .uses p {
-        margin-top: 8px;
-        color: var(--ink-dim);
-      }
-      .wide {
-        margin-top: 40px;
+      .games .after {
+        margin: 6px 0 0;
+        color: #5b5240;
       }
 
-      /* the end */
+      /* good to know: plain, a rule between each */
+      .know dl {
+        margin: 0;
+        display: grid;
+        gap: 0;
+        max-width: 46rem;
+      }
+      .know dt {
+        font-weight: 650;
+        padding-top: 16px;
+        border-top: 1px solid var(--line);
+      }
+      .know dd {
+        margin: 4px 0 16px;
+        color: var(--ink-dim);
+      }
+
       .last {
         text-align: center;
-        padding: 88px 0 72px;
+        padding: 72px 0 80px;
       }
-      .last .lead {
-        margin: 16px auto 0;
-      }
-      .last .ctas {
-        justify-content: center;
+      .last p {
+        margin: 14px auto 26px;
+        max-width: 30rem;
       }
       footer {
-        padding: 28px 0 40px;
+        padding: 24px 0 40px;
         border-top: 1px solid var(--line);
         color: var(--ink-dim);
         font-size: 0.9rem;
@@ -471,57 +434,43 @@
   <body>
     <div class="wrap">
       <header class="top">
-        <a class="brand" href="./"><img src="../icon.svg" alt="" width="34" height="34" />Lamplight</a>
-        <a class="btn" href="../">Open Lamplight</a>
+        <a class="brand" href="./"><img src="../icon.svg" alt="" width="32" height="32" />Lamplight</a>
+        <a href="../">Open Lamplight</a>
       </header>
 
       <main>
         <div class="hero">
           <div>
-            <p class="kicker">Card night, anywhere</p>
-            <h1>Everyone’s cards, on their own phone.</h1>
-            <p class="lead">
-              Pick a game, share a code, and deal. Lamplight puts the cards on everyone’s phone and the table in the middle, with 31 games from Hearts to
-              Hold’em. Nothing to download, no accounts, no deck to hunt for.
+            <img class="fan" src="./img/fan.png" width="564" height="464" alt="" />
+            <h1>Everyone’s cards on their own phone. The table on your TV.</h1>
+            <p class="big dim">
+              Lamplight is a card table for game night. One of you starts a table, everyone else scans the code, and the cards are dealt straight to each phone.
+              31 games, from Go Fish to bridge. It’s free and runs in the browser, so there’s nothing to install.
             </p>
-            <div class="ctas">
-              <a class="btn primary" href="../">Start a table</a>
-              <a class="btn" href="#how">How it works</a>
+            <div class="go">
+              <a class="btn" href="../">Start a table</a>
+              <span>Have a code? Open Lamplight and type it in.</span>
             </div>
-            <p class="note">Free, in any phone’s browser. Got a code from a friend? Open Lamplight and type it in.</p>
           </div>
-          <div class="phone">
-            <img
-              src="./img/hearts.jpg"
-              width="1688"
-              height="780"
-              alt="A hand of Hearts on a phone held sideways: your thirteen cards fanned along the bottom, the other three players across the top."
-            />
+          <div class="screens">
+            <div class="tv">
+              <img src="./img/tv.jpg" width="2560" height="1440" alt="Texas Hold'em on a TV: the flop, the pot and every player's chips round an oval table." />
+            </div>
+            <div class="phone">
+              <img
+                src="./img/tv-hand.jpg"
+                width="1688"
+                height="780"
+                alt="The same game on a player's phone: just their two cards, the nine and ten of diamonds."
+              />
+            </div>
           </div>
         </div>
 
-        <section id="how">
-          <div class="split flip">
-            <div>
-              <div class="head">
-                <p class="kicker">How it works</p>
-                <h2>Seated in seconds.</h2>
-              </div>
-              <ol class="steps" style="grid-template-columns: 1fr">
-                <li>
-                  <h3>Start a table</h3>
-                  <p>On any phone, tablet or laptop. Choose the game; set the house rules if you like.</p>
-                </li>
-                <li>
-                  <h3>Everyone joins</h3>
-                  <p>They scan the code on your screen, or type its five letters. Friends somewhere else get a link.</p>
-                </li>
-                <li>
-                  <h3>Deal</h3>
-                  <p>Your cards stay on your phone, for your eyes only. Tap to play, and the table keeps score.</p>
-                </li>
-              </ol>
-            </div>
+        <hr class="rule" />
+
+        <section>
+          <div class="two">
             <div class="phone tall">
               <img
                 src="./img/lobby.jpg"
@@ -531,167 +480,95 @@
                 alt="A table waiting to start: a five-letter code and a QR code to join by, and the players, three of them bots."
               />
             </div>
+            <div class="text">
+              <h2>Getting a game going</h2>
+              <p>
+                Open Lamplight on any phone, tablet or laptop and pick a game. A five-letter code comes up with a QR code under it. Everyone else scans it, or
+                types the letters on their own phone.
+              </p>
+              <p>
+                Short of players? Put bots in the empty seats, on Easy, Normal or Hard. The lobby also has each game’s usual house rules, so you can play Hearts
+                the way your family does.
+              </p>
+              <p class="dim">
+                If there’s a TV in the room, cast the table to it, or open it on a laptop in the middle. Everyone watches the tricks land there and keeps their
+                own cards in their hand.
+              </p>
+            </div>
           </div>
         </section>
 
+        <hr class="rule" />
+
         <section>
-          <div class="split">
-            <div>
-              <p class="kicker">Bring in the TV</p>
-              <h2>The table on the big screen, your cards on your phone.</h2>
-              <p class="lead" style="margin-top: 14px">
-                Cast the game to your TV, or open it on any screen in the room. Everyone sees the cards in play, the pot and the score, while their own cards
-                stay private on their phone.
-              </p>
-              <ul class="points">
-                <li><b>Casts to a TV</b> in a tap, or opens on a laptop or tablet in the middle of the table.</li>
-                <li><b>Bots fill empty seats</b>, at Easy, Normal or Hard. Two of you can play a four-player game.</li>
-                <li><b>Nobody gets lost:</b> whose turn it is, what was led and what the score is, always on show.</li>
-                <li><b>A phone dies? Play on.</b> Someone else picks up the game where it left off.</li>
-              </ul>
-            </div>
-            <div class="screens">
-              <div class="tv">
-                <img
-                  src="./img/tv.jpg"
-                  width="2560"
-                  height="1440"
-                  loading="lazy"
-                  alt="A game of Texas Hold'em on a TV: the flop, the pot and every player's chips round an oval table."
-                />
-              </div>
+          <h2>Some of the evenings it’s for</h2>
+
+          <div class="evening wide">
+            <figure>
               <div class="phone">
                 <img
-                  src="./img/tv-hand.jpg"
+                  src="./img/hearts.jpg"
                   width="1688"
                   height="780"
                   loading="lazy"
-                  alt="The same game on a player's phone: just their two cards, nine and ten of diamonds."
+                  alt="A hand of Hearts on a phone held sideways: the cards fanned along the bottom, the other three players across the top."
                 />
               </div>
+            </figure>
+            <div class="text">
+              <span class="when">After dinner</span>
+              <p>Four of you round the kitchen table, phones turned sideways, Hearts on the TV. Nobody has to shuffle or add up the scores.</p>
+              <p class="dim">Earlier on, the kids played Go Fish against a bot while they waited.</p>
             </div>
-          </div>
-        </section>
-
-        <section id="games">
-          <div class="head">
-            <p class="kicker">31 games</p>
-            <h2>The classics, all in one place.</h2>
-            <p class="lead">Each with its usual house rules to choose from in the lobby, and a short How to play for anyone new.</p>
-          </div>
-          <div class="games">
-            <div>
-              <h3>Trick-taking</h3>
-              <ul>
-                <li>Hearts</li>
-                <li>Spades</li>
-                <li>Euchre</li>
-                <li>Contract Bridge</li>
-                <li>500</li>
-                <li>Oh Hell</li>
-                <li>Pinochle</li>
-                <li>Setback</li>
-                <li>Whist</li>
-              </ul>
-            </div>
-            <div>
-              <h3>Poker</h3>
-              <ul>
-                <li>Texas Hold'em</li>
-                <li>Omaha</li>
-                <li>Five Card Draw</li>
-                <li>Seven Card Stud</li>
-              </ul>
-            </div>
-            <div>
-              <h3>Rummy and melds</h3>
-              <ul>
-                <li>Gin Rummy</li>
-                <li>Rummy 500</li>
-                <li>Canasta</li>
-                <li>Hand and Foot</li>
-                <li>Cribbage</li>
-              </ul>
-            </div>
-            <div>
-              <h3>Family favourites</h3>
-              <ul>
-                <li>Crazy Eights</li>
-                <li>Go Fish</li>
-                <li>Cheat</li>
-                <li>President</li>
-                <li>Palace</li>
-                <li>Kings Corners</li>
-              </ul>
-            </div>
-            <div>
-              <h3>Fast and loud</h3>
-              <ul>
-                <li>Spit</li>
-                <li>Slapjack</li>
-                <li>Egyptian Rat Screw</li>
-                <li>Spoons</li>
-              </ul>
-            </div>
-            <div>
-              <h3>Casino</h3>
-              <ul>
-                <li>Blackjack</li>
-                <li>Baccarat</li>
-              </ul>
-            </div>
-          </div>
-          <p class="aside">And a <b>Free Table</b>: a real deck on a virtual table, for any game you know or make up.</p>
-        </section>
-
-        <section id="for">
-          <div class="head">
-            <p class="kicker">Made for</p>
-            <h2>However you play.</h2>
-          </div>
-          <div class="uses">
-            <article>
-              <div class="suit" aria-hidden="true">♥&#xFE0E;</div>
-              <h3>Family game night</h3>
-              <p>Go Fish with the kids, Hearts after dinner. Nobody shuffles, nobody keeps score on the back of an envelope, and no cards go under the sofa.</p>
-            </article>
-            <article>
-              <div class="suit" aria-hidden="true">♦&#xFE0E;</div>
-              <h3>Poker night</h3>
-              <p>Chips counted for you, blinds and side pots sorted. Run a tournament across several tables, with a blind clock on the TV.</p>
-            </article>
-            <article>
-              <div class="suit" aria-hidden="true">♣&#xFE0E;</div>
-              <h3>Friends far away</h3>
-              <p>Send the invite link and play your usual game from different homes, on a video call or not.</p>
-            </article>
-            <article>
-              <div class="suit" aria-hidden="true">♠&#xFE0E;</div>
-              <h3>Bridge clubs</h3>
-              <p>Duplicate pairs and teams: every table plays the same boards, and the results come out scored, board by board.</p>
-            </article>
-            <article>
-              <div class="suit" aria-hidden="true">♥&#xFE0E;</div>
-              <h3>Learning bridge</h3>
-              <p>Practice deals dealt for the opening or answer you want to work on, with your call checked against the book and the reason why.</p>
-            </article>
-            <article>
-              <div class="suit" aria-hidden="true">♦&#xFE0E;</div>
-              <h3>A player short</h3>
-              <p>Bots take any empty seat and play a fair game: gentle for beginners, sharp on Hard.</p>
-            </article>
           </div>
 
-          <div class="split wide flip">
-            <div>
-              <p class="kicker">Bridge practice</p>
-              <h3 style="font-size: 1.6rem">Bid, and see what the book says.</h3>
-              <p class="lead" style="margin-top: 12px">
-                Pick a topic, from openings to answering a weak two. Each deal is made for it, your first call is checked, and you can try again before the
-                auction goes on. Then play the hand out.
+          <div class="evening under">
+            <figure>
+              <div class="tv">
+                <img
+                  src="./img/tournament.jpg"
+                  width="2560"
+                  height="904"
+                  loading="lazy"
+                  alt="A Hearts tournament on a big screen: eight tables, who is at each, and how each game stands."
+                />
+              </div>
+              <figcaption>A tournament on the big screen: every table, and how each game stands.</figcaption>
+            </figure>
+            <div class="text">
+              <span class="when">Poker night, three tables</span>
+              <p>
+                More people came than fit one table, so it’s a tournament, run from a laptop. Players sign up with a code, each phone is told where to sit, and
+                the blinds go up on a clock on the TV. When a table breaks, its players are sent to their new seats.
               </p>
+              <p class="dim">The same goes for Hearts, Euchre or anything else: Swiss rounds, round robins or a knockout.</p>
             </div>
-            <div class="phone">
+          </div>
+
+          <div class="evening">
+            <div class="text">
+              <span class="when">Your bridge four, one of them two states away</span>
+              <p>Send them the invite link. They play from home, the other three from the living room.</p>
+            </div>
+          </div>
+        </section>
+
+        <hr class="rule" />
+
+        <section>
+          <div class="two">
+            <div class="text">
+              <h2>For bridge players</h2>
+              <p>
+                Clubs can run duplicate, pairs or teams: every table plays the same boards, and each result is scored against the others when the round is done.
+              </p>
+              <p>
+                For learning, there’s practice. Choose what to work on, from openings to answering a weak two, and each deal is dealt for it. Your first call is
+                checked against the system the bots play, SAYC or two over one, with the reason. Get it wrong and you can try again before the auction moves on.
+              </p>
+              <p class="dim">Practice checks your first call only. After that, it’s an ordinary hand: bid it out and play it.</p>
+            </div>
+            <div class="phone" style="max-width: 560px">
               <img
                 src="./img/practice.jpg"
                 width="1704"
@@ -703,42 +580,101 @@
           </div>
         </section>
 
-        <section id="tournaments">
-          <div class="head">
-            <p class="kicker">Tournaments</p>
-            <h2>From four friends to a full room.</h2>
-            <p class="lead">
-              Run a tournament from a laptop: Swiss rounds, round robins and knockouts of any game, multi-table poker, and duplicate bridge. Players sign up
-              with a code, and every phone is told where to sit for the next round.
-            </p>
+        <hr class="rule" />
+
+        <section class="games">
+          <h2>The games</h2>
+          <p class="dim">31 games, each with a short How to play for anyone who hasn’t played it before.</p>
+          <div class="card">
+            <div class="cols">
+              <div class="group">
+                <h3><span class="s" aria-hidden="true">♠&#xFE0E;</span> Trick-taking</h3>
+                <ul>
+                  <li>Hearts</li>
+                  <li>Spades</li>
+                  <li>Euchre</li>
+                  <li>Contract Bridge</li>
+                  <li>500</li>
+                  <li>Oh Hell</li>
+                  <li>Pinochle</li>
+                  <li>Setback</li>
+                  <li>Whist</li>
+                </ul>
+              </div>
+              <div class="group">
+                <h3><span class="s red" aria-hidden="true">♦&#xFE0E;</span> Poker</h3>
+                <ul>
+                  <li>Texas Hold'em</li>
+                  <li>Omaha</li>
+                  <li>Five Card Draw</li>
+                  <li>Seven Card Stud</li>
+                </ul>
+              </div>
+              <div class="group">
+                <h3><span class="s" aria-hidden="true">♣&#xFE0E;</span> Rummy and melds</h3>
+                <ul>
+                  <li>Gin Rummy</li>
+                  <li>Rummy 500</li>
+                  <li>Canasta</li>
+                  <li>Hand and Foot</li>
+                  <li>Cribbage</li>
+                </ul>
+              </div>
+              <div class="group">
+                <h3><span class="s red" aria-hidden="true">♥&#xFE0E;</span> Family</h3>
+                <ul>
+                  <li>Crazy Eights</li>
+                  <li>Go Fish</li>
+                  <li>Cheat</li>
+                  <li>President</li>
+                  <li>Palace</li>
+                  <li>Kings Corners</li>
+                </ul>
+              </div>
+              <div class="group">
+                <h3><span class="s" aria-hidden="true">♠&#xFE0E;</span> Fast</h3>
+                <ul>
+                  <li>Spit</li>
+                  <li>Slapjack</li>
+                  <li>Egyptian Rat Screw</li>
+                  <li>Spoons</li>
+                </ul>
+              </div>
+              <div class="group">
+                <h3><span class="s red" aria-hidden="true">♦&#xFE0E;</span> Casino</h3>
+                <ul>
+                  <li>Blackjack</li>
+                  <li>Baccarat</li>
+                </ul>
+              </div>
+            </div>
+            <p class="after">And a Free Table: a deck and a table, for a game we don’t have or one you made up.</p>
           </div>
-          <div class="tv">
-            <img
-              src="./img/tournament.jpg"
-              width="2560"
-              height="904"
-              loading="lazy"
-              alt="A Hearts tournament on a big screen: eight tables, who is at each, and how each game stands."
-            />
-          </div>
-          <ul class="points" style="margin-top: 44px">
-            <li><b>The big screen</b> shows the tables, the standings or the bracket, or follows the games live.</li>
-            <li><b>Scores add up by themselves</b>, round after round, with byes and pairings handled.</li>
-            <li><b>A second device can stand by</b> to take over if the director’s laptop goes quiet.</li>
-          </ul>
+        </section>
+
+        <section class="know">
+          <h2>Good to know</h2>
+          <dl>
+            <dt>Turn your phone sideways.</dt>
+            <dd>Most games are laid out for a phone on its side. Held upright, it will ask you to turn it.</dd>
+            <dt>Same Wi-Fi is quickest.</dt>
+            <dd>Friends somewhere else join with the invite link instead of the code. It works, a little slower.</dd>
+            <dt>If the host’s phone dies, the game goes on.</dt>
+            <dd>The phone that started the table runs the game. If it drops out, another player can take over where it left off.</dd>
+            <dt>Add it to your Home Screen.</dt>
+            <dd>Then it opens like an app, full screen, and starts even without a signal once you’ve used it.</dd>
+          </dl>
         </section>
 
         <div class="last">
-          <h2>Deal the next hand.</h2>
-          <p class="lead">Open Lamplight on your phone, start a table, and pass the code round. Add it to your Home Screen to keep it handy.</p>
-          <div class="ctas">
-            <a class="btn primary" href="../">Start a table</a>
-          </div>
+          <h2>Deal the next hand</h2>
+          <p class="dim">Start a table on your phone and pass the code round.</p>
+          <a class="btn" href="../">Start a table</a>
         </div>
       </main>
 
       <footer>
-        <span>Lamplight · card games for phones, tablets and TVs</span>
+        <span>Lamplight, card games for phones, tablets and TVs</span>
         <a href="../">Play now</a>
       </footer>
     </div>

@@ -116,3 +116,24 @@ test('a tournament on the big screen', async ({ context }) => {
     clip: { x: 0, y: 0, width: 1280, height: Math.min(720, tiles.y + tiles.height + 32) },
   });
 });
+
+test('the home screen’s fan of cards, on nothing', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(URL);
+  const fan = page.locator('.hero .fan');
+  await fan.waitFor();
+  // (dealt: every card in its place)
+  await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== 'running'));
+  // (just the cards: no felt, no grain, no glow behind them)
+  await page.addStyleTag({
+    content:
+      'html, body, body *:not(.fan, .fan *), body *:not(.fan, .fan *)::before, body *:not(.fan, .fan *)::after { background: transparent !important; box-shadow: none !important; } body::before { display: none !important; } body *:not(.fan, .fan *) { color: transparent !important; border-color: transparent !important; text-shadow: none !important; }',
+  });
+  // (the fanned cards reach past the fan's own box: the box round the cards themselves, and their shadows)
+  const boxes = await fan.locator('.f').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().toJSON() as DOMRect));
+  const x = Math.min(...boxes.map((b) => b.left)) - 48;
+  const y = Math.min(...boxes.map((b) => b.top)) - 24;
+  const right = Math.max(...boxes.map((b) => b.right)) + 48;
+  const bottom = Math.max(...boxes.map((b) => b.bottom)) + 64;
+  await page.screenshot({ path: `${OUT}/fan.png`, omitBackground: true, clip: { x, y, width: right - x, height: bottom - y } });
+});
